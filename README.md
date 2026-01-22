@@ -1,75 +1,119 @@
-# React + TypeScript + Vite
+# DYA Studio
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+<p align="center">
+  <img src="src/assets/dya.svg" alt="DYA Logo" width="80" height="80" />
+</p>
 
-Currently, two official plugins are available:
+<p align="center">
+  <strong>A modern web-based configuration tool for the DYA keyboard</strong>
+</p>
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+<p align="center">
+  <a href="#features">Features</a> •
+  <a href="#getting-started">Getting Started</a> •
+  <a href="#development">Development</a> •
+  <a href="#architecture">Architecture</a>
+</p>
 
-## React Compiler
+---
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+## About
 
-Note: This will impact Vite dev & build performances.
+DYA Studio is a web application for configuring the **DYA keyboard** — a self-built, split, trackball-embedded, AAA-battery powered mechanical keyboard running [ZMK firmware](https://zmk.dev/).
 
-## Expanding the ESLint configuration
+Built as an alternative to [ZMK Studio](https://zmk.studio/), DYA Studio provides a tailored experience specifically designed for the DYA keyboard's unique features.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Features
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+- 🔋 **Battery Monitoring** — View battery levels and history for both keyboard halves
+- 📶 **BLE Management** — Manage Bluetooth connection profiles
+- 🩺 **Health Check** — Run diagnostics on all hardware components
+- ⌨️ **Keymap Editor** — Configure key bindings and layers
+- 🎯 **Trackball Settings** — Adjust CPI, scroll speed, and axis behavior
+- ⚙️ **Device Settings** — Configure power management, display, and timing parameters
+- 🌙 **Dark/Light Mode** — Full theme support with system preference detection
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+## Screenshots
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+_Coming soon_
+
+## Getting Started
+
+### Prerequisites
+
+- [Node.js](https://nodejs.org/) 18+
+- [pnpm](https://pnpm.io/) (recommended) or npm
+- A Chromium-based browser (Chrome, Edge) for Web Serial API support
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/cormoran/dya-studio.git
+cd dya-studio
+
+# Install dependencies
+pnpm install
+
+# Start development server
+pnpm dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Open [http://localhost:5173](http://localhost:5173) in your browser.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### Connecting Your Keyboard
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+1. Connect your DYA keyboard via USB
+2. Click the **"Connect Keyboard"** button in the header
+3. Select your keyboard from the browser's serial port picker
+4. Start configuring!
+
+> **Note**: Web Serial API requires a secure context (HTTPS or localhost) and is only supported in Chromium-based browsers.
+
+## Development
+
+### Tech Stack
+
+| Category      | Technology            |
+| ------------- | --------------------- |
+| Framework     | React 19 + TypeScript |
+| Build Tool    | Vite (rolldown-vite)  |
+| Styling       | Tailwind CSS v4       |
+| UI Components | Radix UI              |
+| Animations    | Framer Motion         |
+| Icons         | Tabler Icons          |
+
+### Available Scripts
+
+```bash
+pnpm dev      # Start development server with HMR
+pnpm build    # Build for production
+pnpm preview  # Preview production build
+pnpm lint     # Run ESLint
 ```
+
+### Project Structure
+
+```
+src/
+├── assets/           # Static assets (SVG, images)
+├── components/       # Reusable UI components
+├── contexts/         # React contexts (Theme, etc.)
+├── hooks/            # Custom React hooks
+├── layouts/          # Page layouts
+├── pages/            # Feature pages
+├── App.tsx           # Main app component
+├── index.css         # Global styles + Tailwind
+└── main.tsx          # Entry point
+```
+
+### Development Guide
+
+For detailed implementation guidelines, design philosophy, and component patterns, see the [Development Guide](docs/DEVELOPMENT_GUIDE.md).
+
+## Acknowledgments
+
+- [ZMK Firmware](https://zmk.dev/) — The keyboard firmware
+- [ZMK Studio](https://zmk.studio/) — Inspiration for this project
+- [Radix UI](https://www.radix-ui.com/) — Accessible UI primitives
+- [Tabler Icons](https://tabler.io/icons) — Beautiful open-source icons
