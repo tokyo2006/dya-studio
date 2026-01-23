@@ -212,19 +212,20 @@ export function KeycodeSelector({
           param2: 0,
         });
         onClose();
+      } else if (behaviorOptions.length > 0) {
+        // Fallback: No kp behavior found but we have other behaviors
+        // This shouldn't normally happen if behaviors are loaded correctly
+        console.warn("Key press behavior not found. Using first available behavior:", behaviorOptions[0].displayName);
+        const firstBehavior = behaviorOptions[0];
+        onSelect({
+          behaviorId: firstBehavior.id,
+          param1: createHidUsage(HID_USAGE_PAGE_KEYBOARD, keycode.code),
+          param2: 0,
+        });
+        onClose();
       } else {
-        // No kp behavior found - this shouldn't happen if behaviors are loaded
-        console.warn("Key press behavior not found. Available behaviors:", behaviorOptions.map(b => b.displayName));
-        // Try to use the first available behavior as fallback
-        if (behaviorOptions.length > 0) {
-          const firstBehavior = behaviorOptions[0];
-          onSelect({
-            behaviorId: firstBehavior.id,
-            param1: createHidUsage(HID_USAGE_PAGE_KEYBOARD, keycode.code),
-            param2: 0,
-          });
-          onClose();
-        }
+        // No behaviors available at all - don't close, let user see the warning
+        console.error("No behaviors available. Cannot select keycode.");
       }
     },
     [behaviorOptions, onSelect, onClose]
