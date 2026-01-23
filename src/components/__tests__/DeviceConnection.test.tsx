@@ -154,6 +154,7 @@ describe("DeviceConnection", () => {
   describe("Error Handling", () => {
     test("shows error when Web Serial API is not supported", async () => {
       const user = userEvent.setup();
+      const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation();
 
       // Mock connection failure
       mocks.mockFailedConnection(
@@ -176,10 +177,13 @@ describe("DeviceConnection", () => {
           "Web Serial API is not supported in this browser",
         );
       });
+
+      consoleErrorSpy.mockRestore();
     });
 
     test("handles connection errors", async () => {
       const user = userEvent.setup();
+      const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation();
 
       // Mock connection error
       mocks.mockFailedConnection("Failed to open serial port");
@@ -198,10 +202,13 @@ describe("DeviceConnection", () => {
           "Failed to open serial port",
         );
       });
+
+      consoleErrorSpy.mockRestore();
     });
 
     test("handles device info fetch failure", async () => {
       const user = userEvent.setup();
+      const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation();
 
       // Mock device info failure
       mocks.mockFailedDeviceInfo();
@@ -218,10 +225,13 @@ describe("DeviceConnection", () => {
       await waitFor(() => {
         expect(screen.queryByTestId("error")).toBeInTheDocument();
       });
+
+      consoleErrorSpy.mockRestore();
     });
 
     test("handles user cancellation of port selection", async () => {
       const user = userEvent.setup();
+      const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation();
 
       // Mock connection failure (user cancelled)
       mocks.mockFailedConnection("User cancelled port selection");
@@ -242,6 +252,8 @@ describe("DeviceConnection", () => {
         },
         { timeout: 2000 },
       );
+
+      consoleErrorSpy.mockRestore();
     });
   });
 
