@@ -4,136 +4,60 @@
   <img src="src/assets/dya.svg" alt="DYA Logo" width="80" height="80" />
 </p>
 
-<p align="center">
-  <strong>A modern web-based configuration tool for the DYA keyboard</strong>
-</p>
-
-<p align="center">
-  <a href="#features">Features</a> •
-  <a href="#getting-started">Getting Started</a> •
-  <a href="#development">Development</a> •
-  <a href="#architecture">Architecture</a>
-</p>
-
----
-
-## About
-
-DYA Studio is a web application for configuring the **DYA keyboard** — a self-built, split, trackball-embedded, AAA-battery powered mechanical keyboard running [ZMK firmware](https://zmk.dev/).
-
-Built as an alternative to [ZMK Studio](https://zmk.studio/), DYA Studio provides a tailored experience specifically designed for the DYA keyboard's unique features.
+A modern web-based configuration tool for the **DYA keyboard** — a split, trackball-embedded mechanical keyboard running [ZMK firmware](https://zmk.dev/).
 
 ## Features
 
-- 🔋 **Battery Monitoring** — View battery levels and history for both keyboard halves
-- 📶 **BLE Management** — Manage Bluetooth connection profiles
-- 🩺 **Health Check** — Run diagnostics on all hardware components
-- ⌨️ **Keymap Editor** — Configure key bindings and layers
-- 🎯 **Trackball Settings** — Adjust CPI, scroll speed, and axis behavior
-- ⚙️ **Device Settings** — Configure power management, display, and timing parameters
-- 🌙 **Dark/Light Mode** — Full theme support with system preference detection
+- 🔋 Battery monitoring for both keyboard halves
+- 📶 Bluetooth profile management
+- 🩺 Hardware diagnostics
+- ⌨️ Keymap editor
+- 🎯 Trackball settings (CPI, scroll speed)
+- ⚙️ Device settings (power, display, timing)
+- 🌙 Dark/Light mode
 
-## Screenshots
-
-_Coming soon_
-
-## Getting Started
-
-### Prerequisites
-
-- [Node.js](https://nodejs.org/) 18+
-- npm (comes with Node.js)
-- A Chromium-based browser (Chrome, Edge) for Web Serial API support
-
-### Installation
+## Quick Start
 
 ```bash
-# Clone the repository
 git clone https://github.com/cormoran/dya-studio.git
 cd dya-studio
-
-# Install dependencies
 npm install
-
-# Start development server
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173) in your browser.
+Open [http://localhost:5173](http://localhost:5173) and connect your keyboard via USB.
 
-### Connecting Your Keyboard
-
-1. Connect your DYA keyboard via USB
-2. Click the **"Connect Keyboard"** button in the header
-3. Select your keyboard from the browser's serial port picker
-4. Start configuring!
-
-> **Note**: Web Serial API requires a secure context (HTTPS or localhost) and is only supported in Chromium-based browsers.
+> **Requirements**: Node.js 18+, Chromium-based browser (Chrome, Edge)
 
 ## Development
 
-### Tech Stack
+**Stack**: React 19, TypeScript, Vite, Tailwind CSS v4, Radix UI
 
-| Category      | Technology            |
-| ------------- | --------------------- |
-| Framework     | React 19 + TypeScript |
-| Build Tool    | Vite (rolldown-vite)  |
-| Styling       | Tailwind CSS v4       |
-| UI Components | Radix UI              |
-| Animations    | Framer Motion         |
-| Icons         | Tabler Icons          |
-
-### Available Scripts
+**Commands**:
 
 ```bash
-npm run dev            # Start development server with HMR
-npm run build          # Build for production
-npm run preview        # Preview production build
-npm run lint           # Run ESLint
-npm test               # Run tests with Jest
-npm run test:watch     # Run tests in watch mode
-npm run test:coverage  # Generate test coverage report
+npm run dev            # Start dev server
+npm run build          # Production build
+npm run lint           # Lint code
+npm test               # Run tests
+npm run test:coverage  # Test coverage
 ```
 
-### Project Structure
+**For Coding Agents**: See [Development Guide](docs/DEVELOPMENT_GUIDE.md) for design system, component patterns, and implementation guidelines.
+
+**For Testing**: See [Testing Guide](docs/TESTING_GUIDE.md) for testing patterns and examples.
+
+## Project Structure
 
 ```
 src/
-├── assets/           # Static assets (SVG, images)
-├── components/       # Reusable UI components
-├── contexts/         # React contexts (Theme, etc.)
-├── hooks/            # Custom React hooks
-├── layouts/          # Page layouts
+├── components/       # UI components
 ├── pages/            # Feature pages
-├── App.tsx           # Main app component
-├── index.css         # Global styles + Tailwind
-└── main.tsx          # Entry point
+├── hooks/            # React hooks
+├── contexts/         # React contexts
+└── layouts/          # Page layouts
 ```
-
-### Development Guide
-
-For detailed implementation guidelines, design philosophy, and component patterns, see the [Development Guide](docs/DEVELOPMENT_GUIDE.md).
-
-### Testing
-
-DYA Studio uses **Jest** and **React Testing Library** for testing. All components and features should have corresponding tests.
-
-```bash
-# Run all tests
-npm test
-
-# Run tests in watch mode
-npm run test:watch
-
-# Generate coverage report
-npm run test:coverage
-```
-
-For detailed testing guidelines and best practices, see the [Testing Guide](docs/TESTING_GUIDE.md).
 
 ## Acknowledgments
 
-- [ZMK Firmware](https://zmk.dev/) — The keyboard firmware
-- [ZMK Studio](https://zmk.studio/) — Inspiration for this project
-- [Radix UI](https://www.radix-ui.com/) — Accessible UI primitives
-- [Tabler Icons](https://tabler.io/icons) — Beautiful open-source icons
+[ZMK Firmware](https://zmk.dev/) • [ZMK Studio](https://zmk.studio/) • [Radix UI](https://www.radix-ui.com/) • [Tabler Icons](https://tabler.io/icons)
