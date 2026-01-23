@@ -3,7 +3,7 @@
     <defs>
         <style>
             polygon {
-            fill: white;
+                fill: var(--color-text, #ffffff);
             }
         </style>
     </defs>
