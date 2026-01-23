@@ -370,7 +370,9 @@ describe('BLEConnectionsPage', () => {
       renderComponent({ isConnected: true }, { profiles: mockProfiles });
       
       const inactiveProfileCard = screen.getByText('Home PC').closest('.glass-card');
-      const buttons = inactiveProfileCard?.querySelectorAll('button');
+      // Get only the action buttons container (last div with flex items-center gap-2)
+      const actionButtons = inactiveProfileCard?.querySelector('.flex.items-center.gap-2:last-child');
+      const buttons = actionButtons?.querySelectorAll('button');
       
       // First button should be unpair, second should be switch
       expect(buttons?.[0]?.textContent).toContain('Unpair');

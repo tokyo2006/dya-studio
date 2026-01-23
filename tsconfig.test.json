@@ -4,7 +4,11 @@
     "types": ["jest", "@testing-library/jest-dom", "node"],
     "module": "commonjs",
     "moduleResolution": "node",
-    "verbatimModuleSyntax": false
+    "verbatimModuleSyntax": false,
+    "paths": {
+      "@cormoran/zmk-studio-react-hook": ["./src/__mocks__/@cormoran/zmk-studio-react-hook"],
+      "@zmkfirmware/zmk-studio-ts-client/transport/serial": ["./src/__mocks__/@zmkfirmware/zmk-studio-ts-client/transport/serial"]
+    }
   },
-  "include": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/**/*.spec.ts", "src/**/*.spec.tsx", "src/setupTests.ts"]
+  "include": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/**/*.spec.ts", "src/**/*.spec.tsx", "src/setupTests.ts", "src/__mocks__/**/*"]
 }

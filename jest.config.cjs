@@ -8,6 +8,8 @@ const config = {
     "\\.(css|less|scss|sass)$": "identity-obj-proxy",
     "\\.(jpg|jpeg|png|gif|svg)$": "<rootDir>/src/__mocks__/fileMock.ts",
     "^@/(.*)$": "<rootDir>/src/$1",
+    "^@cormoran/zmk-studio-react-hook$": "<rootDir>/src/__mocks__/@cormoran/zmk-studio-react-hook.ts",
+    "^@zmkfirmware/zmk-studio-ts-client/transport/serial$": "<rootDir>/src/__mocks__/@zmkfirmware/zmk-studio-ts-client/transport/serial.ts",
   },
   setupFilesAfterEnv: ["<rootDir>/src/setupTests.ts"],
   collectCoverageFrom: [
