@@ -3,6 +3,16 @@ import userEvent from "@testing-library/user-event";
 import { DeviceConnectionProvider, ConnectionContext } from "../DeviceConnection";
 import { useContext } from "react";
 
+// Extend Navigator interface for testing
+interface NavigatorWithSerial extends Navigator {
+  serial?: {
+    requestPort: () => Promise<{
+      open: (options: { baudRate: number }) => Promise<void>;
+      close: () => Promise<void>;
+    }>;
+  };
+}
+
 // Mock component to test the connection context
 function TestComponent() {
   const connection = useContext(ConnectionContext);
@@ -30,7 +40,7 @@ function TestComponent() {
 describe("DeviceConnection", () => {
   beforeEach(() => {
     // Reset Web Serial API mock to undefined
-    (navigator as any).serial = undefined;
+    (navigator as NavigatorWithSerial).serial = undefined;
   });
 
   test("renders with disconnected state initially", () => {
