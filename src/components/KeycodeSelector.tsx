@@ -131,16 +131,24 @@ const MODIFIER_FLAGS = [
   { value: 0x80, label: "RGui", shortLabel: "RG" },
 ];
 
+// HID usage constants
+// A basic keycode fits in 16 bits (page << 16 | code), anything larger has additional info
+const MAX_BASIC_KEYCODE = 0xffff;
+// Modifier flags mask - only 8 bits for the 8 modifier keys
+const MODIFIER_FLAGS_MASK = 0xff;
+// Value indicating no keycode/parameter has been set
+const NO_PARAM_VALUE = 0;
+
 // =============================================================================
 // Helper Functions
 // =============================================================================
 
 /**
- * Extract modifier flags from HID usage value
- * The modifier flags are stored in bits 24-31 of the combined value
+ * Extract modifier flags from HID usage value.
+ * Modifier flags are stored in bits 24-31 (8 bits for 8 modifier keys).
  */
 function extractModifierFlags(hidUsage: number): number {
-  return (hidUsage >> 24) & 0xff;
+  return (hidUsage >> 24) & MODIFIER_FLAGS_MASK;
 }
 
 /**
@@ -158,8 +166,8 @@ function extractBaseKeycode(hidUsage: number): number {
  * Combine keycode with modifier flags
  */
 function combineWithModifiers(keycode: number, modifiers: number): number {
-  // If keycode already has page info (> 0xFFFF), just add modifiers
-  if (keycode > 0xffff) {
+  // If keycode already has page info (> MAX_BASIC_KEYCODE), just add modifiers
+  if (keycode > MAX_BASIC_KEYCODE) {
     return keycode | (modifiers << 24);
   }
   // Otherwise, create full HID usage with keyboard page and modifiers
@@ -298,9 +306,9 @@ function KeycodeValueSelector({
     (modValue: number) => {
       const newModifiers = selectedModifiers ^ modValue;
       setSelectedModifiers(newModifiers);
-      // Update the current value with new modifiers
+      // Update the current value with new modifiers if a keycode is selected
       const baseCode = extractBaseKeycode(value);
-      if (baseCode > 0) {
+      if (baseCode !== NO_PARAM_VALUE) {
         onChange(combineWithModifiers(baseCode, newModifiers));
       }
     },
@@ -308,7 +316,8 @@ function KeycodeValueSelector({
   );
 
   // Get current display value
-  const currentDisplay = value > 0 ? formatKeycodeWithModifiers(value) : "None";
+  const currentDisplay =
+    value !== NO_PARAM_VALUE ? formatKeycodeWithModifiers(value) : "None";
 
   return (
     <div className="flex flex-col h-full">
@@ -992,7 +1001,7 @@ export function KeycodeSelector({
                     <span className="block text-xs">
                       {getParamTypeLabel(selectedBehaviorOption.param1Type)}
                     </span>
-                    {param1 > 0 && (
+                    {param1 !== NO_PARAM_VALUE && (
                       <span className="block text-xs text-[var(--color-neon)] mt-1">
                         ✓
                       </span>
@@ -1014,7 +1023,7 @@ export function KeycodeSelector({
                     <span className="block text-xs">
                       {getParamTypeLabel(selectedBehaviorOption.param2Type)}
                     </span>
-                    {param2 > 0 && (
+                    {param2 !== NO_PARAM_VALUE && (
                       <span className="block text-xs text-[var(--color-neon)] mt-1">
                         ✓
                       </span>
