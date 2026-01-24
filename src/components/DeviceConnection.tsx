@@ -2,12 +2,15 @@ import type { ReactNode } from "react";
 import { createContext, useCallback } from "react";
 import { useZMKApp, ZMKAppContext } from "@cormoran/zmk-studio-react-hook";
 import { connect as connectSerial } from "@zmkfirmware/zmk-studio-ts-client/transport/serial";
+import { connect as connectBLE } from "@zmkfirmware/zmk-studio-ts-client/transport/gatt";
+
+export type ConnectionMethod = "serial" | "ble";
 
 // Simple connection context for UI components
 interface ConnectionContextValue {
   isConnected: boolean;
   deviceName: string | undefined;
-  onConnect: () => void;
+  onConnect: (method: ConnectionMethod) => void;
   onDisconnect: () => void;
   isLoading: boolean;
   error: string | null;
@@ -31,9 +34,13 @@ export function DeviceConnectionProvider({
 }: DeviceConnectionProviderProps) {
   const zmkApp = useZMKApp();
 
-  const handleConnect = useCallback(async () => {
-    await zmkApp.connect(connectSerial);
-  }, [zmkApp]);
+  const handleConnect = useCallback(
+    async (method: ConnectionMethod) => {
+      const connectFn = method === "ble" ? connectBLE : connectSerial;
+      await zmkApp.connect(connectFn);
+    },
+    [zmkApp],
+  );
 
   const handleDisconnect = useCallback(() => {
     zmkApp.disconnect();

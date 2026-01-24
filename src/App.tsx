@@ -64,34 +64,24 @@ const tabs: TabItem[] = [
   },
 ];
 
-function AppContent() {
-  const [activeTab, setActiveTab] = useState("battery");
-  const connection = useContext(ConnectionContext);
-
+function App() {
   return (
-    <AppLayout
-      isConnected={connection.isConnected}
-      deviceName={connection.deviceName}
-      onConnect={connection.onConnect}
-      onDisconnect={connection.onDisconnect}
-      isConnecting={connection.isLoading}
-    >
-      <TabNavigation
-        tabs={tabs}
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-      />
-    </AppLayout>
+    <ThemeProvider>
+      <DeviceConnectionProvider>
+        <AppContent />
+      </DeviceConnectionProvider>
+    </ThemeProvider>
   );
 }
 
-function App() {
-  const [showSplash, setShowSplash] = useState(true);
+function AppContent() {
+  const connection = useContext(ConnectionContext);
+  const [activeTab, setActiveTab] = useState("battery");
 
   return (
-    <ThemeProvider>
+    <>
       <AnimatePresence>
-        {showSplash && (
+        {!connection.isConnected && (
           <motion.div
             key="splash"
             initial={{ opacity: 1 }}
@@ -99,26 +89,37 @@ function App() {
             transition={{ duration: 0.3 }}
           >
             <SplashScreen
-              onComplete={() => setShowSplash(false)}
-              duration={2500}
+              onConnect={connection.onConnect}
+              isConnecting={connection.isLoading}
+              error={connection.error}
             />
           </motion.div>
         )}
       </AnimatePresence>
 
-      {!showSplash && (
+      {connection.isConnected && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.3 }}
           className="h-screen"
         >
-          <DeviceConnectionProvider>
-            <AppContent />
-          </DeviceConnectionProvider>
+          <AppLayout
+            isConnected={connection.isConnected}
+            deviceName={connection.deviceName}
+            onConnect={connection.onConnect}
+            onDisconnect={connection.onDisconnect}
+            isConnecting={connection.isLoading}
+          >
+            <TabNavigation
+              tabs={tabs}
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+            />
+          </AppLayout>
         </motion.div>
       )}
-    </ThemeProvider>
+    </>
   );
 }
 

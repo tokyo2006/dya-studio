@@ -25,6 +25,11 @@ jest.mock("@zmkfirmware/zmk-studio-ts-client/transport/serial", () => ({
   connect: jest.fn(),
 }));
 
+// Mock the BLE transport
+jest.mock("@zmkfirmware/zmk-studio-ts-client/transport/gatt", () => ({
+  connect: jest.fn(),
+}));
+
 // Test component to verify ConnectionContext values
 function TestComponent() {
   const connection = useContext(ConnectionContext);
@@ -39,7 +44,10 @@ function TestComponent() {
       )}
       {connection.isLoading && <div data-testid="loading">Loading...</div>}
       {connection.error && <div data-testid="error">{connection.error}</div>}
-      <button onClick={connection.onConnect} data-testid="connect-button">
+      <button
+        onClick={() => connection.onConnect("serial")}
+        data-testid="connect-button"
+      >
         Connect
       </button>
       <button onClick={connection.onDisconnect} data-testid="disconnect-button">

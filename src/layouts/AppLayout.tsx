@@ -2,12 +2,13 @@ import type { ReactNode } from "react";
 import { IconSun, IconMoon } from "@tabler/icons-react";
 import DyaLogo from "../assets/dya.svg?react";
 import { useTheme } from "../hooks/useTheme";
+import type { ConnectionMethod } from "../components/DeviceConnection";
 
 interface AppLayoutProps {
   children: ReactNode;
   isConnected: boolean;
   deviceName?: string;
-  onConnect: () => void;
+  onConnect: (method: ConnectionMethod) => void;
   onDisconnect: () => void;
   isConnecting?: boolean;
 }
@@ -66,7 +67,7 @@ export function AppLayout({
             </>
           ) : (
             <button
-              onClick={onConnect}
+              onClick={() => onConnect("serial")}
               disabled={isConnecting}
               className="btn-electric text-sm"
             >
