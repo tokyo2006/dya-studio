@@ -22,6 +22,8 @@ import {
 import {
   getBehaviorMetadata,
   getBehaviorParamOptions,
+  hasParam1,
+  hasParam2,
   type ParamType,
 } from "../lib/behaviorMetadata";
 import type { BehaviorBinding, BehaviorDefinition } from "../hooks/useKeymap";
@@ -199,14 +201,21 @@ export function KeycodeSelector({
     const behavior = behaviors.get(selectedBehavior);
     if (!behavior) return null;
     const metadata = getBehaviorMetadata(behavior.displayName);
+    // Use metadata if available, otherwise fall back to BehaviorDefinition.metadata
+    const needsParam1Value = metadata?.param1Type
+      ? !!metadata.param1Type
+      : hasParam1(behavior);
+    const needsParam2Value = metadata?.param2Type
+      ? !!metadata.param2Type
+      : hasParam2(behavior);
     return {
       id: selectedBehavior,
       name: behavior.displayName,
       displayName: behavior.displayName,
       category: metadata?.category || "others",
       description: metadata?.description,
-      needsParam1: !!metadata?.param1Type,
-      needsParam2: !!metadata?.param2Type,
+      needsParam1: needsParam1Value,
+      needsParam2: needsParam2Value,
       param1Type: metadata?.param1Type,
       param2Type: metadata?.param2Type,
     };
@@ -229,8 +238,14 @@ export function KeycodeSelector({
       setParam2(0);
       setActiveParam(1);
 
+      // Check if behavior needs params using fallback
+      const needsAnyParam =
+        metadata?.param1Type || metadata?.param2Type
+          ? !!metadata.param1Type || !!metadata.param2Type
+          : hasParam1(behavior) || hasParam2(behavior);
+
       // If behavior doesn't need params and closeOnSelect is enabled, apply immediately
-      if (closeOnSelect && !metadata?.param1Type && !metadata?.param2Type) {
+      if (closeOnSelect && !needsAnyParam) {
         onSelect({
           behaviorId,
           param1: 0,
@@ -249,8 +264,14 @@ export function KeycodeSelector({
       if (!behavior) return;
       const metadata = getBehaviorMetadata(behavior.displayName);
 
+      // Check if behavior needs params using fallback
+      const needsAnyParam =
+        metadata?.param1Type || metadata?.param2Type
+          ? !!metadata.param1Type || !!metadata.param2Type
+          : hasParam1(behavior) || hasParam2(behavior);
+
       // If behavior doesn't need params, apply immediately
-      if (!metadata?.param1Type && !metadata?.param2Type && closeOnSelect) {
+      if (!needsAnyParam && closeOnSelect) {
         onSelect({
           behaviorId,
           param1: 0,

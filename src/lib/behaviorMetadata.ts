@@ -435,6 +435,32 @@ export function getBehaviorMetadata(
 }
 
 /**
+ * Check if a behavior has param1 based on BehaviorDefinition metadata
+ * Falls back to checking BehaviorDefinition.metadata if getBehaviorMetadata returns null
+ */
+export function hasParam1(behavior: BehaviorDefinition): boolean {
+  const metadata = getBehaviorMetadata(behavior.displayName);
+  if (metadata) {
+    return !!metadata.param1Type;
+  }
+  // Fallback: check BehaviorDefinition.metadata
+  return behavior.metadata.length > 0 && behavior.metadata[0].param1.length > 0;
+}
+
+/**
+ * Check if a behavior has param2 based on BehaviorDefinition metadata
+ * Falls back to checking BehaviorDefinition.metadata if getBehaviorMetadata returns null
+ */
+export function hasParam2(behavior: BehaviorDefinition): boolean {
+  const metadata = getBehaviorMetadata(behavior.displayName);
+  if (metadata) {
+    return !!metadata.param2Type;
+  }
+  // Fallback: check BehaviorDefinition.metadata
+  return behavior.metadata.length > 0 && behavior.metadata[0].param2.length > 0;
+}
+
+/**
  * Find a behavior by category
  * Returns the first matching behavior definition
  */
@@ -531,7 +557,7 @@ export function groupBehaviorsByCategory(
 
   behaviors.forEach((behavior) => {
     const metadata = getBehaviorMetadata(behavior.displayName);
-    const category = metadata?.category || "miscellaneous";
+    const category = metadata?.category || "others";
 
     if (!grouped.has(category)) {
       grouped.set(category, []);
