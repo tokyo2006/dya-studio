@@ -96,6 +96,14 @@ export interface UseKeymapReturn extends KeymapState {
   resetBinding: (layerId: number, keyPosition: number) => Promise<boolean>;
   /** Move a layer from one position to another */
   moveLayer: (startIndex: number, destIndex: number) => Promise<boolean>;
+  /** Add a new layer */
+  addLayer: () => Promise<{ index: number; layer: Layer } | null>;
+  /** Remove a layer at the specified index */
+  removeLayer: (layerIndex: number) => Promise<boolean>;
+  /** Restore a deleted layer */
+  restoreLayer: (layerId: number, atIndex: number) => Promise<Layer | null>;
+  /** Get available layer count (can restore up to this many) */
+  availableLayers: number;
   /** Save all changes to the keyboard */
   saveChanges: () => Promise<boolean>;
   /** Discard all unsaved changes */
@@ -115,6 +123,8 @@ export interface UseKeymapReturn extends KeymapState {
   getBindingDisplayName: (binding: BehaviorBinding) => string;
   /** Clear unlock required state */
   clearUnlockRequired: () => void;
+  /** Get removed layer IDs that can be restored */
+  removedLayerIds: number[];
 }
 
 // Helper to create key for binding lookup
@@ -149,6 +159,7 @@ export function useKeymap(): UseKeymapReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [unlockRequired, setUnlockRequired] = useState(false);
+  const [removedLayerIds, setRemovedLayerIds] = useState<number[]>([]);
 
   // Ref to track if data has been loaded
   const dataLoadedRef = useRef(false);
@@ -391,6 +402,116 @@ export function useKeymap(): UseKeymapReturn {
     [callRpc]
   );
 
+  // Add a new layer
+  const addLayer = useCallback(async (): Promise<{ index: number; layer: Layer } | null> => {
+    const result = await callRpc(
+      { keymap: { addLayer: {} } },
+      (response) => response.keymap?.addLayer
+    );
+
+    if (result?.ok && result.ok.layer) {
+      const newLayerIndex = result.ok.index;
+      const newLayer = result.ok.layer;
+      
+      // Update keymap with the new layer
+      setKeymap((prev) => {
+        if (!prev) return prev;
+        const newLayers = [...prev.layers];
+        newLayers.splice(newLayerIndex, 0, newLayer);
+        return {
+          ...prev,
+          layers: newLayers,
+        };
+      });
+      setHasUnsavedChanges(true);
+      return { index: newLayerIndex, layer: newLayer };
+    }
+
+    if (result?.err !== undefined) {
+      setError(`Failed to add layer: error code ${result.err}`);
+    }
+
+    return null;
+  }, [callRpc]);
+
+  // Remove a layer
+  const removeLayer = useCallback(
+    async (layerIndex: number): Promise<boolean> => {
+      // Get the layer ID before removing
+      const layerId = keymap?.layers[layerIndex]?.id;
+      
+      const result = await callRpc(
+        { keymap: { removeLayer: { layerIndex } } },
+        (response) => response.keymap?.removeLayer
+      );
+
+      if (result?.ok !== undefined) {
+        // Update keymap by removing the layer
+        setKeymap((prev) => {
+          if (!prev) return prev;
+          const newLayers = prev.layers.filter((_, i) => i !== layerIndex);
+          return {
+            ...prev,
+            layers: newLayers,
+          };
+        });
+        
+        // Track removed layer ID for potential restoration
+        if (layerId !== undefined) {
+          setRemovedLayerIds((prev) => [...prev, layerId]);
+        }
+        
+        setHasUnsavedChanges(true);
+        return true;
+      }
+
+      if (result?.err !== undefined) {
+        setError(`Failed to remove layer: error code ${result.err}`);
+      }
+
+      return false;
+    },
+    [callRpc, keymap?.layers]
+  );
+
+  // Restore a deleted layer
+  const restoreLayer = useCallback(
+    async (layerId: number, atIndex: number): Promise<Layer | null> => {
+      const result = await callRpc(
+        { keymap: { restoreLayer: { layerId, atIndex } } },
+        (response) => response.keymap?.restoreLayer
+      );
+
+      if (result?.ok) {
+        const restoredLayer = result.ok;
+        
+        // Update keymap with the restored layer
+        setKeymap((prev) => {
+          if (!prev) return prev;
+          const newLayers = [...prev.layers];
+          newLayers.splice(atIndex, 0, restoredLayer);
+          return {
+            ...prev,
+            layers: newLayers,
+          };
+        });
+        
+        // Remove from tracked removed layer IDs
+        setRemovedLayerIds((prev) => prev.filter((id) => id !== layerId));
+        
+        setHasUnsavedChanges(true);
+        return restoredLayer;
+      }
+
+      if (result?.err !== undefined) {
+        setError(`Failed to restore layer: error code ${result.err}`);
+      }
+
+      return null;
+    },
+    [callRpc]
+  );
+
   // Save changes
   const saveChanges = useCallback(async (): Promise<boolean> => {
     const result = await callRpc(
@@ -569,6 +690,7 @@ export function useKeymap(): UseKeymapReturn {
       setHasUnsavedChanges(false);
       setError(null);
       setUnlockRequired(false);
+      setRemovedLayerIds([]);
       dataLoadedRef.current = false;
     }
   }, [connection]);
@@ -586,6 +708,11 @@ export function useKeymap(): UseKeymapReturn {
     setBinding,
     resetBinding,
     moveLayer,
+    addLayer,
+    removeLayer,
+    restoreLayer,
+    availableLayers: keymap?.availableLayers ?? 0,
+    removedLayerIds,
     saveChanges,
     discardChanges,
     setActiveLayout,

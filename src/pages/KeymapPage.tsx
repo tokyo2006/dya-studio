@@ -7,7 +7,11 @@ import {
   IconChevronDown,
   IconAlertCircle,
   IconLoader2,
+  IconPlus,
+  IconTrash,
+  IconRestore,
 } from "@tabler/icons-react";
+import * as Tooltip from "@radix-ui/react-tooltip";
 import { ConnectionContext } from "../components/DeviceConnection";
 import { KeyboardLayout } from "../components/KeyboardLayout";
 import { KeycodeSelector } from "../components/KeycodeSelector";
@@ -46,6 +50,12 @@ export function KeymapPage() {
     if (!keymap.keymap?.layers) return [];
     return keymap.keymap.layers.map((l) => ({ id: l.id, name: l.name }));
   }, [keymap.keymap?.layers]);
+
+  // Get current binding for selected key
+  const currentBinding = useMemo(() => {
+    if (selectedKeyPosition === null || !currentLayer) return null;
+    return currentLayer.bindings[selectedKeyPosition] ?? null;
+  }, [selectedKeyPosition, currentLayer]);
 
   // Handle key click
   const handleKeyClick = useCallback((keyPosition: number) => {
@@ -119,6 +129,44 @@ export function KeymapPage() {
     }
   }, [selectedLayerIndex, keymap]);
 
+  // Handle add layer
+  const handleAddLayer = useCallback(async () => {
+    const result = await keymap.addLayer();
+    if (result) {
+      // Select the new layer
+      setSelectedLayerIndex(result.index);
+    }
+  }, [keymap]);
+
+  // Handle delete layer
+  const handleDeleteLayer = useCallback(async () => {
+    if (!keymap.keymap?.layers || keymap.keymap.layers.length <= 1) return;
+    if (!confirm("Are you sure you want to delete this layer?")) return;
+    
+    const success = await keymap.removeLayer(selectedLayerIndex);
+    if (success) {
+      // Adjust selected index if we deleted the last layer
+      if (selectedLayerIndex >= (keymap.keymap.layers.length - 1)) {
+        setSelectedLayerIndex(Math.max(0, selectedLayerIndex - 1));
+      }
+    }
+  }, [selectedLayerIndex, keymap]);
+
+  // Handle restore layer
+  const handleRestoreLayer = useCallback(async () => {
+    if (keymap.removedLayerIds.length === 0) return;
+    
+    // Restore the most recently removed layer at the end
+    const layerId = keymap.removedLayerIds[keymap.removedLayerIds.length - 1];
+    const atIndex = keymap.keymap?.layers.length ?? 0;
+    
+    const layer = await keymap.restoreLayer(layerId, atIndex);
+    if (layer) {
+      // Select the restored layer
+      setSelectedLayerIndex(atIndex);
+    }
+  }, [keymap]);
+
   // Handle unlock retry
   const handleUnlockRetry = useCallback(() => {
     keymap.clearUnlockRequired();
@@ -127,7 +175,7 @@ export function KeymapPage() {
 
   return (
     <div className="p-6 h-full overflow-auto">
-      <div className="w-full">
+      <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
@@ -238,35 +286,150 @@ export function KeymapPage() {
                 ))}
               </div>
 
-              {/* Layer Reorder Buttons */}
-              <div className="flex gap-1 border-l border-[var(--color-border)] pl-2">
-                <button
-                  className="p-2 rounded-lg hover:bg-[var(--color-border)] disabled:opacity-30"
-                  onClick={handleMoveLayerUp}
-                  disabled={selectedLayerIndex <= 0}
-                  title="Move layer up"
-                  aria-label="Move layer up"
-                >
-                  <IconChevronUp
-                    size={16}
-                    className="text-[var(--color-text-muted)]"
-                  />
-                </button>
-                <button
-                  className="p-2 rounded-lg hover:bg-[var(--color-border)] disabled:opacity-30"
-                  onClick={handleMoveLayerDown}
-                  disabled={
-                    selectedLayerIndex >= keymap.keymap.layers.length - 1
-                  }
-                  title="Move layer down"
-                  aria-label="Move layer down"
-                >
-                  <IconChevronDown
-                    size={16}
-                    className="text-[var(--color-text-muted)]"
-                  />
-                </button>
-              </div>
+              {/* Layer Management Buttons */}
+              <Tooltip.Provider delayDuration={200}>
+                <div className="flex items-center gap-1 border-l border-[var(--color-border)] pl-2">
+                  {/* Layer Sorting Label */}
+                  <span className="text-xs text-[var(--color-text-muted)] mr-1">Sort:</span>
+                  
+                  {/* Move Up Button */}
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <button
+                        className="p-2 rounded-lg hover:bg-[var(--color-border)] disabled:opacity-30 disabled:cursor-not-allowed"
+                        onClick={handleMoveLayerUp}
+                        disabled={selectedLayerIndex <= 0}
+                        aria-label="Move layer up (higher priority)"
+                      >
+                        <IconChevronUp
+                          size={16}
+                          className="text-[var(--color-text-muted)]"
+                        />
+                      </button>
+                    </Tooltip.Trigger>
+                    <Tooltip.Portal>
+                      <Tooltip.Content
+                        className="px-2 py-1 rounded bg-[var(--color-surface-elevated)] border border-[var(--color-border)] text-xs text-[var(--color-text-secondary)] shadow-lg z-50"
+                        sideOffset={5}
+                      >
+                        Move layer up (higher priority)
+                        <Tooltip.Arrow className="fill-[var(--color-surface-elevated)]" />
+                      </Tooltip.Content>
+                    </Tooltip.Portal>
+                  </Tooltip.Root>
+                  
+                  {/* Move Down Button */}
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <button
+                        className="p-2 rounded-lg hover:bg-[var(--color-border)] disabled:opacity-30 disabled:cursor-not-allowed"
+                        onClick={handleMoveLayerDown}
+                        disabled={
+                          selectedLayerIndex >= keymap.keymap.layers.length - 1
+                        }
+                        aria-label="Move layer down (lower priority)"
+                      >
+                        <IconChevronDown
+                          size={16}
+                          className="text-[var(--color-text-muted)]"
+                        />
+                      </button>
+                    </Tooltip.Trigger>
+                    <Tooltip.Portal>
+                      <Tooltip.Content
+                        className="px-2 py-1 rounded bg-[var(--color-surface-elevated)] border border-[var(--color-border)] text-xs text-[var(--color-text-secondary)] shadow-lg z-50"
+                        sideOffset={5}
+                      >
+                        Move layer down (lower priority)
+                        <Tooltip.Arrow className="fill-[var(--color-surface-elevated)]" />
+                      </Tooltip.Content>
+                    </Tooltip.Portal>
+                  </Tooltip.Root>
+                </div>
+
+                {/* Layer Add/Delete/Restore Buttons */}
+                <div className="flex items-center gap-1 border-l border-[var(--color-border)] pl-2">
+                  {/* Add Layer Button */}
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <button
+                        className="p-2 rounded-lg hover:bg-[var(--color-border)] disabled:opacity-30 disabled:cursor-not-allowed"
+                        onClick={handleAddLayer}
+                        disabled={keymap.availableLayers <= keymap.keymap.layers.length}
+                        aria-label="Add new layer"
+                      >
+                        <IconPlus
+                          size={16}
+                          className="text-[var(--color-neon)]"
+                        />
+                      </button>
+                    </Tooltip.Trigger>
+                    <Tooltip.Portal>
+                      <Tooltip.Content
+                        className="px-2 py-1 rounded bg-[var(--color-surface-elevated)] border border-[var(--color-border)] text-xs text-[var(--color-text-secondary)] shadow-lg z-50"
+                        sideOffset={5}
+                      >
+                        Add new layer
+                        <Tooltip.Arrow className="fill-[var(--color-surface-elevated)]" />
+                      </Tooltip.Content>
+                    </Tooltip.Portal>
+                  </Tooltip.Root>
+                  
+                  {/* Delete Layer Button */}
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <button
+                        className="p-2 rounded-lg hover:bg-[var(--color-border)] disabled:opacity-30 disabled:cursor-not-allowed"
+                        onClick={handleDeleteLayer}
+                        disabled={keymap.keymap.layers.length <= 1}
+                        aria-label="Delete current layer"
+                      >
+                        <IconTrash
+                          size={16}
+                          className="text-red-400"
+                        />
+                      </button>
+                    </Tooltip.Trigger>
+                    <Tooltip.Portal>
+                      <Tooltip.Content
+                        className="px-2 py-1 rounded bg-[var(--color-surface-elevated)] border border-[var(--color-border)] text-xs text-[var(--color-text-secondary)] shadow-lg z-50"
+                        sideOffset={5}
+                      >
+                        Delete current layer
+                        <Tooltip.Arrow className="fill-[var(--color-surface-elevated)]" />
+                      </Tooltip.Content>
+                    </Tooltip.Portal>
+                  </Tooltip.Root>
+                  
+                  {/* Restore Layer Button */}
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <button
+                        className="p-2 rounded-lg hover:bg-[var(--color-border)] disabled:opacity-30 disabled:cursor-not-allowed"
+                        onClick={handleRestoreLayer}
+                        disabled={keymap.removedLayerIds.length === 0}
+                        aria-label="Restore deleted layer"
+                      >
+                        <IconRestore
+                          size={16}
+                          className="text-[var(--color-electric)]"
+                        />
+                      </button>
+                    </Tooltip.Trigger>
+                    <Tooltip.Portal>
+                      <Tooltip.Content
+                        className="px-2 py-1 rounded bg-[var(--color-surface-elevated)] border border-[var(--color-border)] text-xs text-[var(--color-text-secondary)] shadow-lg z-50"
+                        sideOffset={5}
+                      >
+                        {keymap.removedLayerIds.length > 0 
+                          ? `Restore deleted layer (${keymap.removedLayerIds.length} available)`
+                          : "No deleted layers to restore"}
+                        <Tooltip.Arrow className="fill-[var(--color-surface-elevated)]" />
+                      </Tooltip.Content>
+                    </Tooltip.Portal>
+                  </Tooltip.Root>
+                </div>
+              </Tooltip.Provider>
             </div>
 
             {/* Physical Layout Selector (if multiple layouts) */}
@@ -328,6 +491,7 @@ export function KeymapPage() {
           setSelectedKeyPosition(null);
         }}
         onSelect={handleBindingSelect}
+        currentBinding={currentBinding}
         behaviors={keymap.behaviors}
         layers={layersForSelector}
       />

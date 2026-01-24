@@ -4,7 +4,7 @@
  * A modal dialog for selecting keycodes and configuring behaviors.
  * Provides categorized browsing and search functionality.
  */
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { IconSearch, IconX } from "@tabler/icons-react";
 import {
@@ -41,8 +41,8 @@ interface KeycodeSelectorProps {
   onClose: () => void;
   /** Callback when a binding is selected */
   onSelect: (binding: BehaviorBinding) => void;
-  /** Current binding (for editing - unused but may be used in future) */
-  // currentBinding?: BehaviorBinding | null;
+  /** Current binding (for pre-selecting the behavior) */
+  currentBinding?: BehaviorBinding | null;
   /** Available behaviors from the keyboard */
   behaviors: Map<number, BehaviorDefinition>;
   /** Available layers for layer behaviors */
@@ -76,6 +76,7 @@ export function KeycodeSelector({
   open,
   onClose,
   onSelect,
+  currentBinding,
   behaviors,
   layers,
 }: KeycodeSelectorProps) {
@@ -87,6 +88,9 @@ export function KeycodeSelector({
   const [param1, setParam1] = useState<number>(0);
   const [param2, setParam2] = useState<number>(0);
   const [mode, setMode] = useState<"keycode" | "behavior">("keycode");
+  
+  // Ref for auto-focus on search input
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Get behavior options with categories
   const behaviorOptions = useMemo((): BehaviorOption[] => {
@@ -293,21 +297,46 @@ export function KeycodeSelector({
     onClose();
   }, [behaviorOptions, onSelect, onClose]);
 
-  // Reset state when dialog opens
+  // Reset state when dialog opens and pre-select current binding
   const handleOpenChange = useCallback(
     (isOpen: boolean) => {
       if (isOpen) {
         setSearchQuery("");
         setSelectedCategory("letters");
-        setSelectedBehavior(null);
-        setParam1(0);
-        setParam2(0);
-        setMode("keycode");
+        
+        // Pre-select current binding if available
+        if (currentBinding) {
+          setSelectedBehavior(currentBinding.behaviorId);
+          setParam1(currentBinding.param1);
+          setParam2(currentBinding.param2);
+          
+          // Determine if we should start in behavior mode
+          const behavior = behaviors.get(currentBinding.behaviorId);
+          if (behavior) {
+            const name = behavior.displayName.toLowerCase();
+            // If not a simple keypress, start in behavior mode
+            if (name !== "key press" && name !== "kp" && name !== "key_press") {
+              setMode("behavior");
+            } else {
+              setMode("keycode");
+            }
+          }
+        } else {
+          setSelectedBehavior(null);
+          setParam1(0);
+          setParam2(0);
+          setMode("keycode");
+        }
+        
+        // Auto-focus search input after a short delay
+        setTimeout(() => {
+          searchInputRef.current?.focus();
+        }, 100);
       } else {
         onClose();
       }
     },
-    [onClose]
+    [onClose, currentBinding, behaviors]
   );
 
   return (
@@ -373,6 +402,7 @@ export function KeycodeSelector({
                       className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
                     />
                     <input
+                      ref={searchInputRef}
                       type="text"
                       placeholder="Search keycodes..."
                       value={searchQuery}

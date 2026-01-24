@@ -99,6 +99,11 @@ describe("KeymapPage", () => {
       setBinding: jest.fn().mockResolvedValue(true),
       resetBinding: jest.fn().mockResolvedValue(true),
       moveLayer: jest.fn().mockResolvedValue(true),
+      addLayer: jest.fn().mockResolvedValue({ index: 0, layer: { id: 0, name: "New", bindings: [] } }),
+      removeLayer: jest.fn().mockResolvedValue(true),
+      restoreLayer: jest.fn().mockResolvedValue({ id: 0, name: "Restored", bindings: [] }),
+      availableLayers: 4,
+      removedLayerIds: [],
       saveChanges: jest.fn().mockResolvedValue(true),
       discardChanges: jest.fn().mockResolvedValue(true),
       setActiveLayout: jest.fn().mockResolvedValue(true),
@@ -281,8 +286,8 @@ describe("KeymapPage", () => {
         }
       );
 
-      expect(screen.getByLabelText("Move layer up")).toBeInTheDocument();
-      expect(screen.getByLabelText("Move layer down")).toBeInTheDocument();
+      expect(screen.getByLabelText("Move layer up (higher priority)")).toBeInTheDocument();
+      expect(screen.getByLabelText("Move layer down (lower priority)")).toBeInTheDocument();
     });
 
     it("should disable move up button for first layer", () => {
@@ -295,7 +300,7 @@ describe("KeymapPage", () => {
         }
       );
 
-      const moveUpButton = screen.getByLabelText("Move layer up");
+      const moveUpButton = screen.getByLabelText("Move layer up (higher priority)");
       expect(moveUpButton).toBeDisabled();
     });
 
@@ -312,7 +317,7 @@ describe("KeymapPage", () => {
         }
       );
 
-      const moveDownButton = screen.getByLabelText("Move layer down");
+      const moveDownButton = screen.getByLabelText("Move layer down (lower priority)");
       await user.click(moveDownButton);
 
       expect(mockMoveLayer).toHaveBeenCalledWith(0, 1);
