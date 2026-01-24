@@ -263,13 +263,18 @@ export function KeyboardLayout({
 
     updateScale();
     
-    // Create ResizeObserver for responsive updates
-    const resizeObserver = new ResizeObserver(updateScale);
-    if (containerRef.current) {
-      resizeObserver.observe(containerRef.current);
+    // Create ResizeObserver for responsive updates (with fallback for older browsers)
+    if (typeof ResizeObserver !== "undefined") {
+      const resizeObserver = new ResizeObserver(updateScale);
+      if (containerRef.current) {
+        resizeObserver.observe(containerRef.current);
+      }
+      return () => resizeObserver.disconnect();
+    } else {
+      // Fallback: use window resize event
+      window.addEventListener("resize", updateScale);
+      return () => window.removeEventListener("resize", updateScale);
     }
-
-    return () => resizeObserver.disconnect();
   }, [rawBounds.width]);
 
   // Calculate scaled bounds
