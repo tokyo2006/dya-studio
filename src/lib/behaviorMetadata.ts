@@ -212,7 +212,7 @@ const BEHAVIOR_METADATA_BASE: Record<string, BehaviorMetadata> = {
   // ============================================================================
   trans: {
     category: "miscellaneous",
-    displayNameVariants: ["trans", "transparent"],
+    displayNameVariants: ["trans", "Transparent"],
     shortCode: "▽",
     getDisplayText: () => "▽",
     description: "Transparent (pass-through to lower layer)",
@@ -220,7 +220,7 @@ const BEHAVIOR_METADATA_BASE: Record<string, BehaviorMetadata> = {
 
   none: {
     category: "miscellaneous",
-    displayNameVariants: ["none"],
+    displayNameVariants: ["None"],
     shortCode: "✕",
     getDisplayText: () => "✕",
     description: "No operation",

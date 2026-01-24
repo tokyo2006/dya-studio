@@ -7,6 +7,11 @@
  * Reference:
  * - HID Usage Tables: https://usb.org/document-library/hid-usage-tables-15
  * - ZMK Keycodes: https://zmk.dev/docs/keymaps/list-of-keycodes
+ *
+ * Hid usage is defined as a combination of usage page, usage code and modifier bits.
+ * - bits 0-15 (16bits): usage code
+ * - bits 16-23 (8bits): usage page
+ * - bits 24-31 (8bits): modifier flags (custom for zmk)
  */
 
 // HID Usage Page definitions
@@ -22,7 +27,8 @@ export function createHidUsage(page: number, code: number): number {
 }
 
 export function getHidUsagePage(usage: number): number {
-  return (usage >> 16) & 0xffff;
+  // Mask out modifier bits (bits 24-31) before extracting the page
+  return ((usage & 0x00ffffff) >> 16) & 0xffff;
 }
 
 export function getHidUsageCode(usage: number): number {
@@ -964,6 +970,7 @@ export const CATEGORY_DISPLAY_NAMES: Record<KeycodeCategory, string> = {
 /**
  * Modifier flags for combining with keycodes.
  * These are stored in bits 24-31 of the HID usage value.
+ * ref: https://github.com/zmkfirmware/zmk/blob/main/app/include/dt-bindings/zmk/modifiers.h
  */
 export const MODIFIER_FLAGS = [
   { value: 0x01, label: "LCtrl", shortLabel: "LC" },
@@ -1006,7 +1013,10 @@ export function extractBaseKeycode(hidUsage: number): number {
 /**
  * Combine keycode with modifier flags
  */
-export function combineWithModifiers(keycode: number, modifiers: number): number {
+export function combineWithModifiers(
+  keycode: number,
+  modifiers: number,
+): number {
   // If keycode already has page info (> MAX_BASIC_KEYCODE), just add modifiers
   if (keycode > MAX_BASIC_KEYCODE) {
     return keycode | (modifiers << 24);
@@ -1034,13 +1044,15 @@ export function formatKeycodeWithModifiers(hidUsage: number): {
     keycode = getKeycodeByCode(baseCode);
   }
 
-  const baseName = keycode?.displayName || `0x${baseCode.toString(16).toUpperCase()}`;
+  const baseName =
+    keycode?.displayName || `0x${baseCode.toString(16).toUpperCase()}`;
   const fullName = keycode?.name || baseName;
   const rawCodeHex = `0x${(hidUsage & 0x00ffffff).toString(16).toUpperCase()}`;
 
   if (modifiers === 0) {
     return {
-      display: `${baseName} (${fullName})`,
+      display:
+        baseName != rawCodeHex ? `${baseName} (${rawCodeHex})` : baseName,
       rawCode: rawCodeHex,
     };
   }
