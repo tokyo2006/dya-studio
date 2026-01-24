@@ -218,12 +218,29 @@ export function KeycodeSelector({
   const needsAnyParam = needsParam1 || needsParam2;
 
   // Handle behavior selection from dropdown
-  const handleBehaviorSelect = useCallback((behaviorId: number) => {
-    setSelectedBehavior(behaviorId);
-    setParam1(0);
-    setParam2(0);
-    setActiveParam(1);
-  }, []);
+  const handleBehaviorSelect = useCallback(
+    (behaviorId: number) => {
+      const behavior = behaviors.get(behaviorId);
+      if (!behavior) return;
+      const metadata = getBehaviorMetadata(behavior.displayName);
+
+      setSelectedBehavior(behaviorId);
+      setParam1(0);
+      setParam2(0);
+      setActiveParam(1);
+
+      // If behavior doesn't need params and closeOnSelect is enabled, apply immediately
+      if (closeOnSelect && !metadata?.param1Type && !metadata?.param2Type) {
+        onSelect({
+          behaviorId,
+          param1: 0,
+          param2: 0,
+        });
+        onClose();
+      }
+    },
+    [behaviors, closeOnSelect, onSelect, onClose],
+  );
 
   // Handle quick-select (immediate apply for behaviors without params)
   const handleQuickSelect = useCallback(
@@ -233,7 +250,7 @@ export function KeycodeSelector({
       const metadata = getBehaviorMetadata(behavior.displayName);
 
       // If behavior doesn't need params, apply immediately
-      if (!metadata?.param1Type && !metadata?.param2Type) {
+      if (!metadata?.param1Type && !metadata?.param2Type && closeOnSelect) {
         onSelect({
           behaviorId,
           param1: 0,
@@ -248,7 +265,7 @@ export function KeycodeSelector({
         setActiveParam(1);
       }
     },
-    [behaviors, onSelect, onClose],
+    [behaviors, closeOnSelect, onSelect, onClose],
   );
 
   // Handle param1 change
