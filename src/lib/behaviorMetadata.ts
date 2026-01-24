@@ -14,6 +14,11 @@ import {
   getHidUsageCode,
   getHidUsagePage,
   HID_USAGE_PAGE_CONSUMER,
+  extractModifierFlags,
+  MODIFIER_FLAGS,
+  MOUSE_KEYCODES,
+  MOUSE_MOVEMENTS,
+  MOUSE_SCROLLS,
 } from "./keycodes";
 
 /**
@@ -62,6 +67,42 @@ export interface FormatContext {
   getKeycodeByCode?: (
     code: number,
   ) => { displayName: string; name: string } | null;
+}
+
+/**
+ * Format a keycode (HID usage) with modifiers for display.
+ * Returns a human-readable string representation.
+ */
+function formatKeycode(hidUsage: number): string {
+  const modifiers = extractModifierFlags(hidUsage);
+  const page = getHidUsagePage(hidUsage);
+  const code = page === 0 ? hidUsage : getHidUsageCode(hidUsage);
+
+  // Try keyboard page first
+  let keycode = getKeycodeByCode(code);
+
+  // Try consumer page if not found
+  if (!keycode && (page === HID_USAGE_PAGE_CONSUMER || page === 0)) {
+    keycode = getKeycodeByCode(hidUsage);
+  }
+
+  const baseName =
+    keycode?.displayName || `0x${code.toString(16).toUpperCase()}`;
+
+  // No modifiers - return just the key name
+  if (modifiers === 0) {
+    return baseName;
+  }
+
+  // Build modifier prefix
+  const modParts: string[] = [];
+  MODIFIER_FLAGS.forEach((mod) => {
+    if (modifiers & mod.value) {
+      modParts.push(mod.shortLabel);
+    }
+  });
+
+  return `${modParts.join("+")}(${baseName})`;
 }
 
 /**
@@ -120,25 +161,7 @@ const BEHAVIOR_METADATA_BASE: Record<string, BehaviorMetadata> = {
     shortCode: "KP",
     param1Type: "keycode",
     getDisplayText: (binding) => {
-      const usage = binding.param1;
-      const page = getHidUsagePage(usage);
-      const code = page === 0 ? usage : getHidUsageCode(usage);
-
-      // Try keyboard page first
-      const keycode = getKeycodeByCode(code);
-      if (keycode) {
-        return keycode.displayName;
-      }
-
-      // Try consumer page
-      if (page === HID_USAGE_PAGE_CONSUMER || page === 0) {
-        const consumerKeycode = getKeycodeByCode(usage);
-        if (consumerKeycode) {
-          return consumerKeycode.displayName;
-        }
-      }
-
-      return `0x${code.toString(16).toUpperCase()}`;
+      return formatKeycode(binding.param1);
     },
     description: "Press a key",
   },
@@ -200,9 +223,7 @@ const BEHAVIOR_METADATA_BASE: Record<string, BehaviorMetadata> = {
     getDisplayText: (binding, context) => {
       const layerNum = binding.param1;
       const layerName = context.layers?.[layerNum]?.name || layerNum;
-      const keycode = context.getKeycodeByCode?.(binding.param2);
-      const keyName =
-        keycode?.displayName || `0x${binding.param2.toString(16)}`;
+      const keyName = formatKeycode(binding.param2);
       return `LT${layerName} ${keyName}`;
     },
     description: "Layer on hold, key on tap",
@@ -235,9 +256,18 @@ const BEHAVIOR_METADATA_BASE: Record<string, BehaviorMetadata> = {
     shortCode: "MT",
     param1Type: "number", // Modifier flags
     param2Type: "keycode",
-    getDisplayText: (binding, context) => {
-      const keycode = context.getKeycodeByCode?.(binding.param2);
-      return keycode ? `MT ${keycode.displayName}` : "MT";
+    getDisplayText: (binding) => {
+      // Build modifier prefix from param1
+      const modifiers = binding.param1;
+      const modParts: string[] = [];
+      MODIFIER_FLAGS.forEach((mod) => {
+        if (modifiers & mod.value) {
+          modParts.push(mod.shortLabel);
+        }
+      });
+      const modPrefix = modParts.length > 0 ? modParts.join("+") : "?";
+      const keyName = formatKeycode(binding.param2);
+      return `MT ${modPrefix}(${keyName})`;
     },
     description: "Modifier on hold, key on tap",
   },
@@ -262,9 +292,9 @@ const BEHAVIOR_METADATA_BASE: Record<string, BehaviorMetadata> = {
     displayNameVariants: ["Sticky Key", "sk", "sticky_key"],
     shortCode: "SK",
     param1Type: "keycode",
-    getDisplayText: (binding, context) => {
-      const keycode = context.getKeycodeByCode?.(binding.param1);
-      return keycode ? `SK ${keycode.displayName}` : "SK";
+    getDisplayText: (binding) => {
+      const keyName = formatKeycode(binding.param1);
+      return `SK ${keyName}`;
     },
     description: "Sticky modifier key",
   },
@@ -280,20 +310,8 @@ const BEHAVIOR_METADATA_BASE: Record<string, BehaviorMetadata> = {
     shortCode: "MKP",
     param1Type: "mouse_keycode",
     getDisplayText: (binding) => {
-      switch (binding.param1) {
-        case 1:
-          return "LCLK";
-        case 2:
-          return "RCLK";
-        case 3:
-          return "MCLK";
-        case 4:
-          return "BTN4";
-        case 5:
-          return "BTN5";
-        default:
-          return `MKP ${binding.param1}`;
-      }
+      const mouseKey = MOUSE_KEYCODES.find((mk) => mk.value === binding.param1);
+      return mouseKey?.shortLabel || `MKP ${binding.param1}`;
     },
     description: "Mouse key press",
   },
@@ -303,18 +321,10 @@ const BEHAVIOR_METADATA_BASE: Record<string, BehaviorMetadata> = {
     shortCode: "MMV",
     param1Type: "mouse_movement",
     getDisplayText: (binding) => {
-      switch (binding.param1) {
-        case 0:
-          return "Move Up";
-        case 1:
-          return "Move Down";
-        case 2:
-          return "Move Left";
-        case 3:
-          return "Move Right";
-        default:
-          return `MMV ${binding.param1}`;
-      }
+      const movement = MOUSE_MOVEMENTS.find(
+        (mm) => mm.value === binding.param1,
+      );
+      return movement?.label || `MMV ${binding.param1}`;
     },
     description: "Move mouse cursor",
   },
@@ -324,18 +334,8 @@ const BEHAVIOR_METADATA_BASE: Record<string, BehaviorMetadata> = {
     shortCode: "MSC",
     param1Type: "mouse_scroll",
     getDisplayText: (binding) => {
-      switch (binding.param1) {
-        case 0:
-          return "Scroll Up";
-        case 1:
-          return "Scroll Down";
-        case 2:
-          return "Scroll Left";
-        case 3:
-          return "Scroll Right";
-        default:
-          return `MSC ${binding.param1}`;
-      }
+      const scroll = MOUSE_SCROLLS.find((ms) => ms.value === binding.param1);
+      return scroll?.label || `MSC ${binding.param1}`;
     },
     description: "Scroll mouse wheel",
   },
@@ -491,6 +491,9 @@ export function formatBehaviorBinding(
 
   // Fallback: use behavior display name with params if present
   if (binding.param1 !== 0 || binding.param2 !== 0) {
+    if (binding.param2 !== 0) {
+      return `${behavior.displayName} ${binding.param1} ${binding.param2}`;
+    }
     return `${behavior.displayName} ${binding.param1}`;
   }
 
