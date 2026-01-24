@@ -93,6 +93,9 @@ export function KeycodeSelector({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] =
     useState<KeycodeCategory>("letters");
+  const [selectedBehaviorCategory, setSelectedBehaviorCategory] = useState<
+    BehaviorCategory | "all"
+  >("all");
   const [selectedBehavior, setSelectedBehavior] = useState<number | null>(null);
   const [param1, setParam1] = useState<number>(0);
   const [param2, setParam2] = useState<number>(0);
@@ -103,7 +106,7 @@ export function KeycodeSelector({
 
   // Get behavior options with categories
   const behaviorOptions = useMemo((): BehaviorOption[] => {
-    const options: BehaviorOption[] = [];
+    const allOptions: BehaviorOption[] = [];
 
     behaviors.forEach((behavior, id) => {
       // Get metadata from centralized registry
@@ -149,7 +152,7 @@ export function KeycodeSelector({
         }
       }
 
-      options.push({
+      allOptions.push({
         id,
         name: behavior.displayName,
         displayName: behavior.displayName,
@@ -161,7 +164,13 @@ export function KeycodeSelector({
       });
     });
 
-    return options.sort((a, b) => {
+    // Filter by selected category
+    const filtered =
+      selectedBehaviorCategory === "all"
+        ? allOptions
+        : allOptions.filter((opt) => opt.category === selectedBehaviorCategory);
+
+    return filtered.sort((a, b) => {
       // Sort by category first (using BEHAVIOR_CATEGORIES order)
       const catA = BEHAVIOR_CATEGORIES.findIndex((c) => c.id === a.category);
       const catB = BEHAVIOR_CATEGORIES.findIndex((c) => c.id === b.category);
@@ -171,7 +180,7 @@ export function KeycodeSelector({
       // Then by displayName
       return a.displayName.localeCompare(b.displayName);
     });
-  }, [behaviors]);
+  }, [behaviors, selectedBehaviorCategory]);
 
   // Get filtered keycodes
   const filteredKeycodes = useMemo((): KeycodeDefinition[] => {
@@ -292,6 +301,7 @@ export function KeycodeSelector({
       if (isOpen) {
         setSearchQuery("");
         setSelectedCategory("letters");
+        setSelectedBehaviorCategory("all");
 
         // Pre-select current binding if available
         if (currentBinding) {
@@ -481,22 +491,25 @@ export function KeycodeSelector({
               <div className="flex-1 flex overflow-hidden">
                 {/* Behavior Categories */}
                 <div className="w-36 border-r border-[var(--color-border)] overflow-y-auto">
+                  <button
+                    className={`w-full px-3 py-2 text-left text-sm transition-colors ${
+                      selectedBehaviorCategory === "all"
+                        ? "bg-[var(--color-electric)]/10 text-[var(--color-electric)] border-r-2 border-[var(--color-electric)]"
+                        : "text-[var(--color-text-secondary)] hover:bg-[var(--color-border)]"
+                    }`}
+                    onClick={() => setSelectedBehaviorCategory("all")}
+                  >
+                    All
+                  </button>
                   {BEHAVIOR_CATEGORIES.map((category) => (
                     <button
                       key={category.id}
                       className={`w-full px-3 py-2 text-left text-sm transition-colors ${
-                        selectedBehaviorOption?.category === category.id
-                          ? "bg-[var(--color-electric)]/10 text-[var(--color-electric)]"
+                        selectedBehaviorCategory === category.id
+                          ? "bg-[var(--color-electric)]/10 text-[var(--color-electric)] border-r-2 border-[var(--color-electric)]"
                           : "text-[var(--color-text-secondary)] hover:bg-[var(--color-border)]"
                       }`}
-                      onClick={() => {
-                        const firstInCategory = behaviorOptions.find(
-                          (b) => b.category === category.id,
-                        );
-                        if (firstInCategory) {
-                          handleBehaviorSelect(firstInCategory.id);
-                        }
-                      }}
+                      onClick={() => setSelectedBehaviorCategory(category.id)}
                     >
                       {category.name}
                     </button>
