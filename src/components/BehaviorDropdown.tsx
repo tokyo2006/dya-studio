@@ -26,7 +26,7 @@ const BEHAVIOR_CATEGORIES: { id: BehaviorCategory; name: string }[] = [
 ];
 
 // Quick-select behaviors for faster access
-const QUICK_SELECT_BEHAVIORS = ["kp", "trans", "none"];
+const QUICK_SELECT_BEHAVIORS = ["kp", "lt", "mt", "none", "transparent"];
 
 interface BehaviorOption {
   id: number;
@@ -113,7 +113,7 @@ export function BehaviorDropdown({
       const metadata = getBehaviorMetadata(name);
       if (!metadata) return null;
       const behavior = Array.from(behaviors.values()).find((b) =>
-        metadata.displayNameVariants.includes(b.displayName)
+        metadata.displayNameVariants.includes(b.displayName),
       );
       return behavior
         ? { id: behavior.id, name, displayName: behavior.displayName }
@@ -129,51 +129,38 @@ export function BehaviorDropdown({
   return (
     <div className="relative" ref={dropdownRef}>
       {/* Main Row: Dropdown + Quick Select */}
-      <div className="flex items-center gap-2">
-        {/* Dropdown Trigger */}
-        <button
-          className="flex-1 flex items-center justify-between px-3 py-1.5 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] hover:border-[var(--color-electric)]/50 transition-colors"
-          onClick={() => setIsOpen(!isOpen)}
-        >
-          <span className="text-sm text-[var(--color-text)]">
-            {selectedDisplay}
-          </span>
-          <IconChevronDown
-            size={16}
-            className={`text-[var(--color-text-muted)] transition-transform ${isOpen ? "rotate-180" : ""}`}
-          />
-        </button>
+      {/* Dropdown Trigger */}
+      <button
+        className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] hover:border-[var(--color-electric)]/50 transition-colors"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <span className="text-sm text-[var(--color-text)]">
+          {selectedDisplay}
+        </span>
+        <IconChevronDown
+          size={16}
+          className={`text-[var(--color-text-muted)] transition-transform ${isOpen ? "rotate-180" : ""}`}
+        />
+      </button>
 
-        {/* Quick Select Buttons with label */}
-        <div className="flex items-center gap-1">
-          <span className="text-xs text-[var(--color-text-muted)] mr-1">
-            Quick:
-          </span>
-          {quickSelectBehaviors.map((qb) => (
-            <button
-              key={qb.id}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                selectedBehaviorId === qb.id
-                  ? "bg-[var(--color-electric)]/20 text-[var(--color-electric)] border border-[var(--color-electric)]"
-                  : "bg-[var(--color-border)] text-[var(--color-text-secondary)] border border-transparent hover:border-[var(--color-electric)]/50"
-              }`}
-              onClick={() => onQuickSelect(qb.id)}
-              title={
-                qb.name === "kp"
-                  ? "Key Press - Quick select"
-                  : qb.name === "trans"
-                    ? "Transparent - Quick select"
-                    : "None - Quick select"
-              }
-            >
-              {qb.name === "kp"
-                ? "Key"
-                : qb.name === "trans"
-                  ? "▽"
-                  : "✕"}
-            </button>
-          ))}
-        </div>
+      {/* Quick Select Buttons with label (moved to bottom) */}
+      <div className="flex items-center gap-1 mt-2 pl-2">
+        <span className="text-xs text-[var(--color-text-muted)] mr-1">
+          Quick Select:
+        </span>
+        {quickSelectBehaviors.map((qb) => (
+          <button
+            key={qb.id}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              selectedBehaviorId === qb.id
+                ? "bg-[var(--color-electric)]/20 text-[var(--color-electric)] border border-[var(--color-electric)]"
+                : "bg-[var(--color-border)] text-[var(--color-text-secondary)] border border-transparent hover:border-[var(--color-electric)]/50"
+            }`}
+            onClick={() => onQuickSelect(qb.id)}
+          >
+            {qb.displayName}
+          </button>
+        ))}
       </div>
 
       {/* Dropdown Panel */}

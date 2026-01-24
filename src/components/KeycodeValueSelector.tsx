@@ -18,7 +18,6 @@ import {
   extractModifierFlags,
   extractBaseKeycode,
   combineWithModifiers,
-  formatKeycodeWithModifiers,
 } from "../lib/keycodes";
 
 // Keycode categories in display order
@@ -51,7 +50,7 @@ export function KeycodeValueSelector({
   const [selectedCategory, setSelectedCategory] =
     useState<KeycodeCategory>("letters");
   const [selectedModifiers, setSelectedModifiers] = useState<number>(
-    extractModifierFlags(value)
+    extractModifierFlags(value),
   );
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -72,7 +71,7 @@ export function KeycodeValueSelector({
       const combined = combineWithModifiers(keycode.code, selectedModifiers);
       onChange(combined);
     },
-    [onChange, selectedModifiers]
+    [onChange, selectedModifiers],
   );
 
   const handleModifierToggle = useCallback(
@@ -85,7 +84,7 @@ export function KeycodeValueSelector({
         onChange(combineWithModifiers(baseCode, newModifiers));
       }
     },
-    [selectedModifiers, value, onChange]
+    [selectedModifiers, value, onChange],
   );
 
   const handleClearModifiers = useCallback(() => {
@@ -97,29 +96,8 @@ export function KeycodeValueSelector({
     }
   }, [value, onChange]);
 
-  // Get current display value
-  const currentDisplayInfo =
-    value !== NO_PARAM_VALUE
-      ? formatKeycodeWithModifiers(value)
-      : { display: "None", rawCode: "" };
-
   return (
     <div className="flex flex-col h-full">
-      {/* Current Selection Display */}
-      <div className="mb-3 p-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)]">
-        <div className="text-xs text-[var(--color-text-muted)] mb-1">
-          Selected:
-        </div>
-        <div className="text-sm font-medium text-[var(--color-electric)]">
-          {currentDisplayInfo.display}
-        </div>
-        {currentDisplayInfo.rawCode && (
-          <div className="text-xs text-[var(--color-text-muted)] mt-0.5">
-            Code: {currentDisplayInfo.rawCode}
-          </div>
-        )}
-      </div>
-
       {/* Modifier Flags */}
       {showModifiers && (
         <div className="mb-3">
@@ -147,9 +125,8 @@ export function KeycodeValueSelector({
                     : "bg-[var(--color-bg)] text-[var(--color-text-muted)] border border-[var(--color-border)] hover:border-[var(--color-cyber)]/50"
                 }`}
                 onClick={() => handleModifierToggle(mod.value)}
-                title={mod.label}
               >
-                {mod.shortLabel}
+                {mod.label}
               </button>
             ))}
           </div>

@@ -102,7 +102,7 @@ function formatParamValue(
   value: number,
   layers: Array<{ id: number; name: string }>,
   behaviorOption: BehaviorOption | null,
-  behaviors: Map<number, BehaviorDefinition>
+  behaviors: Map<number, BehaviorDefinition>,
 ): string {
   if (value === NO_PARAM_VALUE && paramType !== "layer") {
     return "Not set";
@@ -121,7 +121,7 @@ function formatParamValue(
     case "out_command": {
       const metadata = behaviorOption
         ? getBehaviorMetadata(
-            behaviors.get(behaviorOption.id)?.displayName || ""
+            behaviors.get(behaviorOption.id)?.displayName || "",
           )
         : null;
       const options = metadata ? getBehaviorParamOptions(metadata, 1) : null;
@@ -219,7 +219,7 @@ export function KeycodeSelector({
         setActiveParam(1);
       }
     },
-    [behaviors, onSelect, onClose]
+    [behaviors, onSelect, onClose],
   );
 
   // Handle param1 change
@@ -231,7 +231,7 @@ export function KeycodeSelector({
         setActiveParam(2);
       }
     },
-    [needsParam2]
+    [needsParam2],
   );
 
   // Handle param2 change
@@ -264,7 +264,7 @@ export function KeycodeSelector({
           const kpMetadata = getBehaviorMetadata("kp");
           if (kpMetadata) {
             const kpBehavior = Array.from(behaviors.values()).find((b) =>
-              kpMetadata.displayNameVariants.includes(b.displayName)
+              kpMetadata.displayNameVariants.includes(b.displayName),
             );
             if (kpBehavior) {
               setSelectedBehavior(kpBehavior.id);
@@ -278,7 +278,7 @@ export function KeycodeSelector({
         onClose();
       }
     },
-    [onClose, currentBinding, behaviors]
+    [onClose, currentBinding, behaviors],
   );
 
   // Run handleOpenChange on mount if open is true
@@ -294,7 +294,7 @@ export function KeycodeSelector({
     (
       paramType: ParamType | undefined,
       value: number,
-      onChange: (v: number) => void
+      onChange: (v: number) => void,
     ) => {
       if (!paramType) return null;
 
@@ -324,7 +324,7 @@ export function KeycodeSelector({
         case "bt_command": {
           const metadata = selectedBehaviorOption
             ? getBehaviorMetadata(
-                behaviors.get(selectedBehaviorOption.id)?.displayName || ""
+                behaviors.get(selectedBehaviorOption.id)?.displayName || "",
               )
             : null;
           const options = metadata
@@ -348,7 +348,7 @@ export function KeycodeSelector({
         case "out_command": {
           const metadata = selectedBehaviorOption
             ? getBehaviorMetadata(
-                behaviors.get(selectedBehaviorOption.id)?.displayName || ""
+                behaviors.get(selectedBehaviorOption.id)?.displayName || "",
               )
             : null;
           const options = metadata
@@ -423,7 +423,7 @@ export function KeycodeSelector({
           );
       }
     },
-    [layers, selectedBehaviorOption, behaviors]
+    [layers, selectedBehaviorOption, behaviors],
   );
 
   return (
@@ -457,6 +457,9 @@ export function KeycodeSelector({
 
           {/* Behavior Selection */}
           <div className="p-4 border-b border-[var(--color-border)]">
+            <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1">
+              Behavior
+            </label>
             {behaviors.size === 0 ? (
               <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-sm text-yellow-600">
                 ⚠️ Behaviors not loaded from keyboard.
@@ -474,56 +477,70 @@ export function KeycodeSelector({
           {/* Parameter Selection - Horizontal Layout */}
           {selectedBehaviorOption && needsAnyParam && (
             <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+              {/* Parameters Label */}
+              <div className="px-4 pt-4 pb-1">
+                <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1">
+                  Parameters
+                </label>
+              </div>
               {/* Parameter Tabs (Horizontal) */}
-              <div className="flex border-b border-[var(--color-border)]">
+              <div className="flex border-b border-[var(--color-border)] mx-4 mb-2">
                 {needsParam1 && (
                   <button
-                    className={`flex-1 p-3 text-center transition-colors border-b-2 ${
+                    className={`flex-1 p-2 text-center transition-colors border-b-2 ${
                       activeParam === 1
-                        ? "border-[var(--color-electric)] text-[var(--color-electric)] bg-[var(--color-electric)]/5"
+                        ? "border-[var(--color-electric)] text-[var(--color-electric)]"
                         : "border-transparent text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-border)]/50"
                     }`}
                     onClick={() => setActiveParam(1)}
                   >
-                    <div className="font-medium text-sm">param1</div>
-                    <div className="text-xs mt-0.5">
-                      {getParamTypeLabel(selectedBehaviorOption.param1Type)}
+                    <div className="font-medium text-xs">
+                      param1
+                      <span className="ml-1 text-[10px] text-[var(--color-text-muted)]">
+                        {getParamTypeLabel(selectedBehaviorOption.param1Type)}
+                      </span>
                     </div>
                     <div
-                      className={`text-xs mt-1 ${activeParam === 1 ? "text-[var(--color-neon)]" : "text-[var(--color-text-muted)]"}`}
+                      className={`mt-0.5 font-mono text-sm text-[var(--color-neon)] ${
+                        activeParam === 1 ? "font-bold text-base" : ""
+                      }`}
                     >
                       {formatParamValue(
                         selectedBehaviorOption.param1Type,
                         param1,
                         layers,
                         selectedBehaviorOption,
-                        behaviors
+                        behaviors,
                       )}
                     </div>
                   </button>
                 )}
                 {needsParam2 && (
                   <button
-                    className={`flex-1 p-3 text-center transition-colors border-b-2 ${
+                    className={`flex-1 p-2 text-center transition-colors border-b-2 ${
                       activeParam === 2
-                        ? "border-[var(--color-electric)] text-[var(--color-electric)] bg-[var(--color-electric)]/5"
+                        ? "border-[var(--color-electric)] text-[var(--color-electric)]"
                         : "border-transparent text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-border)]/50"
                     }`}
                     onClick={() => setActiveParam(2)}
                   >
-                    <div className="font-medium text-sm">param2</div>
-                    <div className="text-xs mt-0.5">
-                      {getParamTypeLabel(selectedBehaviorOption.param2Type)}
+                    <div className="font-medium text-xs">
+                      param2
+                      <span className="ml-1 text-[10px] text-[var(--color-text-muted)]">
+                        {getParamTypeLabel(selectedBehaviorOption.param2Type)}
+                      </span>
                     </div>
                     <div
-                      className={`text-xs mt-1 ${activeParam === 2 ? "text-[var(--color-neon)]" : "text-[var(--color-text-muted)]"}`}
+                      className={`mt-0.5 font-mono text-sm text-[var(--color-neon)] ${
+                        activeParam === 2 ? "font-bold text-base" : ""
+                      }`}
                     >
                       {formatParamValue(
                         selectedBehaviorOption.param2Type,
                         param2,
                         layers,
                         selectedBehaviorOption,
-                        behaviors
+                        behaviors,
                       )}
                     </div>
                   </button>
@@ -536,7 +553,7 @@ export function KeycodeSelector({
                   {activeParam === 1
                     ? getParamTypeDescription(selectedBehaviorOption.param1Type)
                     : getParamTypeDescription(
-                        selectedBehaviorOption.param2Type
+                        selectedBehaviorOption.param2Type,
                       )}
                 </p>
               </div>
@@ -547,13 +564,13 @@ export function KeycodeSelector({
                   ? renderParamValueSelector(
                       selectedBehaviorOption.param1Type,
                       param1,
-                      handleParam1Change
+                      handleParam1Change,
                     )
                   : activeParam === 2 && needsParam2
                     ? renderParamValueSelector(
                         selectedBehaviorOption.param2Type,
                         param2,
-                        handleParam2Change
+                        handleParam2Change,
                       )
                     : null}
               </div>
