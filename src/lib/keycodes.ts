@@ -7,6 +7,11 @@
  * Reference:
  * - HID Usage Tables: https://usb.org/document-library/hid-usage-tables-15
  * - ZMK Keycodes: https://zmk.dev/docs/keymaps/list-of-keycodes
+ *
+ * Hid usage is defined as a combination of usage page, usage code and modifier bits.
+ * - bits 0-15 (16bits): usage code
+ * - bits 16-23 (8bits): usage page
+ * - bits 24-31 (8bits): modifier flags (custom for zmk)
  */
 
 // HID Usage Page definitions
@@ -22,7 +27,8 @@ export function createHidUsage(page: number, code: number): number {
 }
 
 export function getHidUsagePage(usage: number): number {
-  return (usage >> 16) & 0xffff;
+  // Mask out modifier bits (bits 24-31) before extracting the page
+  return ((usage & 0x00ffffff) >> 16) & 0xffff;
 }
 
 export function getHidUsageCode(usage: number): number {
@@ -956,3 +962,155 @@ export const CATEGORY_DISPLAY_NAMES: Record<KeycodeCategory, string> = {
   international: "International",
   miscellaneous: "Miscellaneous",
 };
+
+// =============================================================================
+// Modifier Flags
+// =============================================================================
+
+/**
+ * Modifier flags for combining with keycodes.
+ * These are stored in bits 24-31 of the HID usage value.
+ * ref: https://github.com/zmkfirmware/zmk/blob/main/app/include/dt-bindings/zmk/modifiers.h
+ */
+export const MODIFIER_FLAGS = [
+  { value: 0x01, label: "LCtrl", shortLabel: "LC" },
+  { value: 0x02, label: "LShift", shortLabel: "LS" },
+  { value: 0x04, label: "LAlt", shortLabel: "LA" },
+  { value: 0x08, label: "LGui", shortLabel: "LG" },
+  { value: 0x10, label: "RCtrl", shortLabel: "RC" },
+  { value: 0x20, label: "RShift", shortLabel: "RS" },
+  { value: 0x40, label: "RAlt", shortLabel: "RA" },
+  { value: 0x80, label: "RGui", shortLabel: "RG" },
+] as const;
+
+// HID usage constants for modifier handling
+/** A basic keycode fits in 16 bits (page << 16 | code), anything larger has additional info */
+export const MAX_BASIC_KEYCODE = 0xffff;
+/** Modifier flags mask - only 8 bits for the 8 modifier keys */
+export const MODIFIER_FLAGS_MASK = 0xff;
+/** Value indicating no keycode/parameter has been set */
+export const NO_PARAM_VALUE = 0;
+
+/**
+ * Extract modifier flags from HID usage value.
+ * Modifier flags are stored in bits 24-31 (8 bits for 8 modifier keys).
+ */
+export function extractModifierFlags(hidUsage: number): number {
+  return (hidUsage >> 24) & MODIFIER_FLAGS_MASK;
+}
+
+/**
+ * Drop modifier flags from HID usage value.
+ */
+export function dropModifierFlags(hidUsage: number): number {
+  return hidUsage & 0x00ffffff;
+}
+
+/**
+ * Extract base keycode from HID usage value (without modifiers)
+ */
+export function extractBaseKeycode(hidUsage: number): number {
+  const page = getHidUsagePage(hidUsage);
+  const code = getHidUsageCode(hidUsage);
+  // If page is keyboard page, return just the code
+  // Otherwise return the full usage (for consumer page, etc.)
+  return page === HID_USAGE_PAGE_KEYBOARD ? code : dropModifierFlags(hidUsage);
+}
+
+/**
+ * Combine keycode with modifier flags
+ */
+export function combineWithModifiers(
+  keycode: number,
+  modifiers: number,
+): number {
+  // If keycode already has page info (> MAX_BASIC_KEYCODE), just add modifiers
+  if (keycode > MAX_BASIC_KEYCODE) {
+    return keycode | (modifiers << 24);
+  }
+  // Otherwise, create full HID usage with keyboard page and modifiers
+  return createHidUsage(HID_USAGE_PAGE_KEYBOARD, keycode) | (modifiers << 24);
+}
+
+/**
+ * Format keycode with modifiers for display.
+ * Returns both human-readable text and raw code.
+ */
+export function formatKeycodeWithModifiers(hidUsage: number): {
+  display: string;
+  rawCode: string;
+} {
+  const modifiers = extractModifierFlags(hidUsage);
+  const baseCode = extractBaseKeycode(hidUsage);
+  const hidUsageWithoutMods = dropModifierFlags(hidUsage);
+
+  // Try to find the keycode definition
+  // First check if it's a full HID usage (consumer page, etc.)
+  let keycode = getKeycodeByCode(hidUsageWithoutMods); // Mask out modifiers
+  if (!keycode) {
+    // Try keyboard page code
+    keycode = getKeycodeByCode(baseCode);
+  }
+
+  const baseName =
+    keycode?.displayName || `0x${baseCode.toString(16).toUpperCase()}`;
+  const fullName = keycode?.name || baseName;
+  const rawCodeHex = `0x${hidUsageWithoutMods.toString(16).toUpperCase()}`;
+
+  if (modifiers === 0) {
+    return {
+      display:
+        baseName != rawCodeHex ? `${baseName} (${rawCodeHex})` : baseName,
+      rawCode: rawCodeHex,
+    };
+  }
+
+  // Build modifier prefix
+  const modParts: string[] = [];
+  MODIFIER_FLAGS.forEach((mod) => {
+    if (modifiers & mod.value) {
+      modParts.push(mod.shortLabel);
+    }
+  });
+
+  const modPrefix = modParts.join("+");
+  return {
+    display: `${modPrefix}(${baseName}) - ${fullName}`,
+    rawCode: rawCodeHex,
+  };
+}
+
+// =============================================================================
+// Mouse Keycodes
+// =============================================================================
+
+/**
+ * Mouse button keycodes
+ */
+export const MOUSE_KEYCODES = [
+  { value: 1, label: "Left Click", shortLabel: "LCLK" },
+  { value: 2, label: "Right Click", shortLabel: "RCLK" },
+  { value: 3, label: "Middle Click", shortLabel: "MCLK" },
+  { value: 4, label: "Button 4", shortLabel: "BTN4" },
+  { value: 5, label: "Button 5", shortLabel: "BTN5" },
+] as const;
+
+/**
+ * Mouse movement directions
+ */
+export const MOUSE_MOVEMENTS = [
+  { value: 0, label: "Move Up", shortLabel: "↑" },
+  { value: 1, label: "Move Down", shortLabel: "↓" },
+  { value: 2, label: "Move Left", shortLabel: "←" },
+  { value: 3, label: "Move Right", shortLabel: "→" },
+] as const;
+
+/**
+ * Mouse scroll directions
+ */
+export const MOUSE_SCROLLS = [
+  { value: 0, label: "Scroll Up", shortLabel: "↑" },
+  { value: 1, label: "Scroll Down", shortLabel: "↓" },
+  { value: 2, label: "Scroll Left", shortLabel: "←" },
+  { value: 3, label: "Scroll Right", shortLabel: "→" },
+] as const;

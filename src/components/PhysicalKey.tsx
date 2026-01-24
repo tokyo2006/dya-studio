@@ -70,10 +70,7 @@ export function PhysicalKey({
       height: `${Math.max(height, 20)}px`,
       left: `${x}px`,
       top: `${y}px`,
-      transform:
-        rotation !== 0
-          ? `rotate(${rotation}deg)`
-          : undefined,
+      transform: rotation !== 0 ? `rotate(${rotation}deg)` : undefined,
       transformOrigin:
         rotation !== 0
           ? `${rotationCenterX - x}px ${rotationCenterY - y}px`
@@ -112,9 +109,7 @@ export function PhysicalKey({
         className={`
           font-medium text-center leading-tight break-words line-clamp-2
           ${
-            isModified
-              ? "text-[var(--color-neon)]"
-              : "text-[var(--color-text)]"
+            isModified ? "text-[var(--color-neon)]" : "text-[var(--color-text)]"
           }
         `}
         style={{ fontSize: `${fontSize}px` }}
@@ -149,7 +144,7 @@ export function PhysicalKey({
 
   // Always wrap with tooltip to show binding info
   return (
-    <Tooltip.Provider delayDuration={200}>
+    <Tooltip.Provider delayDuration={200} disableHoverableContent>
       <Tooltip.Root>
         <Tooltip.Trigger asChild>{keyContent}</Tooltip.Trigger>
         <Tooltip.Portal>
@@ -158,15 +153,25 @@ export function PhysicalKey({
             sideOffset={5}
           >
             <div className="space-y-1">
-              {/* Current binding info */}
+              {/* Always show displayName */}
               <div>
-                <span className="text-[var(--color-text-muted)]">Current: </span>
-                <span className="font-medium">{bindingDescription || displayName}</span>
+                <span className="font-medium">{displayName}</span>
               </div>
+              {/* Show binding description only if different from displayName */}
+              {bindingDescription && bindingDescription !== displayName && (
+                <div>
+                  <span className="text-[var(--color-text-muted)]">
+                    Binding:{" "}
+                  </span>
+                  <span>{bindingDescription}</span>
+                </div>
+              )}
               {/* Original binding info when modified */}
               {isModified && originalDisplayName && (
                 <div>
-                  <span className="text-[var(--color-text-muted)]">Original: </span>
+                  <span className="text-[var(--color-text-muted)]">
+                    Original:{" "}
+                  </span>
                   <span>{originalDisplayName}</span>
                 </div>
               )}

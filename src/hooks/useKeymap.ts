@@ -13,10 +13,7 @@ import {
   useRef,
 } from "react";
 import { ZMKAppContext } from "@cormoran/zmk-studio-react-hook";
-import {
-  call_rpc,
-  MetaError,
-} from "@zmkfirmware/zmk-studio-ts-client";
+import { call_rpc, MetaError } from "@zmkfirmware/zmk-studio-ts-client";
 import type {
   Keymap,
   Layer,
@@ -25,10 +22,16 @@ import type {
   PhysicalLayout,
   KeyPhysicalAttrs,
 } from "@zmkfirmware/zmk-studio-ts-client/keymap";
-import type {
-  BehaviorBindingParametersSet,
-} from "@zmkfirmware/zmk-studio-ts-client/behaviors";
+import type { BehaviorBindingParametersSet } from "@zmkfirmware/zmk-studio-ts-client/behaviors";
 import { ErrorConditions } from "@zmkfirmware/zmk-studio-ts-client/meta";
+
+// Error response constants for better readability
+const SetLayerBindingResp = {
+  OK: 0,
+  INVALID_LAYER_ID: 1,
+  INVALID_KEY_POSITION: 2,
+  INVALID_BEHAVIOR_ID: 3,
+} as const;
 
 // Re-export types for convenience
 export type {
@@ -90,7 +93,7 @@ export interface UseKeymapReturn extends KeymapState {
   setBinding: (
     layerId: number,
     keyPosition: number,
-    binding: BehaviorBinding
+    binding: BehaviorBinding,
   ) => Promise<boolean>;
   /** Reset a binding to its original value */
   resetBinding: (layerId: number, keyPosition: number) => Promise<boolean>;
@@ -113,7 +116,7 @@ export interface UseKeymapReturn extends KeymapState {
   /** Get the original binding for a key (before modification) */
   getOriginalBinding: (
     layerId: number,
-    keyPosition: number
+    keyPosition: number,
   ) => BehaviorBinding | null;
   /** Check if a binding has been modified */
   isBindingModified: (layerId: number, keyPosition: number) => boolean;
@@ -135,7 +138,9 @@ function bindingKey(layerId: number, keyPosition: number): string {
 // Helper to check if two bindings are equal
 function bindingsEqual(a: BehaviorBinding, b: BehaviorBinding): boolean {
   return (
-    a.behaviorId === b.behaviorId && a.param1 === b.param1 && a.param2 === b.param2
+    a.behaviorId === b.behaviorId &&
+    a.param1 === b.param1 &&
+    a.param2 === b.param2
   );
 }
 
@@ -150,7 +155,7 @@ export function useKeymap(): UseKeymapReturn {
     useState<PhysicalLayouts | null>(null);
   const [keymap, setKeymap] = useState<Keymap | null>(null);
   const [behaviors, setBehaviors] = useState<Map<number, BehaviorDefinition>>(
-    new Map()
+    new Map(),
   );
   const [originalBindings, setOriginalBindings] = useState<
     Map<string, BehaviorBinding>
@@ -163,32 +168,64 @@ export function useKeymap(): UseKeymapReturn {
 
   // Ref to track if data has been loaded
   const dataLoadedRef = useRef(false);
+  // Timer for auto-clearing errors
+  const errorTimerRef = useRef<number | null>(null);
 
   // Get connection from ZMK app context
-  const connection = useMemo(() => zmkApp?.state.connection, [zmkApp?.state.connection]);
+  const connection = useMemo(
+    () => zmkApp?.state.connection,
+    [zmkApp?.state.connection],
+  );
+
+  // Helper to set error with auto-clear timer (5 seconds)
+  const setErrorWithAutoClear = useCallback((message: string) => {
+    setError(message);
+    // Clear any existing timer
+    if (errorTimerRef.current) {
+      clearTimeout(errorTimerRef.current);
+    }
+    // Set new timer to clear error after 5 seconds
+    errorTimerRef.current = setTimeout(() => {
+      setError(null);
+      errorTimerRef.current = null;
+    }, 5000);
+  }, []);
+
+  // Helper to clear error and timer
+  const clearError = useCallback(() => {
+    setError(null);
+    if (errorTimerRef.current) {
+      clearTimeout(errorTimerRef.current);
+      errorTimerRef.current = null;
+    }
+  }, []);
 
   // Helper to call RPC with error handling
   const callRpc = useCallback(
-    async <T,>(
+    async <T>(
       request: Parameters<typeof call_rpc>[1],
-      extractor: (response: Awaited<ReturnType<typeof call_rpc>>) => T | undefined
+      extractor: (
+        response: Awaited<ReturnType<typeof call_rpc>>,
+      ) => T | undefined,
     ): Promise<T | null> => {
       if (!connection) {
-        setError("Not connected to keyboard");
+        setErrorWithAutoClear("Not connected to keyboard");
         return null;
       }
 
       try {
         const response = await call_rpc(connection, request);
-        
+
         // Check for meta errors
         if (response.meta?.simpleError !== undefined) {
           if (response.meta.simpleError === ErrorConditions.UNLOCK_REQUIRED) {
             setUnlockRequired(true);
-            setError("Keyboard needs to be unlocked. Please unlock your keyboard.");
+            setError(
+              "Keyboard needs to be unlocked. Please unlock your keyboard.",
+            );
             return null;
           }
-          setError(`RPC error: ${response.meta.simpleError}`);
+          setErrorWithAutoClear(`RPC error: ${response.meta.simpleError}`);
           return null;
         }
 
@@ -196,47 +233,56 @@ export function useKeymap(): UseKeymapReturn {
         if (result === undefined) {
           return null;
         }
+        // Clear error on successful RPC call
+        clearError();
         return result;
       } catch (err) {
         if (err instanceof MetaError) {
           if (err.condition === ErrorConditions.UNLOCK_REQUIRED) {
             setUnlockRequired(true);
-            setError("Keyboard needs to be unlocked. Please unlock your keyboard.");
+            setError(
+              "Keyboard needs to be unlocked. Please unlock your keyboard.",
+            );
             return null;
           }
         }
         console.error("RPC call failed:", err);
-        setError(err instanceof Error ? err.message : "Unknown error");
+        setErrorWithAutoClear(
+          err instanceof Error ? err.message : "Unknown error",
+        );
         return null;
       }
     },
-    [connection]
+    [connection, clearError, setErrorWithAutoClear],
   );
 
   // Load physical layouts
-  const loadPhysicalLayouts = useCallback(async (): Promise<PhysicalLayouts | null> => {
-    return callRpc(
-      { keymap: { getPhysicalLayouts: true } },
-      (response) => response.keymap?.getPhysicalLayouts
-    );
-  }, [callRpc]);
+  const loadPhysicalLayouts =
+    useCallback(async (): Promise<PhysicalLayouts | null> => {
+      return callRpc(
+        { keymap: { getPhysicalLayouts: true } },
+        (response) => response.keymap?.getPhysicalLayouts,
+      );
+    }, [callRpc]);
 
   // Load keymap
   const loadKeymap = useCallback(async (): Promise<Keymap | null> => {
     return callRpc(
       { keymap: { getKeymap: true } },
-      (response) => response.keymap?.getKeymap
+      (response) => response.keymap?.getKeymap,
     );
   }, [callRpc]);
 
   // Load all behaviors
-  const loadBehaviors = useCallback(async (): Promise<Map<number, BehaviorDefinition>> => {
+  const loadBehaviors = useCallback(async (): Promise<
+    Map<number, BehaviorDefinition>
+  > => {
     const behaviorsMap = new Map<number, BehaviorDefinition>();
 
     // First get list of all behavior IDs
     const behaviorIds = await callRpc(
       { behaviors: { listAllBehaviors: true } },
-      (response) => response.behaviors?.listAllBehaviors?.behaviors
+      (response) => response.behaviors?.listAllBehaviors?.behaviors,
     );
 
     if (!behaviorIds) {
@@ -247,7 +293,7 @@ export function useKeymap(): UseKeymapReturn {
     for (const behaviorId of behaviorIds) {
       const details = await callRpc(
         { behaviors: { getBehaviorDetails: { behaviorId } } },
-        (response) => response.behaviors?.getBehaviorDetails
+        (response) => response.behaviors?.getBehaviorDetails,
       );
 
       if (details) {
@@ -276,7 +322,7 @@ export function useKeymap(): UseKeymapReturn {
   // Load all keymap data
   const loadKeymapData = useCallback(async () => {
     if (!connection) {
-      setError("Not connected to keyboard");
+      setErrorWithAutoClear("Not connected to keyboard");
       return;
     }
 
@@ -309,23 +355,33 @@ export function useKeymap(): UseKeymapReturn {
       // Check unsaved changes
       const unsaved = await callRpc(
         { keymap: { checkUnsavedChanges: true } },
-        (response) => response.keymap?.checkUnsavedChanges
+        (response) => response.keymap?.checkUnsavedChanges,
       );
       setHasUnsavedChanges(unsaved ?? false);
     } catch (err) {
       console.error("Failed to load keymap data:", err);
-      setError(err instanceof Error ? err.message : "Failed to load keymap data");
+      setErrorWithAutoClear(
+        err instanceof Error ? err.message : "Failed to load keymap data",
+      );
     } finally {
       setIsLoading(false);
     }
-  }, [connection, loadPhysicalLayouts, loadKeymap, loadBehaviors, storeOriginalBindings, callRpc]);
+  }, [
+    connection,
+    loadPhysicalLayouts,
+    loadKeymap,
+    loadBehaviors,
+    storeOriginalBindings,
+    callRpc,
+    setErrorWithAutoClear,
+  ]);
 
   // Set a key binding
   const setBinding = useCallback(
     async (
       layerId: number,
       keyPosition: number,
-      binding: BehaviorBinding
+      binding: BehaviorBinding,
     ): Promise<boolean> => {
       const result = await callRpc(
         {
@@ -337,11 +393,10 @@ export function useKeymap(): UseKeymapReturn {
             },
           },
         },
-        (response) => response.keymap?.setLayerBinding
+        (response) => response.keymap?.setLayerBinding,
       );
 
-      if (result === 0) {
-        // SET_LAYER_BINDING_RESP_OK
+      if (result === SetLayerBindingResp.OK) {
         // Update local keymap state
         setKeymap((prev) => {
           if (!prev) return prev;
@@ -356,12 +411,21 @@ export function useKeymap(): UseKeymapReturn {
           };
         });
         setHasUnsavedChanges(true);
+        clearError();
         return true;
+      } else if (result === SetLayerBindingResp.INVALID_LAYER_ID) {
+        setErrorWithAutoClear(`Invalid layer ID: ${layerId}`);
+      } else if (result === SetLayerBindingResp.INVALID_KEY_POSITION) {
+        setErrorWithAutoClear(`Invalid key position: ${keyPosition}`);
+      } else if (result === SetLayerBindingResp.INVALID_BEHAVIOR_ID) {
+        setErrorWithAutoClear(`Invalid behavior ID: ${binding.behaviorId}`);
+      } else {
+        setErrorWithAutoClear(`Failed to set binding: unknown error`);
       }
 
       return false;
     },
-    [callRpc]
+    [callRpc, clearError, setErrorWithAutoClear],
   );
 
   // Reset a binding to its original value
@@ -373,7 +437,7 @@ export function useKeymap(): UseKeymapReturn {
       }
       return setBinding(layerId, keyPosition, original);
     },
-    [originalBindings, setBinding]
+    [originalBindings, setBinding],
   );
 
   // Move a layer
@@ -388,31 +452,38 @@ export function useKeymap(): UseKeymapReturn {
             },
           },
         },
-        (response) => response.keymap?.moveLayer
+        (response) => response.keymap?.moveLayer,
       );
 
       if (result?.ok) {
         setKeymap(result.ok);
         setHasUnsavedChanges(true);
+        clearError();
         return true;
+      }
+      if (result?.err !== undefined) {
+        setErrorWithAutoClear(`Failed to move layer: operation not allowed`);
       }
 
       return false;
     },
-    [callRpc]
+    [callRpc, clearError, setErrorWithAutoClear],
   );
 
   // Add a new layer
-  const addLayer = useCallback(async (): Promise<{ index: number; layer: Layer } | null> => {
+  const addLayer = useCallback(async (): Promise<{
+    index: number;
+    layer: Layer;
+  } | null> => {
     const result = await callRpc(
       { keymap: { addLayer: {} } },
-      (response) => response.keymap?.addLayer
+      (response) => response.keymap?.addLayer,
     );
 
     if (result?.ok && result.ok.layer) {
       const newLayerIndex = result.ok.index;
       const newLayer = result.ok.layer;
-      
+
       // Update keymap with the new layer
       setKeymap((prev) => {
         if (!prev) return prev;
@@ -424,25 +495,28 @@ export function useKeymap(): UseKeymapReturn {
         };
       });
       setHasUnsavedChanges(true);
+      clearError();
       return { index: newLayerIndex, layer: newLayer };
     }
 
     if (result?.err !== undefined) {
-      setError(`Failed to add layer: error code ${result.err}`);
+      setErrorWithAutoClear(
+        `Failed to add layer: maximum layer count reached or operation not allowed`,
+      );
     }
 
     return null;
-  }, [callRpc]);
+  }, [callRpc, clearError, setErrorWithAutoClear]);
 
   // Remove a layer
   const removeLayer = useCallback(
     async (layerIndex: number): Promise<boolean> => {
       // Get the layer ID before removing
       const layerId = keymap?.layers[layerIndex]?.id;
-      
+
       const result = await callRpc(
         { keymap: { removeLayer: { layerIndex } } },
-        (response) => response.keymap?.removeLayer
+        (response) => response.keymap?.removeLayer,
       );
 
       if (result?.ok !== undefined) {
@@ -455,23 +529,26 @@ export function useKeymap(): UseKeymapReturn {
             layers: newLayers,
           };
         });
-        
+
         // Track removed layer ID for potential restoration
         if (layerId !== undefined) {
           setRemovedLayerIds((prev) => [...prev, layerId]);
         }
-        
+
         setHasUnsavedChanges(true);
+        clearError();
         return true;
       }
 
       if (result?.err !== undefined) {
-        setError(`Failed to remove layer: error code ${result.err}`);
+        setErrorWithAutoClear(
+          `Failed to remove layer: invalid layer index or operation not allowed`,
+        );
       }
 
       return false;
     },
-    [callRpc, keymap?.layers]
+    [callRpc, keymap?.layers, clearError, setErrorWithAutoClear],
   );
 
   // Restore a deleted layer
@@ -479,12 +556,12 @@ export function useKeymap(): UseKeymapReturn {
     async (layerId: number, atIndex: number): Promise<Layer | null> => {
       const result = await callRpc(
         { keymap: { restoreLayer: { layerId, atIndex } } },
-        (response) => response.keymap?.restoreLayer
+        (response) => response.keymap?.restoreLayer,
       );
 
       if (result?.ok) {
         const restoredLayer = result.ok;
-        
+
         // Update keymap with the restored layer
         setKeymap((prev) => {
           if (!prev) return prev;
@@ -495,28 +572,31 @@ export function useKeymap(): UseKeymapReturn {
             layers: newLayers,
           };
         });
-        
+
         // Remove from tracked removed layer IDs
         setRemovedLayerIds((prev) => prev.filter((id) => id !== layerId));
-        
+
         setHasUnsavedChanges(true);
+        clearError();
         return restoredLayer;
       }
 
       if (result?.err !== undefined) {
-        setError(`Failed to restore layer: error code ${result.err}`);
+        setErrorWithAutoClear(
+          `Failed to restore layer: layer not found or invalid position`,
+        );
       }
 
       return null;
     },
-    [callRpc]
+    [callRpc, clearError, setErrorWithAutoClear],
   );
 
   // Save changes
   const saveChanges = useCallback(async (): Promise<boolean> => {
     const result = await callRpc(
       { keymap: { saveChanges: true } },
-      (response) => response.keymap?.saveChanges
+      (response) => response.keymap?.saveChanges,
     );
 
     if (result?.ok) {
@@ -525,32 +605,43 @@ export function useKeymap(): UseKeymapReturn {
       if (keymap) {
         storeOriginalBindings(keymap);
       }
+      clearError();
       return true;
     }
 
     if (result?.err !== undefined) {
-      setError(`Failed to save: error code ${result.err}`);
+      setErrorWithAutoClear(
+        `Failed to save changes: operation not allowed or storage error`,
+      );
     }
 
     return false;
-  }, [callRpc, keymap, storeOriginalBindings]);
+  }, [
+    callRpc,
+    keymap,
+    storeOriginalBindings,
+    clearError,
+    setErrorWithAutoClear,
+  ]);
 
   // Discard changes
   const discardChanges = useCallback(async (): Promise<boolean> => {
     const result = await callRpc(
       { keymap: { discardChanges: true } },
-      (response) => response.keymap?.discardChanges
+      (response) => response.keymap?.discardChanges,
     );
 
     if (result) {
       // Reload keymap to get original values
       dataLoadedRef.current = false;
       await loadKeymapData();
+      clearError();
       return true;
     }
 
+    setErrorWithAutoClear("Failed to discard changes");
     return false;
-  }, [callRpc, loadKeymapData]);
+  }, [callRpc, loadKeymapData, clearError, setErrorWithAutoClear]);
 
   // Set active physical layout
   const setActiveLayout = useCallback(
@@ -561,20 +652,26 @@ export function useKeymap(): UseKeymapReturn {
             setActivePhysicalLayout: layoutIndex,
           },
         },
-        (response) => response.keymap?.setActivePhysicalLayout
+        (response) => response.keymap?.setActivePhysicalLayout,
       );
 
       if (result?.ok) {
         setKeymap(result.ok);
         setPhysicalLayouts((prev) =>
-          prev ? { ...prev, activeLayoutIndex: layoutIndex } : prev
+          prev ? { ...prev, activeLayoutIndex: layoutIndex } : prev,
         );
+        clearError();
         return true;
+      }
+      if (result?.err !== undefined) {
+        setErrorWithAutoClear(
+          `Failed to set active layout: invalid layout index`,
+        );
       }
 
       return false;
     },
-    [callRpc]
+    [callRpc, clearError, setErrorWithAutoClear],
   );
 
   // Get original binding
@@ -582,7 +679,7 @@ export function useKeymap(): UseKeymapReturn {
     (layerId: number, keyPosition: number): BehaviorBinding | null => {
       return originalBindings.get(bindingKey(layerId, keyPosition)) ?? null;
     },
-    [originalBindings]
+    [originalBindings],
   );
 
   // Check if binding is modified
@@ -599,7 +696,7 @@ export function useKeymap(): UseKeymapReturn {
 
       return !bindingsEqual(original, current);
     },
-    [originalBindings, keymap]
+    [originalBindings, keymap],
   );
 
   // Get behavior by ID
@@ -607,7 +704,7 @@ export function useKeymap(): UseKeymapReturn {
     (behaviorId: number): BehaviorDefinition | undefined => {
       return behaviors.get(behaviorId);
     },
-    [behaviors]
+    [behaviors],
   );
 
   // Get display name for a binding
@@ -626,7 +723,7 @@ export function useKeymap(): UseKeymapReturn {
       // For behaviors with parameters, format them
       return `${behavior.displayName}`;
     },
-    [behaviors]
+    [behaviors],
   );
 
   // Clear unlock required state
@@ -692,8 +789,22 @@ export function useKeymap(): UseKeymapReturn {
       setUnlockRequired(false);
       setRemovedLayerIds([]);
       dataLoadedRef.current = false;
+      // Clear error timer
+      if (errorTimerRef.current) {
+        clearTimeout(errorTimerRef.current);
+        errorTimerRef.current = null;
+      }
     }
   }, [connection]);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (errorTimerRef.current) {
+        clearTimeout(errorTimerRef.current);
+      }
+    };
+  }, []);
 
   return {
     physicalLayouts,
