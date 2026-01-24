@@ -26,7 +26,7 @@ export function KeymapPage() {
   // Local UI state
   const [selectedLayerIndex, setSelectedLayerIndex] = useState(0);
   const [selectedKeyPosition, setSelectedKeyPosition] = useState<number | null>(
-    null
+    null,
   );
   const [showKeycodeSelector, setShowKeycodeSelector] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -69,7 +69,7 @@ export function KeymapPage() {
       if (!currentLayer) return;
       await keymap.resetBinding(currentLayer.id, keyPosition);
     },
-    [currentLayer, keymap]
+    [currentLayer, keymap],
   );
 
   // Handle binding selection
@@ -80,7 +80,7 @@ export function KeymapPage() {
       setShowKeycodeSelector(false);
       setSelectedKeyPosition(null);
     },
-    [currentLayer, selectedKeyPosition, keymap]
+    [currentLayer, selectedKeyPosition, keymap],
   );
 
   // Handle save
@@ -109,7 +109,7 @@ export function KeymapPage() {
     if (selectedLayerIndex <= 0) return;
     const success = await keymap.moveLayer(
       selectedLayerIndex,
-      selectedLayerIndex - 1
+      selectedLayerIndex - 1,
     );
     if (success) {
       setSelectedLayerIndex(selectedLayerIndex - 1);
@@ -122,7 +122,7 @@ export function KeymapPage() {
     if (selectedLayerIndex >= keymap.keymap.layers.length - 1) return;
     const success = await keymap.moveLayer(
       selectedLayerIndex,
-      selectedLayerIndex + 1
+      selectedLayerIndex + 1,
     );
     if (success) {
       setSelectedLayerIndex(selectedLayerIndex + 1);
@@ -142,11 +142,11 @@ export function KeymapPage() {
   const handleDeleteLayer = useCallback(async () => {
     if (!keymap.keymap?.layers || keymap.keymap.layers.length <= 1) return;
     if (!confirm("Are you sure you want to delete this layer?")) return;
-    
+
     const success = await keymap.removeLayer(selectedLayerIndex);
     if (success) {
       // Adjust selected index if we deleted the last layer
-      if (selectedLayerIndex >= (keymap.keymap.layers.length - 1)) {
+      if (selectedLayerIndex >= keymap.keymap.layers.length - 1) {
         setSelectedLayerIndex(Math.max(0, selectedLayerIndex - 1));
       }
     }
@@ -155,11 +155,11 @@ export function KeymapPage() {
   // Handle restore layer
   const handleRestoreLayer = useCallback(async () => {
     if (keymap.removedLayerIds.length === 0) return;
-    
+
     // Restore the most recently removed layer at the end
     const layerId = keymap.removedLayerIds[keymap.removedLayerIds.length - 1];
     const atIndex = keymap.keymap?.layers.length ?? 0;
-    
+
     const layer = await keymap.restoreLayer(layerId, atIndex);
     if (layer) {
       // Select the restored layer
@@ -251,10 +251,9 @@ export function KeymapPage() {
             <p className="text-sm text-red-400">{keymap.error}</p>
           </div>
         )}
-
         {/* Loading State */}
-        {connection.isConnected && keymap.isLoading && !keymap.keymap && (
-          <div className="glass-card p-6 text-center">
+        {connection.isConnected && keymap.isLoading && (
+          <div className="glass-card p-6 text-center mb-6">
             <IconLoader2
               size={24}
               className="animate-spin mx-auto mb-2 text-[var(--color-electric)]"
@@ -290,8 +289,10 @@ export function KeymapPage() {
               <Tooltip.Provider delayDuration={200}>
                 <div className="flex items-center gap-1 border-l border-[var(--color-border)] pl-2">
                   {/* Layer Sorting Label */}
-                  <span className="text-xs text-[var(--color-text-muted)] mr-1">Sort:</span>
-                  
+                  <span className="text-xs text-[var(--color-text-muted)] mr-1">
+                    Sort:
+                  </span>
+
                   {/* Move Up Button */}
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>
@@ -317,7 +318,7 @@ export function KeymapPage() {
                       </Tooltip.Content>
                     </Tooltip.Portal>
                   </Tooltip.Root>
-                  
+
                   {/* Move Down Button */}
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>
@@ -355,7 +356,9 @@ export function KeymapPage() {
                       <button
                         className="p-2 rounded-lg hover:bg-[var(--color-border)] disabled:opacity-30 disabled:cursor-not-allowed"
                         onClick={handleAddLayer}
-                        disabled={keymap.availableLayers <= keymap.keymap.layers.length}
+                        disabled={
+                          keymap.availableLayers <= keymap.keymap.layers.length
+                        }
                         aria-label="Add new layer"
                       >
                         <IconPlus
@@ -374,7 +377,7 @@ export function KeymapPage() {
                       </Tooltip.Content>
                     </Tooltip.Portal>
                   </Tooltip.Root>
-                  
+
                   {/* Delete Layer Button */}
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>
@@ -384,10 +387,7 @@ export function KeymapPage() {
                         disabled={keymap.keymap.layers.length <= 1}
                         aria-label="Delete current layer"
                       >
-                        <IconTrash
-                          size={16}
-                          className="text-red-400"
-                        />
+                        <IconTrash size={16} className="text-red-400" />
                       </button>
                     </Tooltip.Trigger>
                     <Tooltip.Portal>
@@ -400,7 +400,7 @@ export function KeymapPage() {
                       </Tooltip.Content>
                     </Tooltip.Portal>
                   </Tooltip.Root>
-                  
+
                   {/* Restore Layer Button */}
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>
@@ -421,7 +421,7 @@ export function KeymapPage() {
                         className="px-2 py-1 rounded bg-[var(--color-surface-elevated)] border border-[var(--color-border)] text-xs text-[var(--color-text-secondary)] shadow-lg z-50"
                         sideOffset={5}
                       >
-                        {keymap.removedLayerIds.length > 0 
+                        {keymap.removedLayerIds.length > 0
                           ? `Restore deleted layer (${keymap.removedLayerIds.length} available)`
                           : "No deleted layers to restore"}
                         <Tooltip.Arrow className="fill-[var(--color-surface-elevated)]" />
