@@ -1,0 +1,78 @@
+syntax = "proto3";
+
+package zmk.battery_history;
+
+// Request to get battery history from all devices (central and peripherals)
+// Data is returned via notifications as streaming entries
+message GetBatteryHistoryRequest {}
+
+// A single battery history entry
+message BatteryHistoryEntry {
+    // Unix timestamp in seconds when this entry was recorded
+    uint32 timestamp = 1;
+    // Battery level percentage (0-100)
+    uint32 battery_level = 2;
+}
+
+// Device metadata information
+message DeviceMetadata {
+    // Device name/identifier
+    string device_name = 1;
+    // Recording interval in minutes
+    uint32 recording_interval_minutes = 2;
+    // Maximum number of entries that can be stored
+    uint32 max_entries = 3;
+}
+
+// Response containing battery history data
+message GetBatteryHistoryResponse {}
+
+// Request to clear battery history from device storage
+// (For future use when backend sync is implemented)
+message ClearBatteryHistoryRequest {}
+
+// Response for clear operation
+message ClearBatteryHistoryResponse {
+    // Number of entries that were cleared
+    uint32 entries_cleared = 1;
+}
+
+// Main request message
+message Request {
+    oneof request_type {
+        GetBatteryHistoryRequest get_history = 1;
+        ClearBatteryHistoryRequest clear_history = 2;
+    }
+}
+
+// Error response
+message ErrorResponse { string message = 1; }
+
+// Main response message
+message Response {
+    oneof response_type {
+        ErrorResponse error = 1;
+        GetBatteryHistoryResponse get_history = 2;
+        ClearBatteryHistoryResponse clear_history = 3;
+    }
+}
+
+// Notification sent when battery history entry is received
+// Used for streaming battery history from peripherals
+message BatteryHistoryNotification {
+    // Source ID: 0 for central, 1+ for peripherals
+    uint32 source_id = 1;
+    // Battery history entry
+    BatteryHistoryEntry entry = 2;
+    // True if this is the last entry in the batch
+    bool is_last = 3;
+    // Total number of entries being sent (only set on first entry)
+    uint32 total_entries = 4;
+    // Index of this entry in the batch (0-based)
+    uint32 entry_index = 5;
+}
+
+// Notification wrapper - sent as custom notification payload
+message Notification {
+    oneof notification_type { BatteryHistoryNotification battery_history = 1; }
+}
