@@ -23,6 +23,11 @@ function parseTimeString(value: string): number {
 export function SettingsPage() {
   const { devices, isLoading, error, setActivitySettings, resetToDefaults } = useSettings();
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  
+  // Track if user has edited the form
+  const [hasEdits, setHasEdits] = useState(false);
+  const [editedIdleTimeout, setEditedIdleTimeout] = useState<string>("");
+  const [editedSleepTimeout, setEditedSleepTimeout] = useState<string>("");
 
   // Get central device settings (source 0)
   const centralSettings = useMemo(
@@ -30,27 +35,31 @@ export function SettingsPage() {
     [devices]
   );
 
-  // Local state for form inputs (initialized from central settings)
-  const [idleTimeout, setIdleTimeout] = useState<string>("30000");
-  const [sleepTimeout, setSleepTimeout] = useState<string>("900000");
+  // Display values: use edited values if user has made changes, otherwise use central settings
+  const idleTimeout = hasEdits ? editedIdleTimeout : (centralSettings?.idleMs.toString() ?? "30000");
+  const sleepTimeout = hasEdits ? editedSleepTimeout : (centralSettings?.sleepMs.toString() ?? "900000");
 
-  // Update form values when central settings arrive
-  useMemo(() => {
-    if (centralSettings) {
-      setIdleTimeout(centralSettings.idleMs.toString());
-      setSleepTimeout(centralSettings.sleepMs.toString());
-    }
-  }, [centralSettings]);
+  const handleIdleChange = (value: string) => {
+    setHasEdits(true);
+    setEditedIdleTimeout(value);
+  };
+
+  const handleSleepChange = (value: string) => {
+    setHasEdits(true);
+    setEditedSleepTimeout(value);
+  };
 
   const handleSaveSettings = async () => {
     const idleMs = parseTimeString(idleTimeout);
     const sleepMs = parseTimeString(sleepTimeout);
     await setActivitySettings(idleMs, sleepMs);
+    setHasEdits(false);
   };
 
   const handleResetToDefaults = async () => {
     await resetToDefaults();
     setShowResetConfirm(false);
+    setHasEdits(false);
   };
 
   return (
@@ -132,7 +141,7 @@ export function SettingsPage() {
                       type="text"
                       className="input-field w-24 text-sm text-center"
                       value={idleTimeout}
-                      onChange={(e) => setIdleTimeout(e.target.value)}
+                      onChange={(e) => handleIdleChange(e.target.value)}
                       placeholder="30000"
                     />
                     <span className="text-xs text-[var(--color-text-muted)]">
@@ -155,7 +164,7 @@ export function SettingsPage() {
                       type="text"
                       className="input-field w-24 text-sm text-center"
                       value={sleepTimeout}
-                      onChange={(e) => setSleepTimeout(e.target.value)}
+                      onChange={(e) => handleSleepChange(e.target.value)}
                       placeholder="900000"
                     />
                     <span className="text-xs text-[var(--color-text-muted)]">
