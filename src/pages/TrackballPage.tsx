@@ -54,10 +54,6 @@ export function TrackballPage() {
   const displaySpeed = pendingSpeed !== null ? pendingSpeed : currentSpeed;
   const displayRotation = pendingRotation !== null ? pendingRotation : (processor?.rotationDegrees || 0);
 
-  // Use pending speed if available, otherwise use current speed
-  const displaySpeed = pendingSpeed !== null ? pendingSpeed : currentSpeed;
-  const displayRotation = pendingRotation !== null ? pendingRotation : (processor?.rotationDegrees || 0);
-
   // Reset pending state when processor changes
   useEffect(() => {
     setPendingSpeed(null);
