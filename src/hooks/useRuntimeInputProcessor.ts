@@ -3,12 +3,38 @@ import { ZMKCustomSubsystem, ZMKAppContext } from "@cormoran/zmk-studio-react-ho
 import {
   Request,
   Response,
+  Notification,
   ProcessorInfo,
 } from "../proto/zmk/runtime_input_processor/runtime_input_processor";
 
 // Subsystem identifier for ZMK runtime input processor custom protocol
 // This matches the identifier registered in the ZMK firmware module
 const SUBSYSTEM_IDENTIFIER = "zmk__runtime_input_processor";
+
+// Time to wait for all notifications to arrive after requesting processors
+const NOTIFICATION_COLLECTION_TIMEOUT_MS = 500;
+
+// Helper function to find GCD (Greatest Common Divisor) using Euclidean algorithm
+function gcd(a: number, b: number): number {
+  a = Math.abs(a);
+  b = Math.abs(b);
+  while (b !== 0) {
+    const temp = b;
+    b = a % b;
+    a = temp;
+  }
+  return a;
+}
+
+// Helper function to simplify a fraction to lowest terms
+function simplifyFraction(multiplier: number, divisor: number): { multiplier: number; divisor: number } {
+  if (divisor === 0) return { multiplier, divisor };
+  const divisorValue = gcd(multiplier, divisor);
+  return {
+    multiplier: multiplier / divisorValue,
+    divisor: divisor / divisorValue,
+  };
+}
 
 export interface InputProcessor {
   name: string;
@@ -57,26 +83,63 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         subsystemIndex
       );
 
-      const request = Request.create({
-        listProcessors: {},
+      // Map to store processors by name
+      const processorMap = new Map<string, InputProcessor>();
+
+      // Set up notification listener for processor settings
+      const notificationHandler = (processorInfo: ProcessorInfo) => {
+        try {
+          processorMap.set(processorInfo.name, {
+            name: processorInfo.name,
+            scaleMultiplier: processorInfo.scaleMultiplier,
+            scaleDivisor: processorInfo.scaleDivisor,
+            rotationDegrees: processorInfo.rotationDegrees,
+          });
+
+          // Update state with all collected processors
+          setProcessors(Array.from(processorMap.values()));
+        } catch (err) {
+          console.error("Failed to process processor notification:", err);
+        }
+      };
+
+      // Subscribe to notifications using zmkApp's onNotification
+      const unsubscribe = zmkApp.onNotification({
+        type: "custom",
+        subsystemIndex,
+        callback: (customNotification) => {
+          // Decode the payload
+          try {
+            const notification = Notification.decode(customNotification.payload);
+            if (notification.processorSettings?.processor) {
+              notificationHandler(notification.processorSettings.processor);
+            }
+          } catch (err) {
+            console.error("Failed to decode processor notification:", err);
+          }
+        },
       });
 
-      const payload = Request.encode(request).finish();
-      const responsePayload = await service.callRPC(payload);
+      try {
+        // Send request to list processors
+        const request = Request.create({
+          listProcessors: {},
+        });
 
-      if (responsePayload) {
-        const resp = Response.decode(responsePayload);
-        if (resp.listProcessors) {
-          const processors = resp.listProcessors.processors.map((p: ProcessorInfo) => ({
-            name: p.name,
-            scaleMultiplier: p.scaleMultiplier,
-            scaleDivisor: p.scaleDivisor,
-            rotationDegrees: p.rotationDegrees,
-          }));
-          setProcessors(processors);
-        } else if (resp.error) {
-          setError(resp.error.message);
+        const payload = Request.encode(request).finish();
+        const responsePayload = await service.callRPC(payload);
+
+        if (responsePayload) {
+          const resp = Response.decode(responsePayload);
+          if (resp.error) {
+            setError(resp.error.message);
+          }
+          // Note: The actual processor data comes via notifications, not the response
         }
+      } finally {
+        // Wait for all notifications to arrive from devices
+        await new Promise((resolve) => setTimeout(resolve, NOTIFICATION_COLLECTION_TIMEOUT_MS));
+        unsubscribe();
       }
     } catch (err) {
       console.error("Failed to load processors:", err);
@@ -86,7 +149,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [zmkApp?.state.connection, subsystemIndex]);
+  }, [zmkApp, subsystemIndex]);
 
   const setScaling = useCallback(
     async (name: string, multiplier: number, divisor: number) => {
@@ -101,11 +164,14 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
           subsystemIndex
         );
 
+        // Simplify the fraction to reduce risk of overflow
+        const simplified = simplifyFraction(multiplier, divisor);
+
         const request = Request.create({
           setScaling: {
             name,
-            scaleMultiplier: multiplier,
-            scaleDivisor: divisor,
+            scaleMultiplier: simplified.multiplier,
+            scaleDivisor: simplified.divisor,
           },
         });
 

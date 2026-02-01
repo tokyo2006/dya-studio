@@ -1,4 +1,5 @@
-import { IconPointer } from "@tabler/icons-react";
+import { useState, useEffect, useRef } from "react";
+import { IconPointer, IconCheck } from "@tabler/icons-react";
 import { useRuntimeInputProcessor } from "../hooks/useRuntimeInputProcessor";
 import { ButtonListSelector } from "../components/ButtonListSelector";
 
@@ -20,28 +21,131 @@ const ROTATION_OPTIONS = [
   { value: 270, label: "270°", shortLabel: "270°" },
 ];
 
+// Auto-save debounce delay in milliseconds
+const AUTO_SAVE_DELAY_MS = 1000;
+
 export function TrackballPage() {
   const { processors, isLoading, error, setScaling, setRotation } = useRuntimeInputProcessor();
+  
+  // Selected processor index
+  const [selectedProcessorIndex, setSelectedProcessorIndex] = useState(0);
+  
+  // Local state for pending changes (before auto-save)
+  const [pendingSpeed, setPendingSpeed] = useState<number | null>(null);
+  const [pendingRotation, setPendingRotation] = useState<number | null>(null);
+  
+  // Save status visualization
+  const [saveStatus, setSaveStatus] = useState<"idle" | "pending" | "saving" | "saved">("idle");
+  
+  // Debounce timer refs
+  const speedTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const rotationTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const saveStatusTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Get the first processor (typically "trackpad" or "trackball")
-  const processor = processors.length > 0 ? processors[0] : null;
+  // Get the selected processor
+  const processor = processors[selectedProcessorIndex] || null;
 
   // Calculate current speed as percentage (multiplier/divisor * 100)
   const currentSpeed = processor
     ? Math.round((processor.scaleMultiplier / processor.scaleDivisor) * 100)
     : 100;
 
-  const handleSpeedChange = async (speedPercent: number) => {
+  // Use pending speed if available, otherwise use current speed
+  const displaySpeed = pendingSpeed !== null ? pendingSpeed : currentSpeed;
+  const displayRotation = pendingRotation !== null ? pendingRotation : (processor?.rotationDegrees || 0);
+
+  // Use pending speed if available, otherwise use current speed
+  const displaySpeed = pendingSpeed !== null ? pendingSpeed : currentSpeed;
+  const displayRotation = pendingRotation !== null ? pendingRotation : (processor?.rotationDegrees || 0);
+
+  // Reset pending state when processor changes
+  useEffect(() => {
+    setPendingSpeed(null);
+    setPendingRotation(null);
+    setSaveStatus("idle");
+  }, [selectedProcessorIndex, processors]);
+
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      if (speedTimerRef.current) clearTimeout(speedTimerRef.current);
+      if (rotationTimerRef.current) clearTimeout(rotationTimerRef.current);
+      if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
+    };
+  }, []);
+
+  // Auto-save speed with debouncing
+  const handleSpeedChange = (speedPercent: number) => {
     if (!processor) return;
     
-    // Convert percentage to multiplier/divisor
-    // For simplicity, we use divisor=100 and set multiplier to the percentage
-    await setScaling(processor.name, speedPercent, 100);
+    setPendingSpeed(speedPercent);
+    setSaveStatus("pending");
+    
+    // Clear existing timer
+    if (speedTimerRef.current) {
+      clearTimeout(speedTimerRef.current);
+    }
+    
+    // Set new timer for auto-save
+    speedTimerRef.current = setTimeout(async () => {
+      setSaveStatus("saving");
+      // Convert percentage to multiplier/divisor
+      await setScaling(processor.name, speedPercent, 100);
+      setPendingSpeed(null);
+      setSaveStatus("saved");
+      
+      // Clear "saved" status after 2 seconds
+      if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
+      saveStatusTimerRef.current = setTimeout(() => {
+        setSaveStatus("idle");
+      }, 2000);
+    }, AUTO_SAVE_DELAY_MS);
   };
 
-  const handleRotationChange = async (degrees: number) => {
+  // Auto-save rotation with debouncing
+  const handleRotationChange = (degrees: number) => {
     if (!processor) return;
-    await setRotation(processor.name, degrees);
+    
+    setPendingRotation(degrees);
+    setSaveStatus("pending");
+    
+    // Clear existing timer
+    if (rotationTimerRef.current) {
+      clearTimeout(rotationTimerRef.current);
+    }
+    
+    // Set new timer for auto-save
+    rotationTimerRef.current = setTimeout(async () => {
+      setSaveStatus("saving");
+      await setRotation(processor.name, degrees);
+      setPendingRotation(null);
+      setSaveStatus("saved");
+      
+      // Clear "saved" status after 2 seconds
+      if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
+      saveStatusTimerRef.current = setTimeout(() => {
+        setSaveStatus("idle");
+      }, 2000);
+    }, AUTO_SAVE_DELAY_MS);
+  };
+
+  // Handle processor selection change
+  const handleProcessorChange = (index: number) => {
+    // Save any pending changes before switching
+    if (speedTimerRef.current) {
+      clearTimeout(speedTimerRef.current);
+      if (pendingSpeed !== null && processor) {
+        setScaling(processor.name, pendingSpeed, 100);
+      }
+    }
+    if (rotationTimerRef.current) {
+      clearTimeout(rotationTimerRef.current);
+      if (pendingRotation !== null && processor) {
+        setRotation(processor.name, pendingRotation);
+      }
+    }
+    
+    setSelectedProcessorIndex(index);
   };
 
   return (
@@ -90,19 +194,60 @@ export function TrackballPage() {
         {/* Settings */}
         {processor && (
           <div className="space-y-6">
-            {/* Processor Info */}
+            {/* Processor Selector (if multiple processors) */}
+            {processors.length > 1 && (
+              <div className="glass-card p-6">
+                <h3 className="text-sm font-medium text-[var(--color-text)] mb-4">
+                  Select Processor
+                </h3>
+                <ButtonListSelector
+                  options={processors.map((p, index) => ({
+                    value: index,
+                    label: p.name,
+                    shortLabel: p.name,
+                  }))}
+                  value={selectedProcessorIndex}
+                  onChange={handleProcessorChange}
+                  columns={Math.min(processors.length, 3)}
+                />
+              </div>
+            )}
+
+            {/* Processor Info with Save Status */}
             <div className="glass-card p-4 flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-[var(--color-text)]">
                   Active Processor
                 </p>
                 <p className="text-xs text-[var(--color-text-muted)]">
-                  Detected from device
+                  {processors.length > 1 ? "Selected processor" : "Detected from device"}
                 </p>
               </div>
-              <span className="text-sm font-mono text-[var(--color-neon)]">
-                {processor.name}
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-mono text-[var(--color-neon)]">
+                  {processor.name}
+                </span>
+                {saveStatus !== "idle" && (
+                  <div className="flex items-center gap-2">
+                    {saveStatus === "pending" && (
+                      <span className="text-xs text-[var(--color-text-muted)]">
+                        Pending...
+                      </span>
+                    )}
+                    {saveStatus === "saving" && (
+                      <span className="text-xs text-[var(--color-electric)]">
+                        Saving...
+                      </span>
+                    )}
+                    {saveStatus === "saved" && (
+                      <div className="flex items-center gap-1 text-[var(--color-neon)]">
+                        <IconCheck size={16} />
+                        <span className="text-xs">Saved</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Speed Setting */}
@@ -117,12 +262,46 @@ export function TrackballPage() {
                   </p>
                 </div>
                 <span className="text-lg font-mono text-[var(--color-electric)]">
-                  {(currentSpeed / 100).toFixed(1)}x
+                  {(displaySpeed / 100).toFixed(1)}x
                 </span>
               </div>
+              
+              {/* Slider for continuous adjustment */}
+              <div className="mb-4">
+                <input
+                  type="range"
+                  min={10}
+                  max={500}
+                  step={5}
+                  value={displaySpeed}
+                  onChange={(e) => handleSpeedChange(Number(e.target.value))}
+                  className="w-full h-2 rounded-lg appearance-none cursor-pointer
+                    bg-[var(--color-border)]
+                    [&::-webkit-slider-thumb]:appearance-none
+                    [&::-webkit-slider-thumb]:w-4
+                    [&::-webkit-slider-thumb]:h-4
+                    [&::-webkit-slider-thumb]:rounded-full
+                    [&::-webkit-slider-thumb]:bg-[var(--color-electric)]
+                    [&::-webkit-slider-thumb]:cursor-pointer
+                    [&::-webkit-slider-thumb]:shadow-[0_0_8px_var(--color-electric)]
+                    [&::-moz-range-thumb]:w-4
+                    [&::-moz-range-thumb]:h-4
+                    [&::-moz-range-thumb]:rounded-full
+                    [&::-moz-range-thumb]:bg-[var(--color-electric)]
+                    [&::-moz-range-thumb]:border-0
+                    [&::-moz-range-thumb]:cursor-pointer
+                    [&::-moz-range-thumb]:shadow-[0_0_8px_var(--color-electric)]"
+                />
+                <div className="flex justify-between mt-2 text-xs text-[var(--color-text-muted)]">
+                  <span>0.1x</span>
+                  <span>5.0x</span>
+                </div>
+              </div>
+              
+              {/* Preset buttons */}
               <ButtonListSelector
                 options={SPEED_OPTIONS}
-                value={currentSpeed}
+                value={displaySpeed}
                 onChange={handleSpeedChange}
                 columns={3}
               />
@@ -140,12 +319,46 @@ export function TrackballPage() {
                   </p>
                 </div>
                 <span className="text-lg font-mono text-[var(--color-electric)]">
-                  {processor.rotationDegrees}°
+                  {displayRotation}°
                 </span>
               </div>
+              
+              {/* Slider for continuous adjustment */}
+              <div className="mb-4">
+                <input
+                  type="range"
+                  min={0}
+                  max={359}
+                  step={1}
+                  value={displayRotation}
+                  onChange={(e) => handleRotationChange(Number(e.target.value))}
+                  className="w-full h-2 rounded-lg appearance-none cursor-pointer
+                    bg-[var(--color-border)]
+                    [&::-webkit-slider-thumb]:appearance-none
+                    [&::-webkit-slider-thumb]:w-4
+                    [&::-webkit-slider-thumb]:h-4
+                    [&::-webkit-slider-thumb]:rounded-full
+                    [&::-webkit-slider-thumb]:bg-[var(--color-electric)]
+                    [&::-webkit-slider-thumb]:cursor-pointer
+                    [&::-webkit-slider-thumb]:shadow-[0_0_8px_var(--color-electric)]
+                    [&::-moz-range-thumb]:w-4
+                    [&::-moz-range-thumb]:h-4
+                    [&::-moz-range-thumb]:rounded-full
+                    [&::-moz-range-thumb]:bg-[var(--color-electric)]
+                    [&::-moz-range-thumb]:border-0
+                    [&::-moz-range-thumb]:cursor-pointer
+                    [&::-moz-range-thumb]:shadow-[0_0_8px_var(--color-electric)]"
+                />
+                <div className="flex justify-between mt-2 text-xs text-[var(--color-text-muted)]">
+                  <span>0°</span>
+                  <span>359°</span>
+                </div>
+              </div>
+              
+              {/* Preset buttons */}
               <ButtonListSelector
                 options={ROTATION_OPTIONS}
-                value={processor.rotationDegrees}
+                value={displayRotation}
                 onChange={handleRotationChange}
                 columns={4}
               />
@@ -178,7 +391,7 @@ export function TrackballPage() {
         <div className="mt-8 p-4 rounded-lg bg-[var(--color-border)] border border-[var(--color-border-hover)]">
           <p className="text-xs text-[var(--color-text-muted)]">
             Runtime input processor allows you to adjust trackball sensitivity and rotation without rebuilding firmware. 
-            Changes are saved to the device immediately and persist across reboots.
+            Changes are automatically saved to the device after 1 second and persist across reboots.
           </p>
         </div>
       </div>

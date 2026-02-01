@@ -8,7 +8,7 @@ import { renderHook, act } from "@testing-library/react";
 import { useRuntimeInputProcessor } from "../useRuntimeInputProcessor";
 import { ZMKAppContext } from "@cormoran/zmk-studio-react-hook";
 import type { ReactNode } from "react";
-import { Response } from "../../proto/zmk/runtime_input_processor/runtime_input_processor";
+import { Response, Notification } from "../../proto/zmk/runtime_input_processor/runtime_input_processor";
 
 // Mock ZMKCustomSubsystem
 const mockCallRPC = jest.fn();
@@ -96,21 +96,19 @@ describe("useRuntimeInputProcessor", () => {
   });
 
   describe("Loading Processors", () => {
-    it("should load processors successfully", async () => {
+    it("should load processors successfully via notifications", async () => {
       const mockConnection = { isConnected: true };
 
-      // Mock successful RPC response with ListProcessorsResponse
+      // Mock notification callback
+      let notificationCallback: ((notification: { payload: Uint8Array }) => void) | null = null;
+      mockOnNotification.mockImplementation((subscription: { callback: typeof notificationCallback }) => {
+        notificationCallback = subscription.callback;
+        return () => {}; // unsubscribe function
+      });
+
+      // Mock successful RPC response (empty, data comes via notification)
       const response = Response.create({
-        listProcessors: {
-          processors: [
-            {
-              name: "trackpad",
-              scaleMultiplier: 1,
-              scaleDivisor: 1,
-              rotationDegrees: 0,
-            },
-          ],
-        },
+        listProcessors: {},
       });
       mockCallRPC.mockResolvedValue(Response.encode(response).finish());
 
@@ -128,8 +126,26 @@ describe("useRuntimeInputProcessor", () => {
 
       // Wait for useEffect to trigger loadProcessors
       await act(async () => {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 50));
       });
+
+      // Simulate notification arrival
+      if (notificationCallback) {
+        const notification = Notification.create({
+          processorSettings: {
+            processor: {
+              name: "trackpad",
+              scaleMultiplier: 1,
+              scaleDivisor: 1,
+              rotationDegrees: 0,
+            },
+          },
+        });
+        await act(async () => {
+          notificationCallback({ payload: Notification.encode(notification).finish() });
+          await new Promise(resolve => setTimeout(resolve, 600)); // Wait for notification collection timeout
+        });
+      }
 
       expect(result.current.processors).toHaveLength(1);
       expect(result.current.processors[0]).toEqual({
@@ -167,22 +183,17 @@ describe("useRuntimeInputProcessor", () => {
   });
 
   describe("Setting Scaling", () => {
-    it("should set scaling successfully", async () => {
+    it("should set scaling successfully and simplify fraction", async () => {
       const mockConnection = { isConnected: true };
 
-      // Mock successful initial load
-      const initialLoadResponse = Response.create({
-        listProcessors: {
-          processors: [
-            {
-              name: "trackpad",
-              scaleMultiplier: 1,
-              scaleDivisor: 1,
-              rotationDegrees: 0,
-            },
-          ],
-        },
+      let notificationCallback: ((notification: { payload: Uint8Array }) => void) | null = null;
+      mockOnNotification.mockImplementation((subscription: { callback: typeof notificationCallback }) => {
+        notificationCallback = subscription.callback;
+        return () => {};
       });
+
+      // Mock successful initial load
+      const initialLoadResponse = Response.create({ listProcessors: {} });
       
       // Mock successful set scaling response
       const setScalingResponse = Response.create({
@@ -190,23 +201,12 @@ describe("useRuntimeInputProcessor", () => {
       });
       
       // Mock reload after setting
-      const loadProcessorsResponse = Response.create({
-        listProcessors: {
-          processors: [
-            {
-              name: "trackpad",
-              scaleMultiplier: 2,
-              scaleDivisor: 1,
-              rotationDegrees: 0,
-            },
-          ],
-        },
-      });
+      const reloadResponse = Response.create({ listProcessors: {} });
       
       mockCallRPC
         .mockResolvedValueOnce(Response.encode(initialLoadResponse).finish())
         .mockResolvedValueOnce(Response.encode(setScalingResponse).finish())
-        .mockResolvedValueOnce(Response.encode(loadProcessorsResponse).finish());
+        .mockResolvedValueOnce(Response.encode(reloadResponse).finish());
 
       const wrapper = createWrapper({
         state: {
@@ -220,18 +220,48 @@ describe("useRuntimeInputProcessor", () => {
 
       const { result } = renderHook(() => useRuntimeInputProcessor(), { wrapper });
 
-      // Wait for initial load
+      // Wait for initial load and send initial notification
       await act(async () => {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 50));
+        if (notificationCallback) {
+          const initialNotification = Notification.create({
+            processorSettings: {
+              processor: {
+                name: "trackpad",
+                scaleMultiplier: 1,
+                scaleDivisor: 1,
+                rotationDegrees: 0,
+              },
+            },
+          });
+          notificationCallback({ payload: Notification.encode(initialNotification).finish() });
+        }
+        await new Promise(resolve => setTimeout(resolve, 600));
       });
 
-      // Now call setScaling
+      // Now call setScaling with a value that can be simplified (200/100 => 2/1)
       await act(async () => {
-        await result.current.setScaling("trackpad", 2, 1);
+        await result.current.setScaling("trackpad", 200, 100);
+        // Send notification for updated processor
+        if (notificationCallback) {
+          const updatedNotification = Notification.create({
+            processorSettings: {
+              processor: {
+                name: "trackpad",
+                scaleMultiplier: 2, // Simplified from 200/100
+                scaleDivisor: 1,
+                rotationDegrees: 0,
+              },
+            },
+          });
+          notificationCallback({ payload: Notification.encode(updatedNotification).finish() });
+        }
+        await new Promise(resolve => setTimeout(resolve, 600));
       });
 
       expect(result.current.error).toBe(null);
       expect(result.current.processors[0]?.scaleMultiplier).toBe(2);
+      expect(result.current.processors[0]?.scaleDivisor).toBe(1);
     });
   });
 
@@ -239,19 +269,14 @@ describe("useRuntimeInputProcessor", () => {
     it("should set rotation successfully", async () => {
       const mockConnection = { isConnected: true };
 
-      // Mock successful initial load
-      const initialLoadResponse = Response.create({
-        listProcessors: {
-          processors: [
-            {
-              name: "trackpad",
-              scaleMultiplier: 1,
-              scaleDivisor: 1,
-              rotationDegrees: 0,
-            },
-          ],
-        },
+      let notificationCallback: ((notification: { payload: Uint8Array }) => void) | null = null;
+      mockOnNotification.mockImplementation((subscription: { callback: typeof notificationCallback }) => {
+        notificationCallback = subscription.callback;
+        return () => {};
       });
+
+      // Mock successful initial load
+      const initialLoadResponse = Response.create({ listProcessors: {} });
       
       // Mock successful set rotation response
       const setRotationResponse = Response.create({
@@ -259,23 +284,12 @@ describe("useRuntimeInputProcessor", () => {
       });
       
       // Mock reload after setting
-      const loadProcessorsResponse = Response.create({
-        listProcessors: {
-          processors: [
-            {
-              name: "trackpad",
-              scaleMultiplier: 1,
-              scaleDivisor: 1,
-              rotationDegrees: 90,
-            },
-          ],
-        },
-      });
+      const reloadResponse = Response.create({ listProcessors: {} });
       
       mockCallRPC
         .mockResolvedValueOnce(Response.encode(initialLoadResponse).finish())
         .mockResolvedValueOnce(Response.encode(setRotationResponse).finish())
-        .mockResolvedValueOnce(Response.encode(loadProcessorsResponse).finish());
+        .mockResolvedValueOnce(Response.encode(reloadResponse).finish());
 
       const wrapper = createWrapper({
         state: {
@@ -289,14 +303,43 @@ describe("useRuntimeInputProcessor", () => {
 
       const { result } = renderHook(() => useRuntimeInputProcessor(), { wrapper });
 
-      // Wait for initial load
+      // Wait for initial load and send initial notification
       await act(async () => {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 50));
+        if (notificationCallback) {
+          const initialNotification = Notification.create({
+            processorSettings: {
+              processor: {
+                name: "trackpad",
+                scaleMultiplier: 1,
+                scaleDivisor: 1,
+                rotationDegrees: 0,
+              },
+            },
+          });
+          notificationCallback({ payload: Notification.encode(initialNotification).finish() });
+        }
+        await new Promise(resolve => setTimeout(resolve, 600));
       });
 
       // Now call setRotation
       await act(async () => {
         await result.current.setRotation("trackpad", 90);
+        // Send notification for updated processor
+        if (notificationCallback) {
+          const updatedNotification = Notification.create({
+            processorSettings: {
+              processor: {
+                name: "trackpad",
+                scaleMultiplier: 1,
+                scaleDivisor: 1,
+                rotationDegrees: 90,
+              },
+            },
+          });
+          notificationCallback({ payload: Notification.encode(updatedNotification).finish() });
+        }
+        await new Promise(resolve => setTimeout(resolve, 600));
       });
 
       expect(result.current.error).toBe(null);
