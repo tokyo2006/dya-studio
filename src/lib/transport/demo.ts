@@ -2,10 +2,15 @@
  * Demo RPC Transport
  * 
  * Simulates a ZMK keyboard connection for testing without a physical device.
+ * Supports core, keymap, behaviors, and custom subsystems (BLE, Settings).
  */
 
 import type { RpcTransport } from "@zmkfirmware/zmk-studio-ts-client/transport/index";
 import { Request, Response } from "@zmkfirmware/zmk-studio-ts-client";
+import { BLEManagementHandler, BLE_MANAGEMENT_IDENTIFIER } from "./demo-ble";
+import { SettingsHandler, SETTINGS_IDENTIFIER } from "./demo-settings";
+import { Request as BLERequest, Response as BLEResponse } from "../../proto/zmk/ble_management/ble_management";
+import { Request as SettingsRequest, Response as SettingsResponse } from "../../proto/zmk/settings/core";
 
 // Framing protocol
 const SOF = 0xab;
@@ -72,6 +77,16 @@ class Keyboard {
   private km = JSON.parse(JSON.stringify(DEMO.keymap));
   private dirty = false;
   private orig = JSON.parse(JSON.stringify(DEMO.keymap));
+  
+  // Custom subsystem handlers
+  private bleHandler = new BLEManagementHandler();
+  private settingsHandler = new SettingsHandler();
+  
+  // Custom subsystems registry
+  private customSubsystems = [
+    { index: 0, identifier: BLE_MANAGEMENT_IDENTIFIER },
+    { index: 1, identifier: SETTINGS_IDENTIFIER },
+  ];
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   process(req: any): any {
@@ -109,6 +124,49 @@ class Keyboard {
     } else if (req.behaviors?.getBehaviorDetails) {
       const b = DEMO.behaviors.find(x => x.id === req.behaviors.getBehaviorDetails.behaviorId);
       rr.behaviors = { getBehaviorDetails: b || DEMO.behaviors[0] };
+    } else if (req.custom?.listCustomSubsystems) {
+      rr.custom = {
+        listCustomSubsystems: {
+          subsystems: this.customSubsystems,
+        },
+      };
+    } else if (req.custom?.callCustomSubsystem) {
+      const { subsystemIndex, data } = req.custom.callCustomSubsystem;
+      let responseData: Uint8Array | null = null;
+
+      if (subsystemIndex === 0) {
+        // BLE Management
+        try {
+          const bleReq = BLERequest.decode(data);
+          const bleResp = this.bleHandler.process(bleReq);
+          responseData = BLEResponse.encode(bleResp).finish();
+        } catch (e) {
+          console.error("BLE subsystem error:", e);
+        }
+      } else if (subsystemIndex === 1) {
+        // Settings
+        try {
+          const settingsReq = SettingsRequest.decode(data);
+          const settingsResp = this.settingsHandler.process(settingsReq);
+          responseData = SettingsResponse.encode(settingsResp).finish();
+        } catch (e) {
+          console.error("Settings subsystem error:", e);
+        }
+      }
+
+      if (responseData) {
+        rr.custom = {
+          callCustomSubsystem: {
+            ok: { data: responseData },
+          },
+        };
+      } else {
+        rr.custom = {
+          callCustomSubsystem: {
+            err: {},
+          },
+        };
+      }
     }
 
     return { requestResponse: rr };
