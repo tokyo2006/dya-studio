@@ -83,9 +83,12 @@ class Keyboard {
   private settingsHandler = new SettingsHandler();
   
   // Custom subsystems registry
+  private readonly BLE_SUBSYSTEM_INDEX = 0;
+  private readonly SETTINGS_SUBSYSTEM_INDEX = 1;
+  
   private customSubsystems = [
-    { index: 0, identifier: BLE_MANAGEMENT_IDENTIFIER },
-    { index: 1, identifier: SETTINGS_IDENTIFIER },
+    { index: this.BLE_SUBSYSTEM_INDEX, identifier: BLE_MANAGEMENT_IDENTIFIER },
+    { index: this.SETTINGS_SUBSYSTEM_INDEX, identifier: SETTINGS_IDENTIFIER },
   ];
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -134,7 +137,7 @@ class Keyboard {
       const { subsystemIndex, data } = req.custom.callCustomSubsystem;
       let responseData: Uint8Array | null = null;
 
-      if (subsystemIndex === 0) {
+      if (subsystemIndex === this.BLE_SUBSYSTEM_INDEX) {
         // BLE Management
         try {
           const bleReq = BLERequest.decode(data);
@@ -143,7 +146,7 @@ class Keyboard {
         } catch (e) {
           console.error("BLE subsystem error:", e);
         }
-      } else if (subsystemIndex === 1) {
+      } else if (subsystemIndex === this.SETTINGS_SUBSYSTEM_INDEX) {
         // Settings
         try {
           const settingsReq = SettingsRequest.decode(data);
