@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { IconSettings, IconAlertTriangle } from "@tabler/icons-react";
+import { IconSettings, IconAlertTriangle, IconChevronDown } from "@tabler/icons-react";
 import { useSettings } from "../hooks/useSettings";
 
 // Helper to format milliseconds to human readable
@@ -10,18 +10,160 @@ function formatMs(ms: number): string {
   return `${ms / 3600000}h`;
 }
 
-// Helper to parse human readable to milliseconds
-function parseTimeString(value: string): number {
-  if (value === "0") return 0;
-  const num = parseInt(value);
-  
-  // Validate that parseInt succeeded
-  if (isNaN(num)) return 0;
-  
-  if (value.endsWith("s")) return num * 1000;
-  if (value.endsWith("m")) return num * 60000;
-  if (value.endsWith("h")) return num * 3600000;
-  return num;
+// Convert milliseconds to minutes
+function msToMinutes(ms: number): number {
+  return Math.round(ms / 60000);
+}
+
+// Convert minutes to milliseconds
+function minutesToMs(minutes: number): number {
+  return minutes * 60000;
+}
+
+// Preset time options in minutes
+const IDLE_PRESETS = [
+  { value: 0, label: "Never" },
+  { value: 0.5, label: "30 seconds" },
+  { value: 1, label: "1 minute" },
+  { value: 5, label: "5 minutes" },
+  { value: 10, label: "10 minutes" },
+  { value: 30, label: "30 minutes" },
+];
+
+const SLEEP_PRESETS = [
+  { value: 0, label: "Never" },
+  { value: 5, label: "5 minutes" },
+  { value: 10, label: "10 minutes" },
+  { value: 15, label: "15 minutes" },
+  { value: 30, label: "30 minutes" },
+  { value: 60, label: "1 hour" },
+  { value: 120, label: "2 hours" },
+  { value: 240, label: "4 hours" },
+];
+
+interface TimeDropdownProps {
+  value: number; // in milliseconds
+  onChange: (ms: number) => void;
+  presets: { value: number; label: string }[];
+}
+
+function TimeDropdown({ value, onChange, presets }: TimeDropdownProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [customInput, setCustomInput] = useState("");
+  const [showCustomInput, setShowCustomInput] = useState(false);
+
+  const valueInMinutes = msToMinutes(value);
+  const matchingPreset = presets.find((p) => p.value === valueInMinutes);
+  const displayText = matchingPreset?.label || `${valueInMinutes} min`;
+
+  const handlePresetSelect = (minutes: number) => {
+    onChange(minutesToMs(minutes));
+    setIsOpen(false);
+    setShowCustomInput(false);
+  };
+
+  const handleCustomSubmit = () => {
+    const minutes = parseFloat(customInput);
+    if (!isNaN(minutes) && minutes >= 0) {
+      onChange(minutesToMs(minutes));
+      setShowCustomInput(false);
+      setIsOpen(false);
+      setCustomInput("");
+    }
+  };
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        className="input-field w-40 text-sm flex items-center justify-between"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <span>{displayText}</span>
+        <IconChevronDown size={16} className="text-[var(--color-text-muted)]" />
+      </button>
+
+      {isOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-10"
+            onClick={() => {
+              setIsOpen(false);
+              setShowCustomInput(false);
+              setCustomInput("");
+            }}
+          />
+          <div className="absolute right-0 mt-1 w-48 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg z-20 py-1">
+            {presets.map((preset) => (
+              <button
+                key={preset.value}
+                type="button"
+                className={`w-full px-4 py-2 text-left text-sm hover:bg-[var(--color-border)] transition-colors ${
+                  preset.value === valueInMinutes
+                    ? "text-[var(--color-electric)]"
+                    : "text-[var(--color-text-secondary)]"
+                }`}
+                onClick={() => handlePresetSelect(preset.value)}
+              >
+                {preset.label}
+              </button>
+            ))}
+            <div className="border-t border-[var(--color-border)] mt-1 pt-1">
+              {!showCustomInput ? (
+                <button
+                  type="button"
+                  className="w-full px-4 py-2 text-left text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-border)] transition-colors"
+                  onClick={() => setShowCustomInput(true)}
+                >
+                  Custom value...
+                </button>
+              ) : (
+                <div className="px-4 py-2 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      className="input-field w-20 text-sm text-center"
+                      placeholder="0"
+                      value={customInput}
+                      onChange={(e) => setCustomInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          handleCustomSubmit();
+                        }
+                      }}
+                      autoFocus
+                    />
+                    <span className="text-xs text-[var(--color-text-muted)]">min</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      className="flex-1 px-2 py-1 text-xs rounded bg-[var(--color-electric)] text-[var(--color-bg)] hover:bg-[var(--color-electric)]/80"
+                      onClick={handleCustomSubmit}
+                    >
+                      Set
+                    </button>
+                    <button
+                      type="button"
+                      className="flex-1 px-2 py-1 text-xs rounded border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border)]"
+                      onClick={() => {
+                        setShowCustomInput(false);
+                        setCustomInput("");
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
 }
 
 export function SettingsPage() {
@@ -30,8 +172,8 @@ export function SettingsPage() {
   
   // Track if user has edited the form
   const [hasEdits, setHasEdits] = useState(false);
-  const [editedIdleTimeout, setEditedIdleTimeout] = useState<string>("");
-  const [editedSleepTimeout, setEditedSleepTimeout] = useState<string>("");
+  const [editedIdleTimeout, setEditedIdleTimeout] = useState<number>(0);
+  const [editedSleepTimeout, setEditedSleepTimeout] = useState<number>(0);
 
   // Get central device settings (source 0)
   const centralSettings = useMemo(
@@ -40,23 +182,21 @@ export function SettingsPage() {
   );
 
   // Display values: use edited values if user has made changes, otherwise use central settings
-  const idleTimeout = hasEdits ? editedIdleTimeout : (centralSettings?.idleMs.toString() ?? "30000");
-  const sleepTimeout = hasEdits ? editedSleepTimeout : (centralSettings?.sleepMs.toString() ?? "900000");
+  const idleTimeout = hasEdits ? editedIdleTimeout : (centralSettings?.idleMs ?? 0);
+  const sleepTimeout = hasEdits ? editedSleepTimeout : (centralSettings?.sleepMs ?? 0);
 
-  const handleIdleChange = (value: string) => {
+  const handleIdleChange = (ms: number) => {
     setHasEdits(true);
-    setEditedIdleTimeout(value);
+    setEditedIdleTimeout(ms);
   };
 
-  const handleSleepChange = (value: string) => {
+  const handleSleepChange = (ms: number) => {
     setHasEdits(true);
-    setEditedSleepTimeout(value);
+    setEditedSleepTimeout(ms);
   };
 
   const handleSaveSettings = async () => {
-    const idleMs = parseTimeString(idleTimeout);
-    const sleepMs = parseTimeString(sleepTimeout);
-    await setActivitySettings(idleMs, sleepMs);
+    await setActivitySettings(idleTimeout, sleepTimeout);
     setHasEdits(false);
   };
 
@@ -101,7 +241,7 @@ export function SettingsPage() {
         )}
 
         {/* Settings Groups */}
-        {centralSettings && (
+        {centralSettings ? (
           <div className="space-y-6">
             {/* Power Management */}
             <div className="glass-card p-6">
@@ -109,9 +249,53 @@ export function SettingsPage() {
                 Power Management
               </h3>
 
-              {/* Show all devices status */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-[var(--color-text-secondary)]">
+                      Idle Timeout
+                    </p>
+                    <p className="text-xs text-[var(--color-text-muted)]">
+                      Time before keyboard enters idle mode
+                    </p>
+                  </div>
+                  <TimeDropdown
+                    value={idleTimeout}
+                    onChange={handleIdleChange}
+                    presets={IDLE_PRESETS}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-[var(--color-text-secondary)]">
+                      Sleep Timeout
+                    </p>
+                    <p className="text-xs text-[var(--color-text-muted)]">
+                      Time before entering deep sleep
+                    </p>
+                  </div>
+                  <TimeDropdown
+                    value={sleepTimeout}
+                    onChange={handleSleepChange}
+                    presets={SLEEP_PRESETS}
+                  />
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    className="btn-electric text-sm"
+                    onClick={handleSaveSettings}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? "Saving..." : "Apply to All Devices"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Show all devices status - moved after inputs */}
               {devices.length > 0 && (
-                <div className="mb-6 p-4 rounded-lg bg-[var(--color-border)]">
+                <div className="mt-6 p-4 rounded-lg bg-[var(--color-border)]">
                   <p className="text-xs font-medium text-[var(--color-text-muted)] mb-2">
                     Current Settings by Device:
                   </p>
@@ -129,64 +313,6 @@ export function SettingsPage() {
                   </div>
                 </div>
               )}
-
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-[var(--color-text-secondary)]">
-                      Idle Timeout
-                    </p>
-                    <p className="text-xs text-[var(--color-text-muted)]">
-                      Time before keyboard enters idle mode (0 to disable)
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      className="input-field w-24 text-sm text-center"
-                      value={idleTimeout}
-                      onChange={(e) => handleIdleChange(e.target.value)}
-                      placeholder="30000"
-                    />
-                    <span className="text-xs text-[var(--color-text-muted)]">
-                      ms
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-[var(--color-text-secondary)]">
-                      Sleep Timeout
-                    </p>
-                    <p className="text-xs text-[var(--color-text-muted)]">
-                      Time before entering deep sleep (0 to disable)
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      className="input-field w-24 text-sm text-center"
-                      value={sleepTimeout}
-                      onChange={(e) => handleSleepChange(e.target.value)}
-                      placeholder="900000"
-                    />
-                    <span className="text-xs text-[var(--color-text-muted)]">
-                      ms
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex justify-end pt-2">
-                  <button
-                    className="btn-electric text-sm"
-                    onClick={handleSaveSettings}
-                    disabled={isLoading}
-                  >
-                    {isLoading ? "Saving..." : "Apply to All Devices"}
-                  </button>
-                </div>
-              </div>
             </div>
 
             {/* Danger Zone */}
@@ -235,6 +361,14 @@ export function SettingsPage() {
               </div>
             </div>
           </div>
+        ) : (
+          !isLoading && (
+            <div className="glass-card p-6">
+              <p className="text-sm text-[var(--color-text-muted)]">
+                Waiting for device connection...
+              </p>
+            </div>
+          )
         )}
 
         {/* Info */}

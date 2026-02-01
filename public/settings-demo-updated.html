@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings Page - Updated</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0a0a0f;
+      color: #e2e8f0;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+    h1 {
+      color: #00d4ff;
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      color: #94a3b8;
+      margin-bottom: 32px;
+    }
+    .card {
+      background: rgba(30, 30, 40, 0.6);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(148, 163, 184, 0.1);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .section-title {
+      color: #e2e8f0;
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 16px;
+    }
+    .setting-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .setting-info h3 {
+      color: #cbd5e1;
+      font-size: 14px;
+      margin: 0 0 4px 0;
+    }
+    .setting-info p {
+      color: #64748b;
+      font-size: 12px;
+      margin: 0;
+    }
+    .dropdown {
+      position: relative;
+      width: 160px;
+    }
+    .dropdown-button {
+      background: rgba(30, 30, 40, 0.8);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 8px;
+      color: #e2e8f0;
+      padding: 8px 12px;
+      width: 100%;
+      text-align: left;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 14px;
+    }
+    .dropdown-button:hover {
+      border-color: rgba(0, 212, 255, 0.5);
+    }
+    .btn-primary {
+      background: #00d4ff;
+      color: #0a0a0f;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 20px;
+      font-weight: 500;
+      cursor: pointer;
+      box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+    }
+    .btn-danger {
+      background: transparent;
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: 8px;
+      padding: 10px 20px;
+      cursor: pointer;
+    }
+    .danger-zone {
+      border-color: rgba(239, 68, 68, 0.2);
+    }
+    .danger-zone .section-title {
+      color: #ef4444;
+    }
+    .device-info {
+      background: rgba(148, 163, 184, 0.1);
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 24px;
+    }
+    .device-info-title {
+      color: #64748b;
+      font-size: 12px;
+      font-weight: 500;
+      margin-bottom: 8px;
+    }
+    .device-row {
+      color: #cbd5e1;
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+    .info-box {
+      background: rgba(148, 163, 184, 0.1);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 32px;
+    }
+    .info-box p {
+      color: #64748b;
+      font-size: 12px;
+      margin: 0;
+    }
+    .chevron {
+      width: 16px;
+      height: 16px;
+      color: #64748b;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>⚙️ Settings</h1>
+    <p class="subtitle">Device configuration and power management</p>
+
+    <!-- Power Management -->
+    <div class="card">
+      <h2 class="section-title">Power Management</h2>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <h3>Idle Timeout</h3>
+          <p>Time before keyboard enters idle mode</p>
+        </div>
+        <div class="dropdown">
+          <button class="dropdown-button">
+            <span>30 seconds</span>
+            <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <h3>Sleep Timeout</h3>
+          <p>Time before entering deep sleep</p>
+        </div>
+        <div class="dropdown">
+          <button class="dropdown-button">
+            <span>15 minutes</span>
+            <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; margin-top: 16px;">
+        <button class="btn-primary">Apply to All Devices</button>
+      </div>
+
+      <!-- Device status moved after inputs -->
+      <div class="device-info">
+        <p class="device-info-title">Current Settings by Device:</p>
+        <div class="device-row">Central: Idle: 30s, Sleep: 15m</div>
+        <div class="device-row">Peripheral 1: Idle: 30s, Sleep: 15m</div>
+      </div>
+    </div>
+
+    <!-- Danger Zone -->
+    <div class="card danger-zone">
+      <h2 class="section-title">Danger Zone</h2>
+      <div class="setting-row">
+        <div class="setting-info">
+          <h3>Reset to Defaults</h3>
+          <p>Restore power settings to factory defaults (Idle: 30s, Sleep: 15m)</p>
+        </div>
+        <button class="btn-danger">Reset</button>
+      </div>
+    </div>
+
+    <div class="info-box">
+      <p>Connect your keyboard to modify settings. Changes apply to all devices (central + peripherals). Individual device settings are shown for reference only.</p>
+    </div>
+  </div>
+</body>
+</html>
