@@ -1,0 +1,317 @@
+/**
+ * Demo RPC Transport
+ *
+ * Simulates a ZMK keyboard connection for testing without a physical device.
+ * Supports core, keymap, behaviors, and custom subsystems (BLE, Settings).
+ */
+
+import type { RpcTransport } from "@zmkfirmware/zmk-studio-ts-client/transport/index";
+import {
+  Request,
+  RequestResponse,
+  Response,
+} from "@zmkfirmware/zmk-studio-ts-client";
+import { BLEManagementHandler, BLE_MANAGEMENT_IDENTIFIER } from "./demo-ble";
+import { SettingsHandler, SETTINGS_IDENTIFIER } from "./demo-settings";
+import {
+  Request as BLERequest,
+  Response as BLEResponse,
+} from "../../proto/zmk/ble_management/ble_management";
+import {
+  Request as SettingsRequest,
+  Response as SettingsResponse,
+} from "../../proto/zmk/settings/core";
+import { ANSI60, ORTHO, CORNE6 } from "../layouts";
+import { ErrorConditions } from "@zmkfirmware/zmk-studio-ts-client/meta";
+
+// Framing protocol
+const SOF = 0xab;
+const EOF = 0xad;
+const ESC = 0xac;
+
+/**
+ * Demo keyboard data
+ */
+const DEMO = {
+  device: {
+    name: "DYA Keyboard (Demo)",
+    serialNumber: new Uint8Array([0x44, 0x59, 0x41, 0x44, 0x45, 0x4d, 0x4f]), // "DYADEMO"
+  },
+  layouts: {
+    activeLayoutIndex: 1,
+    layouts: [ANSI60, ORTHO, CORNE6],
+  },
+  keymap: {
+    layers: [
+      {
+        id: 0,
+        name: "Base",
+        bindings: Array(42).fill({ behaviorId: 1, param1: 0x04, param2: 0 }),
+      },
+      {
+        id: 1,
+        name: "Lower",
+        bindings: Array(42).fill({ behaviorId: 2, param1: 0, param2: 0 }),
+      },
+      {
+        id: 2,
+        name: "Raise",
+        bindings: Array(42).fill({ behaviorId: 2, param1: 0, param2: 0 }),
+      },
+    ],
+    availableLayers: 8,
+    maxLayerNameLength: 32,
+  },
+  behaviors: [
+    { id: 1, displayName: "kp", metadata: [] },
+    { id: 2, displayName: "trans", metadata: [] },
+    { id: 3, displayName: "kp", metadata: [] },
+    { id: 4, displayName: "mo", metadata: [] },
+  ],
+};
+
+/**
+ * Frame bytes
+ */
+function frame(bytes: Uint8Array): Uint8Array {
+  const result: number[] = [SOF];
+  for (let i = 0; i < bytes.length; i++) {
+    const b = bytes[i];
+    if (b === SOF || b === EOF || b === ESC) {
+      result.push(ESC);
+    }
+    result.push(b);
+  }
+  result.push(EOF);
+  return new Uint8Array(result);
+}
+
+/**
+ * Demo keyboard
+ */
+class Keyboard {
+  private dirty = false;
+  private persistent: typeof DEMO = JSON.parse(JSON.stringify(DEMO));
+  private data: typeof DEMO = JSON.parse(JSON.stringify(DEMO));
+
+  // Custom subsystem handlers
+  private bleHandler = new BLEManagementHandler();
+  private settingsHandler = new SettingsHandler();
+
+  // Custom subsystems registry
+  private readonly BLE_SUBSYSTEM_INDEX = 0;
+  private readonly SETTINGS_SUBSYSTEM_INDEX = 1;
+
+  private customSubsystems = [
+    {
+      index: this.BLE_SUBSYSTEM_INDEX,
+      identifier: BLE_MANAGEMENT_IDENTIFIER,
+      uiUrl: [],
+    },
+    {
+      index: this.SETTINGS_SUBSYSTEM_INDEX,
+      identifier: SETTINGS_IDENTIFIER,
+      uiUrl: [],
+    },
+  ];
+
+  process(req: Request): Response {
+    // Response structure: { requestResponse: { requestId, core/keymap/behaviors } }
+    const rr: RequestResponse = { requestId: req.requestId };
+    console.log("Demo received request:", req);
+    if (req.core?.getDeviceInfo) {
+      rr.core = { getDeviceInfo: this.data.device };
+    } else if (req.keymap?.getPhysicalLayouts) {
+      rr.keymap = { getPhysicalLayouts: this.data.layouts };
+    } else if (req.keymap?.getKeymap) {
+      rr.keymap = { getKeymap: this.data.keymap };
+    } else if (req.keymap?.checkUnsavedChanges !== undefined) {
+      rr.keymap = { checkUnsavedChanges: this.dirty };
+    } else if (req.keymap?.setActivePhysicalLayout !== undefined) {
+      const layoutIndex = req.keymap.setActivePhysicalLayout;
+      this.data.layouts.activeLayoutIndex = layoutIndex;
+      rr.keymap = {
+        setActivePhysicalLayout: {
+          ok: this.data.keymap,
+        },
+      };
+    } else if (req.keymap?.setLayerBinding) {
+      const { layerId, keyPosition, binding } = req.keymap.setLayerBinding;
+      const layer = this.data.keymap.layers.find(
+        (l: { id: number }) => l.id === layerId,
+      );
+      if (layer && keyPosition >= 0 && keyPosition < 42) {
+        layer.bindings[keyPosition] = binding;
+        this.dirty = true;
+        rr.keymap = { setLayerBinding: 0 };
+      } else {
+        rr.keymap = { setLayerBinding: 1 };
+      }
+    } else if (req.keymap?.saveChanges !== undefined) {
+      this.persistent = JSON.parse(JSON.stringify(this.data));
+      this.dirty = false;
+      rr.keymap = { saveChanges: { ok: true } };
+    } else if (req.keymap?.discardChanges !== undefined) {
+      this.dirty = false;
+      this.data = JSON.parse(JSON.stringify(this.persistent));
+      rr.keymap = { discardChanges: true };
+    } else if (req.behaviors?.listAllBehaviors) {
+      rr.behaviors = { listAllBehaviors: { behaviors: [1, 2, 3, 4] } };
+    } else if (req.behaviors?.getBehaviorDetails) {
+      const b = DEMO.behaviors.find(
+        (x) => x.id === req.behaviors?.getBehaviorDetails?.behaviorId,
+      );
+      rr.behaviors = { getBehaviorDetails: b || DEMO.behaviors[0] };
+    } else if (req.custom?.listCustomSubsystems) {
+      rr.custom = {
+        listCustomSubsystems: {
+          subsystems: this.customSubsystems,
+        },
+      };
+    } else if (req.custom?.call) {
+      const { subsystemIndex, payload: data } = req.custom.call;
+      let responseData: Uint8Array | null = null;
+
+      if (subsystemIndex === this.BLE_SUBSYSTEM_INDEX) {
+        // BLE Management
+        try {
+          const bleReq = BLERequest.decode(data);
+          const bleResp = this.bleHandler.process(bleReq);
+          responseData = BLEResponse.encode(bleResp).finish();
+        } catch (e) {
+          console.error("BLE subsystem error:", e);
+        }
+      } else if (subsystemIndex === this.SETTINGS_SUBSYSTEM_INDEX) {
+        // Settings
+        try {
+          const settingsReq = SettingsRequest.decode(data);
+          const settingsResp = this.settingsHandler.process(settingsReq);
+          responseData = SettingsResponse.encode(settingsResp).finish();
+        } catch (e) {
+          console.error("Settings subsystem error:", e);
+        }
+      }
+
+      if (responseData) {
+        rr.custom = {
+          call: {
+            subsystemIndex,
+            payload: responseData,
+          },
+        };
+      } else {
+        rr.meta = {
+          simpleError: ErrorConditions.GENERIC,
+        };
+      }
+    }
+    if (Object.keys(rr).length === 1) {
+      rr.meta = {
+        simpleError: ErrorConditions.RPC_NOT_FOUND,
+      };
+    }
+    console.log("Demo sending response:", rr);
+    return { requestResponse: rr };
+  }
+
+  notify(callback: (data: Uint8Array) => void) {
+    this.settingsHandler.notify((payload: Uint8Array) => {
+      callback(
+        Response.encode({
+          notification: {
+            custom: {
+              customNotification: {
+                subsystemIndex: this.SETTINGS_SUBSYSTEM_INDEX,
+                payload: payload,
+              },
+            },
+          },
+        }).finish(),
+      );
+    });
+  }
+}
+
+/**
+ * Connect to demo keyboard
+ */
+export async function connect(): Promise<RpcTransport> {
+  const abort = new AbortController();
+  const kb = new Keyboard();
+
+  // Buffer for accumulating bytes across chunks
+  let buffer: number[] = [];
+  let escaped = false;
+  let inFrame = false;
+
+  const noti = new ReadableStream<Uint8Array>({
+    start(controller) {
+      kb.notify((data: Uint8Array) => {
+        controller.enqueue(frame(data));
+      });
+    },
+  });
+
+  const tx = new TransformStream<Uint8Array, Uint8Array>({
+    transform(chunk, ctrl) {
+      try {
+        // Process each byte
+        for (let i = 0; i < chunk.length; i++) {
+          const b = chunk[i];
+
+          if (escaped) {
+            buffer.push(b);
+            escaped = false;
+          } else if (b === SOF) {
+            // Start of frame
+            buffer = [];
+            inFrame = true;
+          } else if (b === EOF && inFrame) {
+            // End of frame - process it
+            if (buffer.length > 0) {
+              const frameBytes = new Uint8Array(buffer);
+              const req = Request.decode(frameBytes);
+              const res = kb.process(req);
+              const encoded = Response.encode(res).finish();
+              const framed = frame(encoded);
+              ctrl.enqueue(framed);
+            }
+            buffer = [];
+            inFrame = false;
+          } else if (b === ESC) {
+            escaped = true;
+          } else if (inFrame) {
+            buffer.push(b);
+          }
+        }
+      } catch (e) {
+        console.error("Demo error:", e);
+      }
+    },
+  });
+  const rx = new ReadableStream<Uint8Array>({
+    start(controller) {
+      tx.readable.pipeTo(
+        new WritableStream<Uint8Array>({
+          write(chunk) {
+            controller.enqueue(chunk);
+          },
+        }),
+      );
+      noti.pipeTo(
+        new WritableStream<Uint8Array>({
+          write(chunk) {
+            controller.enqueue(chunk);
+          },
+        }),
+      );
+    },
+  });
+
+  return {
+    label: "Demo",
+    abortController: abort,
+    readable: rx,
+    writable: tx.writable,
+  };
+}

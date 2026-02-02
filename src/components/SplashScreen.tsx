@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { IconBluetooth, IconUsb } from "@tabler/icons-react";
+import { IconBluetooth, IconUsb, IconDeviceDesktop } from "@tabler/icons-react";
 import { useMemo } from "react";
 import DyaLogo from "../assets/dya.svg?react";
 import type { ConnectionMethod } from "./DeviceConnection";
@@ -153,7 +153,35 @@ export function SplashScreen({
                 <DisabledSlash color="bg-[var(--color-neon)]" />
               )}
             </button>
+            <button
+              onClick={() => onConnect("demo")}
+              disabled={isConnecting}
+              className="relative w-16 h-16 rounded-full flex items-center justify-center border-2 transition-all disabled:opacity-30 disabled:cursor-not-allowed border-[var(--color-cyber)] bg-[var(--color-cyber)]/10 hover:bg-[var(--color-cyber)]/20 hover:border-[var(--color-cyber)] hover:shadow-[0_0_20px_rgba(139,92,246,0.3)]"
+              aria-label="Try Demo Mode"
+              title="Try Demo Mode (no device required)"
+            >
+              <IconDeviceDesktop
+                size={28}
+                className="text-[var(--color-cyber)] relative z-10"
+                strokeWidth={1.5}
+              />
+              {isConnecting && (
+                <DisabledSlash color="bg-[var(--color-cyber)]" />
+              )}
+            </button>
           </div>
+          
+          {/* Demo mode hint */}
+          <motion.p
+            className="text-xs text-[var(--color-text-muted)] mt-2"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1.2 }}
+          >
+            Try{" "}
+            <span className="text-[var(--color-cyber)]">demo mode</span> without
+            a device
+          </motion.p>
         </motion.div>
 
         {/* Loading indicator */}
