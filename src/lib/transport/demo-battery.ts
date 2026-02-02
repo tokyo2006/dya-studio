@@ -50,18 +50,14 @@ function generateBatteryHistory(
 }
 
 /**
- * Mock battery history data
- */
-const MOCK_BATTERY_HISTORY = {
-  central: generateBatteryHistory(0, 48),
-  peripheral: generateBatteryHistory(1, 48),
-};
-
-/**
  * Battery History Handler
  */
 export class BatteryHistoryHandler {
   private callbacks: ((data: Uint8Array) => void)[] = [];
+  private batteryHistory = {
+    central: generateBatteryHistory(0, 48),
+    peripheral: generateBatteryHistory(1, 48),
+  };
 
   process(request: Request): Response {
     if (request.getHistory !== undefined) {
@@ -91,25 +87,30 @@ export class BatteryHistoryHandler {
       // Schedule notifications for both devices
       setTimeout(() => {
         console.log("Demo sending battery history for central");
-        sendHistoryForDevice(0, MOCK_BATTERY_HISTORY.central);
+        sendHistoryForDevice(0, this.batteryHistory.central);
       }, 100);
 
       setTimeout(() => {
         console.log("Demo sending battery history for peripheral");
-        sendHistoryForDevice(1, MOCK_BATTERY_HISTORY.peripheral);
+        sendHistoryForDevice(1, this.batteryHistory.peripheral);
       }, 200);
 
       return { getHistory: {} };
     }
 
     if (request.clearHistory !== undefined) {
-      // Clear history - reset to empty arrays
-      MOCK_BATTERY_HISTORY.central = [];
-      MOCK_BATTERY_HISTORY.peripheral = [];
+      // Calculate total entries before clearing
+      const totalEntries = 
+        this.batteryHistory.central.length + 
+        this.batteryHistory.peripheral.length;
+      
+      // Clear history and regenerate fresh data
+      this.batteryHistory.central = generateBatteryHistory(0, 48);
+      this.batteryHistory.peripheral = generateBatteryHistory(1, 48);
       
       return { 
         clearHistory: { 
-          entriesCleared: 48 * 2 // Total entries that were cleared
+          entriesCleared: totalEntries
         } 
       };
     }

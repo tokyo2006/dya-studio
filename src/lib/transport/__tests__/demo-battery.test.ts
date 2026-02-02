@@ -3,7 +3,7 @@
  */
 
 import { BatteryHistoryHandler } from "../demo-battery";
-import { Request, Response, Notification } from "../../../proto/zmk/battery_history/battery_history";
+import { Request, Notification } from "../../../proto/zmk/battery_history/battery_history";
 
 describe("BatteryHistoryHandler", () => {
   let handler: BatteryHistoryHandler;
@@ -91,7 +91,7 @@ describe("BatteryHistoryHandler", () => {
   });
 
   describe("notify callback", () => {
-    it("should register notify callback", () => {
+    it("should register notify callback", (done) => {
       let callbackCalled = false;
       
       handler.notify(() => {
@@ -107,6 +107,7 @@ describe("BatteryHistoryHandler", () => {
       // Wait for notifications
       setTimeout(() => {
         expect(callbackCalled).toBe(true);
+        done();
       }, 300);
     });
   });
