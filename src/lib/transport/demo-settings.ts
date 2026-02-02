@@ -4,14 +4,22 @@
  * Provides mock device settings for demo mode.
  */
 
+import {
+  ActivitySettings,
+  Notification,
+  type Request,
+  type Response,
+} from "../../proto/zmk/settings/core";
+
 export const SETTINGS_IDENTIFIER = "zmk__settings";
 
 /**
  * Mock device activity settings
  */
-const MOCK_ACTIVITY_SETTINGS = [
+const MOCK_ACTIVITY_SETTINGS: ActivitySettings[] = [
   { source: 0, idleMs: 300000, sleepMs: 900000 }, // Central: 5min idle, 15min sleep
   { source: 1, idleMs: 300000, sleepMs: 900000 }, // Peripheral: 5min idle, 15min sleep
+  { source: 2, idleMs: 500000, sleepMs: 900000 }, // Peripheral: 5min idle, 15min sleep
 ];
 
 /**
@@ -19,40 +27,53 @@ const MOCK_ACTIVITY_SETTINGS = [
  */
 export class SettingsHandler {
   private activitySettings = JSON.parse(JSON.stringify(MOCK_ACTIVITY_SETTINGS));
+  private callbacks: ((data: Uint8Array) => void)[] = [];
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  process(request: any): any {
+  process(request: Request): Response {
     if (request.getAllActivitySettings !== undefined) {
       // Return empty response - settings are sent via notifications
-      return { getAllActivitySettings: {} };
+      const f: (i: number) => void = (i: number) => {
+        if (i >= this.activitySettings.length) {
+          return;
+        }
+        console.log(
+          "Demo sending activity settings:",
+          this.activitySettings[i],
+        );
+        const setting = this.activitySettings[i];
+        this.callbacks.forEach((cb) =>
+          cb(
+            Notification.encode({
+              activitySettings: {
+                settings: setting,
+              },
+            }).finish(),
+          ),
+        );
+        setTimeout(() => f(i + 1), 100);
+      };
+      setTimeout(() => f(0), 100);
+      return { getAllActivitySettings: { requestSent: true } };
     }
 
     if (request.setActivitySettings !== undefined) {
-      const { idleMs, sleepMs } = request.setActivitySettings;
-      // Update all devices
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      this.activitySettings.forEach((s: any) => {
-        s.idleMs = idleMs;
-        s.sleepMs = sleepMs;
-      });
-      return { setActivitySettings: { ok: {} } };
+      if (request.setActivitySettings.settings) {
+        const { idleMs, sleepMs } = request.setActivitySettings.settings;
+        // Update all devices
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        this.activitySettings.forEach((s: any) => {
+          s.idleMs = idleMs;
+          s.sleepMs = sleepMs;
+        });
+        return { setActivitySettings: { success: true } };
+      }
+      return { setActivitySettings: { success: false } };
     }
 
-    if (request.resetActivitySettings !== undefined) {
-      // Reset to defaults
-      this.activitySettings = JSON.parse(JSON.stringify(MOCK_ACTIVITY_SETTINGS));
-      return { resetActivitySettings: { ok: {} } };
-    }
-
-    return null;
+    return { error: { message: "Not implemented" } };
   }
 
-  // Get notifications for getAllActivitySettings
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  getNotifications(): any[] {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return this.activitySettings.map((s: any) => ({
-      activitySettings: s,
-    }));
+  notify(callback: (data: Uint8Array) => void) {
+    this.callbacks.push(callback);
   }
 }

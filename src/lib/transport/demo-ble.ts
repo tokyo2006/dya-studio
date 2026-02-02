@@ -4,12 +4,18 @@
  * Provides mock BLE profile management for demo mode.
  */
 
+import type {
+  ProfileInfo,
+  Request,
+  Response,
+} from "../../proto/zmk/ble_management/ble_management";
+
 export const BLE_MANAGEMENT_IDENTIFIER = "zmk__ble_management";
 
 /**
  * Mock BLE profiles
  */
-const MOCK_BLE_PROFILES = [
+const MOCK_BLE_PROFILES: ProfileInfo[] = [
   {
     index: 0,
     name: "MacBook Pro",
@@ -56,11 +62,12 @@ const MOCK_BLE_PROFILES = [
  * BLE Management state
  */
 export class BLEManagementHandler {
-  private profiles = JSON.parse(JSON.stringify(MOCK_BLE_PROFILES));
+  private profiles: ProfileInfo[] = JSON.parse(
+    JSON.stringify(MOCK_BLE_PROFILES),
+  );
   private maxProfiles = 5;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  process(request: any): any {
+  process(request: Request): Response {
     if (request.getProfiles !== undefined) {
       return {
         getProfiles: {
@@ -70,18 +77,19 @@ export class BLEManagementHandler {
       };
     }
 
-    if (request.setActiveProfile !== undefined) {
-      const { index } = request.setActiveProfile;
-      if (index >= 0 && index < this.profiles.length && this.profiles[index].isOpen) {
+    if (request.switchProfile !== undefined) {
+      const { index } = request.switchProfile;
+      if (index >= 0 && index < this.profiles.length) {
         // Deactivate all profiles
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        this.profiles.forEach((p: any) => { p.isActive = false; });
+        this.profiles.forEach((p: ProfileInfo) => {
+          p.isActive = false;
+        });
         // Activate selected profile
         this.profiles[index].isActive = true;
-        this.profiles[index].isConnected = true;
-        return { setActiveProfile: { ok: {} } };
+        this.profiles[index].isConnected = !this.profiles[index].isOpen;
+        return { switchProfile: { success: true } };
       }
-      return { setActiveProfile: { err: {} } };
+      return { switchProfile: { success: false } };
     }
 
     if (request.unpairProfile !== undefined) {
@@ -92,23 +100,27 @@ export class BLEManagementHandler {
           name: "",
           address: "00:00:00:00:00:00",
           isConnected: false,
-          isOpen: false,
+          isOpen: true,
           isActive: false,
         };
-        return { unpairProfile: { ok: {} } };
+        return { unpairProfile: { success: true } };
       }
-      return { unpairProfile: { err: {} } };
+      return { unpairProfile: { success: false } };
     }
 
     if (request.setProfileName !== undefined) {
       const { index, name } = request.setProfileName;
-      if (index >= 0 && index < this.profiles.length && this.profiles[index].isOpen) {
+      if (index >= 0 && index < this.profiles.length) {
         this.profiles[index].name = name;
-        return { setProfileName: { ok: {} } };
+        return { setProfileName: { success: true } };
       }
-      return { setProfileName: { err: {} } };
+      return { setProfileName: { success: false } };
     }
 
-    return null;
+    return {
+      error: {
+        message: "Not implemented",
+      },
+    };
   }
 }

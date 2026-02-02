@@ -6,7 +6,11 @@
  */
 
 import type { RpcTransport } from "@zmkfirmware/zmk-studio-ts-client/transport/index";
-import { Request, Response } from "@zmkfirmware/zmk-studio-ts-client";
+import {
+  Request,
+  RequestResponse,
+  Response,
+} from "@zmkfirmware/zmk-studio-ts-client";
 import { BLEManagementHandler, BLE_MANAGEMENT_IDENTIFIER } from "./demo-ble";
 import { SettingsHandler, SETTINGS_IDENTIFIER } from "./demo-settings";
 import {
@@ -17,6 +21,8 @@ import {
   Request as SettingsRequest,
   Response as SettingsResponse,
 } from "../../proto/zmk/settings/core";
+import { ANSI60, ORTHO, CORNE6 } from "../layouts";
+import { ErrorConditions } from "@zmkfirmware/zmk-studio-ts-client/meta";
 
 // Framing protocol
 const SOF = 0xab;
@@ -32,23 +38,8 @@ const DEMO = {
     serialNumber: new Uint8Array([0x44, 0x59, 0x41, 0x44, 0x45, 0x4d, 0x4f]), // "DYADEMO"
   },
   layouts: {
-    activeLayoutIndex: 0,
-    layouts: [
-      {
-        name: "Default",
-        keys: Array(42)
-          .fill(0)
-          .map((_, i) => ({
-            width: 100,
-            height: 100,
-            x: (i >= 21 ? 750 : 0) + ((i % 21) % 6) * 110,
-            y: Math.floor((i % 21) / 6) * 110,
-            r: 0,
-            rx: 0,
-            ry: 0,
-          })),
-      },
-    ],
+    activeLayoutIndex: 1,
+    layouts: [ANSI60, ORTHO, CORNE6],
   },
   keymap: {
     layers: [
@@ -99,9 +90,9 @@ function frame(bytes: Uint8Array): Uint8Array {
  * Demo keyboard
  */
 class Keyboard {
-  private km = JSON.parse(JSON.stringify(DEMO.keymap));
   private dirty = false;
-  private orig = JSON.parse(JSON.stringify(DEMO.keymap));
+  private persistent: typeof DEMO = JSON.parse(JSON.stringify(DEMO));
+  private data: typeof DEMO = JSON.parse(JSON.stringify(DEMO));
 
   // Custom subsystem handlers
   private bleHandler = new BLEManagementHandler();
@@ -124,22 +115,29 @@ class Keyboard {
     },
   ];
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  process(req: any): any {
+  process(req: Request): Response {
     // Response structure: { requestResponse: { requestId, core/keymap/behaviors } }
-    const rr: Record<string, unknown> = { requestId: req.requestId };
-
+    const rr: RequestResponse = { requestId: req.requestId };
+    console.log("Demo received request:", req);
     if (req.core?.getDeviceInfo) {
-      rr.core = { getDeviceInfo: DEMO.device };
+      rr.core = { getDeviceInfo: this.data.device };
     } else if (req.keymap?.getPhysicalLayouts) {
-      rr.keymap = { getPhysicalLayouts: DEMO.layouts };
+      rr.keymap = { getPhysicalLayouts: this.data.layouts };
     } else if (req.keymap?.getKeymap) {
-      rr.keymap = { getKeymap: this.km };
+      rr.keymap = { getKeymap: this.data.keymap };
     } else if (req.keymap?.checkUnsavedChanges !== undefined) {
       rr.keymap = { checkUnsavedChanges: this.dirty };
+    } else if (req.keymap?.setActivePhysicalLayout !== undefined) {
+      const layoutIndex = req.keymap.setActivePhysicalLayout;
+      this.data.layouts.activeLayoutIndex = layoutIndex;
+      rr.keymap = {
+        setActivePhysicalLayout: {
+          ok: this.data.keymap,
+        },
+      };
     } else if (req.keymap?.setLayerBinding) {
       const { layerId, keyPosition, binding } = req.keymap.setLayerBinding;
-      const layer = this.km.layers.find(
+      const layer = this.data.keymap.layers.find(
         (l: { id: number }) => l.id === layerId,
       );
       if (layer && keyPosition >= 0 && keyPosition < 42) {
@@ -150,18 +148,18 @@ class Keyboard {
         rr.keymap = { setLayerBinding: 1 };
       }
     } else if (req.keymap?.saveChanges !== undefined) {
-      this.orig = JSON.parse(JSON.stringify(this.km));
+      this.persistent = JSON.parse(JSON.stringify(this.data));
       this.dirty = false;
-      rr.keymap = { saveChanges: { ok: {} } };
+      rr.keymap = { saveChanges: { ok: true } };
     } else if (req.keymap?.discardChanges !== undefined) {
-      this.km = JSON.parse(JSON.stringify(this.orig));
       this.dirty = false;
+      this.data = JSON.parse(JSON.stringify(this.persistent));
       rr.keymap = { discardChanges: true };
     } else if (req.behaviors?.listAllBehaviors) {
       rr.behaviors = { listAllBehaviors: { behaviors: [1, 2, 3, 4] } };
     } else if (req.behaviors?.getBehaviorDetails) {
       const b = DEMO.behaviors.find(
-        (x) => x.id === req.behaviors.getBehaviorDetails.behaviorId,
+        (x) => x.id === req.behaviors?.getBehaviorDetails?.behaviorId,
       );
       rr.behaviors = { getBehaviorDetails: b || DEMO.behaviors[0] };
     } else if (req.custom?.listCustomSubsystems) {
@@ -170,8 +168,8 @@ class Keyboard {
           subsystems: this.customSubsystems,
         },
       };
-    } else if (req.custom?.callCustomSubsystem) {
-      const { subsystemIndex, data } = req.custom.callCustomSubsystem;
+    } else if (req.custom?.call) {
+      const { subsystemIndex, payload: data } = req.custom.call;
       let responseData: Uint8Array | null = null;
 
       if (subsystemIndex === this.BLE_SUBSYSTEM_INDEX) {
@@ -196,20 +194,41 @@ class Keyboard {
 
       if (responseData) {
         rr.custom = {
-          callCustomSubsystem: {
-            ok: { data: responseData },
+          call: {
+            subsystemIndex,
+            payload: responseData,
           },
         };
       } else {
-        rr.custom = {
-          callCustomSubsystem: {
-            err: {},
-          },
+        rr.meta = {
+          simpleError: ErrorConditions.GENERIC,
         };
       }
     }
-
+    if (Object.keys(rr).length === 1) {
+      rr.meta = {
+        simpleError: ErrorConditions.RPC_NOT_FOUND,
+      };
+    }
+    console.log("Demo sending response:", rr);
     return { requestResponse: rr };
+  }
+
+  notify(callback: (data: Uint8Array) => void) {
+    this.settingsHandler.notify((payload: Uint8Array) => {
+      callback(
+        Response.encode({
+          notification: {
+            custom: {
+              customNotification: {
+                subsystemIndex: this.SETTINGS_SUBSYSTEM_INDEX,
+                payload: payload,
+              },
+            },
+          },
+        }).finish(),
+      );
+    });
   }
 }
 
@@ -224,6 +243,14 @@ export async function connect(): Promise<RpcTransport> {
   let buffer: number[] = [];
   let escaped = false;
   let inFrame = false;
+
+  const noti = new ReadableStream<Uint8Array>({
+    start(controller) {
+      kb.notify((data: Uint8Array) => {
+        controller.enqueue(frame(data));
+      });
+    },
+  });
 
   const tx = new TransformStream<Uint8Array, Uint8Array>({
     transform(chunk, ctrl) {
@@ -262,11 +289,29 @@ export async function connect(): Promise<RpcTransport> {
       }
     },
   });
+  const rx = new ReadableStream<Uint8Array>({
+    start(controller) {
+      tx.readable.pipeTo(
+        new WritableStream<Uint8Array>({
+          write(chunk) {
+            controller.enqueue(chunk);
+          },
+        }),
+      );
+      noti.pipeTo(
+        new WritableStream<Uint8Array>({
+          write(chunk) {
+            controller.enqueue(chunk);
+          },
+        }),
+      );
+    },
+  });
 
   return {
     label: "Demo",
     abortController: abort,
-    readable: tx.readable,
+    readable: rx,
     writable: tx.writable,
   };
 }
