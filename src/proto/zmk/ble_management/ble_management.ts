@@ -10,10 +10,14 @@ import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
 export const protobufPackage = "zmk.ble_management";
 
 /** Output priority (USB or BLE) */
-export enum OutputPriority {
-  OUTPUT_PRIORITY_USB = 0,
-  OUTPUT_PRIORITY_BLE = 1,
-  UNRECOGNIZED = -1,
+export const OutputPriority = { OUTPUT_PRIORITY_USB: 0, OUTPUT_PRIORITY_BLE: 1, UNRECOGNIZED: -1 } as const;
+
+export type OutputPriority = typeof OutputPriority[keyof typeof OutputPriority];
+
+export namespace OutputPriority {
+  export type OUTPUT_PRIORITY_USB = typeof OutputPriority.OUTPUT_PRIORITY_USB;
+  export type OUTPUT_PRIORITY_BLE = typeof OutputPriority.OUTPUT_PRIORITY_BLE;
+  export type UNRECOGNIZED = typeof OutputPriority.UNRECOGNIZED;
 }
 
 /** Profile information */

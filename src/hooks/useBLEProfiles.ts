@@ -227,6 +227,88 @@ export function useBLEProfiles(): UseBLEProfilesReturn {
     [zmkApp?.state.connection, subsystemIndex, loadProfiles]
   );
 
+  const getOutputPriority = useCallback(async () => {
+    if (!zmkApp?.state.connection || subsystemIndex === undefined) {
+      setError("Not connected to device or subsystem not found");
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const service = new ZMKCustomSubsystem(
+        zmkApp.state.connection,
+        subsystemIndex
+      );
+
+      const request = Request.create({
+        getOutputPriority: {},
+      });
+
+      const payload = Request.encode(request).finish();
+      const responsePayload = await service.callRPC(payload);
+
+      if (responsePayload) {
+        const resp = Response.decode(responsePayload);
+        if (resp.getOutputPriority) {
+          setOutputPriorityState(resp.getOutputPriority.priority);
+        } else if (resp.error) {
+          setError(resp.error.message);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to get output priority:", err);
+      setError(
+        `Failed to get output priority: ${err instanceof Error ? err.message : "Unknown error"}`
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, [zmkApp?.state.connection, subsystemIndex]);
+
+  const setOutputPriority = useCallback(
+    async (priority: OutputPriority) => {
+      if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const service = new ZMKCustomSubsystem(
+          zmkApp.state.connection,
+          subsystemIndex
+        );
+
+        const request = Request.create({
+          setOutputPriority: { priority },
+        });
+
+        const payload = Request.encode(request).finish();
+        const responsePayload = await service.callRPC(payload);
+
+        if (responsePayload) {
+          const resp = Response.decode(responsePayload);
+          if (resp.setOutputPriority?.success) {
+            await getOutputPriority();
+          } else if (resp.error) {
+            setError(resp.error.message);
+          } else {
+            setError("Failed to set output priority");
+          }
+        }
+      } catch (err) {
+        console.error("Failed to set output priority:", err);
+        setError(
+          `Failed to set output priority: ${err instanceof Error ? err.message : "Unknown error"}`
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [zmkApp?.state.connection, subsystemIndex, getOutputPriority]
+  );
+
   // Load profiles when connection or subsystem changes
   useEffect(() => {
     if (subsystemIndex !== undefined && zmkApp?.state.connection) {

@@ -33,7 +33,6 @@ export function BLEConnectionsPage() {
   const [editName, setEditName] = useState("");
   const [showOutputPriorityWarning, setShowOutputPriorityWarning] = useState(false);
   const [pendingOutputPriority, setPendingOutputPriority] = useState<OutputPriority | null>(null);
-  const [editName, setEditName] = useState("");
 
   const startEditing = (index: number, currentName: string) => {
     setEditingIndex(index);
