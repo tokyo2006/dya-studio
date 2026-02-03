@@ -14,6 +14,7 @@ import {
 import { BLEManagementHandler, BLE_MANAGEMENT_IDENTIFIER } from "./demo-ble";
 import { SettingsHandler, SETTINGS_IDENTIFIER } from "./demo-settings";
 import { BatteryHistoryHandler, BATTERY_HISTORY_IDENTIFIER } from "./demo-battery";
+import { RuntimeInputProcessorHandler, RUNTIME_INPUT_PROCESSOR_IDENTIFIER } from "./demo-runtime-input-processor";
 import {
   Request as BLERequest,
   Response as BLEResponse,
@@ -26,6 +27,10 @@ import {
   Request as BatteryHistoryRequest,
   Response as BatteryHistoryResponse,
 } from "../../proto/zmk/battery_history/battery_history";
+import {
+  Request as RuntimeInputProcessorRequest,
+  Response as RuntimeInputProcessorResponse,
+} from "../../proto/zmk/runtime_input_processor/runtime_input_processor";
 import { ANSI60, ORTHO, CORNE6 } from "../layouts";
 import { ErrorConditions } from "@zmkfirmware/zmk-studio-ts-client/meta";
 
@@ -103,11 +108,13 @@ class Keyboard {
   private bleHandler = new BLEManagementHandler();
   private settingsHandler = new SettingsHandler();
   private batteryHistoryHandler = new BatteryHistoryHandler();
+  private runtimeInputProcessorHandler = new RuntimeInputProcessorHandler();
 
   // Custom subsystems registry
   private readonly BLE_SUBSYSTEM_INDEX = 0;
   private readonly SETTINGS_SUBSYSTEM_INDEX = 1;
   private readonly BATTERY_HISTORY_SUBSYSTEM_INDEX = 2;
+  private readonly RUNTIME_INPUT_PROCESSOR_SUBSYSTEM_INDEX = 3;
 
   private customSubsystems = [
     {
@@ -123,6 +130,11 @@ class Keyboard {
     {
       index: this.BATTERY_HISTORY_SUBSYSTEM_INDEX,
       identifier: BATTERY_HISTORY_IDENTIFIER,
+      uiUrl: [],
+    },
+    {
+      index: this.RUNTIME_INPUT_PROCESSOR_SUBSYSTEM_INDEX,
+      identifier: RUNTIME_INPUT_PROCESSOR_IDENTIFIER,
       uiUrl: [],
     },
   ];
@@ -211,6 +223,15 @@ class Keyboard {
         } catch (e) {
           console.error("Battery History subsystem error:", e);
         }
+      } else if (subsystemIndex === this.RUNTIME_INPUT_PROCESSOR_SUBSYSTEM_INDEX) {
+        // Runtime Input Processor
+        try {
+          const runtimeReq = RuntimeInputProcessorRequest.decode(data);
+          const runtimeResp = this.runtimeInputProcessorHandler.process(runtimeReq);
+          responseData = RuntimeInputProcessorResponse.encode(runtimeResp).finish();
+        } catch (e) {
+          console.error("Runtime Input Processor subsystem error:", e);
+        }
       }
 
       if (responseData) {
@@ -258,6 +279,21 @@ class Keyboard {
             custom: {
               customNotification: {
                 subsystemIndex: this.BATTERY_HISTORY_SUBSYSTEM_INDEX,
+                payload: payload,
+              },
+            },
+          },
+        }).finish(),
+      );
+    });
+
+    this.runtimeInputProcessorHandler.notify((payload: Uint8Array) => {
+      callback(
+        Response.encode({
+          notification: {
+            custom: {
+              customNotification: {
+                subsystemIndex: this.RUNTIME_INPUT_PROCESSOR_SUBSYSTEM_INDEX,
                 payload: payload,
               },
             },
