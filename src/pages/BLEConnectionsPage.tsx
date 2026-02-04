@@ -114,94 +114,88 @@ export function BLEConnectionsPage() {
 
         {/* Output Priority Section */}
         {connection.isConnected && (
-          <div className="glass-card p-6 mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-medium text-[var(--color-text)]">
-                Output Priority
-              </h3>
-              <button
-                className="btn-ghost p-2"
-                onClick={getOutputPriority}
-                disabled={isLoading}
-                aria-label="Refresh output priority"
-              >
-                <IconRefresh size={16} />
-              </button>
-            </div>
-            <p className="text-xs text-[var(--color-text-muted)] mb-4">
-              Select which connection type should be prioritized for sending keystrokes
-            </p>
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                className={`glass-card p-4 flex flex-col items-center gap-3 transition-all ${
-                  outputPriority === OutputPriority.OUTPUT_PRIORITY_USB
-                    ? "border-[var(--color-electric)]/60 bg-[var(--color-electric)]/10"
-                    : "hover:border-[var(--color-border-hover)]"
-                }`}
-                onClick={() => handleOutputPriorityChange(OutputPriority.OUTPUT_PRIORITY_USB)}
-                disabled={isLoading}
-              >
-                <div className={`p-2 rounded-lg ${
-                  outputPriority === OutputPriority.OUTPUT_PRIORITY_USB
-                    ? "bg-[var(--color-electric)]/20"
-                    : "bg-[var(--color-border)]"
-                }`}>
+          <div className="glass-card p-4 mb-6">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="text-sm font-medium text-[var(--color-text)]">
+                    Output Priority
+                  </h3>
+                  <button
+                    className="btn-ghost p-1"
+                    onClick={getOutputPriority}
+                    disabled={isLoading}
+                    aria-label="Refresh output priority"
+                  >
+                    <IconRefresh size={14} />
+                  </button>
+                </div>
+                <p className="text-xs text-[var(--color-text-muted)]">
+                  Prioritized connection for keystrokes
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
+                    outputPriority === OutputPriority.OUTPUT_PRIORITY_USB
+                      ? "bg-[var(--color-electric)]/20 border border-[var(--color-electric)]/40"
+                      : "bg-[var(--color-surface)] border border-[var(--color-border)] hover:border-[var(--color-border-hover)]"
+                  }`}
+                  onClick={() => handleOutputPriorityChange(OutputPriority.OUTPUT_PRIORITY_USB)}
+                  disabled={isLoading}
+                >
                   <IconUsb
-                    size={24}
+                    size={16}
                     className={
                       outputPriority === OutputPriority.OUTPUT_PRIORITY_USB
                         ? "text-[var(--color-electric)]"
                         : "text-[var(--color-text-muted)]"
                     }
                   />
-                </div>
-                <div className="text-center">
-                  <p className="text-sm font-medium text-[var(--color-text-secondary)]">
+                  <span
+                    className={`text-sm ${
+                      outputPriority === OutputPriority.OUTPUT_PRIORITY_USB
+                        ? "text-[var(--color-electric)] font-medium"
+                        : "text-[var(--color-text-secondary)]"
+                    }`}
+                  >
                     USB
-                  </p>
+                  </span>
                   {outputPriority === OutputPriority.OUTPUT_PRIORITY_USB && (
-                    <div className="flex items-center justify-center gap-1 mt-1">
-                      <IconCheck size={12} className="text-[var(--color-neon)]" />
-                      <span className="text-xs text-[var(--color-neon)]">Active</span>
-                    </div>
+                    <IconCheck size={14} className="text-[var(--color-neon)]" />
                   )}
-                </div>
-              </button>
-              <button
-                className={`glass-card p-4 flex flex-col items-center gap-3 transition-all ${
-                  outputPriority === OutputPriority.OUTPUT_PRIORITY_BLE
-                    ? "border-[var(--color-cyber)]/60 bg-[var(--color-cyber)]/10"
-                    : "hover:border-[var(--color-border-hover)]"
-                }`}
-                onClick={() => handleOutputPriorityChange(OutputPriority.OUTPUT_PRIORITY_BLE)}
-                disabled={isLoading}
-              >
-                <div className={`p-2 rounded-lg ${
-                  outputPriority === OutputPriority.OUTPUT_PRIORITY_BLE
-                    ? "bg-[var(--color-cyber)]/20"
-                    : "bg-[var(--color-border)]"
-                }`}>
+                </button>
+                <button
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
+                    outputPriority === OutputPriority.OUTPUT_PRIORITY_BLE
+                      ? "bg-[var(--color-cyber)]/20 border border-[var(--color-cyber)]/40"
+                      : "bg-[var(--color-surface)] border border-[var(--color-border)] hover:border-[var(--color-border-hover)]"
+                  }`}
+                  onClick={() => handleOutputPriorityChange(OutputPriority.OUTPUT_PRIORITY_BLE)}
+                  disabled={isLoading}
+                >
                   <IconBluetooth
-                    size={24}
+                    size={16}
                     className={
                       outputPriority === OutputPriority.OUTPUT_PRIORITY_BLE
                         ? "text-[var(--color-cyber)]"
                         : "text-[var(--color-text-muted)]"
                     }
                   />
-                </div>
-                <div className="text-center">
-                  <p className="text-sm font-medium text-[var(--color-text-secondary)]">
-                    Bluetooth
-                  </p>
+                  <span
+                    className={`text-sm ${
+                      outputPriority === OutputPriority.OUTPUT_PRIORITY_BLE
+                        ? "text-[var(--color-cyber)] font-medium"
+                        : "text-[var(--color-text-secondary)]"
+                    }`}
+                  >
+                    BLE
+                  </span>
                   {outputPriority === OutputPriority.OUTPUT_PRIORITY_BLE && (
-                    <div className="flex items-center justify-center gap-1 mt-1">
-                      <IconCheck size={12} className="text-[var(--color-neon)]" />
-                      <span className="text-xs text-[var(--color-neon)]">Active</span>
-                    </div>
+                    <IconCheck size={14} className="text-[var(--color-neon)]" />
                   )}
-                </div>
-              </button>
+                </button>
+              </div>
             </div>
           </div>
         )}
