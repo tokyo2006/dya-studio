@@ -36,7 +36,7 @@ interface RestartMarker {
 function formatTimestamp(timestamp: number): string {
   const hours = Math.floor(timestamp / 3600);
   const minutes = Math.floor((timestamp % 3600) / 60);
-  
+
   if (hours > 0) {
     return `${hours}h ${minutes}m`;
   }
@@ -54,7 +54,8 @@ function detectRestarts(devices: DeviceBatteryHistory[]): RestartMarker[] {
       const currTimestamp = device.entries[i].timestamp;
 
       // Detect restart: timestamp goes backwards or resets to a very small value
-      const isRestart = currTimestamp < prevTimestamp || currTimestamp < ONE_HOUR_IN_SECONDS;
+      const isRestart =
+        currTimestamp < prevTimestamp || currTimestamp < ONE_HOUR_IN_SECONDS;
 
       if (isRestart && !seenTimestamps.has(currTimestamp)) {
         restarts.push({ timestamp: currTimestamp });
@@ -95,7 +96,11 @@ function combineDeviceData(devices: DeviceBatteryHistory[]): ChartDataPoint[] {
 }
 
 // Custom tooltip component
-function CustomTooltip({ active, payload, label }: {
+function CustomTooltip({
+  active,
+  payload,
+  label,
+}: {
   active?: boolean;
   payload?: Array<{ name: string; value: number; color: string }>;
   label?: string;
@@ -103,10 +108,13 @@ function CustomTooltip({ active, payload, label }: {
   if (active && payload && payload.length) {
     return (
       <div className="glass-card p-3 border border-[var(--color-border)]">
-        <p className="text-xs font-medium text-[var(--color-text)] mb-2">{label}</p>
+        <p className="text-xs font-medium text-[var(--color-text)] mb-2">
+          {label}
+        </p>
         {payload.map((entry, index) => (
           <p key={index} className="text-xs text-[var(--color-text-secondary)]">
-            <span style={{ color: entry.color }}>●</span> {entry.name}: {entry.value}%
+            <span style={{ color: entry.color }}>●</span> {entry.name}:{" "}
+            {entry.value}%
           </p>
         ))}
       </div>
@@ -115,7 +123,10 @@ function CustomTooltip({ active, payload, label }: {
   return null;
 }
 
-export function BatteryHistoryChart({ devices, deviceColors }: BatteryHistoryChartProps) {
+export function BatteryHistoryChart({
+  devices,
+  deviceColors,
+}: BatteryHistoryChartProps) {
   const chartData = useMemo(() => combineDeviceData(devices), [devices]);
   const restartMarkers = useMemo(() => detectRestarts(devices), [devices]);
 
@@ -176,7 +187,7 @@ export function BatteryHistoryChart({ devices, deviceColors }: BatteryHistoryCha
               color: "var(--color-text-secondary)",
             }}
           />
-          
+
           {/* Restart markers */}
           {restartMarkers.map((marker, index) => (
             <ReferenceLine
@@ -220,4 +231,3 @@ export function BatteryHistoryChart({ devices, deviceColors }: BatteryHistoryCha
     </div>
   );
 }
-

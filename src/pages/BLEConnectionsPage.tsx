@@ -31,8 +31,10 @@ export function BLEConnectionsPage() {
 
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
-  const [showOutputPriorityWarning, setShowOutputPriorityWarning] = useState(false);
-  const [pendingOutputPriority, setPendingOutputPriority] = useState<OutputPriority | null>(null);
+  const [showOutputPriorityWarning, setShowOutputPriorityWarning] =
+    useState(false);
+  const [pendingOutputPriority, setPendingOutputPriority] =
+    useState<OutputPriority | null>(null);
 
   const startEditing = (index: number, currentName: string) => {
     setEditingIndex(index);
@@ -141,7 +143,11 @@ export function BLEConnectionsPage() {
                       ? "bg-[var(--color-electric)]/20 border border-[var(--color-electric)]/40"
                       : "bg-[var(--color-surface)] border border-[var(--color-border)] hover:border-[var(--color-border-hover)]"
                   }`}
-                  onClick={() => handleOutputPriorityChange(OutputPriority.OUTPUT_PRIORITY_USB)}
+                  onClick={() =>
+                    handleOutputPriorityChange(
+                      OutputPriority.OUTPUT_PRIORITY_USB,
+                    )
+                  }
                   disabled={isLoading}
                 >
                   <IconUsb
@@ -171,7 +177,11 @@ export function BLEConnectionsPage() {
                       ? "bg-[var(--color-cyber)]/20 border border-[var(--color-cyber)]/40"
                       : "bg-[var(--color-surface)] border border-[var(--color-border)] hover:border-[var(--color-border-hover)]"
                   }`}
-                  onClick={() => handleOutputPriorityChange(OutputPriority.OUTPUT_PRIORITY_BLE)}
+                  onClick={() =>
+                    handleOutputPriorityChange(
+                      OutputPriority.OUTPUT_PRIORITY_BLE,
+                    )
+                  }
                   disabled={isLoading}
                 >
                   <IconBluetooth
@@ -356,13 +366,17 @@ export function BLEConnectionsPage() {
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
             <div className="glass-card p-6 max-w-md mx-4 border-yellow-500/20 bg-[var(--color-surface)]">
               <div className="flex items-start gap-3 mb-4">
-                <IconAlertTriangle size={24} className="text-yellow-500 flex-shrink-0 mt-0.5" />
+                <IconAlertTriangle
+                  size={24}
+                  className="text-yellow-500 flex-shrink-0 mt-0.5"
+                />
                 <div>
                   <h3 className="text-lg font-medium text-[var(--color-text)] mb-2">
                     Change Output Priority?
                   </h3>
                   <p className="text-sm text-[var(--color-text-secondary)] mb-2">
-                    Changing the output priority may disconnect DYA Studio from your keyboard.
+                    Changing the output priority may disconnect DYA Studio from
+                    your keyboard.
                   </p>
                   <p className="text-sm text-[var(--color-text-muted)]">
                     You will need to reconnect manually after the change.

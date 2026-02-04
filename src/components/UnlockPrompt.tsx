@@ -36,8 +36,8 @@ export function UnlockPrompt({ open, onClose, onRetry }: UnlockPromptProps) {
 
           {/* Description */}
           <Dialog.Description className="text-sm text-[var(--color-text-muted)] text-center mb-6">
-            Your keyboard&apos;s ZMK Studio is locked. Please unlock it to continue
-            editing your keymap.
+            Your keyboard&apos;s ZMK Studio is locked. Please unlock it to
+            continue editing your keymap.
           </Dialog.Description>
 
           {/* Instructions */}

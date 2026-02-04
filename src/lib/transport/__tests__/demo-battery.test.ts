@@ -3,7 +3,10 @@
  */
 
 import { BatteryHistoryHandler } from "../demo-battery";
-import { Request, Notification } from "../../../proto/zmk/battery_history/battery_history";
+import {
+  Request,
+  Notification,
+} from "../../../proto/zmk/battery_history/battery_history";
 
 describe("BatteryHistoryHandler", () => {
   let handler: BatteryHistoryHandler;
@@ -26,7 +29,7 @@ describe("BatteryHistoryHandler", () => {
 
     it("should send battery history notifications via callback", (done) => {
       const notifications: Notification[] = [];
-      
+
       handler.notify((payload: Uint8Array) => {
         const notification = Notification.decode(payload);
         notifications.push(notification);
@@ -42,9 +45,11 @@ describe("BatteryHistoryHandler", () => {
       setTimeout(() => {
         // Should have notifications for both central and peripheral
         expect(notifications.length).toBeGreaterThan(0);
-        
+
         // Check that we have notifications from different sources
-        const sourceIds = new Set(notifications.map(n => n.batteryHistory?.sourceId));
+        const sourceIds = new Set(
+          notifications.map((n) => n.batteryHistory?.sourceId),
+        );
         expect(sourceIds.has(0)).toBe(true); // Central
         expect(sourceIds.has(1)).toBe(true); // Peripheral
 
@@ -52,12 +57,20 @@ describe("BatteryHistoryHandler", () => {
         const firstNotification = notifications[0];
         expect(firstNotification.batteryHistory).toBeDefined();
         expect(firstNotification.batteryHistory?.entry).toBeDefined();
-        expect(firstNotification.batteryHistory?.entry?.timestamp).toBeGreaterThan(0);
-        expect(firstNotification.batteryHistory?.entry?.batteryLevel).toBeGreaterThanOrEqual(0);
-        expect(firstNotification.batteryHistory?.entry?.batteryLevel).toBeLessThanOrEqual(100);
+        expect(
+          firstNotification.batteryHistory?.entry?.timestamp,
+        ).toBeGreaterThan(0);
+        expect(
+          firstNotification.batteryHistory?.entry?.batteryLevel,
+        ).toBeGreaterThanOrEqual(0);
+        expect(
+          firstNotification.batteryHistory?.entry?.batteryLevel,
+        ).toBeLessThanOrEqual(100);
 
         // Verify isLast flag is set correctly
-        const lastNotifications = notifications.filter(n => n.batteryHistory?.isLast);
+        const lastNotifications = notifications.filter(
+          (n) => n.batteryHistory?.isLast,
+        );
         expect(lastNotifications.length).toBeGreaterThan(0);
 
         done();
@@ -93,7 +106,7 @@ describe("BatteryHistoryHandler", () => {
   describe("notify callback", () => {
     it("should register notify callback", (done) => {
       let callbackCalled = false;
-      
+
       handler.notify(() => {
         callbackCalled = true;
       });

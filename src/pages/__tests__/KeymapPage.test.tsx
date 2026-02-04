@@ -99,9 +99,14 @@ describe("KeymapPage", () => {
       setBinding: jest.fn().mockResolvedValue(true),
       resetBinding: jest.fn().mockResolvedValue(true),
       moveLayer: jest.fn().mockResolvedValue(true),
-      addLayer: jest.fn().mockResolvedValue({ index: 0, layer: { id: 0, name: "New", bindings: [] } }),
+      addLayer: jest.fn().mockResolvedValue({
+        index: 0,
+        layer: { id: 0, name: "New", bindings: [] },
+      }),
       removeLayer: jest.fn().mockResolvedValue(true),
-      restoreLayer: jest.fn().mockResolvedValue({ id: 0, name: "Restored", bindings: [] }),
+      restoreLayer: jest
+        .fn()
+        .mockResolvedValue({ id: 0, name: "Restored", bindings: [] }),
       availableLayers: 4,
       removedLayerIds: [],
       saveChanges: jest.fn().mockResolvedValue(true),
@@ -133,7 +138,7 @@ describe("KeymapPage", () => {
         <ZMKAppProvider value={mockZMKApp}>
           <KeymapPage />
         </ZMKAppProvider>
-      </ConnectionContext.Provider>
+      </ConnectionContext.Provider>,
     );
   };
 
@@ -142,14 +147,14 @@ describe("KeymapPage", () => {
       renderComponent();
       expect(screen.getByText("Keymap")).toBeInTheDocument();
       expect(
-        screen.getByText("Configure key bindings and layers")
+        screen.getByText("Configure key bindings and layers"),
       ).toBeInTheDocument();
     });
 
     it("should show connect message when not connected", () => {
       renderComponent();
       expect(
-        screen.getByText("Connect your keyboard to edit keymaps")
+        screen.getByText("Connect your keyboard to edit keymaps"),
       ).toBeInTheDocument();
     });
 
@@ -161,10 +166,7 @@ describe("KeymapPage", () => {
 
   describe("Connected State - Loading", () => {
     it("should show loading state", () => {
-      renderComponent(
-        { isConnected: true },
-        { isLoading: true, keymap: null }
-      );
+      renderComponent({ isConnected: true }, { isLoading: true, keymap: null });
       expect(screen.getByText("Loading keymap data...")).toBeInTheDocument();
     });
   });
@@ -173,7 +175,11 @@ describe("KeymapPage", () => {
     it("should show error message", () => {
       renderComponent(
         { isConnected: true },
-        { error: "Failed to load keymap", keymap: mockKeymap, physicalLayouts: mockPhysicalLayouts }
+        {
+          error: "Failed to load keymap",
+          keymap: mockKeymap,
+          physicalLayouts: mockPhysicalLayouts,
+        },
       );
       expect(screen.getByText("Failed to load keymap")).toBeInTheDocument();
     });
@@ -187,7 +193,7 @@ describe("KeymapPage", () => {
           keymap: mockKeymap,
           physicalLayouts: mockPhysicalLayouts,
           behaviors: mockBehaviors,
-        }
+        },
       );
 
       expect(screen.getByText("Base")).toBeInTheDocument();
@@ -202,7 +208,7 @@ describe("KeymapPage", () => {
           physicalLayouts: mockPhysicalLayouts,
           behaviors: mockBehaviors,
           hasUnsavedChanges: true,
-        }
+        },
       );
 
       expect(screen.getByText("● Unsaved changes")).toBeInTheDocument();
@@ -215,7 +221,7 @@ describe("KeymapPage", () => {
           keymap: mockKeymap,
           physicalLayouts: mockPhysicalLayouts,
           behaviors: mockBehaviors,
-        }
+        },
       );
 
       expect(screen.getByText("Save")).toBeInTheDocument();
@@ -230,7 +236,7 @@ describe("KeymapPage", () => {
           physicalLayouts: mockPhysicalLayouts,
           behaviors: mockBehaviors,
           hasUnsavedChanges: false,
-        }
+        },
       );
 
       const saveButton = screen.getByText("Save").closest("button");
@@ -245,7 +251,7 @@ describe("KeymapPage", () => {
           physicalLayouts: mockPhysicalLayouts,
           behaviors: mockBehaviors,
           hasUnsavedChanges: true,
-        }
+        },
       );
 
       const saveButton = screen.getByText("Save").closest("button");
@@ -262,7 +268,7 @@ describe("KeymapPage", () => {
           keymap: mockKeymap,
           physicalLayouts: mockPhysicalLayouts,
           behaviors: mockBehaviors,
-        }
+        },
       );
 
       const lowerTab = screen.getByText("Lower");
@@ -270,7 +276,7 @@ describe("KeymapPage", () => {
 
       // The Lower tab should now have the active styling
       expect(lowerTab.closest("button")).toHaveClass(
-        "bg-[var(--color-electric)]/20"
+        "bg-[var(--color-electric)]/20",
       );
     });
   });
@@ -283,11 +289,15 @@ describe("KeymapPage", () => {
           keymap: mockKeymap,
           physicalLayouts: mockPhysicalLayouts,
           behaviors: mockBehaviors,
-        }
+        },
       );
 
-      expect(screen.getByLabelText("Move layer up (higher priority)")).toBeInTheDocument();
-      expect(screen.getByLabelText("Move layer down (lower priority)")).toBeInTheDocument();
+      expect(
+        screen.getByLabelText("Move layer up (higher priority)"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByLabelText("Move layer down (lower priority)"),
+      ).toBeInTheDocument();
     });
 
     it("should disable move up button for first layer", () => {
@@ -297,10 +307,12 @@ describe("KeymapPage", () => {
           keymap: mockKeymap,
           physicalLayouts: mockPhysicalLayouts,
           behaviors: mockBehaviors,
-        }
+        },
       );
 
-      const moveUpButton = screen.getByLabelText("Move layer up (higher priority)");
+      const moveUpButton = screen.getByLabelText(
+        "Move layer up (higher priority)",
+      );
       expect(moveUpButton).toBeDisabled();
     });
 
@@ -314,10 +326,12 @@ describe("KeymapPage", () => {
           physicalLayouts: mockPhysicalLayouts,
           behaviors: mockBehaviors,
           moveLayer: mockMoveLayer,
-        }
+        },
       );
 
-      const moveDownButton = screen.getByLabelText("Move layer down (lower priority)");
+      const moveDownButton = screen.getByLabelText(
+        "Move layer down (lower priority)",
+      );
       await user.click(moveDownButton);
 
       expect(mockMoveLayer).toHaveBeenCalledWith(0, 1);
@@ -330,11 +344,11 @@ describe("KeymapPage", () => {
         { isConnected: true },
         {
           unlockRequired: false,
-        }
+        },
       );
 
       expect(
-        screen.queryByText("Keyboard Unlock Required")
+        screen.queryByText("Keyboard Unlock Required"),
       ).not.toBeInTheDocument();
     });
 
@@ -350,11 +364,11 @@ describe("KeymapPage", () => {
           keymap: mockKeymap,
           physicalLayouts: mockPhysicalLayouts,
           behaviors: mockBehaviors,
-        }
+        },
       );
 
       expect(
-        screen.getByText(/Click on a key to modify its binding/)
+        screen.getByText(/Click on a key to modify its binding/),
       ).toBeInTheDocument();
     });
 
@@ -362,8 +376,8 @@ describe("KeymapPage", () => {
       renderComponent();
       expect(
         screen.getByText(
-          "Connect your keyboard to edit keymaps. Click on a key to modify its binding."
-        )
+          "Connect your keyboard to edit keymaps. Click on a key to modify its binding.",
+        ),
       ).toBeInTheDocument();
     });
   });

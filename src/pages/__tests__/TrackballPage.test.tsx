@@ -9,7 +9,10 @@ import { useRuntimeInputProcessor } from "../../hooks/useRuntimeInputProcessor";
 // Mock the useRuntimeInputProcessor hook
 jest.mock("../../hooks/useRuntimeInputProcessor");
 
-const mockUseRuntimeInputProcessor = useRuntimeInputProcessor as jest.MockedFunction<typeof useRuntimeInputProcessor>;
+const mockUseRuntimeInputProcessor =
+  useRuntimeInputProcessor as jest.MockedFunction<
+    typeof useRuntimeInputProcessor
+  >;
 
 describe("TrackballPage", () => {
   beforeEach(() => {
@@ -29,7 +32,11 @@ describe("TrackballPage", () => {
     render(<TrackballPage />);
 
     expect(screen.getByText("Trackball Settings")).toBeInTheDocument();
-    expect(screen.getByText("Adjust sensitivity and behavior via runtime input processor")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Adjust sensitivity and behavior via runtime input processor",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("should show loading state when initially loading", () => {
@@ -44,7 +51,9 @@ describe("TrackballPage", () => {
 
     render(<TrackballPage />);
 
-    expect(screen.getByText("Loading trackball settings...")).toBeInTheDocument();
+    expect(
+      screen.getByText("Loading trackball settings..."),
+    ).toBeInTheDocument();
   });
 
   it("should display error message", () => {
@@ -75,7 +84,9 @@ describe("TrackballPage", () => {
 
     render(<TrackballPage />);
 
-    expect(screen.getByText(/No runtime input processor found/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/No runtime input processor found/),
+    ).toBeInTheDocument();
   });
 
   it("should display processor information when loaded", () => {
@@ -177,7 +188,9 @@ describe("TrackballPage", () => {
     // Click on 2.0x speed button in the ButtonListSelector
     const speedButtons = screen.getAllByText("2.0x");
     // The button is the one in the ButtonListSelector (not the display value)
-    const speedButton = speedButtons.find(el => el.tagName === 'SPAN' && el.parentElement?.tagName === 'BUTTON');
+    const speedButton = speedButtons.find(
+      (el) => el.tagName === "SPAN" && el.parentElement?.tagName === "BUTTON",
+    );
     if (speedButton && speedButton.parentElement) {
       await user.click(speedButton.parentElement);
     }
@@ -188,7 +201,7 @@ describe("TrackballPage", () => {
     });
 
     expect(mockSetScaling).toHaveBeenCalledWith("trackpad", 200, 100);
-    
+
     jest.useRealTimers();
   });
 
@@ -218,7 +231,9 @@ describe("TrackballPage", () => {
     // Click on 90° rotation button in the ButtonListSelector
     const rotationButtons = screen.getAllByText("90°");
     // The button is the one in the ButtonListSelector (not the display value)
-    const rotationButton = rotationButtons.find(el => el.tagName === 'SPAN' && el.parentElement?.tagName === 'BUTTON');
+    const rotationButton = rotationButtons.find(
+      (el) => el.tagName === "SPAN" && el.parentElement?.tagName === "BUTTON",
+    );
     if (rotationButton && rotationButton.parentElement) {
       await user.click(rotationButton.parentElement);
     }
@@ -229,7 +244,7 @@ describe("TrackballPage", () => {
     });
 
     expect(mockSetRotation).toHaveBeenCalledWith("trackpad", 90);
-    
+
     jest.useRealTimers();
   });
 
@@ -278,6 +293,8 @@ describe("TrackballPage", () => {
 
     render(<TrackballPage />);
 
-    expect(screen.getByText(/Runtime input processor allows you to adjust/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Runtime input processor allows you to adjust/),
+    ).toBeInTheDocument();
   });
 });

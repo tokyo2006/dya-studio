@@ -13,8 +13,14 @@ import {
 } from "@zmkfirmware/zmk-studio-ts-client";
 import { BLEManagementHandler, BLE_MANAGEMENT_IDENTIFIER } from "./demo-ble";
 import { SettingsHandler, SETTINGS_IDENTIFIER } from "./demo-settings";
-import { BatteryHistoryHandler, BATTERY_HISTORY_IDENTIFIER } from "./demo-battery";
-import { RuntimeInputProcessorHandler, RUNTIME_INPUT_PROCESSOR_IDENTIFIER } from "./demo-runtime-input-processor";
+import {
+  BatteryHistoryHandler,
+  BATTERY_HISTORY_IDENTIFIER,
+} from "./demo-battery";
+import {
+  RuntimeInputProcessorHandler,
+  RUNTIME_INPUT_PROCESSOR_IDENTIFIER,
+} from "./demo-runtime-input-processor";
 import {
   Request as BLERequest,
   Response as BLEResponse,
@@ -223,12 +229,16 @@ class Keyboard {
         } catch (e) {
           console.error("Battery History subsystem error:", e);
         }
-      } else if (subsystemIndex === this.RUNTIME_INPUT_PROCESSOR_SUBSYSTEM_INDEX) {
+      } else if (
+        subsystemIndex === this.RUNTIME_INPUT_PROCESSOR_SUBSYSTEM_INDEX
+      ) {
         // Runtime Input Processor
         try {
           const runtimeReq = RuntimeInputProcessorRequest.decode(data);
-          const runtimeResp = this.runtimeInputProcessorHandler.process(runtimeReq);
-          responseData = RuntimeInputProcessorResponse.encode(runtimeResp).finish();
+          const runtimeResp =
+            this.runtimeInputProcessorHandler.process(runtimeReq);
+          responseData =
+            RuntimeInputProcessorResponse.encode(runtimeResp).finish();
         } catch (e) {
           console.error("Runtime Input Processor subsystem error:", e);
         }

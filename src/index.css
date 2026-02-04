@@ -60,7 +60,11 @@
   }
 
   html {
-    font-family: "Inter", system-ui, -apple-system, sans-serif;
+    font-family:
+      "Inter",
+      system-ui,
+      -apple-system,
+      sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -72,7 +76,9 @@
     color: var(--color-text);
     min-height: 100vh;
     overflow-x: hidden;
-    transition: background-color 0.3s ease, color 0.3s ease;
+    transition:
+      background-color 0.3s ease,
+      color 0.3s ease;
   }
 
   #root {
@@ -108,7 +114,9 @@
   border-radius: 0.75rem;
   border: 1px solid var(--glass-border);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-  transition: background-color 0.3s ease, border-color 0.3s ease;
+  transition:
+    background-color 0.3s ease,
+    border-color 0.3s ease;
 }
 
 :root.light .glass-card {
@@ -123,7 +131,9 @@
   );
   backdrop-filter: blur(12px);
   border: 1px solid var(--glass-border);
-  transition: background 0.3s ease, border-color 0.3s ease;
+  transition:
+    background 0.3s ease,
+    border-color 0.3s ease;
 }
 
 .btn-electric {
@@ -147,7 +157,9 @@
 .btn-electric:hover {
   background: rgba(0, 212, 255, 0.3);
   border-color: rgba(0, 212, 255, 0.6);
-  box-shadow: 0 0 20px rgba(0, 212, 255, 0.4), 0 0 40px rgba(0, 212, 255, 0.2);
+  box-shadow:
+    0 0 20px rgba(0, 212, 255, 0.4),
+    0 0 40px rgba(0, 212, 255, 0.2);
 }
 
 :root.light .btn-electric:hover {
@@ -187,7 +199,9 @@
 .btn-neon:hover {
   background: rgba(0, 255, 204, 0.3);
   border-color: rgba(0, 255, 204, 0.6);
-  box-shadow: 0 0 20px rgba(0, 255, 204, 0.4), 0 0 40px rgba(0, 255, 204, 0.2);
+  box-shadow:
+    0 0 20px rgba(0, 255, 204, 0.4),
+    0 0 40px rgba(0, 255, 204, 0.2);
 }
 
 :root.light .btn-neon:hover {
@@ -334,19 +348,27 @@
 
 /* Utility classes */
 .text-glow-electric {
-  text-shadow: 0 0 10px rgba(0, 212, 255, 0.5), 0 0 20px rgba(0, 212, 255, 0.3);
+  text-shadow:
+    0 0 10px rgba(0, 212, 255, 0.5),
+    0 0 20px rgba(0, 212, 255, 0.3);
 }
 
 :root.light .text-glow-electric {
-  text-shadow: 0 0 10px rgba(0, 153, 204, 0.3), 0 0 20px rgba(0, 153, 204, 0.15);
+  text-shadow:
+    0 0 10px rgba(0, 153, 204, 0.3),
+    0 0 20px rgba(0, 153, 204, 0.15);
 }
 
 .text-glow-neon {
-  text-shadow: 0 0 10px rgba(0, 255, 204, 0.5), 0 0 20px rgba(0, 255, 204, 0.3);
+  text-shadow:
+    0 0 10px rgba(0, 255, 204, 0.5),
+    0 0 20px rgba(0, 255, 204, 0.3);
 }
 
 :root.light .text-glow-neon {
-  text-shadow: 0 0 10px rgba(0, 184, 148, 0.3), 0 0 20px rgba(0, 184, 148, 0.15);
+  text-shadow:
+    0 0 10px rgba(0, 184, 148, 0.3),
+    0 0 20px rgba(0, 184, 148, 0.15);
 }
 
 .bg-gradient-dark {

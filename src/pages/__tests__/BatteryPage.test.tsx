@@ -8,7 +8,9 @@ import { useBatteryHistory } from "../../hooks/useBatteryHistory";
 // Mock the useBatteryHistory hook
 jest.mock("../../hooks/useBatteryHistory");
 
-const mockUseBatteryHistory = useBatteryHistory as jest.MockedFunction<typeof useBatteryHistory>;
+const mockUseBatteryHistory = useBatteryHistory as jest.MockedFunction<
+  typeof useBatteryHistory
+>;
 
 describe("BatteryPage", () => {
   beforeEach(() => {
@@ -27,7 +29,9 @@ describe("BatteryPage", () => {
     render(<BatteryPage />);
 
     expect(screen.getByText("Battery Status")).toBeInTheDocument();
-    expect(screen.getByText("Monitor battery levels and history")).toBeInTheDocument();
+    expect(
+      screen.getByText("Monitor battery levels and history"),
+    ).toBeInTheDocument();
   });
 
   it("should show placeholder when no devices are connected", () => {
@@ -106,7 +110,7 @@ describe("BatteryPage", () => {
     // Check that device names appear (may appear multiple times - in cards and charts)
     expect(screen.getAllByText("Central").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Peripheral 1").length).toBeGreaterThan(0);
-    
+
     // Check battery percentages
     expect(screen.getByText("80%")).toBeInTheDocument();
     expect(screen.getByText("70%")).toBeInTheDocument();
@@ -114,7 +118,7 @@ describe("BatteryPage", () => {
 
   it("should have refresh button", () => {
     const mockLoadBatteryHistory = jest.fn();
-    
+
     mockUseBatteryHistory.mockReturnValue({
       devices: [],
       isLoading: false,
@@ -141,10 +145,10 @@ describe("BatteryPage", () => {
     render(<BatteryPage />);
 
     expect(
-      screen.getByText(/Battery history is recorded on the keyboard/i)
+      screen.getByText(/Battery history is recorded on the keyboard/i),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/timestamp resets when the keyboard restarts/i)
+      screen.getByText(/timestamp resets when the keyboard restarts/i),
     ).toBeInTheDocument();
   });
 });

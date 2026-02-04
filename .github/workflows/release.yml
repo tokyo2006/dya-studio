@@ -1,7 +1,7 @@
 name: Release DYA Studio
 
 on:
-    workflow_dispatch:
+  workflow_dispatch:
 
 jobs:
   build:
@@ -27,4 +27,4 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN_RELEASE }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID_RELEASE }}
           environment: release
-          wranglerVersion: '4.58.0'
+          wranglerVersion: "4.58.0"

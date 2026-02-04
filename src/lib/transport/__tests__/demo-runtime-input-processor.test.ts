@@ -3,7 +3,10 @@
  */
 
 import { RuntimeInputProcessorHandler } from "../demo-runtime-input-processor";
-import { Request, Notification } from "../../../proto/zmk/runtime_input_processor/runtime_input_processor";
+import {
+  Request,
+  Notification,
+} from "../../../proto/zmk/runtime_input_processor/runtime_input_processor";
 
 describe("RuntimeInputProcessorHandler", () => {
   let handler: RuntimeInputProcessorHandler;
@@ -28,7 +31,7 @@ describe("RuntimeInputProcessorHandler", () => {
 
     it("should send processor notifications via callback", (done) => {
       const notifications: Notification[] = [];
-      
+
       handler.notify((payload: Uint8Array) => {
         const notification = Notification.decode(payload);
         notifications.push(notification);
@@ -44,15 +47,23 @@ describe("RuntimeInputProcessorHandler", () => {
       setTimeout(() => {
         // Should have at least one processor notification
         expect(notifications.length).toBeGreaterThan(0);
-        
+
         // Verify notification structure
         const firstNotification = notifications[0];
         expect(firstNotification.processorSettings).toBeDefined();
         expect(firstNotification.processorSettings?.processor).toBeDefined();
-        expect(firstNotification.processorSettings?.processor?.name).toBeDefined();
-        expect(firstNotification.processorSettings?.processor?.scaleMultiplier).toBeDefined();
-        expect(firstNotification.processorSettings?.processor?.scaleDivisor).toBeDefined();
-        expect(firstNotification.processorSettings?.processor?.rotationDegrees).toBeDefined();
+        expect(
+          firstNotification.processorSettings?.processor?.name,
+        ).toBeDefined();
+        expect(
+          firstNotification.processorSettings?.processor?.scaleMultiplier,
+        ).toBeDefined();
+        expect(
+          firstNotification.processorSettings?.processor?.scaleDivisor,
+        ).toBeDefined();
+        expect(
+          firstNotification.processorSettings?.processor?.rotationDegrees,
+        ).toBeDefined();
 
         done();
       }, 300);
@@ -108,7 +119,7 @@ describe("RuntimeInputProcessorHandler", () => {
 
     it("should update processor scaling and send notification", (done) => {
       const notifications: Notification[] = [];
-      
+
       handler.notify((payload: Uint8Array) => {
         const notification = Notification.decode(payload);
         notifications.push(notification);
@@ -127,9 +138,11 @@ describe("RuntimeInputProcessorHandler", () => {
       // Wait for notification to be sent
       setTimeout(() => {
         expect(notifications.length).toBeGreaterThan(0);
-        
+
         const notification = notifications[0];
-        expect(notification.processorSettings?.processor?.scaleMultiplier).toBe(2);
+        expect(notification.processorSettings?.processor?.scaleMultiplier).toBe(
+          2,
+        );
         expect(notification.processorSettings?.processor?.scaleDivisor).toBe(1);
 
         done();
@@ -170,7 +183,7 @@ describe("RuntimeInputProcessorHandler", () => {
 
     it("should update processor rotation and send notification", (done) => {
       const notifications: Notification[] = [];
-      
+
       handler.notify((payload: Uint8Array) => {
         const notification = Notification.decode(payload);
         notifications.push(notification);
@@ -188,9 +201,11 @@ describe("RuntimeInputProcessorHandler", () => {
       // Wait for notification to be sent
       setTimeout(() => {
         expect(notifications.length).toBeGreaterThan(0);
-        
+
         const notification = notifications[0];
-        expect(notification.processorSettings?.processor?.rotationDegrees).toBe(90);
+        expect(notification.processorSettings?.processor?.rotationDegrees).toBe(
+          90,
+        );
 
         done();
       }, 200);
@@ -225,7 +240,7 @@ describe("RuntimeInputProcessorHandler", () => {
   describe("notify callback", () => {
     it("should register notify callback", (done) => {
       let callbackCalled = false;
-      
+
       handler.notify(() => {
         callbackCalled = true;
       });

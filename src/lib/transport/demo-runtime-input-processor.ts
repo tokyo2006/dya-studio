@@ -11,7 +11,8 @@ import {
   type ProcessorInfo,
 } from "../../proto/zmk/runtime_input_processor/runtime_input_processor";
 
-export const RUNTIME_INPUT_PROCESSOR_IDENTIFIER = "zmk__runtime_input_processor";
+export const RUNTIME_INPUT_PROCESSOR_IDENTIFIER =
+  "zmk__runtime_input_processor";
 
 /**
  * Mock runtime input processor data
@@ -32,7 +33,7 @@ const MOCK_PROCESSORS: ProcessorInfo[] = [
 export class RuntimeInputProcessorHandler {
   private callbacks: ((data: Uint8Array) => void)[] = [];
   private processors: ProcessorInfo[] = JSON.parse(
-    JSON.stringify(MOCK_PROCESSORS)
+    JSON.stringify(MOCK_PROCESSORS),
   );
 
   process(request: Request): Response {
@@ -47,7 +48,7 @@ export class RuntimeInputProcessorHandler {
                 processorSettings: {
                   processor,
                 },
-              }).finish()
+              }).finish(),
             );
           });
         });
@@ -59,22 +60,22 @@ export class RuntimeInputProcessorHandler {
     if (request.getProcessor !== undefined) {
       const { name } = request.getProcessor;
       const processor = this.processors.find((p) => p.name === name);
-      
+
       if (processor) {
         return { getProcessor: { processor } };
       }
-      
+
       return { error: { message: `Processor not found: ${name}` } };
     }
 
     if (request.setScaling !== undefined) {
       const { name, scaleMultiplier, scaleDivisor } = request.setScaling;
       const processor = this.processors.find((p) => p.name === name);
-      
+
       if (processor) {
         processor.scaleMultiplier = scaleMultiplier;
         processor.scaleDivisor = scaleDivisor;
-        
+
         // Send notification about the update
         setTimeout(() => {
           console.log("Demo sending updated processor settings:", processor);
@@ -84,24 +85,24 @@ export class RuntimeInputProcessorHandler {
                 processorSettings: {
                   processor,
                 },
-              }).finish()
+              }).finish(),
             );
           });
         }, 50);
-        
+
         return { setScaling: { success: true } };
       }
-      
+
       return { setScaling: { success: false } };
     }
 
     if (request.setRotation !== undefined) {
       const { name, rotationDegrees } = request.setRotation;
       const processor = this.processors.find((p) => p.name === name);
-      
+
       if (processor) {
         processor.rotationDegrees = rotationDegrees;
-        
+
         // Send notification about the update
         setTimeout(() => {
           console.log("Demo sending updated processor settings:", processor);
@@ -111,14 +112,14 @@ export class RuntimeInputProcessorHandler {
                 processorSettings: {
                   processor,
                 },
-              }).finish()
+              }).finish(),
             );
           });
         }, 50);
-        
+
         return { setRotation: { success: true } };
       }
-      
+
       return { setRotation: { success: false } };
     }
 

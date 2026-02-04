@@ -27,7 +27,7 @@ function generateBatteryHistory(
 
   // Different starting battery levels for variety
   const startLevel = sourceId === 0 ? 85 : 78;
-  
+
   // Generate entries going back in time
   for (let i = 0; i < count; i++) {
     const timestamp = now - (count - i - 1) * intervalSeconds;
@@ -37,7 +37,7 @@ function generateBatteryHistory(
     const variation = Math.sin(i * 0.3) * 2; // Small periodic variation
     const batteryLevel = Math.max(
       20,
-      Math.min(100, startLevel - i * drainRate + variation)
+      Math.min(100, startLevel - i * drainRate + variation),
     );
 
     entries.push({
@@ -62,12 +62,15 @@ export class BatteryHistoryHandler {
   process(request: Request): Response {
     if (request.getHistory !== undefined) {
       // Send battery history via notifications
-      const sendHistoryForDevice = (sourceId: number, entries: BatteryHistoryEntry[]) => {
+      const sendHistoryForDevice = (
+        sourceId: number,
+        entries: BatteryHistoryEntry[],
+      ) => {
         const totalEntries = entries.length;
-        
+
         entries.forEach((entry, index) => {
           const isLast = index === entries.length - 1;
-          
+
           this.callbacks.forEach((cb) => {
             cb(
               Notification.encode({
@@ -78,7 +81,7 @@ export class BatteryHistoryHandler {
                   totalEntries,
                   entryIndex: index,
                 },
-              }).finish()
+              }).finish(),
             );
           });
         });
@@ -100,18 +103,18 @@ export class BatteryHistoryHandler {
 
     if (request.clearHistory !== undefined) {
       // Calculate total entries before clearing
-      const totalEntries = 
-        this.batteryHistory.central.length + 
+      const totalEntries =
+        this.batteryHistory.central.length +
         this.batteryHistory.peripheral.length;
-      
+
       // Clear history and regenerate fresh data
       this.batteryHistory.central = generateBatteryHistory(0, 48);
       this.batteryHistory.peripheral = generateBatteryHistory(1, 48);
-      
-      return { 
-        clearHistory: { 
-          entriesCleared: totalEntries
-        } 
+
+      return {
+        clearHistory: {
+          entriesCleared: totalEntries,
+        },
       };
     }
 
