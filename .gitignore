@@ -25,3 +25,4 @@ coverage
 *.njsproj
 *.sln
 *.sw?
+_codeql_detected_source_root

@@ -75,7 +75,10 @@ const mockKeymap = {
 
 const mockBehaviors = [1, 2, 3]; // kp, trans, mo
 
-const mockBehaviorDetails: Record<number, { id: number; displayName: string; metadata: never[] }> = {
+const mockBehaviorDetails: Record<
+  number,
+  { id: number; displayName: string; metadata: never[] }
+> = {
   1: { id: 1, displayName: "kp", metadata: [] },
   2: { id: 2, displayName: "trans", metadata: [] },
   3: { id: 3, displayName: "mo", metadata: [] },
@@ -129,17 +132,23 @@ describe("useKeymap", () => {
       // Setup mock responses
       mockCallRpc.mockImplementation(async (_conn, req) => {
         if (req.keymap?.getPhysicalLayouts) {
-          return { keymap: { getPhysicalLayouts: mockPhysicalLayouts } } as never;
+          return {
+            keymap: { getPhysicalLayouts: mockPhysicalLayouts },
+          } as never;
         }
         if (req.keymap?.getKeymap) {
           return { keymap: { getKeymap: mockKeymap } } as never;
         }
         if (req.behaviors?.listAllBehaviors) {
-          return { behaviors: { listAllBehaviors: { behaviors: mockBehaviors } } } as never;
+          return {
+            behaviors: { listAllBehaviors: { behaviors: mockBehaviors } },
+          } as never;
         }
         if (req.behaviors?.getBehaviorDetails) {
           const id = req.behaviors.getBehaviorDetails.behaviorId;
-          return { behaviors: { getBehaviorDetails: mockBehaviorDetails[id] } } as never;
+          return {
+            behaviors: { getBehaviorDetails: mockBehaviorDetails[id] },
+          } as never;
         }
         if (req.keymap?.checkUnsavedChanges) {
           return { keymap: { checkUnsavedChanges: false } } as never;
@@ -195,17 +204,23 @@ describe("useKeymap", () => {
       // Setup mock responses for successful loading
       mockCallRpc.mockImplementation(async (_conn, req) => {
         if (req.keymap?.getPhysicalLayouts) {
-          return { keymap: { getPhysicalLayouts: mockPhysicalLayouts } } as never;
+          return {
+            keymap: { getPhysicalLayouts: mockPhysicalLayouts },
+          } as never;
         }
         if (req.keymap?.getKeymap) {
           return { keymap: { getKeymap: mockKeymap } } as never;
         }
         if (req.behaviors?.listAllBehaviors) {
-          return { behaviors: { listAllBehaviors: { behaviors: mockBehaviors } } } as never;
+          return {
+            behaviors: { listAllBehaviors: { behaviors: mockBehaviors } },
+          } as never;
         }
         if (req.behaviors?.getBehaviorDetails) {
           const id = req.behaviors.getBehaviorDetails.behaviorId;
-          return { behaviors: { getBehaviorDetails: mockBehaviorDetails[id] } } as never;
+          return {
+            behaviors: { getBehaviorDetails: mockBehaviorDetails[id] },
+          } as never;
         }
         if (req.keymap?.checkUnsavedChanges) {
           return { keymap: { checkUnsavedChanges: false } } as never;
@@ -235,17 +250,23 @@ describe("useKeymap", () => {
 
       mockCallRpc.mockImplementation(async (_conn, req) => {
         if (req.keymap?.getPhysicalLayouts) {
-          return { keymap: { getPhysicalLayouts: mockPhysicalLayouts } } as never;
+          return {
+            keymap: { getPhysicalLayouts: mockPhysicalLayouts },
+          } as never;
         }
         if (req.keymap?.getKeymap) {
           return { keymap: { getKeymap: mockKeymap } } as never;
         }
         if (req.behaviors?.listAllBehaviors) {
-          return { behaviors: { listAllBehaviors: { behaviors: mockBehaviors } } } as never;
+          return {
+            behaviors: { listAllBehaviors: { behaviors: mockBehaviors } },
+          } as never;
         }
         if (req.behaviors?.getBehaviorDetails) {
           const id = req.behaviors.getBehaviorDetails.behaviorId;
-          return { behaviors: { getBehaviorDetails: mockBehaviorDetails[id] } } as never;
+          return {
+            behaviors: { getBehaviorDetails: mockBehaviorDetails[id] },
+          } as never;
         }
         if (req.keymap?.checkUnsavedChanges) {
           return { keymap: { checkUnsavedChanges: false } } as never;
@@ -276,17 +297,23 @@ describe("useKeymap", () => {
 
       mockCallRpc.mockImplementation(async (_conn, req) => {
         if (req.keymap?.getPhysicalLayouts) {
-          return { keymap: { getPhysicalLayouts: mockPhysicalLayouts } } as never;
+          return {
+            keymap: { getPhysicalLayouts: mockPhysicalLayouts },
+          } as never;
         }
         if (req.keymap?.getKeymap) {
           return { keymap: { getKeymap: mockKeymap } } as never;
         }
         if (req.behaviors?.listAllBehaviors) {
-          return { behaviors: { listAllBehaviors: { behaviors: mockBehaviors } } } as never;
+          return {
+            behaviors: { listAllBehaviors: { behaviors: mockBehaviors } },
+          } as never;
         }
         if (req.behaviors?.getBehaviorDetails) {
           const id = req.behaviors.getBehaviorDetails.behaviorId;
-          return { behaviors: { getBehaviorDetails: mockBehaviorDetails[id] } } as never;
+          return {
+            behaviors: { getBehaviorDetails: mockBehaviorDetails[id] },
+          } as never;
         }
         if (req.keymap?.checkUnsavedChanges) {
           return { keymap: { checkUnsavedChanges: false } } as never;

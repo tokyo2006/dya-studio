@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback, useContext, useMemo } from "react";
-import { ZMKCustomSubsystem, ZMKAppContext } from "@cormoran/zmk-studio-react-hook";
+import {
+  ZMKCustomSubsystem,
+  ZMKAppContext,
+} from "@cormoran/zmk-studio-react-hook";
 import {
   Request,
   Response,
@@ -39,7 +42,7 @@ export function useSettings(): UseSettingsReturn {
   const subsystem = useMemo(
     () => zmkApp?.findSubsystem(SUBSYSTEM_IDENTIFIER),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [zmkApp?.state.customSubsystems]
+    [zmkApp?.state.customSubsystems],
   );
 
   // Extract subsystem index as a stable primitive value for dependencies
@@ -57,7 +60,7 @@ export function useSettings(): UseSettingsReturn {
     try {
       const service = new ZMKCustomSubsystem(
         zmkApp.state.connection,
-        subsystemIndex
+        subsystemIndex,
       );
 
       // Map to store settings by source ID
@@ -67,8 +70,9 @@ export function useSettings(): UseSettingsReturn {
       const notificationHandler = (settings: ActivitySettings) => {
         try {
           const sourceId = settings.source;
-          const deviceName = sourceId === 0 ? "Central" : `Peripheral ${sourceId}`;
-          
+          const deviceName =
+            sourceId === 0 ? "Central" : `Peripheral ${sourceId}`;
+
           deviceMap.set(sourceId, {
             sourceId,
             deviceName,
@@ -79,7 +83,10 @@ export function useSettings(): UseSettingsReturn {
           // Update state with all collected devices
           setDevices(Array.from(deviceMap.values()));
         } catch (err) {
-          console.error("Failed to process activity settings notification:", err);
+          console.error(
+            "Failed to process activity settings notification:",
+            err,
+          );
         }
       };
 
@@ -90,7 +97,9 @@ export function useSettings(): UseSettingsReturn {
         callback: (customNotification) => {
           // Decode the payload
           try {
-            const notification = Notification.decode(customNotification.payload);
+            const notification = Notification.decode(
+              customNotification.payload,
+            );
             if (notification.activitySettings?.settings) {
               notificationHandler(notification.activitySettings.settings);
             }
@@ -118,65 +127,70 @@ export function useSettings(): UseSettingsReturn {
         }
       } finally {
         // Wait for all notifications to arrive from devices
-        await new Promise((resolve) => setTimeout(resolve, NOTIFICATION_COLLECTION_TIMEOUT_MS));
+        await new Promise((resolve) =>
+          setTimeout(resolve, NOTIFICATION_COLLECTION_TIMEOUT_MS),
+        );
         unsubscribe();
       }
     } catch (err) {
       console.error("Failed to load settings:", err);
       setError(
-        `Failed to load settings: ${err instanceof Error ? err.message : "Unknown error"}`
+        `Failed to load settings: ${err instanceof Error ? err.message : "Unknown error"}`,
       );
     } finally {
       setIsLoading(false);
     }
   }, [zmkApp, subsystemIndex]);
 
-  const setActivitySettings = useCallback(async (idleMs: number, sleepMs: number) => {
-    if (!zmkApp?.state.connection || subsystemIndex === undefined) {
-      setError("Not connected to device or subsystem not found");
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const service = new ZMKCustomSubsystem(
-        zmkApp.state.connection,
-        subsystemIndex
-      );
-
-      const request = Request.create({
-        setActivitySettings: {
-          settings: {
-            idleMs,
-            sleepMs,
-            source: 0, // Not used for set operation
-          },
-        },
-      });
-
-      const payload = Request.encode(request).finish();
-      const responsePayload = await service.callRPC(payload);
-
-      if (responsePayload) {
-        const resp = Response.decode(responsePayload);
-        if (resp.error) {
-          setError(resp.error.message);
-        } else if (resp.setActivitySettings?.success) {
-          // Successfully set, reload settings
-          await loadAllSettings();
-        }
+  const setActivitySettings = useCallback(
+    async (idleMs: number, sleepMs: number) => {
+      if (!zmkApp?.state.connection || subsystemIndex === undefined) {
+        setError("Not connected to device or subsystem not found");
+        return;
       }
-    } catch (err) {
-      console.error("Failed to set activity settings:", err);
-      setError(
-        `Failed to set activity settings: ${err instanceof Error ? err.message : "Unknown error"}`
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, [zmkApp, subsystemIndex, loadAllSettings]);
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const service = new ZMKCustomSubsystem(
+          zmkApp.state.connection,
+          subsystemIndex,
+        );
+
+        const request = Request.create({
+          setActivitySettings: {
+            settings: {
+              idleMs,
+              sleepMs,
+              source: 0, // Not used for set operation
+            },
+          },
+        });
+
+        const payload = Request.encode(request).finish();
+        const responsePayload = await service.callRPC(payload);
+
+        if (responsePayload) {
+          const resp = Response.decode(responsePayload);
+          if (resp.error) {
+            setError(resp.error.message);
+          } else if (resp.setActivitySettings?.success) {
+            // Successfully set, reload settings
+            await loadAllSettings();
+          }
+        }
+      } catch (err) {
+        console.error("Failed to set activity settings:", err);
+        setError(
+          `Failed to set activity settings: ${err instanceof Error ? err.message : "Unknown error"}`,
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [zmkApp, subsystemIndex, loadAllSettings],
+  );
 
   const resetToDefaults = useCallback(async () => {
     // Reset to ZMK default values:

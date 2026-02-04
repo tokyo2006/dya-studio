@@ -170,7 +170,7 @@ export function SplashScreen({
               )}
             </button>
           </div>
-          
+
           {/* Demo mode hint */}
           <motion.p
             className="text-xs text-[var(--color-text-muted)] mt-2"
@@ -178,9 +178,8 @@ export function SplashScreen({
             animate={{ opacity: 1 }}
             transition={{ delay: 1.2 }}
           >
-            Try{" "}
-            <span className="text-[var(--color-cyber)]">demo mode</span> without
-            a device
+            Try <span className="text-[var(--color-cyber)]">demo mode</span>{" "}
+            without a device
           </motion.p>
         </motion.div>
 

@@ -103,8 +103,8 @@ export function HealthCheckPage() {
                   item.status === "ok"
                     ? "text-[var(--color-neon)]"
                     : item.status === "error"
-                    ? "text-red-500"
-                    : "text-[var(--color-text-muted)]"
+                      ? "text-red-500"
+                      : "text-[var(--color-text-muted)]"
                 }`}
               >
                 {item.status}

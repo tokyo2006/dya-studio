@@ -12,7 +12,7 @@ describe("Demo Transport", () => {
   // Skip stream tests in Node.js environment since TransformStream is browser-only
   it.skip("should create a valid RpcTransport", async () => {
     const transport = await connect();
-    
+
     expect(transport).toBeDefined();
     expect(transport.label).toBe("Demo");
     expect(transport.abortController).toBeInstanceOf(AbortController);

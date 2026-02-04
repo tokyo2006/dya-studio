@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback, useContext, useMemo } from "react";
-import { ZMKCustomSubsystem, ZMKAppContext } from "@cormoran/zmk-studio-react-hook";
+import {
+  ZMKCustomSubsystem,
+  ZMKAppContext,
+} from "@cormoran/zmk-studio-react-hook";
 import {
   Request,
   Response,
@@ -27,7 +30,10 @@ function gcd(a: number, b: number): number {
 }
 
 // Helper function to simplify a fraction to lowest terms
-function simplifyFraction(multiplier: number, divisor: number): { multiplier: number; divisor: number } {
+function simplifyFraction(
+  multiplier: number,
+  divisor: number,
+): { multiplier: number; divisor: number } {
   if (divisor === 0) return { multiplier, divisor };
   const divisorValue = gcd(multiplier, divisor);
   return {
@@ -48,7 +54,11 @@ export interface UseRuntimeInputProcessorReturn {
   isLoading: boolean;
   error: string | null;
   loadProcessors: () => Promise<void>;
-  setScaling: (name: string, multiplier: number, divisor: number) => Promise<void>;
+  setScaling: (
+    name: string,
+    multiplier: number,
+    divisor: number,
+  ) => Promise<void>;
   setRotation: (name: string, degrees: number) => Promise<void>;
 }
 
@@ -62,7 +72,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
   const subsystem = useMemo(
     () => zmkApp?.findSubsystem(SUBSYSTEM_IDENTIFIER),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [zmkApp?.state.customSubsystems]
+    [zmkApp?.state.customSubsystems],
   );
 
   // Extract subsystem index as a stable primitive value for dependencies
@@ -80,7 +90,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
     try {
       const service = new ZMKCustomSubsystem(
         zmkApp.state.connection,
-        subsystemIndex
+        subsystemIndex,
       );
 
       // Map to store processors by name
@@ -110,7 +120,9 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         callback: (customNotification) => {
           // Decode the payload
           try {
-            const notification = Notification.decode(customNotification.payload);
+            const notification = Notification.decode(
+              customNotification.payload,
+            );
             if (notification.processorSettings?.processor) {
               notificationHandler(notification.processorSettings.processor);
             }
@@ -138,13 +150,15 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         }
       } finally {
         // Wait for all notifications to arrive from devices
-        await new Promise((resolve) => setTimeout(resolve, NOTIFICATION_COLLECTION_TIMEOUT_MS));
+        await new Promise((resolve) =>
+          setTimeout(resolve, NOTIFICATION_COLLECTION_TIMEOUT_MS),
+        );
         unsubscribe();
       }
     } catch (err) {
       console.error("Failed to load processors:", err);
       setError(
-        `Failed to load processors: ${err instanceof Error ? err.message : "Unknown error"}`
+        `Failed to load processors: ${err instanceof Error ? err.message : "Unknown error"}`,
       );
     } finally {
       setIsLoading(false);
@@ -161,7 +175,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
       try {
         const service = new ZMKCustomSubsystem(
           zmkApp.state.connection,
-          subsystemIndex
+          subsystemIndex,
         );
 
         // Simplify the fraction to reduce risk of overflow
@@ -191,13 +205,13 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
       } catch (err) {
         console.error("Failed to set scaling:", err);
         setError(
-          `Failed to set scaling: ${err instanceof Error ? err.message : "Unknown error"}`
+          `Failed to set scaling: ${err instanceof Error ? err.message : "Unknown error"}`,
         );
       } finally {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, loadProcessors]
+    [zmkApp?.state.connection, subsystemIndex, loadProcessors],
   );
 
   const setRotation = useCallback(
@@ -210,7 +224,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
       try {
         const service = new ZMKCustomSubsystem(
           zmkApp.state.connection,
-          subsystemIndex
+          subsystemIndex,
         );
 
         const request = Request.create({
@@ -236,13 +250,13 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
       } catch (err) {
         console.error("Failed to set rotation:", err);
         setError(
-          `Failed to set rotation: ${err instanceof Error ? err.message : "Unknown error"}`
+          `Failed to set rotation: ${err instanceof Error ? err.message : "Unknown error"}`,
         );
       } finally {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, loadProcessors]
+    [zmkApp?.state.connection, subsystemIndex, loadProcessors],
   );
 
   // Load processors when connection or subsystem changes

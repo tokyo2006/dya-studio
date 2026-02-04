@@ -74,12 +74,17 @@ describe("useBatteryHistory", () => {
         await result.current.loadBatteryHistory();
       });
 
-      expect(result.current.error).toBe("Not connected to device or subsystem not found");
+      expect(result.current.error).toBe(
+        "Not connected to device or subsystem not found",
+      );
     });
 
     it("should set error when subsystem not found", async () => {
       const wrapper = createWrapper({
-        state: { connection: { isConnected: true } as never, customSubsystems: [] },
+        state: {
+          connection: { isConnected: true } as never,
+          customSubsystems: [],
+        },
         findSubsystem: () => null,
         onNotification: mockOnNotification,
       });
@@ -90,7 +95,9 @@ describe("useBatteryHistory", () => {
         await result.current.loadBatteryHistory();
       });
 
-      expect(result.current.error).toBe("Not connected to device or subsystem not found");
+      expect(result.current.error).toBe(
+        "Not connected to device or subsystem not found",
+      );
     });
   });
 
@@ -105,7 +112,9 @@ describe("useBatteryHistory", () => {
           customSubsystems: [],
         },
         findSubsystem: (id: string) =>
-          id === "zmk__battery_history" ? { index: 0, identifier: "zmk__battery_history" } : null,
+          id === "zmk__battery_history"
+            ? { index: 0, identifier: "zmk__battery_history" }
+            : null,
         onNotification: mockOnNotification,
       });
 
@@ -125,7 +134,7 @@ describe("useBatteryHistory", () => {
 
       // Mock successful clear response
       mockCallRPC.mockResolvedValue(
-        new Uint8Array([18, 2, 8, 10]) // ClearBatteryHistoryResponse with entriesCleared: 10
+        new Uint8Array([18, 2, 8, 10]), // ClearBatteryHistoryResponse with entriesCleared: 10
       );
 
       const wrapper = createWrapper({
@@ -134,7 +143,9 @@ describe("useBatteryHistory", () => {
           customSubsystems: [{ index: 0, identifier: "zmk__battery_history" }],
         },
         findSubsystem: (id: string) =>
-          id === "zmk__battery_history" ? { index: 0, identifier: "zmk__battery_history" } : null,
+          id === "zmk__battery_history"
+            ? { index: 0, identifier: "zmk__battery_history" }
+            : null,
         onNotification: mockOnNotification,
       });
 
@@ -160,7 +171,9 @@ describe("useBatteryHistory", () => {
           customSubsystems: [{ index: 0, identifier: "zmk__battery_history" }],
         },
         findSubsystem: (id: string) =>
-          id === "zmk__battery_history" ? { index: 0, identifier: "zmk__battery_history" } : null,
+          id === "zmk__battery_history"
+            ? { index: 0, identifier: "zmk__battery_history" }
+            : null,
         onNotification: mockOnNotification,
       });
 

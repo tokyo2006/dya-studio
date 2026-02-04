@@ -22,9 +22,12 @@ export function BatteryPage() {
   });
 
   // Format last updated time
-  const lastUpdated = currentLevels.length > 0
-    ? new Date(Math.max(...currentLevels.map(d => d.timestamp)) * 1000).toLocaleTimeString()
-    : "--:--";
+  const lastUpdated =
+    currentLevels.length > 0
+      ? new Date(
+          Math.max(...currentLevels.map((d) => d.timestamp)) * 1000,
+        ).toLocaleTimeString()
+      : "--:--";
 
   // Device colors for chart
   const deviceColors = [
@@ -57,7 +60,10 @@ export function BatteryPage() {
             className="btn-ghost flex items-center gap-2"
             aria-label="Refresh battery history"
           >
-            <IconRefresh size={16} className={isLoading ? "animate-spin" : ""} />
+            <IconRefresh
+              size={16}
+              className={isLoading ? "animate-spin" : ""}
+            />
             Refresh
           </button>
         </div>
@@ -116,7 +122,7 @@ export function BatteryPage() {
           <h2 className="text-sm font-medium text-[var(--color-text-secondary)] mb-4">
             Battery History
           </h2>
-          
+
           {isLoading && devices.length === 0 ? (
             <div className="h-64 flex items-center justify-center border border-dashed border-[var(--color-border)] rounded-lg">
               <span className="text-[var(--color-text-muted)] text-sm">
@@ -126,19 +132,24 @@ export function BatteryPage() {
           ) : devices.length === 0 ? (
             <div className="h-64 flex items-center justify-center border border-dashed border-[var(--color-border)] rounded-lg">
               <span className="text-[var(--color-text-muted)] text-sm">
-                No battery history available. Connect keyboard to view battery history.
+                No battery history available. Connect keyboard to view battery
+                history.
               </span>
             </div>
           ) : (
-            <BatteryHistoryChart devices={devices} deviceColors={deviceColors} />
+            <BatteryHistoryChart
+              devices={devices}
+              deviceColors={deviceColors}
+            />
           )}
         </div>
 
         {/* Info Box */}
         <div className="mt-8 p-4 rounded-lg bg-[var(--color-border)] border border-[var(--color-border-hover)]">
           <p className="text-xs text-[var(--color-text-muted)]">
-            Battery history is recorded on the keyboard and shows data from all connected devices.
-            The timestamp resets when the keyboard restarts, indicated by dashed vertical lines in the chart.
+            Battery history is recorded on the keyboard and shows data from all
+            connected devices. The timestamp resets when the keyboard restarts,
+            indicated by dashed vertical lines in the chart.
           </p>
         </div>
       </div>

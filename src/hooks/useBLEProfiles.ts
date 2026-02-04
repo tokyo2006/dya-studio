@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback, useContext, useMemo } from "react";
-import { ZMKCustomSubsystem, ZMKAppContext } from "@cormoran/zmk-studio-react-hook";
+import {
+  ZMKCustomSubsystem,
+  ZMKAppContext,
+} from "@cormoran/zmk-studio-react-hook";
 import {
   Request,
   Response,
@@ -39,15 +42,16 @@ export function useBLEProfiles(): UseBLEProfilesReturn {
   const [maxProfiles, setMaxProfiles] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [outputPriority, setOutputPriorityState] = useState<OutputPriority | null>(null);
+  const [outputPriority, setOutputPriorityState] =
+    useState<OutputPriority | null>(null);
 
   // Memoize subsystem to avoid unnecessary re-renders
   const subsystem = useMemo(
     () => zmkApp?.findSubsystem(SUBSYSTEM_IDENTIFIER),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [zmkApp?.state.customSubsystems]
+    [zmkApp?.state.customSubsystems],
   );
-  
+
   // Extract subsystem index as a stable primitive value for dependencies
   const subsystemIndex = subsystem?.index;
 
@@ -63,7 +67,7 @@ export function useBLEProfiles(): UseBLEProfilesReturn {
     try {
       const service = new ZMKCustomSubsystem(
         zmkApp.state.connection,
-        subsystemIndex
+        subsystemIndex,
       );
 
       const request = Request.create({
@@ -94,7 +98,7 @@ export function useBLEProfiles(): UseBLEProfilesReturn {
     } catch (err) {
       console.error("Failed to load profiles:", err);
       setError(
-        `Failed to load profiles: ${err instanceof Error ? err.message : "Unknown error"}`
+        `Failed to load profiles: ${err instanceof Error ? err.message : "Unknown error"}`,
       );
     } finally {
       setIsLoading(false);
@@ -111,7 +115,7 @@ export function useBLEProfiles(): UseBLEProfilesReturn {
       try {
         const service = new ZMKCustomSubsystem(
           zmkApp.state.connection,
-          subsystemIndex
+          subsystemIndex,
         );
 
         const request = Request.create({
@@ -134,13 +138,13 @@ export function useBLEProfiles(): UseBLEProfilesReturn {
       } catch (err) {
         console.error("Failed to switch profile:", err);
         setError(
-          `Failed to switch profile: ${err instanceof Error ? err.message : "Unknown error"}`
+          `Failed to switch profile: ${err instanceof Error ? err.message : "Unknown error"}`,
         );
       } finally {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, loadProfiles]
+    [zmkApp?.state.connection, subsystemIndex, loadProfiles],
   );
 
   const unpairProfile = useCallback(
@@ -153,7 +157,7 @@ export function useBLEProfiles(): UseBLEProfilesReturn {
       try {
         const service = new ZMKCustomSubsystem(
           zmkApp.state.connection,
-          subsystemIndex
+          subsystemIndex,
         );
 
         const request = Request.create({
@@ -176,13 +180,13 @@ export function useBLEProfiles(): UseBLEProfilesReturn {
       } catch (err) {
         console.error("Failed to unpair profile:", err);
         setError(
-          `Failed to unpair profile: ${err instanceof Error ? err.message : "Unknown error"}`
+          `Failed to unpair profile: ${err instanceof Error ? err.message : "Unknown error"}`,
         );
       } finally {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, loadProfiles]
+    [zmkApp?.state.connection, subsystemIndex, loadProfiles],
   );
 
   const setProfileName = useCallback(
@@ -195,7 +199,7 @@ export function useBLEProfiles(): UseBLEProfilesReturn {
       try {
         const service = new ZMKCustomSubsystem(
           zmkApp.state.connection,
-          subsystemIndex
+          subsystemIndex,
         );
 
         const request = Request.create({
@@ -218,13 +222,13 @@ export function useBLEProfiles(): UseBLEProfilesReturn {
       } catch (err) {
         console.error("Failed to set profile name:", err);
         setError(
-          `Failed to set profile name: ${err instanceof Error ? err.message : "Unknown error"}`
+          `Failed to set profile name: ${err instanceof Error ? err.message : "Unknown error"}`,
         );
       } finally {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, loadProfiles]
+    [zmkApp?.state.connection, subsystemIndex, loadProfiles],
   );
 
   const getOutputPriority = useCallback(async () => {
@@ -239,7 +243,7 @@ export function useBLEProfiles(): UseBLEProfilesReturn {
     try {
       const service = new ZMKCustomSubsystem(
         zmkApp.state.connection,
-        subsystemIndex
+        subsystemIndex,
       );
 
       const request = Request.create({
@@ -260,7 +264,7 @@ export function useBLEProfiles(): UseBLEProfilesReturn {
     } catch (err) {
       console.error("Failed to get output priority:", err);
       setError(
-        `Failed to get output priority: ${err instanceof Error ? err.message : "Unknown error"}`
+        `Failed to get output priority: ${err instanceof Error ? err.message : "Unknown error"}`,
       );
     } finally {
       setIsLoading(false);
@@ -277,7 +281,7 @@ export function useBLEProfiles(): UseBLEProfilesReturn {
       try {
         const service = new ZMKCustomSubsystem(
           zmkApp.state.connection,
-          subsystemIndex
+          subsystemIndex,
         );
 
         const request = Request.create({
@@ -300,13 +304,13 @@ export function useBLEProfiles(): UseBLEProfilesReturn {
       } catch (err) {
         console.error("Failed to set output priority:", err);
         setError(
-          `Failed to set output priority: ${err instanceof Error ? err.message : "Unknown error"}`
+          `Failed to set output priority: ${err instanceof Error ? err.message : "Unknown error"}`,
         );
       } finally {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, getOutputPriority]
+    [zmkApp?.state.connection, subsystemIndex, getOutputPriority],
   );
 
   // Load profiles and output priority when connection or subsystem changes

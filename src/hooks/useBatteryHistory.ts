@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback, useContext, useMemo } from "react";
-import { ZMKCustomSubsystem, ZMKAppContext } from "@cormoran/zmk-studio-react-hook";
+import {
+  ZMKCustomSubsystem,
+  ZMKAppContext,
+} from "@cormoran/zmk-studio-react-hook";
 import {
   Request,
   Response,
@@ -39,7 +42,7 @@ export function useBatteryHistory(): UseBatteryHistoryReturn {
   const subsystem = useMemo(
     () => zmkApp?.findSubsystem(SUBSYSTEM_IDENTIFIER),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [zmkApp?.state.customSubsystems]
+    [zmkApp?.state.customSubsystems],
   );
 
   // Extract subsystem index as a stable primitive value for dependencies
@@ -57,20 +60,23 @@ export function useBatteryHistory(): UseBatteryHistoryReturn {
     try {
       const service = new ZMKCustomSubsystem(
         zmkApp.state.connection,
-        subsystemIndex
+        subsystemIndex,
       );
 
       // Map to store entries by source ID
       const deviceMap = new Map<number, DeviceBatteryHistory>();
 
       // Set up notification listener for battery history entries
-      const notificationHandler = (notification: BatteryHistoryNotification) => {
+      const notificationHandler = (
+        notification: BatteryHistoryNotification,
+      ) => {
         try {
           const { sourceId, entry } = notification;
 
           // Initialize device if not exists
           if (!deviceMap.has(sourceId)) {
-            const deviceName = sourceId === 0 ? "Central" : `Peripheral ${sourceId}`;
+            const deviceName =
+              sourceId === 0 ? "Central" : `Peripheral ${sourceId}`;
             deviceMap.set(sourceId, {
               sourceId,
               deviceName,
@@ -102,12 +108,17 @@ export function useBatteryHistory(): UseBatteryHistoryReturn {
         callback: (customNotification) => {
           // Decode the payload
           try {
-            const notification = Notification.decode(customNotification.payload);
+            const notification = Notification.decode(
+              customNotification.payload,
+            );
             if (notification.batteryHistory) {
               notificationHandler(notification.batteryHistory);
             }
           } catch (err) {
-            console.error("Failed to decode battery history notification:", err);
+            console.error(
+              "Failed to decode battery history notification:",
+              err,
+            );
           }
         },
       });
@@ -136,7 +147,7 @@ export function useBatteryHistory(): UseBatteryHistoryReturn {
     } catch (err) {
       console.error("Failed to load battery history:", err);
       setError(
-        `Failed to load battery history: ${err instanceof Error ? err.message : "Unknown error"}`
+        `Failed to load battery history: ${err instanceof Error ? err.message : "Unknown error"}`,
       );
     } finally {
       setIsLoading(false);
@@ -152,7 +163,7 @@ export function useBatteryHistory(): UseBatteryHistoryReturn {
     try {
       const service = new ZMKCustomSubsystem(
         zmkApp.state.connection,
-        subsystemIndex
+        subsystemIndex,
       );
 
       const request = Request.create({
@@ -175,7 +186,7 @@ export function useBatteryHistory(): UseBatteryHistoryReturn {
     } catch (err) {
       console.error("Failed to clear battery history:", err);
       setError(
-        `Failed to clear battery history: ${err instanceof Error ? err.message : "Unknown error"}`
+        `Failed to clear battery history: ${err instanceof Error ? err.message : "Unknown error"}`,
       );
     } finally {
       setIsLoading(false);
