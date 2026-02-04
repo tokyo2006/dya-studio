@@ -6,9 +6,13 @@ import {
   IconEdit,
   IconCheck,
   IconX,
+  IconUsb,
+  IconRefresh,
+  IconAlertTriangle,
 } from "@tabler/icons-react";
 import { useBLEProfiles } from "../hooks/useBLEProfiles";
 import { ConnectionContext } from "../components/DeviceConnection";
+import { OutputPriority } from "../proto/zmk/ble_management/ble_management";
 
 export function BLEConnectionsPage() {
   const connection = useContext(ConnectionContext);
@@ -16,14 +20,19 @@ export function BLEConnectionsPage() {
     profiles,
     isLoading,
     error,
+    outputPriority,
     switchProfile,
     unpairProfile,
     setProfileName,
     loadProfiles,
+    getOutputPriority,
+    setOutputPriority,
   } = useBLEProfiles();
 
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
+  const [showOutputPriorityWarning, setShowOutputPriorityWarning] = useState(false);
+  const [pendingOutputPriority, setPendingOutputPriority] = useState<OutputPriority | null>(null);
 
   const startEditing = (index: number, currentName: string) => {
     setEditingIndex(index);
@@ -49,6 +58,24 @@ export function BLEConnectionsPage() {
 
   const handleSwitch = async (index: number) => {
     await switchProfile(index);
+  };
+
+  const handleOutputPriorityChange = (priority: OutputPriority) => {
+    setPendingOutputPriority(priority);
+    setShowOutputPriorityWarning(true);
+  };
+
+  const confirmOutputPriorityChange = async () => {
+    if (pendingOutputPriority !== null) {
+      await setOutputPriority(pendingOutputPriority);
+      setShowOutputPriorityWarning(false);
+      setPendingOutputPriority(null);
+    }
+  };
+
+  const cancelOutputPriorityChange = () => {
+    setShowOutputPriorityWarning(false);
+    setPendingOutputPriority(null);
   };
 
   return (
@@ -82,6 +109,94 @@ export function BLEConnectionsPage() {
         {error && (
           <div className="glass-card p-4 mb-4 border-red-500/20 bg-red-500/10">
             <p className="text-sm text-red-400">⚠️ {error}</p>
+          </div>
+        )}
+
+        {/* Output Priority Section */}
+        {connection.isConnected && (
+          <div className="glass-card p-4 mb-6">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="text-sm font-medium text-[var(--color-text)]">
+                    Output Priority
+                  </h3>
+                  <button
+                    className="btn-ghost p-1"
+                    onClick={getOutputPriority}
+                    disabled={isLoading}
+                    aria-label="Refresh output priority"
+                  >
+                    <IconRefresh size={14} />
+                  </button>
+                </div>
+                <p className="text-xs text-[var(--color-text-muted)]">
+                  Prioritized connection for keystrokes
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
+                    outputPriority === OutputPriority.OUTPUT_PRIORITY_USB
+                      ? "bg-[var(--color-electric)]/20 border border-[var(--color-electric)]/40"
+                      : "bg-[var(--color-surface)] border border-[var(--color-border)] hover:border-[var(--color-border-hover)]"
+                  }`}
+                  onClick={() => handleOutputPriorityChange(OutputPriority.OUTPUT_PRIORITY_USB)}
+                  disabled={isLoading}
+                >
+                  <IconUsb
+                    size={16}
+                    className={
+                      outputPriority === OutputPriority.OUTPUT_PRIORITY_USB
+                        ? "text-[var(--color-electric)]"
+                        : "text-[var(--color-text-muted)]"
+                    }
+                  />
+                  <span
+                    className={`text-sm ${
+                      outputPriority === OutputPriority.OUTPUT_PRIORITY_USB
+                        ? "text-[var(--color-electric)] font-medium"
+                        : "text-[var(--color-text-secondary)]"
+                    }`}
+                  >
+                    USB
+                  </span>
+                  {outputPriority === OutputPriority.OUTPUT_PRIORITY_USB && (
+                    <IconCheck size={14} className="text-[var(--color-neon)]" />
+                  )}
+                </button>
+                <button
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
+                    outputPriority === OutputPriority.OUTPUT_PRIORITY_BLE
+                      ? "bg-[var(--color-cyber)]/20 border border-[var(--color-cyber)]/40"
+                      : "bg-[var(--color-surface)] border border-[var(--color-border)] hover:border-[var(--color-border-hover)]"
+                  }`}
+                  onClick={() => handleOutputPriorityChange(OutputPriority.OUTPUT_PRIORITY_BLE)}
+                  disabled={isLoading}
+                >
+                  <IconBluetooth
+                    size={16}
+                    className={
+                      outputPriority === OutputPriority.OUTPUT_PRIORITY_BLE
+                        ? "text-[var(--color-cyber)]"
+                        : "text-[var(--color-text-muted)]"
+                    }
+                  />
+                  <span
+                    className={`text-sm ${
+                      outputPriority === OutputPriority.OUTPUT_PRIORITY_BLE
+                        ? "text-[var(--color-cyber)] font-medium"
+                        : "text-[var(--color-text-secondary)]"
+                    }`}
+                  >
+                    BLE
+                  </span>
+                  {outputPriority === OutputPriority.OUTPUT_PRIORITY_BLE && (
+                    <IconCheck size={14} className="text-[var(--color-neon)]" />
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -218,6 +333,7 @@ export function BLEConnectionsPage() {
                   className="btn-ghost text-sm"
                   onClick={loadProfiles}
                   disabled={isLoading}
+                  aria-label="Refresh profiles"
                 >
                   Refresh
                 </button>
@@ -234,6 +350,44 @@ export function BLEConnectionsPage() {
             with a colored border.
           </p>
         </div>
+
+        {/* Output Priority Warning Dialog */}
+        {showOutputPriorityWarning && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="glass-card p-6 max-w-md mx-4 border-yellow-500/20 bg-[var(--color-surface)]">
+              <div className="flex items-start gap-3 mb-4">
+                <IconAlertTriangle size={24} className="text-yellow-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="text-lg font-medium text-[var(--color-text)] mb-2">
+                    Change Output Priority?
+                  </h3>
+                  <p className="text-sm text-[var(--color-text-secondary)] mb-2">
+                    Changing the output priority may disconnect DYA Studio from your keyboard.
+                  </p>
+                  <p className="text-sm text-[var(--color-text-muted)]">
+                    You will need to reconnect manually after the change.
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3 justify-end">
+                <button
+                  className="btn-ghost text-sm px-4 py-2"
+                  onClick={cancelOutputPriorityChange}
+                  disabled={isLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn-electric text-sm px-4 py-2"
+                  onClick={confirmOutputPriorityChange}
+                  disabled={isLoading}
+                >
+                  Continue
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

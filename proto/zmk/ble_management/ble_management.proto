@@ -69,6 +69,28 @@ message ForgetSplitBondResponse {
     bool success = 1;
 }
 
+// Output priority (USB or BLE)
+enum OutputPriority {
+    OUTPUT_PRIORITY_USB = 0;
+    OUTPUT_PRIORITY_BLE = 1;
+}
+
+// Set output priority
+message SetOutputPriorityRequest {
+    OutputPriority priority = 1;
+}
+
+message SetOutputPriorityResponse {
+    bool success = 1;
+}
+
+// Get current output priority
+message GetOutputPriorityRequest {}
+
+message GetOutputPriorityResponse {
+    OutputPriority priority = 1;
+}
+
 // Main request/response wrapper
 message Request {
     oneof request_type {
@@ -78,6 +100,8 @@ message Request {
         UnpairProfileRequest unpair_profile = 4;
         GetSplitInfoRequest get_split_info = 5;
         ForgetSplitBondRequest forget_split_bond = 6;
+        SetOutputPriorityRequest set_output_priority = 7;
+        GetOutputPriorityRequest get_output_priority = 8;
     }
 }
 
@@ -94,5 +118,7 @@ message Response {
         UnpairProfileResponse unpair_profile = 5;
         GetSplitInfoResponse get_split_info = 6;
         ForgetSplitBondResponse forget_split_bond = 7;
+        SetOutputPriorityResponse set_output_priority = 8;
+        GetOutputPriorityResponse get_output_priority = 9;
     }
 }

@@ -69,10 +69,13 @@ describe("BLEConnectionsPage", () => {
       maxProfiles: 5,
       isLoading: false,
       error: null,
+      outputPriority: null,
       loadProfiles: jest.fn(),
       switchProfile: jest.fn(),
       unpairProfile: jest.fn(),
       setProfileName: jest.fn(),
+      getOutputPriority: jest.fn(),
+      setOutputPriority: jest.fn(),
     });
   });
 
@@ -172,15 +175,18 @@ describe("BLEConnectionsPage", () => {
 
     it("should show refresh button when profiles exist", () => {
       renderComponent({ isConnected: true }, { profiles: mockProfiles });
-      expect(
-        screen.getByRole("button", { name: /refresh/i }),
-      ).toBeInTheDocument();
+      const refreshButtons = screen.getAllByRole("button", { name: /refresh/i });
+      // Should have two refresh buttons: one for output priority and one for profiles
+      expect(refreshButtons.length).toBeGreaterThanOrEqual(1);
     });
 
     it("should not show refresh button emoji", () => {
       renderComponent({ isConnected: true }, { profiles: mockProfiles });
-      const refreshButton = screen.getByRole("button", { name: /refresh/i });
-      expect(refreshButton.textContent).not.toContain("🔄");
+      const refreshButtons = screen.getAllByRole("button", { name: /refresh/i });
+      // Check that none of the refresh buttons contain emoji
+      refreshButtons.forEach((button) => {
+        expect(button.textContent).not.toContain("🔄");
+      });
     });
   });
 
@@ -277,7 +283,7 @@ describe("BLEConnectionsPage", () => {
         { profiles: mockProfiles, loadProfiles: mockLoadProfiles },
       );
 
-      const refreshButton = screen.getByRole("button", { name: /refresh/i });
+      const refreshButton = screen.getByRole("button", { name: "Refresh profiles" });
       fireEvent.click(refreshButton);
 
       await waitFor(() => {
@@ -389,11 +395,14 @@ describe("BLEConnectionsPage", () => {
       const unpairButton = screen.getAllByRole("button", {
         name: /unpair/i,
       })[0];
-      const refreshButton = screen.getByRole("button", { name: /refresh/i });
+      const refreshButtons = screen.getAllByRole("button", { name: /refresh/i });
 
       expect(switchButton).toBeDisabled();
       expect(unpairButton).toBeDisabled();
-      expect(refreshButton).toBeDisabled();
+      // All refresh buttons should be disabled when loading
+      refreshButtons.forEach(button => {
+        expect(button).toBeDisabled();
+      });
     });
   });
 

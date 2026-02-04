@@ -3,6 +3,7 @@ import { ZMKCustomSubsystem, ZMKAppContext } from "@cormoran/zmk-studio-react-ho
 import {
   Request,
   Response,
+  OutputPriority,
 } from "../proto/zmk/ble_management/ble_management";
 
 // Subsystem identifier for ZMK BLE management custom protocol
@@ -23,10 +24,13 @@ export interface UseBLEProfilesReturn {
   maxProfiles: number;
   isLoading: boolean;
   error: string | null;
+  outputPriority: OutputPriority | null;
   loadProfiles: () => Promise<void>;
   switchProfile: (index: number) => Promise<void>;
   unpairProfile: (index: number) => Promise<void>;
   setProfileName: (index: number, name: string) => Promise<void>;
+  getOutputPriority: () => Promise<void>;
+  setOutputPriority: (priority: OutputPriority) => Promise<void>;
 }
 
 export function useBLEProfiles(): UseBLEProfilesReturn {
@@ -35,6 +39,7 @@ export function useBLEProfiles(): UseBLEProfilesReturn {
   const [maxProfiles, setMaxProfiles] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [outputPriority, setOutputPriorityState] = useState<OutputPriority | null>(null);
 
   // Memoize subsystem to avoid unnecessary re-renders
   const subsystem = useMemo(
@@ -222,21 +227,108 @@ export function useBLEProfiles(): UseBLEProfilesReturn {
     [zmkApp?.state.connection, subsystemIndex, loadProfiles]
   );
 
-  // Load profiles when connection or subsystem changes
+  const getOutputPriority = useCallback(async () => {
+    if (!zmkApp?.state.connection || subsystemIndex === undefined) {
+      setError("Not connected to device or subsystem not found");
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const service = new ZMKCustomSubsystem(
+        zmkApp.state.connection,
+        subsystemIndex
+      );
+
+      const request = Request.create({
+        getOutputPriority: {},
+      });
+
+      const payload = Request.encode(request).finish();
+      const responsePayload = await service.callRPC(payload);
+
+      if (responsePayload) {
+        const resp = Response.decode(responsePayload);
+        if (resp.getOutputPriority) {
+          setOutputPriorityState(resp.getOutputPriority.priority);
+        } else if (resp.error) {
+          setError(resp.error.message);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to get output priority:", err);
+      setError(
+        `Failed to get output priority: ${err instanceof Error ? err.message : "Unknown error"}`
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, [zmkApp?.state.connection, subsystemIndex]);
+
+  const setOutputPriority = useCallback(
+    async (priority: OutputPriority) => {
+      if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const service = new ZMKCustomSubsystem(
+          zmkApp.state.connection,
+          subsystemIndex
+        );
+
+        const request = Request.create({
+          setOutputPriority: { priority },
+        });
+
+        const payload = Request.encode(request).finish();
+        const responsePayload = await service.callRPC(payload);
+
+        if (responsePayload) {
+          const resp = Response.decode(responsePayload);
+          if (resp.setOutputPriority?.success) {
+            await getOutputPriority();
+          } else if (resp.error) {
+            setError(resp.error.message);
+          } else {
+            setError("Failed to set output priority");
+          }
+        }
+      } catch (err) {
+        console.error("Failed to set output priority:", err);
+        setError(
+          `Failed to set output priority: ${err instanceof Error ? err.message : "Unknown error"}`
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [zmkApp?.state.connection, subsystemIndex, getOutputPriority]
+  );
+
+  // Load profiles and output priority when connection or subsystem changes
   useEffect(() => {
     if (subsystemIndex !== undefined && zmkApp?.state.connection) {
       loadProfiles();
+      getOutputPriority();
     }
-  }, [subsystemIndex, zmkApp?.state.connection, loadProfiles]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subsystemIndex, zmkApp?.state.connection]);
 
   return {
     profiles,
     maxProfiles,
     isLoading,
     error,
+    outputPriority,
     loadProfiles,
     switchProfile,
     unpairProfile,
     setProfileName,
+    getOutputPriority,
+    setOutputPriority,
   };
 }

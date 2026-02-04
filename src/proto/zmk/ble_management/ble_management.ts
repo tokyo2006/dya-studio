@@ -9,6 +9,17 @@ import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
 
 export const protobufPackage = "zmk.ble_management";
 
+/** Output priority (USB or BLE) */
+export const OutputPriority = { OUTPUT_PRIORITY_USB: 0, OUTPUT_PRIORITY_BLE: 1, UNRECOGNIZED: -1 } as const;
+
+export type OutputPriority = typeof OutputPriority[keyof typeof OutputPriority];
+
+export namespace OutputPriority {
+  export type OUTPUT_PRIORITY_USB = typeof OutputPriority.OUTPUT_PRIORITY_USB;
+  export type OUTPUT_PRIORITY_BLE = typeof OutputPriority.OUTPUT_PRIORITY_BLE;
+  export type UNRECOGNIZED = typeof OutputPriority.UNRECOGNIZED;
+}
+
 /** Profile information */
 export interface ProfileInfo {
   index: number;
@@ -87,6 +98,23 @@ export interface ForgetSplitBondResponse {
   success: boolean;
 }
 
+/** Set output priority */
+export interface SetOutputPriorityRequest {
+  priority: OutputPriority;
+}
+
+export interface SetOutputPriorityResponse {
+  success: boolean;
+}
+
+/** Get current output priority */
+export interface GetOutputPriorityRequest {
+}
+
+export interface GetOutputPriorityResponse {
+  priority: OutputPriority;
+}
+
 /** Main request/response wrapper */
 export interface Request {
   getProfiles?: GetProfilesRequest | undefined;
@@ -95,6 +123,8 @@ export interface Request {
   unpairProfile?: UnpairProfileRequest | undefined;
   getSplitInfo?: GetSplitInfoRequest | undefined;
   forgetSplitBond?: ForgetSplitBondRequest | undefined;
+  setOutputPriority?: SetOutputPriorityRequest | undefined;
+  getOutputPriority?: GetOutputPriorityRequest | undefined;
 }
 
 export interface ErrorResponse {
@@ -109,6 +139,8 @@ export interface Response {
   unpairProfile?: UnpairProfileResponse | undefined;
   getSplitInfo?: GetSplitInfoResponse | undefined;
   forgetSplitBond?: ForgetSplitBondResponse | undefined;
+  setOutputPriority?: SetOutputPriorityResponse | undefined;
+  getOutputPriority?: GetOutputPriorityResponse | undefined;
 }
 
 function createBaseProfileInfo(): ProfileInfo {
@@ -839,6 +871,178 @@ export const ForgetSplitBondResponse: MessageFns<ForgetSplitBondResponse> = {
   },
 };
 
+function createBaseSetOutputPriorityRequest(): SetOutputPriorityRequest {
+  return { priority: 0 };
+}
+
+export const SetOutputPriorityRequest: MessageFns<SetOutputPriorityRequest> = {
+  encode(message: SetOutputPriorityRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.priority !== 0) {
+      writer.uint32(8).int32(message.priority);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): SetOutputPriorityRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSetOutputPriorityRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.priority = reader.int32() as any;
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<SetOutputPriorityRequest>): SetOutputPriorityRequest {
+    return SetOutputPriorityRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<SetOutputPriorityRequest>): SetOutputPriorityRequest {
+    const message = createBaseSetOutputPriorityRequest();
+    message.priority = object.priority ?? 0;
+    return message;
+  },
+};
+
+function createBaseSetOutputPriorityResponse(): SetOutputPriorityResponse {
+  return { success: false };
+}
+
+export const SetOutputPriorityResponse: MessageFns<SetOutputPriorityResponse> = {
+  encode(message: SetOutputPriorityResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.success !== false) {
+      writer.uint32(8).bool(message.success);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): SetOutputPriorityResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSetOutputPriorityResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.success = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<SetOutputPriorityResponse>): SetOutputPriorityResponse {
+    return SetOutputPriorityResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<SetOutputPriorityResponse>): SetOutputPriorityResponse {
+    const message = createBaseSetOutputPriorityResponse();
+    message.success = object.success ?? false;
+    return message;
+  },
+};
+
+function createBaseGetOutputPriorityRequest(): GetOutputPriorityRequest {
+  return {};
+}
+
+export const GetOutputPriorityRequest: MessageFns<GetOutputPriorityRequest> = {
+  encode(_: GetOutputPriorityRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetOutputPriorityRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetOutputPriorityRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<GetOutputPriorityRequest>): GetOutputPriorityRequest {
+    return GetOutputPriorityRequest.fromPartial(base ?? {});
+  },
+  fromPartial(_: DeepPartial<GetOutputPriorityRequest>): GetOutputPriorityRequest {
+    const message = createBaseGetOutputPriorityRequest();
+    return message;
+  },
+};
+
+function createBaseGetOutputPriorityResponse(): GetOutputPriorityResponse {
+  return { priority: 0 };
+}
+
+export const GetOutputPriorityResponse: MessageFns<GetOutputPriorityResponse> = {
+  encode(message: GetOutputPriorityResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.priority !== 0) {
+      writer.uint32(8).int32(message.priority);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetOutputPriorityResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetOutputPriorityResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.priority = reader.int32() as any;
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<GetOutputPriorityResponse>): GetOutputPriorityResponse {
+    return GetOutputPriorityResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetOutputPriorityResponse>): GetOutputPriorityResponse {
+    const message = createBaseGetOutputPriorityResponse();
+    message.priority = object.priority ?? 0;
+    return message;
+  },
+};
+
 function createBaseRequest(): Request {
   return {
     getProfiles: undefined,
@@ -847,6 +1051,8 @@ function createBaseRequest(): Request {
     unpairProfile: undefined,
     getSplitInfo: undefined,
     forgetSplitBond: undefined,
+    setOutputPriority: undefined,
+    getOutputPriority: undefined,
   };
 }
 
@@ -869,6 +1075,12 @@ export const Request: MessageFns<Request> = {
     }
     if (message.forgetSplitBond !== undefined) {
       ForgetSplitBondRequest.encode(message.forgetSplitBond, writer.uint32(50).fork()).join();
+    }
+    if (message.setOutputPriority !== undefined) {
+      SetOutputPriorityRequest.encode(message.setOutputPriority, writer.uint32(58).fork()).join();
+    }
+    if (message.getOutputPriority !== undefined) {
+      GetOutputPriorityRequest.encode(message.getOutputPriority, writer.uint32(66).fork()).join();
     }
     return writer;
   },
@@ -928,6 +1140,22 @@ export const Request: MessageFns<Request> = {
           message.forgetSplitBond = ForgetSplitBondRequest.decode(reader, reader.uint32());
           continue;
         }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.setOutputPriority = SetOutputPriorityRequest.decode(reader, reader.uint32());
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.getOutputPriority = GetOutputPriorityRequest.decode(reader, reader.uint32());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -959,6 +1187,12 @@ export const Request: MessageFns<Request> = {
       : undefined;
     message.forgetSplitBond = (object.forgetSplitBond !== undefined && object.forgetSplitBond !== null)
       ? ForgetSplitBondRequest.fromPartial(object.forgetSplitBond)
+      : undefined;
+    message.setOutputPriority = (object.setOutputPriority !== undefined && object.setOutputPriority !== null)
+      ? SetOutputPriorityRequest.fromPartial(object.setOutputPriority)
+      : undefined;
+    message.getOutputPriority = (object.getOutputPriority !== undefined && object.getOutputPriority !== null)
+      ? GetOutputPriorityRequest.fromPartial(object.getOutputPriority)
       : undefined;
     return message;
   },
@@ -1019,6 +1253,8 @@ function createBaseResponse(): Response {
     unpairProfile: undefined,
     getSplitInfo: undefined,
     forgetSplitBond: undefined,
+    setOutputPriority: undefined,
+    getOutputPriority: undefined,
   };
 }
 
@@ -1044,6 +1280,12 @@ export const Response: MessageFns<Response> = {
     }
     if (message.forgetSplitBond !== undefined) {
       ForgetSplitBondResponse.encode(message.forgetSplitBond, writer.uint32(58).fork()).join();
+    }
+    if (message.setOutputPriority !== undefined) {
+      SetOutputPriorityResponse.encode(message.setOutputPriority, writer.uint32(66).fork()).join();
+    }
+    if (message.getOutputPriority !== undefined) {
+      GetOutputPriorityResponse.encode(message.getOutputPriority, writer.uint32(74).fork()).join();
     }
     return writer;
   },
@@ -1111,6 +1353,22 @@ export const Response: MessageFns<Response> = {
           message.forgetSplitBond = ForgetSplitBondResponse.decode(reader, reader.uint32());
           continue;
         }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.setOutputPriority = SetOutputPriorityResponse.decode(reader, reader.uint32());
+          continue;
+        }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.getOutputPriority = GetOutputPriorityResponse.decode(reader, reader.uint32());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1145,6 +1403,12 @@ export const Response: MessageFns<Response> = {
       : undefined;
     message.forgetSplitBond = (object.forgetSplitBond !== undefined && object.forgetSplitBond !== null)
       ? ForgetSplitBondResponse.fromPartial(object.forgetSplitBond)
+      : undefined;
+    message.setOutputPriority = (object.setOutputPriority !== undefined && object.setOutputPriority !== null)
+      ? SetOutputPriorityResponse.fromPartial(object.setOutputPriority)
+      : undefined;
+    message.getOutputPriority = (object.getOutputPriority !== undefined && object.getOutputPriority !== null)
+      ? GetOutputPriorityResponse.fromPartial(object.getOutputPriority)
       : undefined;
     return message;
   },
