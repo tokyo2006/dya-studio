@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { IconPointer, IconCheck } from "@tabler/icons-react";
+import * as Switch from "@radix-ui/react-switch";
 import { useRuntimeInputProcessor } from "../hooks/useRuntimeInputProcessor";
+import { useKeymap } from "../hooks/useKeymap";
 import { ButtonListSelector } from "../components/ButtonListSelector";
 
 // Speed multiplier options for trackball scaling
@@ -25,8 +27,19 @@ const ROTATION_OPTIONS = [
 const AUTO_SAVE_DELAY_MS = 1000;
 
 export function TrackballPage() {
-  const { processors, isLoading, error, setScaling, setRotation } =
-    useRuntimeInputProcessor();
+  const {
+    processors,
+    isLoading,
+    error,
+    setScaling,
+    setRotation,
+    setTempLayerEnabled,
+    setTempLayerLayer,
+    setTempLayerActivationDelay,
+    setTempLayerDeactivationDelay,
+  } = useRuntimeInputProcessor();
+
+  const keymap = useKeymap();
 
   // Selected processor index
   const [selectedProcessorIndex, setSelectedProcessorIndex] = useState(0);
@@ -34,6 +47,18 @@ export function TrackballPage() {
   // Local state for pending changes (before auto-save)
   const [pendingSpeed, setPendingSpeed] = useState<number | null>(null);
   const [pendingRotation, setPendingRotation] = useState<number | null>(null);
+  const [pendingTempLayerEnabled, setPendingTempLayerEnabled] = useState<
+    boolean | null
+  >(null);
+  const [pendingTempLayerLayer, setPendingTempLayerLayer] = useState<
+    number | null
+  >(null);
+  const [pendingTempLayerActivationDelay, setPendingTempLayerActivationDelay] =
+    useState<number | null>(null);
+  const [
+    pendingTempLayerDeactivationDelay,
+    setPendingTempLayerDeactivationDelay,
+  ] = useState<number | null>(null);
 
   // Save status visualization
   const [saveStatus, setSaveStatus] = useState<
@@ -43,6 +68,10 @@ export function TrackballPage() {
   // Debounce timer refs
   const speedTimerRef = useRef<number | null>(null);
   const rotationTimerRef = useRef<number | null>(null);
+  const tempLayerEnabledTimerRef = useRef<number | null>(null);
+  const tempLayerLayerTimerRef = useRef<number | null>(null);
+  const tempLayerActivationDelayTimerRef = useRef<number | null>(null);
+  const tempLayerDeactivationDelayTimerRef = useRef<number | null>(null);
   const saveStatusTimerRef = useRef<number | null>(null);
 
   // Track previous processor to detect changes
@@ -58,6 +87,12 @@ export function TrackballPage() {
     // Reset pending states and status when processor changes
     if (pendingSpeed !== null) setPendingSpeed(null);
     if (pendingRotation !== null) setPendingRotation(null);
+    if (pendingTempLayerEnabled !== null) setPendingTempLayerEnabled(null);
+    if (pendingTempLayerLayer !== null) setPendingTempLayerLayer(null);
+    if (pendingTempLayerActivationDelay !== null)
+      setPendingTempLayerActivationDelay(null);
+    if (pendingTempLayerDeactivationDelay !== null)
+      setPendingTempLayerDeactivationDelay(null);
     if (saveStatus !== "idle") setSaveStatus("idle");
   }
 
@@ -73,11 +108,45 @@ export function TrackballPage() {
       ? pendingRotation
       : processor?.rotationDegrees || 0;
 
+  // Temp layer display values
+  const displayTempLayerEnabled =
+    pendingTempLayerEnabled !== null
+      ? pendingTempLayerEnabled
+      : processor?.tempLayerEnabled || false;
+  const displayTempLayerLayer =
+    pendingTempLayerLayer !== null
+      ? pendingTempLayerLayer
+      : processor?.tempLayerLayer || 0;
+  const displayTempLayerActivationDelay =
+    pendingTempLayerActivationDelay !== null
+      ? pendingTempLayerActivationDelay
+      : processor?.tempLayerActivationDelayMs || 100;
+  const displayTempLayerDeactivationDelay =
+    pendingTempLayerDeactivationDelay !== null
+      ? pendingTempLayerDeactivationDelay
+      : processor?.tempLayerDeactivationDelayMs || 500;
+
+  // Get layer options from keymap
+  const layerOptions =
+    keymap.keymap?.layers.map((layer) => ({
+      value: layer.id,
+      label: layer.name || `Layer ${layer.id}`,
+      shortLabel: layer.name || `L${layer.id}`,
+    })) || [];
+
   // Cleanup timers on unmount
   useEffect(() => {
     return () => {
       if (speedTimerRef.current) clearTimeout(speedTimerRef.current);
       if (rotationTimerRef.current) clearTimeout(rotationTimerRef.current);
+      if (tempLayerEnabledTimerRef.current)
+        clearTimeout(tempLayerEnabledTimerRef.current);
+      if (tempLayerLayerTimerRef.current)
+        clearTimeout(tempLayerLayerTimerRef.current);
+      if (tempLayerActivationDelayTimerRef.current)
+        clearTimeout(tempLayerActivationDelayTimerRef.current);
+      if (tempLayerDeactivationDelayTimerRef.current)
+        clearTimeout(tempLayerDeactivationDelayTimerRef.current);
       if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
     };
   }, []);
@@ -98,7 +167,7 @@ export function TrackballPage() {
     speedTimerRef.current = setTimeout(async () => {
       setSaveStatus("saving");
       // Convert percentage to multiplier/divisor
-      await setScaling(processor.name, speedPercent, 100);
+      await setScaling(processor.id, speedPercent, 100);
       setPendingSpeed(null);
       setSaveStatus("saved");
 
@@ -125,11 +194,107 @@ export function TrackballPage() {
     // Set new timer for auto-save
     rotationTimerRef.current = setTimeout(async () => {
       setSaveStatus("saving");
-      await setRotation(processor.name, degrees);
+      await setRotation(processor.id, degrees);
       setPendingRotation(null);
       setSaveStatus("saved");
 
       // Clear "saved" status after 2 seconds
+      if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
+      saveStatusTimerRef.current = setTimeout(() => {
+        setSaveStatus("idle");
+      }, 2000);
+    }, AUTO_SAVE_DELAY_MS);
+  };
+
+  // Handle temp layer enabled toggle
+  const handleTempLayerEnabledChange = (enabled: boolean) => {
+    if (!processor) return;
+
+    setPendingTempLayerEnabled(enabled);
+    setSaveStatus("pending");
+
+    if (tempLayerEnabledTimerRef.current) {
+      clearTimeout(tempLayerEnabledTimerRef.current);
+    }
+
+    tempLayerEnabledTimerRef.current = setTimeout(async () => {
+      setSaveStatus("saving");
+      await setTempLayerEnabled(processor.id, enabled);
+      setPendingTempLayerEnabled(null);
+      setSaveStatus("saved");
+
+      if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
+      saveStatusTimerRef.current = setTimeout(() => {
+        setSaveStatus("idle");
+      }, 2000);
+    }, AUTO_SAVE_DELAY_MS);
+  };
+
+  // Handle temp layer layer selection
+  const handleTempLayerLayerChange = (layer: number) => {
+    if (!processor) return;
+
+    setPendingTempLayerLayer(layer);
+    setSaveStatus("pending");
+
+    if (tempLayerLayerTimerRef.current) {
+      clearTimeout(tempLayerLayerTimerRef.current);
+    }
+
+    tempLayerLayerTimerRef.current = setTimeout(async () => {
+      setSaveStatus("saving");
+      await setTempLayerLayer(processor.id, layer);
+      setPendingTempLayerLayer(null);
+      setSaveStatus("saved");
+
+      if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
+      saveStatusTimerRef.current = setTimeout(() => {
+        setSaveStatus("idle");
+      }, 2000);
+    }, AUTO_SAVE_DELAY_MS);
+  };
+
+  // Handle temp layer activation delay
+  const handleTempLayerActivationDelayChange = (delayMs: number) => {
+    if (!processor) return;
+
+    setPendingTempLayerActivationDelay(delayMs);
+    setSaveStatus("pending");
+
+    if (tempLayerActivationDelayTimerRef.current) {
+      clearTimeout(tempLayerActivationDelayTimerRef.current);
+    }
+
+    tempLayerActivationDelayTimerRef.current = setTimeout(async () => {
+      setSaveStatus("saving");
+      await setTempLayerActivationDelay(processor.id, delayMs);
+      setPendingTempLayerActivationDelay(null);
+      setSaveStatus("saved");
+
+      if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
+      saveStatusTimerRef.current = setTimeout(() => {
+        setSaveStatus("idle");
+      }, 2000);
+    }, AUTO_SAVE_DELAY_MS);
+  };
+
+  // Handle temp layer deactivation delay
+  const handleTempLayerDeactivationDelayChange = (delayMs: number) => {
+    if (!processor) return;
+
+    setPendingTempLayerDeactivationDelay(delayMs);
+    setSaveStatus("pending");
+
+    if (tempLayerDeactivationDelayTimerRef.current) {
+      clearTimeout(tempLayerDeactivationDelayTimerRef.current);
+    }
+
+    tempLayerDeactivationDelayTimerRef.current = setTimeout(async () => {
+      setSaveStatus("saving");
+      await setTempLayerDeactivationDelay(processor.id, delayMs);
+      setPendingTempLayerDeactivationDelay(null);
+      setSaveStatus("saved");
+
       if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
       saveStatusTimerRef.current = setTimeout(() => {
         setSaveStatus("idle");
@@ -143,13 +308,13 @@ export function TrackballPage() {
     if (speedTimerRef.current) {
       clearTimeout(speedTimerRef.current);
       if (pendingSpeed !== null && processor) {
-        setScaling(processor.name, pendingSpeed, 100);
+        setScaling(processor.id, pendingSpeed, 100);
       }
     }
     if (rotationTimerRef.current) {
       clearTimeout(rotationTimerRef.current);
       if (pendingRotation !== null && processor) {
-        setRotation(processor.name, pendingRotation);
+        setRotation(processor.id, pendingRotation);
       }
     }
 
@@ -375,6 +540,136 @@ export function TrackballPage() {
               />
             </div>
 
+            {/* Temp Layer Settings */}
+            <div className="glass-card p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-sm font-medium text-[var(--color-text)]">
+                    Temporary Layer
+                  </h3>
+                  <p className="text-xs text-[var(--color-text-muted)]">
+                    Auto-activate layer when trackball is in use
+                  </p>
+                </div>
+                <Switch.Root
+                  checked={displayTempLayerEnabled}
+                  onCheckedChange={handleTempLayerEnabledChange}
+                  className="w-11 h-6 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-surface)] border border-[var(--color-border)] transition-colors cursor-pointer"
+                >
+                  <Switch.Thumb className="block w-5 h-5 bg-white rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform" />
+                </Switch.Root>
+              </div>
+
+              {displayTempLayerEnabled && (
+                <div className="space-y-4 mt-6">
+                  {/* Layer Selection */}
+                  <div>
+                    <label className="text-sm text-[var(--color-text-secondary)] mb-3 block">
+                      Target Layer
+                    </label>
+                    {layerOptions.length > 0 ? (
+                      <ButtonListSelector
+                        options={layerOptions}
+                        value={displayTempLayerLayer}
+                        onChange={handleTempLayerLayerChange}
+                        columns={Math.min(layerOptions.length, 4)}
+                      />
+                    ) : (
+                      <p className="text-xs text-[var(--color-text-muted)]">
+                        Loading layers...
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Activation Delay */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm text-[var(--color-text-secondary)]">
+                        Activation Delay
+                      </label>
+                      <span className="text-sm font-mono text-[var(--color-electric)]">
+                        {displayTempLayerActivationDelay}ms
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={1000}
+                      step={50}
+                      value={displayTempLayerActivationDelay}
+                      onChange={(e) =>
+                        handleTempLayerActivationDelayChange(
+                          Number(e.target.value),
+                        )
+                      }
+                      className="w-full h-2 rounded-lg appearance-none cursor-pointer
+                        bg-[var(--color-border)]
+                        [&::-webkit-slider-thumb]:appearance-none
+                        [&::-webkit-slider-thumb]:w-4
+                        [&::-webkit-slider-thumb]:h-4
+                        [&::-webkit-slider-thumb]:rounded-full
+                        [&::-webkit-slider-thumb]:bg-[var(--color-electric)]
+                        [&::-webkit-slider-thumb]:cursor-pointer
+                        [&::-webkit-slider-thumb]:shadow-[0_0_8px_var(--color-electric)]
+                        [&::-moz-range-thumb]:w-4
+                        [&::-moz-range-thumb]:h-4
+                        [&::-moz-range-thumb]:rounded-full
+                        [&::-moz-range-thumb]:bg-[var(--color-electric)]
+                        [&::-moz-range-thumb]:border-0
+                        [&::-moz-range-thumb]:cursor-pointer
+                        [&::-moz-range-thumb]:shadow-[0_0_8px_var(--color-electric)]"
+                    />
+                    <p className="text-xs text-[var(--color-text-muted)] mt-2">
+                      Delay before activating layer when trackball moves
+                    </p>
+                  </div>
+
+                  {/* Deactivation Delay */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm text-[var(--color-text-secondary)]">
+                        Deactivation Delay
+                      </label>
+                      <span className="text-sm font-mono text-[var(--color-electric)]">
+                        {displayTempLayerDeactivationDelay}ms
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={2000}
+                      step={100}
+                      value={displayTempLayerDeactivationDelay}
+                      onChange={(e) =>
+                        handleTempLayerDeactivationDelayChange(
+                          Number(e.target.value),
+                        )
+                      }
+                      className="w-full h-2 rounded-lg appearance-none cursor-pointer
+                        bg-[var(--color-border)]
+                        [&::-webkit-slider-thumb]:appearance-none
+                        [&::-webkit-slider-thumb]:w-4
+                        [&::-webkit-slider-thumb]:h-4
+                        [&::-webkit-slider-thumb]:rounded-full
+                        [&::-webkit-slider-thumb]:bg-[var(--color-electric)]
+                        [&::-webkit-slider-thumb]:cursor-pointer
+                        [&::-webkit-slider-thumb]:shadow-[0_0_8px_var(--color-electric)]
+                        [&::-moz-range-thumb]:w-4
+                        [&::-moz-range-thumb]:h-4
+                        [&::-moz-range-thumb]:rounded-full
+                        [&::-moz-range-thumb]:bg-[var(--color-electric)]
+                        [&::-moz-range-thumb]:border-0
+                        [&::-moz-range-thumb]:cursor-pointer
+                        [&::-moz-range-thumb]:shadow-[0_0_8px_var(--color-electric)]"
+                    />
+                    <p className="text-xs text-[var(--color-text-muted)] mt-2">
+                      Delay before deactivating layer when trackball stops
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Current Settings Display */}
             <div className="glass-card p-6">
               <h3 className="text-sm font-medium text-[var(--color-text)] mb-4">
@@ -401,9 +696,10 @@ export function TrackballPage() {
         {/* Info */}
         <div className="mt-8 p-4 rounded-lg bg-[var(--color-border)] border border-[var(--color-border-hover)]">
           <p className="text-xs text-[var(--color-text-muted)]">
-            Runtime input processor allows you to adjust trackball sensitivity
-            and rotation without rebuilding firmware. Changes are automatically
-            saved to the device after 1 second and persist across reboots.
+            Runtime input processor allows you to adjust trackball sensitivity,
+            rotation, and temporary layer activation without rebuilding
+            firmware. Changes are automatically saved to the device after 1
+            second and persist across reboots.
           </p>
         </div>
       </div>

@@ -158,12 +158,17 @@ describe("useRuntimeInputProcessor", () => {
       // Simulate notification arrival
       if (notificationCallback) {
         const notification = Notification.create({
-          processorSettings: {
+          processorChanged: {
             processor: {
+              id: 0,
               name: "trackpad",
               scaleMultiplier: 1,
               scaleDivisor: 1,
               rotationDegrees: 0,
+              tempLayerEnabled: false,
+              tempLayerLayer: 0,
+              tempLayerActivationDelayMs: 100,
+              tempLayerDeactivationDelayMs: 500,
             },
           },
         });
@@ -177,10 +182,15 @@ describe("useRuntimeInputProcessor", () => {
 
       expect(result.current.processors).toHaveLength(1);
       expect(result.current.processors[0]).toEqual({
+        id: 0,
         name: "trackpad",
         scaleMultiplier: 1,
         scaleDivisor: 1,
         rotationDegrees: 0,
+        tempLayerEnabled: false,
+        tempLayerLayer: 0,
+        tempLayerActivationDelayMs: 100,
+        tempLayerDeactivationDelayMs: 500,
       });
       expect(result.current.error).toBe(null);
     });
@@ -231,9 +241,14 @@ describe("useRuntimeInputProcessor", () => {
       // Mock successful initial load
       const initialLoadResponse = Response.create({ listProcessors: {} });
 
-      // Mock successful set scaling response
-      const setScalingResponse = Response.create({
-        setScaling: { success: true },
+      // Mock successful set scale multiplier response
+      const setMultiplierResponse = Response.create({
+        setScaleMultiplier: {},
+      });
+
+      // Mock successful set scale divisor response
+      const setDivisorResponse = Response.create({
+        setScaleDivisor: {},
       });
 
       // Mock reload after setting
@@ -241,7 +256,8 @@ describe("useRuntimeInputProcessor", () => {
 
       mockCallRPC
         .mockResolvedValueOnce(Response.encode(initialLoadResponse).finish())
-        .mockResolvedValueOnce(Response.encode(setScalingResponse).finish())
+        .mockResolvedValueOnce(Response.encode(setMultiplierResponse).finish())
+        .mockResolvedValueOnce(Response.encode(setDivisorResponse).finish())
         .mockResolvedValueOnce(Response.encode(reloadResponse).finish());
 
       const wrapper = createWrapper({
@@ -267,12 +283,17 @@ describe("useRuntimeInputProcessor", () => {
         await new Promise((resolve) => setTimeout(resolve, 50));
         if (notificationCallback) {
           const initialNotification = Notification.create({
-            processorSettings: {
+            processorChanged: {
               processor: {
+                id: 0,
                 name: "trackpad",
                 scaleMultiplier: 1,
                 scaleDivisor: 1,
                 rotationDegrees: 0,
+                tempLayerEnabled: false,
+                tempLayerLayer: 0,
+                tempLayerActivationDelayMs: 100,
+                tempLayerDeactivationDelayMs: 500,
               },
             },
           });
@@ -285,16 +306,21 @@ describe("useRuntimeInputProcessor", () => {
 
       // Now call setScaling with a value that can be simplified (200/100 => 2/1)
       await act(async () => {
-        await result.current.setScaling("trackpad", 200, 100);
+        await result.current.setScaling(0, 200, 100);
         // Send notification for updated processor
         if (notificationCallback) {
           const updatedNotification = Notification.create({
-            processorSettings: {
+            processorChanged: {
               processor: {
+                id: 0,
                 name: "trackpad",
                 scaleMultiplier: 2, // Simplified from 200/100
                 scaleDivisor: 1,
                 rotationDegrees: 0,
+                tempLayerEnabled: false,
+                tempLayerLayer: 0,
+                tempLayerActivationDelayMs: 100,
+                tempLayerDeactivationDelayMs: 500,
               },
             },
           });
@@ -330,7 +356,7 @@ describe("useRuntimeInputProcessor", () => {
 
       // Mock successful set rotation response
       const setRotationResponse = Response.create({
-        setRotation: { success: true },
+        setRotation: {},
       });
 
       // Mock reload after setting
@@ -364,12 +390,17 @@ describe("useRuntimeInputProcessor", () => {
         await new Promise((resolve) => setTimeout(resolve, 50));
         if (notificationCallback) {
           const initialNotification = Notification.create({
-            processorSettings: {
+            processorChanged: {
               processor: {
+                id: 0,
                 name: "trackpad",
                 scaleMultiplier: 1,
                 scaleDivisor: 1,
                 rotationDegrees: 0,
+                tempLayerEnabled: false,
+                tempLayerLayer: 0,
+                tempLayerActivationDelayMs: 100,
+                tempLayerDeactivationDelayMs: 500,
               },
             },
           });
@@ -382,16 +413,21 @@ describe("useRuntimeInputProcessor", () => {
 
       // Now call setRotation
       await act(async () => {
-        await result.current.setRotation("trackpad", 90);
+        await result.current.setRotation(0, 90);
         // Send notification for updated processor
         if (notificationCallback) {
           const updatedNotification = Notification.create({
-            processorSettings: {
+            processorChanged: {
               processor: {
+                id: 0,
                 name: "trackpad",
                 scaleMultiplier: 1,
                 scaleDivisor: 1,
                 rotationDegrees: 90,
+                tempLayerEnabled: false,
+                tempLayerLayer: 0,
+                tempLayerActivationDelayMs: 100,
+                tempLayerDeactivationDelayMs: 500,
               },
             },
           });

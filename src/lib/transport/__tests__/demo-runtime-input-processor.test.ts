@@ -24,8 +24,6 @@ describe("RuntimeInputProcessorHandler", () => {
       const response = handler.process(request);
 
       expect(response.listProcessors).toBeDefined();
-      expect(response.listProcessors?.processors).toBeDefined();
-      expect(response.listProcessors?.processors?.length).toBeGreaterThan(0);
       expect(response.error).toBeUndefined();
     });
 
@@ -50,19 +48,20 @@ describe("RuntimeInputProcessorHandler", () => {
 
         // Verify notification structure
         const firstNotification = notifications[0];
-        expect(firstNotification.processorSettings).toBeDefined();
-        expect(firstNotification.processorSettings?.processor).toBeDefined();
+        expect(firstNotification.processorChanged).toBeDefined();
+        expect(firstNotification.processorChanged?.processor).toBeDefined();
+        expect(firstNotification.processorChanged?.processor?.id).toBeDefined();
         expect(
-          firstNotification.processorSettings?.processor?.name,
+          firstNotification.processorChanged?.processor?.name,
         ).toBeDefined();
         expect(
-          firstNotification.processorSettings?.processor?.scaleMultiplier,
+          firstNotification.processorChanged?.processor?.scaleMultiplier,
         ).toBeDefined();
         expect(
-          firstNotification.processorSettings?.processor?.scaleDivisor,
+          firstNotification.processorChanged?.processor?.scaleDivisor,
         ).toBeDefined();
         expect(
-          firstNotification.processorSettings?.processor?.rotationDegrees,
+          firstNotification.processorChanged?.processor?.rotationDegrees,
         ).toBeDefined();
 
         done();
@@ -71,10 +70,10 @@ describe("RuntimeInputProcessorHandler", () => {
   });
 
   describe("getProcessor request", () => {
-    it("should return processor info for valid name", () => {
+    it("should return processor info for valid id", () => {
       const request = Request.create({
         getProcessor: {
-          name: "trackpad",
+          id: 0,
         },
       });
 
@@ -82,14 +81,15 @@ describe("RuntimeInputProcessorHandler", () => {
 
       expect(response.getProcessor).toBeDefined();
       expect(response.getProcessor?.processor).toBeDefined();
+      expect(response.getProcessor?.processor?.id).toBe(0);
       expect(response.getProcessor?.processor?.name).toBe("trackpad");
       expect(response.error).toBeUndefined();
     });
 
-    it("should return error for invalid processor name", () => {
+    it("should return error for invalid processor id", () => {
       const request = Request.create({
         getProcessor: {
-          name: "nonexistent",
+          id: 999,
         },
       });
 
@@ -100,24 +100,22 @@ describe("RuntimeInputProcessorHandler", () => {
     });
   });
 
-  describe("setScaling request", () => {
-    it("should return success response for valid setScaling request", () => {
+  describe("setScaleMultiplier request", () => {
+    it("should return success response for valid setScaleMultiplier request", () => {
       const request = Request.create({
-        setScaling: {
-          name: "trackpad",
-          scaleMultiplier: 2,
-          scaleDivisor: 1,
+        setScaleMultiplier: {
+          id: 0,
+          value: 2,
         },
       });
 
       const response = handler.process(request);
 
-      expect(response.setScaling).toBeDefined();
-      expect(response.setScaling?.success).toBe(true);
+      expect(response.setScaleMultiplier).toBeDefined();
       expect(response.error).toBeUndefined();
     });
 
-    it("should update processor scaling and send notification", (done) => {
+    it("should update processor multiplier and send notification", (done) => {
       const notifications: Notification[] = [];
 
       handler.notify((payload: Uint8Array) => {
@@ -126,10 +124,9 @@ describe("RuntimeInputProcessorHandler", () => {
       });
 
       const request = Request.create({
-        setScaling: {
-          name: "trackpad",
-          scaleMultiplier: 2,
-          scaleDivisor: 1,
+        setScaleMultiplier: {
+          id: 0,
+          value: 2,
         },
       });
 
@@ -140,28 +137,26 @@ describe("RuntimeInputProcessorHandler", () => {
         expect(notifications.length).toBeGreaterThan(0);
 
         const notification = notifications[0];
-        expect(notification.processorSettings?.processor?.scaleMultiplier).toBe(
+        expect(notification.processorChanged?.processor?.scaleMultiplier).toBe(
           2,
         );
-        expect(notification.processorSettings?.processor?.scaleDivisor).toBe(1);
 
         done();
       }, 200);
     });
 
-    it("should return failure for invalid processor name", () => {
+    it("should return error for invalid processor id", () => {
       const request = Request.create({
-        setScaling: {
-          name: "nonexistent",
-          scaleMultiplier: 2,
-          scaleDivisor: 1,
+        setScaleMultiplier: {
+          id: 999,
+          value: 2,
         },
       });
 
       const response = handler.process(request);
 
-      expect(response.setScaling).toBeDefined();
-      expect(response.setScaling?.success).toBe(false);
+      expect(response.error).toBeDefined();
+      expect(response.error?.message).toContain("not found");
     });
   });
 
@@ -169,15 +164,14 @@ describe("RuntimeInputProcessorHandler", () => {
     it("should return success response for valid setRotation request", () => {
       const request = Request.create({
         setRotation: {
-          name: "trackpad",
-          rotationDegrees: 90,
+          id: 0,
+          value: 90,
         },
       });
 
       const response = handler.process(request);
 
       expect(response.setRotation).toBeDefined();
-      expect(response.setRotation?.success).toBe(true);
       expect(response.error).toBeUndefined();
     });
 
@@ -191,8 +185,8 @@ describe("RuntimeInputProcessorHandler", () => {
 
       const request = Request.create({
         setRotation: {
-          name: "trackpad",
-          rotationDegrees: 90,
+          id: 0,
+          value: 90,
         },
       });
 
@@ -203,7 +197,7 @@ describe("RuntimeInputProcessorHandler", () => {
         expect(notifications.length).toBeGreaterThan(0);
 
         const notification = notifications[0];
-        expect(notification.processorSettings?.processor?.rotationDegrees).toBe(
+        expect(notification.processorChanged?.processor?.rotationDegrees).toBe(
           90,
         );
 
@@ -211,18 +205,18 @@ describe("RuntimeInputProcessorHandler", () => {
       }, 200);
     });
 
-    it("should return failure for invalid processor name", () => {
+    it("should return error for invalid processor id", () => {
       const request = Request.create({
         setRotation: {
-          name: "nonexistent",
-          rotationDegrees: 90,
+          id: 999,
+          value: 90,
         },
       });
 
       const response = handler.process(request);
 
-      expect(response.setRotation).toBeDefined();
-      expect(response.setRotation?.success).toBe(false);
+      expect(response.error).toBeDefined();
+      expect(response.error?.message).toContain("not found");
     });
   });
 
