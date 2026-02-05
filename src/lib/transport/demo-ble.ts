@@ -4,10 +4,11 @@
  * Provides mock BLE profile management for demo mode.
  */
 
-import type {
-  ProfileInfo,
-  Request,
-  Response,
+import {
+  OutputPriority,
+  type ProfileInfo,
+  type Request,
+  type Response,
 } from "../../proto/zmk/ble_management/ble_management";
 
 export const BLE_MANAGEMENT_IDENTIFIER = "cormoran_ble";
@@ -65,6 +66,7 @@ export class BLEManagementHandler {
   private profiles: ProfileInfo[] = JSON.parse(
     JSON.stringify(MOCK_BLE_PROFILES),
   );
+  private outputPriority: OutputPriority = OutputPriority.OUTPUT_PRIORITY_USB;
   private maxProfiles = 5;
 
   process(request: Request): Response {
@@ -115,6 +117,24 @@ export class BLEManagementHandler {
         return { setProfileName: { success: true } };
       }
       return { setProfileName: { success: false } };
+    }
+
+    if (request.getOutputPriority !== undefined) {
+      return {
+        getOutputPriority: {
+          priority: this.outputPriority,
+        },
+      };
+    }
+
+    if (request.setOutputPriority !== undefined) {
+      const { priority } = request.setOutputPriority;
+      this.outputPriority = priority;
+      return {
+        setOutputPriority: {
+          success: true,
+        },
+      };
     }
 
     return {

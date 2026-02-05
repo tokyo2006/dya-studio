@@ -37,8 +37,23 @@ import {
   Request as RuntimeInputProcessorRequest,
   Response as RuntimeInputProcessorResponse,
 } from "../../proto/zmk/runtime_input_processor/runtime_input_processor";
-import { ANSI60, ORTHO, CORNE6 } from "../layouts";
+import {
+  ANSI60,
+  ORTHO,
+  CORNE6,
+  DYA_DASH_ARROW,
+  DYA_DASH,
+  DYA2_ANSI,
+  DYA2_JIS,
+} from "../layouts";
 import { ErrorConditions } from "@zmkfirmware/zmk-studio-ts-client/meta";
+import { KEYBOARD_KEYCODES } from "../keycodes";
+import { BEHAVIORS } from "./behaviors";
+import {
+  MoveLayerErrorCode,
+  RestoreLayerErrorCode,
+  type Layer,
+} from "@zmkfirmware/zmk-studio-ts-client/keymap";
 
 // Framing protocol
 const SOF = 0xab;
@@ -48,42 +63,54 @@ const ESC = 0xac;
 /**
  * Demo keyboard data
  */
+const LAYOUTS = [
+  DYA_DASH,
+  DYA_DASH_ARROW,
+  DYA2_ANSI,
+  DYA2_JIS,
+  ANSI60,
+  ORTHO,
+  CORNE6,
+];
+const maxKeys = LAYOUTS.reduce(
+  (max, layout) => (layout.keys.length > max ? layout.keys.length : max),
+  0,
+);
 const DEMO = {
   device: {
     name: "DYA Keyboard (Demo)",
     serialNumber: new Uint8Array([0x44, 0x59, 0x41, 0x44, 0x45, 0x4d, 0x4f]), // "DYADEMO"
   },
   layouts: {
-    activeLayoutIndex: 1,
-    layouts: [ANSI60, ORTHO, CORNE6],
+    activeLayoutIndex: 0,
+    layouts: LAYOUTS,
   },
   keymap: {
     layers: [
       {
         id: 0,
         name: "Base",
-        bindings: Array(42).fill({ behaviorId: 1, param1: 0x04, param2: 0 }),
+        bindings: KEYBOARD_KEYCODES.splice(0, maxKeys).map((code) => ({
+          behaviorId: 10,
+          param1: code.code,
+          param2: 0,
+        })),
       },
       {
         id: 1,
         name: "Lower",
-        bindings: Array(42).fill({ behaviorId: 2, param1: 0, param2: 0 }),
+        bindings: Array(maxKeys).fill({ behaviorId: 35, param1: 0, param2: 0 }),
       },
       {
         id: 2,
         name: "Raise",
-        bindings: Array(42).fill({ behaviorId: 2, param1: 0, param2: 0 }),
+        bindings: Array(maxKeys).fill({ behaviorId: 35, param1: 0, param2: 0 }),
       },
     ],
     availableLayers: 8,
     maxLayerNameLength: 32,
   },
-  behaviors: [
-    { id: 1, displayName: "kp", metadata: [] },
-    { id: 2, displayName: "trans", metadata: [] },
-    { id: 3, displayName: "kp", metadata: [] },
-    { id: 4, displayName: "mo", metadata: [] },
-  ],
+  behaviors: BEHAVIORS,
 };
 
 /**
@@ -109,6 +136,7 @@ class Keyboard {
   private dirty = false;
   private persistent: typeof DEMO = JSON.parse(JSON.stringify(DEMO));
   private data: typeof DEMO = JSON.parse(JSON.stringify(DEMO));
+  private deletedLayers: Layer[] = [];
 
   // Custom subsystem handlers
   private bleHandler = new BLEManagementHandler();
@@ -170,7 +198,7 @@ class Keyboard {
       const layer = this.data.keymap.layers.find(
         (l: { id: number }) => l.id === layerId,
       );
-      if (layer && keyPosition >= 0 && keyPosition < 42) {
+      if (layer && keyPosition >= 0 && keyPosition < layer.bindings.length) {
         layer.bindings[keyPosition] = binding;
         this.dirty = true;
         rr.keymap = { setLayerBinding: 0 };
@@ -185,8 +213,98 @@ class Keyboard {
       this.dirty = false;
       this.data = JSON.parse(JSON.stringify(this.persistent));
       rr.keymap = { discardChanges: true };
+    } else if (req.keymap?.addLayer) {
+      const newIndex =
+        this.data.keymap.layers.reduce(
+          (max: number, layer: { id: number }) =>
+            layer.id > max ? layer.id : max,
+          -1,
+        ) + 1;
+      this.data.keymap.layers.push({
+        id: newIndex,
+        name: `Layer ${newIndex}`,
+        bindings: Array(
+          this.data.layouts.layouts[this.data.layouts.activeLayoutIndex].keys
+            .length,
+        ).fill({ behaviorId: 35, param1: 0, param2: 0 }),
+      });
+      this.dirty = true;
+      rr.keymap = {
+        addLayer: {
+          ok: {
+            index: newIndex,
+            layer: this.data.keymap.layers[this.data.keymap.layers.length - 1],
+          },
+        },
+      };
+    } else if (req.keymap?.removeLayer) {
+      const layerId = req.keymap.removeLayer.layerIndex;
+      this.deletedLayers.push(
+        this.data.keymap.layers.find((l) => l.id === layerId)!,
+      );
+      this.data.keymap.layers = this.data.keymap.layers.filter(
+        (l) => l.id !== layerId,
+      );
+      this.dirty = true;
+      rr.keymap = {
+        removeLayer: {
+          ok: true,
+        },
+      };
+    } else if (req.keymap?.restoreLayer) {
+      const layer = this.deletedLayers.find(
+        (l) => l.id === req.keymap?.restoreLayer?.layerId,
+      );
+      if (layer) {
+        this.deletedLayers = this.deletedLayers.filter(
+          (l) => l.id !== layer.id,
+        );
+        this.data.keymap.layers.splice(
+          req.keymap.restoreLayer.atIndex,
+          0,
+          layer,
+        );
+        this.dirty = true;
+        rr.keymap = {
+          restoreLayer: {
+            ok: layer,
+          },
+        };
+      } else {
+        rr.keymap = {
+          restoreLayer: {
+            err: RestoreLayerErrorCode.RESTORE_LAYER_ERR_INVALID_ID,
+          },
+        };
+      }
+    } else if (req.keymap?.moveLayer) {
+      const fromIdx = req.keymap.moveLayer.startIndex;
+      const toIdx = req.keymap.moveLayer.destIndex;
+
+      if (this.data.keymap.layers[fromIdx] && this.data.keymap.layers[toIdx]) {
+        const a = this.data.keymap.layers[fromIdx];
+        const b = this.data.keymap.layers[toIdx];
+        this.data.keymap.layers[toIdx] = a;
+        this.data.keymap.layers[fromIdx] = b;
+        this.dirty = true;
+        rr.keymap = {
+          moveLayer: {
+            ok: this.data.keymap,
+          },
+        };
+      } else {
+        rr.keymap = {
+          moveLayer: {
+            err: MoveLayerErrorCode.MOVE_LAYER_ERR_INVALID_LAYER,
+          },
+        };
+      }
     } else if (req.behaviors?.listAllBehaviors) {
-      rr.behaviors = { listAllBehaviors: { behaviors: [1, 2, 3, 4] } };
+      rr.behaviors = {
+        listAllBehaviors: {
+          behaviors: this.persistent.behaviors.map((b) => b.id),
+        },
+      };
     } else if (req.behaviors?.getBehaviorDetails) {
       const b = DEMO.behaviors.find(
         (x) => x.id === req.behaviors?.getBehaviorDetails?.behaviorId,
