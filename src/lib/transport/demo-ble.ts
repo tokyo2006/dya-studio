@@ -10,7 +10,7 @@ import type {
   Response,
 } from "../../proto/zmk/ble_management/ble_management";
 
-export const BLE_MANAGEMENT_IDENTIFIER = "zmk__ble_management";
+export const BLE_MANAGEMENT_IDENTIFIER = "cormoran_ble";
 
 /**
  * Mock BLE profiles

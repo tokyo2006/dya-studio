@@ -12,7 +12,7 @@ import {
 
 // Subsystem identifier for ZMK runtime input processor custom protocol
 // This matches the identifier registered in the ZMK firmware module
-const SUBSYSTEM_IDENTIFIER = "zmk__runtime_input_processor";
+const SUBSYSTEM_IDENTIFIER = "cormoran_rip";
 
 // Time to wait for all notifications to arrive after requesting processors
 const NOTIFICATION_COLLECTION_TIMEOUT_MS = 500;
@@ -43,10 +43,15 @@ function simplifyFraction(
 }
 
 export interface InputProcessor {
+  id: number;
   name: string;
   scaleMultiplier: number;
   scaleDivisor: number;
   rotationDegrees: number;
+  tempLayerEnabled: boolean;
+  tempLayerLayer: number;
+  tempLayerActivationDelayMs: number;
+  tempLayerDeactivationDelayMs: number;
 }
 
 export interface UseRuntimeInputProcessorReturn {
@@ -55,11 +60,15 @@ export interface UseRuntimeInputProcessorReturn {
   error: string | null;
   loadProcessors: () => Promise<void>;
   setScaling: (
-    name: string,
+    id: number,
     multiplier: number,
     divisor: number,
   ) => Promise<void>;
-  setRotation: (name: string, degrees: number) => Promise<void>;
+  setRotation: (id: number, degrees: number) => Promise<void>;
+  setTempLayerEnabled: (id: number, enabled: boolean) => Promise<void>;
+  setTempLayerLayer: (id: number, layer: number) => Promise<void>;
+  setTempLayerActivationDelay: (id: number, delayMs: number) => Promise<void>;
+  setTempLayerDeactivationDelay: (id: number, delayMs: number) => Promise<void>;
 }
 
 export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
@@ -100,10 +109,17 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
       const notificationHandler = (processorInfo: ProcessorInfo) => {
         try {
           processorMap.set(processorInfo.name, {
+            id: processorInfo.id,
             name: processorInfo.name,
             scaleMultiplier: processorInfo.scaleMultiplier,
             scaleDivisor: processorInfo.scaleDivisor,
             rotationDegrees: processorInfo.rotationDegrees,
+            tempLayerEnabled: processorInfo.tempLayerEnabled,
+            tempLayerLayer: processorInfo.tempLayerLayer,
+            tempLayerActivationDelayMs:
+              processorInfo.tempLayerActivationDelayMs,
+            tempLayerDeactivationDelayMs:
+              processorInfo.tempLayerDeactivationDelayMs,
           });
 
           // Update state with all collected processors
@@ -123,8 +139,8 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
             const notification = Notification.decode(
               customNotification.payload,
             );
-            if (notification.processorSettings?.processor) {
-              notificationHandler(notification.processorSettings.processor);
+            if (notification.processorChanged?.processor) {
+              notificationHandler(notification.processorChanged.processor);
             }
           } catch (err) {
             console.error("Failed to decode processor notification:", err);
@@ -166,7 +182,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
   }, [zmkApp, subsystemIndex]);
 
   const setScaling = useCallback(
-    async (name: string, multiplier: number, divisor: number) => {
+    async (id: number, multiplier: number, divisor: number) => {
       if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
 
       setIsLoading(true);
@@ -181,27 +197,45 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         // Simplify the fraction to reduce risk of overflow
         const simplified = simplifyFraction(multiplier, divisor);
 
-        const request = Request.create({
-          setScaling: {
-            name,
-            scaleMultiplier: simplified.multiplier,
-            scaleDivisor: simplified.divisor,
+        // Set multiplier
+        const multiplierRequest = Request.create({
+          setScaleMultiplier: {
+            id,
+            value: simplified.multiplier,
           },
         });
 
-        const payload = Request.encode(request).finish();
-        const responsePayload = await service.callRPC(payload);
+        const multiplierPayload = Request.encode(multiplierRequest).finish();
+        const multiplierResponse = await service.callRPC(multiplierPayload);
 
-        if (responsePayload) {
-          const resp = Response.decode(responsePayload);
-          if (resp.setScaling?.success) {
-            await loadProcessors();
-          } else if (resp.error) {
+        if (multiplierResponse) {
+          const resp = Response.decode(multiplierResponse);
+          if (resp.error) {
             setError(resp.error.message);
-          } else {
-            setError("Failed to set scaling");
+            return;
           }
         }
+
+        // Set divisor
+        const divisorRequest = Request.create({
+          setScaleDivisor: {
+            id,
+            value: simplified.divisor,
+          },
+        });
+
+        const divisorPayload = Request.encode(divisorRequest).finish();
+        const divisorResponse = await service.callRPC(divisorPayload);
+
+        if (divisorResponse) {
+          const resp = Response.decode(divisorResponse);
+          if (resp.error) {
+            setError(resp.error.message);
+            return;
+          }
+        }
+
+        await loadProcessors();
       } catch (err) {
         console.error("Failed to set scaling:", err);
         setError(
@@ -215,7 +249,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
   );
 
   const setRotation = useCallback(
-    async (name: string, degrees: number) => {
+    async (id: number, degrees: number) => {
       if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
 
       setIsLoading(true);
@@ -229,8 +263,8 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
 
         const request = Request.create({
           setRotation: {
-            name,
-            rotationDegrees: degrees,
+            id,
+            value: degrees,
           },
         });
 
@@ -239,18 +273,193 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
 
         if (responsePayload) {
           const resp = Response.decode(responsePayload);
-          if (resp.setRotation?.success) {
-            await loadProcessors();
-          } else if (resp.error) {
+          if (resp.error) {
             setError(resp.error.message);
-          } else {
-            setError("Failed to set rotation");
+            return;
           }
         }
+
+        await loadProcessors();
       } catch (err) {
         console.error("Failed to set rotation:", err);
         setError(
           `Failed to set rotation: ${err instanceof Error ? err.message : "Unknown error"}`,
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [zmkApp?.state.connection, subsystemIndex, loadProcessors],
+  );
+
+  const setTempLayerEnabled = useCallback(
+    async (id: number, enabled: boolean) => {
+      if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const service = new ZMKCustomSubsystem(
+          zmkApp.state.connection,
+          subsystemIndex,
+        );
+
+        const request = Request.create({
+          setTempLayerEnabled: {
+            id,
+            enabled,
+          },
+        });
+
+        const payload = Request.encode(request).finish();
+        const responsePayload = await service.callRPC(payload);
+
+        if (responsePayload) {
+          const resp = Response.decode(responsePayload);
+          if (resp.error) {
+            setError(resp.error.message);
+            return;
+          }
+        }
+
+        await loadProcessors();
+      } catch (err) {
+        console.error("Failed to set temp layer enabled:", err);
+        setError(
+          `Failed to set temp layer enabled: ${err instanceof Error ? err.message : "Unknown error"}`,
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [zmkApp?.state.connection, subsystemIndex, loadProcessors],
+  );
+
+  const setTempLayerLayer = useCallback(
+    async (id: number, layer: number) => {
+      if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const service = new ZMKCustomSubsystem(
+          zmkApp.state.connection,
+          subsystemIndex,
+        );
+
+        const request = Request.create({
+          setTempLayerLayer: {
+            id,
+            layer,
+          },
+        });
+
+        const payload = Request.encode(request).finish();
+        const responsePayload = await service.callRPC(payload);
+
+        if (responsePayload) {
+          const resp = Response.decode(responsePayload);
+          if (resp.error) {
+            setError(resp.error.message);
+            return;
+          }
+        }
+
+        await loadProcessors();
+      } catch (err) {
+        console.error("Failed to set temp layer:", err);
+        setError(
+          `Failed to set temp layer: ${err instanceof Error ? err.message : "Unknown error"}`,
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [zmkApp?.state.connection, subsystemIndex, loadProcessors],
+  );
+
+  const setTempLayerActivationDelay = useCallback(
+    async (id: number, delayMs: number) => {
+      if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const service = new ZMKCustomSubsystem(
+          zmkApp.state.connection,
+          subsystemIndex,
+        );
+
+        const request = Request.create({
+          setTempLayerActivationDelay: {
+            id,
+            activationDelayMs: delayMs,
+          },
+        });
+
+        const payload = Request.encode(request).finish();
+        const responsePayload = await service.callRPC(payload);
+
+        if (responsePayload) {
+          const resp = Response.decode(responsePayload);
+          if (resp.error) {
+            setError(resp.error.message);
+            return;
+          }
+        }
+
+        await loadProcessors();
+      } catch (err) {
+        console.error("Failed to set temp layer activation delay:", err);
+        setError(
+          `Failed to set temp layer activation delay: ${err instanceof Error ? err.message : "Unknown error"}`,
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [zmkApp?.state.connection, subsystemIndex, loadProcessors],
+  );
+
+  const setTempLayerDeactivationDelay = useCallback(
+    async (id: number, delayMs: number) => {
+      if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const service = new ZMKCustomSubsystem(
+          zmkApp.state.connection,
+          subsystemIndex,
+        );
+
+        const request = Request.create({
+          setTempLayerDeactivationDelay: {
+            id,
+            deactivationDelayMs: delayMs,
+          },
+        });
+
+        const payload = Request.encode(request).finish();
+        const responsePayload = await service.callRPC(payload);
+
+        if (responsePayload) {
+          const resp = Response.decode(responsePayload);
+          if (resp.error) {
+            setError(resp.error.message);
+            return;
+          }
+        }
+
+        await loadProcessors();
+      } catch (err) {
+        console.error("Failed to set temp layer deactivation delay:", err);
+        setError(
+          `Failed to set temp layer deactivation delay: ${err instanceof Error ? err.message : "Unknown error"}`,
         );
       } finally {
         setIsLoading(false);
@@ -273,5 +482,9 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
     loadProcessors,
     setScaling,
     setRotation,
+    setTempLayerEnabled,
+    setTempLayerLayer,
+    setTempLayerActivationDelay,
+    setTempLayerDeactivationDelay,
   };
 }

@@ -11,6 +11,8 @@ export const protobufPackage = "zmk.runtime_input_processor";
 
 /** Information about a single input processor */
 export interface ProcessorInfo {
+  /** Processor ID (index in array) */
+  id: number;
   /** Processor name (max 16 characters, short for BLE efficiency) */
   name: string;
   /** Current scale multiplier (for speed adjustment) */
@@ -19,6 +21,11 @@ export interface ProcessorInfo {
   scaleDivisor: number;
   /** Current rotation in degrees */
   rotationDegrees: number;
+  /** Temporary layer settings */
+  tempLayerEnabled: boolean;
+  tempLayerLayer: number;
+  tempLayerActivationDelayMs: number;
+  tempLayerDeactivationDelayMs: number;
 }
 
 /** Request to list all available input processors */
@@ -26,45 +33,100 @@ export interface ListProcessorsRequest {
 }
 
 export interface ListProcessorsResponse {
-  processors: ProcessorInfo[];
 }
 
 /** Request to get settings for a specific processor */
 export interface GetProcessorRequest {
-  name: string;
+  id: number;
 }
 
 export interface GetProcessorResponse {
   processor: ProcessorInfo | undefined;
 }
 
-/** Request to update scaling settings */
-export interface SetScalingRequest {
-  name: string;
-  scaleMultiplier: number;
-  scaleDivisor: number;
+/** Request to update scale multiplier */
+export interface SetScaleMultiplierRequest {
+  id: number;
+  value: number;
 }
 
-export interface SetScalingResponse {
-  success: boolean;
+export interface SetScaleMultiplierResponse {
+}
+
+/** Request to update scale divisor */
+export interface SetScaleDivisorRequest {
+  id: number;
+  value: number;
+}
+
+export interface SetScaleDivisorResponse {
 }
 
 /** Request to update rotation settings */
 export interface SetRotationRequest {
-  name: string;
-  rotationDegrees: number;
+  id: number;
+  value: number;
 }
 
 export interface SetRotationResponse {
-  success: boolean;
+}
+
+/** Request to reset input processor */
+export interface ResetProcessorRequest {
+  id: number;
+}
+
+export interface ResetProcessorResponse {
+}
+
+/** Request to set temp layer enabled */
+export interface SetTempLayerEnabledRequest {
+  id: number;
+  enabled: boolean;
+}
+
+export interface SetTempLayerEnabledResponse {
+}
+
+/** Request to set temp layer layer */
+export interface SetTempLayerLayerRequest {
+  id: number;
+  layer: number;
+}
+
+export interface SetTempLayerLayerResponse {
+}
+
+/** Request to set temp layer activation delay */
+export interface SetTempLayerActivationDelayRequest {
+  id: number;
+  activationDelayMs: number;
+}
+
+export interface SetTempLayerActivationDelayResponse {
+}
+
+/** Request to set temp layer deactivation delay */
+export interface SetTempLayerDeactivationDelayRequest {
+  id: number;
+  deactivationDelayMs: number;
+}
+
+export interface SetTempLayerDeactivationDelayResponse {
 }
 
 /** Main request message */
 export interface Request {
   listProcessors?: ListProcessorsRequest | undefined;
   getProcessor?: GetProcessorRequest | undefined;
-  setScaling?: SetScalingRequest | undefined;
+  setScaleMultiplier?: SetScaleMultiplierRequest | undefined;
+  setScaleDivisor?: SetScaleDivisorRequest | undefined;
   setRotation?: SetRotationRequest | undefined;
+  resetProcessor?: ResetProcessorRequest | undefined;
+  setTempLayerEnabled?: SetTempLayerEnabledRequest | undefined;
+  setTempLayerLayer?: SetTempLayerLayerRequest | undefined;
+  setTempLayerActivationDelay?: SetTempLayerActivationDelayRequest | undefined;
+  setTempLayerDeactivationDelay?: SetTempLayerDeactivationDelayRequest | undefined;
 }
 
 /** Error response */
@@ -77,37 +139,68 @@ export interface Response {
   error?: ErrorResponse | undefined;
   listProcessors?: ListProcessorsResponse | undefined;
   getProcessor?: GetProcessorResponse | undefined;
-  setScaling?: SetScalingResponse | undefined;
+  setScaleMultiplier?: SetScaleMultiplierResponse | undefined;
+  setScaleDivisor?: SetScaleDivisorResponse | undefined;
   setRotation?: SetRotationResponse | undefined;
+  resetProcessor?: ResetProcessorResponse | undefined;
+  setTempLayerEnabled?: SetTempLayerEnabledResponse | undefined;
+  setTempLayerLayer?: SetTempLayerLayerResponse | undefined;
+  setTempLayerActivationDelay?: SetTempLayerActivationDelayResponse | undefined;
+  setTempLayerDeactivationDelay?: SetTempLayerDeactivationDelayResponse | undefined;
 }
 
 /** Notification when processor settings change */
-export interface ProcessorSettingsNotification {
+export interface ProcessorChangedNotification {
   processor: ProcessorInfo | undefined;
 }
 
 /** Notification wrapper */
 export interface Notification {
-  processorSettings?: ProcessorSettingsNotification | undefined;
+  processorChanged?: ProcessorChangedNotification | undefined;
 }
 
 function createBaseProcessorInfo(): ProcessorInfo {
-  return { name: "", scaleMultiplier: 0, scaleDivisor: 0, rotationDegrees: 0 };
+  return {
+    id: 0,
+    name: "",
+    scaleMultiplier: 0,
+    scaleDivisor: 0,
+    rotationDegrees: 0,
+    tempLayerEnabled: false,
+    tempLayerLayer: 0,
+    tempLayerActivationDelayMs: 0,
+    tempLayerDeactivationDelayMs: 0,
+  };
 }
 
 export const ProcessorInfo: MessageFns<ProcessorInfo> = {
   encode(message: ProcessorInfo, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.id !== 0) {
+      writer.uint32(8).uint32(message.id);
+    }
     if (message.name !== "") {
-      writer.uint32(10).string(message.name);
+      writer.uint32(18).string(message.name);
     }
     if (message.scaleMultiplier !== 0) {
-      writer.uint32(16).int32(message.scaleMultiplier);
+      writer.uint32(24).uint32(message.scaleMultiplier);
     }
     if (message.scaleDivisor !== 0) {
-      writer.uint32(24).int32(message.scaleDivisor);
+      writer.uint32(32).uint32(message.scaleDivisor);
     }
     if (message.rotationDegrees !== 0) {
-      writer.uint32(32).int32(message.rotationDegrees);
+      writer.uint32(40).int32(message.rotationDegrees);
+    }
+    if (message.tempLayerEnabled !== false) {
+      writer.uint32(48).bool(message.tempLayerEnabled);
+    }
+    if (message.tempLayerLayer !== 0) {
+      writer.uint32(56).uint32(message.tempLayerLayer);
+    }
+    if (message.tempLayerActivationDelayMs !== 0) {
+      writer.uint32(64).uint32(message.tempLayerActivationDelayMs);
+    }
+    if (message.tempLayerDeactivationDelayMs !== 0) {
+      writer.uint32(72).uint32(message.tempLayerDeactivationDelayMs);
     }
     return writer;
   },
@@ -120,19 +213,19 @@ export const ProcessorInfo: MessageFns<ProcessorInfo> = {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1: {
-          if (tag !== 10) {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.id = reader.uint32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
             break;
           }
 
           message.name = reader.string();
-          continue;
-        }
-        case 2: {
-          if (tag !== 16) {
-            break;
-          }
-
-          message.scaleMultiplier = reader.int32();
           continue;
         }
         case 3: {
@@ -140,7 +233,7 @@ export const ProcessorInfo: MessageFns<ProcessorInfo> = {
             break;
           }
 
-          message.scaleDivisor = reader.int32();
+          message.scaleMultiplier = reader.uint32();
           continue;
         }
         case 4: {
@@ -148,7 +241,47 @@ export const ProcessorInfo: MessageFns<ProcessorInfo> = {
             break;
           }
 
+          message.scaleDivisor = reader.uint32();
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
           message.rotationDegrees = reader.int32();
+          continue;
+        }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.tempLayerEnabled = reader.bool();
+          continue;
+        }
+        case 7: {
+          if (tag !== 56) {
+            break;
+          }
+
+          message.tempLayerLayer = reader.uint32();
+          continue;
+        }
+        case 8: {
+          if (tag !== 64) {
+            break;
+          }
+
+          message.tempLayerActivationDelayMs = reader.uint32();
+          continue;
+        }
+        case 9: {
+          if (tag !== 72) {
+            break;
+          }
+
+          message.tempLayerDeactivationDelayMs = reader.uint32();
           continue;
         }
       }
@@ -165,10 +298,15 @@ export const ProcessorInfo: MessageFns<ProcessorInfo> = {
   },
   fromPartial(object: DeepPartial<ProcessorInfo>): ProcessorInfo {
     const message = createBaseProcessorInfo();
+    message.id = object.id ?? 0;
     message.name = object.name ?? "";
     message.scaleMultiplier = object.scaleMultiplier ?? 0;
     message.scaleDivisor = object.scaleDivisor ?? 0;
     message.rotationDegrees = object.rotationDegrees ?? 0;
+    message.tempLayerEnabled = object.tempLayerEnabled ?? false;
+    message.tempLayerLayer = object.tempLayerLayer ?? 0;
+    message.tempLayerActivationDelayMs = object.tempLayerActivationDelayMs ?? 0;
+    message.tempLayerDeactivationDelayMs = object.tempLayerDeactivationDelayMs ?? 0;
     return message;
   },
 };
@@ -208,14 +346,11 @@ export const ListProcessorsRequest: MessageFns<ListProcessorsRequest> = {
 };
 
 function createBaseListProcessorsResponse(): ListProcessorsResponse {
-  return { processors: [] };
+  return {};
 }
 
 export const ListProcessorsResponse: MessageFns<ListProcessorsResponse> = {
-  encode(message: ListProcessorsResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    for (const v of message.processors) {
-      ProcessorInfo.encode(v!, writer.uint32(10).fork()).join();
-    }
+  encode(_: ListProcessorsResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     return writer;
   },
 
@@ -226,14 +361,6 @@ export const ListProcessorsResponse: MessageFns<ListProcessorsResponse> = {
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
-
-          message.processors.push(ProcessorInfo.decode(reader, reader.uint32()));
-          continue;
-        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -246,21 +373,20 @@ export const ListProcessorsResponse: MessageFns<ListProcessorsResponse> = {
   create(base?: DeepPartial<ListProcessorsResponse>): ListProcessorsResponse {
     return ListProcessorsResponse.fromPartial(base ?? {});
   },
-  fromPartial(object: DeepPartial<ListProcessorsResponse>): ListProcessorsResponse {
+  fromPartial(_: DeepPartial<ListProcessorsResponse>): ListProcessorsResponse {
     const message = createBaseListProcessorsResponse();
-    message.processors = object.processors?.map((e) => ProcessorInfo.fromPartial(e)) || [];
     return message;
   },
 };
 
 function createBaseGetProcessorRequest(): GetProcessorRequest {
-  return { name: "" };
+  return { id: 0 };
 }
 
 export const GetProcessorRequest: MessageFns<GetProcessorRequest> = {
   encode(message: GetProcessorRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.name !== "") {
-      writer.uint32(10).string(message.name);
+    if (message.id !== 0) {
+      writer.uint32(8).uint32(message.id);
     }
     return writer;
   },
@@ -273,11 +399,11 @@ export const GetProcessorRequest: MessageFns<GetProcessorRequest> = {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1: {
-          if (tag !== 10) {
+          if (tag !== 8) {
             break;
           }
 
-          message.name = reader.string();
+          message.id = reader.uint32();
           continue;
         }
       }
@@ -294,7 +420,7 @@ export const GetProcessorRequest: MessageFns<GetProcessorRequest> = {
   },
   fromPartial(object: DeepPartial<GetProcessorRequest>): GetProcessorRequest {
     const message = createBaseGetProcessorRequest();
-    message.name = object.name ?? "";
+    message.id = object.id ?? 0;
     return message;
   },
 };
@@ -347,92 +473,25 @@ export const GetProcessorResponse: MessageFns<GetProcessorResponse> = {
   },
 };
 
-function createBaseSetScalingRequest(): SetScalingRequest {
-  return { name: "", scaleMultiplier: 0, scaleDivisor: 0 };
+function createBaseSetScaleMultiplierRequest(): SetScaleMultiplierRequest {
+  return { id: 0, value: 0 };
 }
 
-export const SetScalingRequest: MessageFns<SetScalingRequest> = {
-  encode(message: SetScalingRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.name !== "") {
-      writer.uint32(10).string(message.name);
+export const SetScaleMultiplierRequest: MessageFns<SetScaleMultiplierRequest> = {
+  encode(message: SetScaleMultiplierRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.id !== 0) {
+      writer.uint32(8).uint32(message.id);
     }
-    if (message.scaleMultiplier !== 0) {
-      writer.uint32(16).int32(message.scaleMultiplier);
-    }
-    if (message.scaleDivisor !== 0) {
-      writer.uint32(24).int32(message.scaleDivisor);
+    if (message.value !== 0) {
+      writer.uint32(16).uint32(message.value);
     }
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): SetScalingRequest {
+  decode(input: BinaryReader | Uint8Array, length?: number): SetScaleMultiplierRequest {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseSetScalingRequest();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
-
-          message.name = reader.string();
-          continue;
-        }
-        case 2: {
-          if (tag !== 16) {
-            break;
-          }
-
-          message.scaleMultiplier = reader.int32();
-          continue;
-        }
-        case 3: {
-          if (tag !== 24) {
-            break;
-          }
-
-          message.scaleDivisor = reader.int32();
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  create(base?: DeepPartial<SetScalingRequest>): SetScalingRequest {
-    return SetScalingRequest.fromPartial(base ?? {});
-  },
-  fromPartial(object: DeepPartial<SetScalingRequest>): SetScalingRequest {
-    const message = createBaseSetScalingRequest();
-    message.name = object.name ?? "";
-    message.scaleMultiplier = object.scaleMultiplier ?? 0;
-    message.scaleDivisor = object.scaleDivisor ?? 0;
-    return message;
-  },
-};
-
-function createBaseSetScalingResponse(): SetScalingResponse {
-  return { success: false };
-}
-
-export const SetScalingResponse: MessageFns<SetScalingResponse> = {
-  encode(message: SetScalingResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.success !== false) {
-      writer.uint32(8).bool(message.success);
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): SetScalingResponse {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseSetScalingResponse();
+    const message = createBaseSetScaleMultiplierRequest();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -441,7 +500,15 @@ export const SetScalingResponse: MessageFns<SetScalingResponse> = {
             break;
           }
 
-          message.success = reader.bool();
+          message.id = reader.uint32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.value = reader.uint32();
           continue;
         }
       }
@@ -453,27 +520,154 @@ export const SetScalingResponse: MessageFns<SetScalingResponse> = {
     return message;
   },
 
-  create(base?: DeepPartial<SetScalingResponse>): SetScalingResponse {
-    return SetScalingResponse.fromPartial(base ?? {});
+  create(base?: DeepPartial<SetScaleMultiplierRequest>): SetScaleMultiplierRequest {
+    return SetScaleMultiplierRequest.fromPartial(base ?? {});
   },
-  fromPartial(object: DeepPartial<SetScalingResponse>): SetScalingResponse {
-    const message = createBaseSetScalingResponse();
-    message.success = object.success ?? false;
+  fromPartial(object: DeepPartial<SetScaleMultiplierRequest>): SetScaleMultiplierRequest {
+    const message = createBaseSetScaleMultiplierRequest();
+    message.id = object.id ?? 0;
+    message.value = object.value ?? 0;
+    return message;
+  },
+};
+
+function createBaseSetScaleMultiplierResponse(): SetScaleMultiplierResponse {
+  return {};
+}
+
+export const SetScaleMultiplierResponse: MessageFns<SetScaleMultiplierResponse> = {
+  encode(_: SetScaleMultiplierResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): SetScaleMultiplierResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSetScaleMultiplierResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<SetScaleMultiplierResponse>): SetScaleMultiplierResponse {
+    return SetScaleMultiplierResponse.fromPartial(base ?? {});
+  },
+  fromPartial(_: DeepPartial<SetScaleMultiplierResponse>): SetScaleMultiplierResponse {
+    const message = createBaseSetScaleMultiplierResponse();
+    return message;
+  },
+};
+
+function createBaseSetScaleDivisorRequest(): SetScaleDivisorRequest {
+  return { id: 0, value: 0 };
+}
+
+export const SetScaleDivisorRequest: MessageFns<SetScaleDivisorRequest> = {
+  encode(message: SetScaleDivisorRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.id !== 0) {
+      writer.uint32(8).uint32(message.id);
+    }
+    if (message.value !== 0) {
+      writer.uint32(16).uint32(message.value);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): SetScaleDivisorRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSetScaleDivisorRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.id = reader.uint32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.value = reader.uint32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<SetScaleDivisorRequest>): SetScaleDivisorRequest {
+    return SetScaleDivisorRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<SetScaleDivisorRequest>): SetScaleDivisorRequest {
+    const message = createBaseSetScaleDivisorRequest();
+    message.id = object.id ?? 0;
+    message.value = object.value ?? 0;
+    return message;
+  },
+};
+
+function createBaseSetScaleDivisorResponse(): SetScaleDivisorResponse {
+  return {};
+}
+
+export const SetScaleDivisorResponse: MessageFns<SetScaleDivisorResponse> = {
+  encode(_: SetScaleDivisorResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): SetScaleDivisorResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSetScaleDivisorResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<SetScaleDivisorResponse>): SetScaleDivisorResponse {
+    return SetScaleDivisorResponse.fromPartial(base ?? {});
+  },
+  fromPartial(_: DeepPartial<SetScaleDivisorResponse>): SetScaleDivisorResponse {
+    const message = createBaseSetScaleDivisorResponse();
     return message;
   },
 };
 
 function createBaseSetRotationRequest(): SetRotationRequest {
-  return { name: "", rotationDegrees: 0 };
+  return { id: 0, value: 0 };
 }
 
 export const SetRotationRequest: MessageFns<SetRotationRequest> = {
   encode(message: SetRotationRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.name !== "") {
-      writer.uint32(10).string(message.name);
+    if (message.id !== 0) {
+      writer.uint32(8).uint32(message.id);
     }
-    if (message.rotationDegrees !== 0) {
-      writer.uint32(16).int32(message.rotationDegrees);
+    if (message.value !== 0) {
+      writer.uint32(16).int32(message.value);
     }
     return writer;
   },
@@ -486,11 +680,11 @@ export const SetRotationRequest: MessageFns<SetRotationRequest> = {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1: {
-          if (tag !== 10) {
+          if (tag !== 8) {
             break;
           }
 
-          message.name = reader.string();
+          message.id = reader.uint32();
           continue;
         }
         case 2: {
@@ -498,7 +692,7 @@ export const SetRotationRequest: MessageFns<SetRotationRequest> = {
             break;
           }
 
-          message.rotationDegrees = reader.int32();
+          message.value = reader.int32();
           continue;
         }
       }
@@ -515,21 +709,18 @@ export const SetRotationRequest: MessageFns<SetRotationRequest> = {
   },
   fromPartial(object: DeepPartial<SetRotationRequest>): SetRotationRequest {
     const message = createBaseSetRotationRequest();
-    message.name = object.name ?? "";
-    message.rotationDegrees = object.rotationDegrees ?? 0;
+    message.id = object.id ?? 0;
+    message.value = object.value ?? 0;
     return message;
   },
 };
 
 function createBaseSetRotationResponse(): SetRotationResponse {
-  return { success: false };
+  return {};
 }
 
 export const SetRotationResponse: MessageFns<SetRotationResponse> = {
-  encode(message: SetRotationResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.success !== false) {
-      writer.uint32(8).bool(message.success);
-    }
+  encode(_: SetRotationResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     return writer;
   },
 
@@ -540,14 +731,6 @@ export const SetRotationResponse: MessageFns<SetRotationResponse> = {
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 8) {
-            break;
-          }
-
-          message.success = reader.bool();
-          continue;
-        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -560,15 +743,473 @@ export const SetRotationResponse: MessageFns<SetRotationResponse> = {
   create(base?: DeepPartial<SetRotationResponse>): SetRotationResponse {
     return SetRotationResponse.fromPartial(base ?? {});
   },
-  fromPartial(object: DeepPartial<SetRotationResponse>): SetRotationResponse {
+  fromPartial(_: DeepPartial<SetRotationResponse>): SetRotationResponse {
     const message = createBaseSetRotationResponse();
-    message.success = object.success ?? false;
+    return message;
+  },
+};
+
+function createBaseResetProcessorRequest(): ResetProcessorRequest {
+  return { id: 0 };
+}
+
+export const ResetProcessorRequest: MessageFns<ResetProcessorRequest> = {
+  encode(message: ResetProcessorRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.id !== 0) {
+      writer.uint32(8).uint32(message.id);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ResetProcessorRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseResetProcessorRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.id = reader.uint32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<ResetProcessorRequest>): ResetProcessorRequest {
+    return ResetProcessorRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ResetProcessorRequest>): ResetProcessorRequest {
+    const message = createBaseResetProcessorRequest();
+    message.id = object.id ?? 0;
+    return message;
+  },
+};
+
+function createBaseResetProcessorResponse(): ResetProcessorResponse {
+  return {};
+}
+
+export const ResetProcessorResponse: MessageFns<ResetProcessorResponse> = {
+  encode(_: ResetProcessorResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ResetProcessorResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseResetProcessorResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<ResetProcessorResponse>): ResetProcessorResponse {
+    return ResetProcessorResponse.fromPartial(base ?? {});
+  },
+  fromPartial(_: DeepPartial<ResetProcessorResponse>): ResetProcessorResponse {
+    const message = createBaseResetProcessorResponse();
+    return message;
+  },
+};
+
+function createBaseSetTempLayerEnabledRequest(): SetTempLayerEnabledRequest {
+  return { id: 0, enabled: false };
+}
+
+export const SetTempLayerEnabledRequest: MessageFns<SetTempLayerEnabledRequest> = {
+  encode(message: SetTempLayerEnabledRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.id !== 0) {
+      writer.uint32(8).uint32(message.id);
+    }
+    if (message.enabled !== false) {
+      writer.uint32(16).bool(message.enabled);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): SetTempLayerEnabledRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSetTempLayerEnabledRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.id = reader.uint32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.enabled = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<SetTempLayerEnabledRequest>): SetTempLayerEnabledRequest {
+    return SetTempLayerEnabledRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<SetTempLayerEnabledRequest>): SetTempLayerEnabledRequest {
+    const message = createBaseSetTempLayerEnabledRequest();
+    message.id = object.id ?? 0;
+    message.enabled = object.enabled ?? false;
+    return message;
+  },
+};
+
+function createBaseSetTempLayerEnabledResponse(): SetTempLayerEnabledResponse {
+  return {};
+}
+
+export const SetTempLayerEnabledResponse: MessageFns<SetTempLayerEnabledResponse> = {
+  encode(_: SetTempLayerEnabledResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): SetTempLayerEnabledResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSetTempLayerEnabledResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<SetTempLayerEnabledResponse>): SetTempLayerEnabledResponse {
+    return SetTempLayerEnabledResponse.fromPartial(base ?? {});
+  },
+  fromPartial(_: DeepPartial<SetTempLayerEnabledResponse>): SetTempLayerEnabledResponse {
+    const message = createBaseSetTempLayerEnabledResponse();
+    return message;
+  },
+};
+
+function createBaseSetTempLayerLayerRequest(): SetTempLayerLayerRequest {
+  return { id: 0, layer: 0 };
+}
+
+export const SetTempLayerLayerRequest: MessageFns<SetTempLayerLayerRequest> = {
+  encode(message: SetTempLayerLayerRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.id !== 0) {
+      writer.uint32(8).uint32(message.id);
+    }
+    if (message.layer !== 0) {
+      writer.uint32(16).uint32(message.layer);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): SetTempLayerLayerRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSetTempLayerLayerRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.id = reader.uint32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.layer = reader.uint32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<SetTempLayerLayerRequest>): SetTempLayerLayerRequest {
+    return SetTempLayerLayerRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<SetTempLayerLayerRequest>): SetTempLayerLayerRequest {
+    const message = createBaseSetTempLayerLayerRequest();
+    message.id = object.id ?? 0;
+    message.layer = object.layer ?? 0;
+    return message;
+  },
+};
+
+function createBaseSetTempLayerLayerResponse(): SetTempLayerLayerResponse {
+  return {};
+}
+
+export const SetTempLayerLayerResponse: MessageFns<SetTempLayerLayerResponse> = {
+  encode(_: SetTempLayerLayerResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): SetTempLayerLayerResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSetTempLayerLayerResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<SetTempLayerLayerResponse>): SetTempLayerLayerResponse {
+    return SetTempLayerLayerResponse.fromPartial(base ?? {});
+  },
+  fromPartial(_: DeepPartial<SetTempLayerLayerResponse>): SetTempLayerLayerResponse {
+    const message = createBaseSetTempLayerLayerResponse();
+    return message;
+  },
+};
+
+function createBaseSetTempLayerActivationDelayRequest(): SetTempLayerActivationDelayRequest {
+  return { id: 0, activationDelayMs: 0 };
+}
+
+export const SetTempLayerActivationDelayRequest: MessageFns<SetTempLayerActivationDelayRequest> = {
+  encode(message: SetTempLayerActivationDelayRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.id !== 0) {
+      writer.uint32(8).uint32(message.id);
+    }
+    if (message.activationDelayMs !== 0) {
+      writer.uint32(16).uint32(message.activationDelayMs);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): SetTempLayerActivationDelayRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSetTempLayerActivationDelayRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.id = reader.uint32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.activationDelayMs = reader.uint32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<SetTempLayerActivationDelayRequest>): SetTempLayerActivationDelayRequest {
+    return SetTempLayerActivationDelayRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<SetTempLayerActivationDelayRequest>): SetTempLayerActivationDelayRequest {
+    const message = createBaseSetTempLayerActivationDelayRequest();
+    message.id = object.id ?? 0;
+    message.activationDelayMs = object.activationDelayMs ?? 0;
+    return message;
+  },
+};
+
+function createBaseSetTempLayerActivationDelayResponse(): SetTempLayerActivationDelayResponse {
+  return {};
+}
+
+export const SetTempLayerActivationDelayResponse: MessageFns<SetTempLayerActivationDelayResponse> = {
+  encode(_: SetTempLayerActivationDelayResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): SetTempLayerActivationDelayResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSetTempLayerActivationDelayResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<SetTempLayerActivationDelayResponse>): SetTempLayerActivationDelayResponse {
+    return SetTempLayerActivationDelayResponse.fromPartial(base ?? {});
+  },
+  fromPartial(_: DeepPartial<SetTempLayerActivationDelayResponse>): SetTempLayerActivationDelayResponse {
+    const message = createBaseSetTempLayerActivationDelayResponse();
+    return message;
+  },
+};
+
+function createBaseSetTempLayerDeactivationDelayRequest(): SetTempLayerDeactivationDelayRequest {
+  return { id: 0, deactivationDelayMs: 0 };
+}
+
+export const SetTempLayerDeactivationDelayRequest: MessageFns<SetTempLayerDeactivationDelayRequest> = {
+  encode(message: SetTempLayerDeactivationDelayRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.id !== 0) {
+      writer.uint32(8).uint32(message.id);
+    }
+    if (message.deactivationDelayMs !== 0) {
+      writer.uint32(16).uint32(message.deactivationDelayMs);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): SetTempLayerDeactivationDelayRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSetTempLayerDeactivationDelayRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.id = reader.uint32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.deactivationDelayMs = reader.uint32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<SetTempLayerDeactivationDelayRequest>): SetTempLayerDeactivationDelayRequest {
+    return SetTempLayerDeactivationDelayRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<SetTempLayerDeactivationDelayRequest>): SetTempLayerDeactivationDelayRequest {
+    const message = createBaseSetTempLayerDeactivationDelayRequest();
+    message.id = object.id ?? 0;
+    message.deactivationDelayMs = object.deactivationDelayMs ?? 0;
+    return message;
+  },
+};
+
+function createBaseSetTempLayerDeactivationDelayResponse(): SetTempLayerDeactivationDelayResponse {
+  return {};
+}
+
+export const SetTempLayerDeactivationDelayResponse: MessageFns<SetTempLayerDeactivationDelayResponse> = {
+  encode(_: SetTempLayerDeactivationDelayResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): SetTempLayerDeactivationDelayResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSetTempLayerDeactivationDelayResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<SetTempLayerDeactivationDelayResponse>): SetTempLayerDeactivationDelayResponse {
+    return SetTempLayerDeactivationDelayResponse.fromPartial(base ?? {});
+  },
+  fromPartial(_: DeepPartial<SetTempLayerDeactivationDelayResponse>): SetTempLayerDeactivationDelayResponse {
+    const message = createBaseSetTempLayerDeactivationDelayResponse();
     return message;
   },
 };
 
 function createBaseRequest(): Request {
-  return { listProcessors: undefined, getProcessor: undefined, setScaling: undefined, setRotation: undefined };
+  return {
+    listProcessors: undefined,
+    getProcessor: undefined,
+    setScaleMultiplier: undefined,
+    setScaleDivisor: undefined,
+    setRotation: undefined,
+    resetProcessor: undefined,
+    setTempLayerEnabled: undefined,
+    setTempLayerLayer: undefined,
+    setTempLayerActivationDelay: undefined,
+    setTempLayerDeactivationDelay: undefined,
+  };
 }
 
 export const Request: MessageFns<Request> = {
@@ -579,11 +1220,30 @@ export const Request: MessageFns<Request> = {
     if (message.getProcessor !== undefined) {
       GetProcessorRequest.encode(message.getProcessor, writer.uint32(18).fork()).join();
     }
-    if (message.setScaling !== undefined) {
-      SetScalingRequest.encode(message.setScaling, writer.uint32(26).fork()).join();
+    if (message.setScaleMultiplier !== undefined) {
+      SetScaleMultiplierRequest.encode(message.setScaleMultiplier, writer.uint32(26).fork()).join();
+    }
+    if (message.setScaleDivisor !== undefined) {
+      SetScaleDivisorRequest.encode(message.setScaleDivisor, writer.uint32(34).fork()).join();
     }
     if (message.setRotation !== undefined) {
-      SetRotationRequest.encode(message.setRotation, writer.uint32(34).fork()).join();
+      SetRotationRequest.encode(message.setRotation, writer.uint32(42).fork()).join();
+    }
+    if (message.resetProcessor !== undefined) {
+      ResetProcessorRequest.encode(message.resetProcessor, writer.uint32(50).fork()).join();
+    }
+    if (message.setTempLayerEnabled !== undefined) {
+      SetTempLayerEnabledRequest.encode(message.setTempLayerEnabled, writer.uint32(58).fork()).join();
+    }
+    if (message.setTempLayerLayer !== undefined) {
+      SetTempLayerLayerRequest.encode(message.setTempLayerLayer, writer.uint32(66).fork()).join();
+    }
+    if (message.setTempLayerActivationDelay !== undefined) {
+      SetTempLayerActivationDelayRequest.encode(message.setTempLayerActivationDelay, writer.uint32(74).fork()).join();
+    }
+    if (message.setTempLayerDeactivationDelay !== undefined) {
+      SetTempLayerDeactivationDelayRequest.encode(message.setTempLayerDeactivationDelay, writer.uint32(82).fork())
+        .join();
     }
     return writer;
   },
@@ -616,7 +1276,7 @@ export const Request: MessageFns<Request> = {
             break;
           }
 
-          message.setScaling = SetScalingRequest.decode(reader, reader.uint32());
+          message.setScaleMultiplier = SetScaleMultiplierRequest.decode(reader, reader.uint32());
           continue;
         }
         case 4: {
@@ -624,7 +1284,55 @@ export const Request: MessageFns<Request> = {
             break;
           }
 
+          message.setScaleDivisor = SetScaleDivisorRequest.decode(reader, reader.uint32());
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
           message.setRotation = SetRotationRequest.decode(reader, reader.uint32());
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.resetProcessor = ResetProcessorRequest.decode(reader, reader.uint32());
+          continue;
+        }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.setTempLayerEnabled = SetTempLayerEnabledRequest.decode(reader, reader.uint32());
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.setTempLayerLayer = SetTempLayerLayerRequest.decode(reader, reader.uint32());
+          continue;
+        }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.setTempLayerActivationDelay = SetTempLayerActivationDelayRequest.decode(reader, reader.uint32());
+          continue;
+        }
+        case 10: {
+          if (tag !== 82) {
+            break;
+          }
+
+          message.setTempLayerDeactivationDelay = SetTempLayerDeactivationDelayRequest.decode(reader, reader.uint32());
           continue;
         }
       }
@@ -647,12 +1355,32 @@ export const Request: MessageFns<Request> = {
     message.getProcessor = (object.getProcessor !== undefined && object.getProcessor !== null)
       ? GetProcessorRequest.fromPartial(object.getProcessor)
       : undefined;
-    message.setScaling = (object.setScaling !== undefined && object.setScaling !== null)
-      ? SetScalingRequest.fromPartial(object.setScaling)
+    message.setScaleMultiplier = (object.setScaleMultiplier !== undefined && object.setScaleMultiplier !== null)
+      ? SetScaleMultiplierRequest.fromPartial(object.setScaleMultiplier)
+      : undefined;
+    message.setScaleDivisor = (object.setScaleDivisor !== undefined && object.setScaleDivisor !== null)
+      ? SetScaleDivisorRequest.fromPartial(object.setScaleDivisor)
       : undefined;
     message.setRotation = (object.setRotation !== undefined && object.setRotation !== null)
       ? SetRotationRequest.fromPartial(object.setRotation)
       : undefined;
+    message.resetProcessor = (object.resetProcessor !== undefined && object.resetProcessor !== null)
+      ? ResetProcessorRequest.fromPartial(object.resetProcessor)
+      : undefined;
+    message.setTempLayerEnabled = (object.setTempLayerEnabled !== undefined && object.setTempLayerEnabled !== null)
+      ? SetTempLayerEnabledRequest.fromPartial(object.setTempLayerEnabled)
+      : undefined;
+    message.setTempLayerLayer = (object.setTempLayerLayer !== undefined && object.setTempLayerLayer !== null)
+      ? SetTempLayerLayerRequest.fromPartial(object.setTempLayerLayer)
+      : undefined;
+    message.setTempLayerActivationDelay =
+      (object.setTempLayerActivationDelay !== undefined && object.setTempLayerActivationDelay !== null)
+        ? SetTempLayerActivationDelayRequest.fromPartial(object.setTempLayerActivationDelay)
+        : undefined;
+    message.setTempLayerDeactivationDelay =
+      (object.setTempLayerDeactivationDelay !== undefined && object.setTempLayerDeactivationDelay !== null)
+        ? SetTempLayerDeactivationDelayRequest.fromPartial(object.setTempLayerDeactivationDelay)
+        : undefined;
     return message;
   },
 };
@@ -708,8 +1436,14 @@ function createBaseResponse(): Response {
     error: undefined,
     listProcessors: undefined,
     getProcessor: undefined,
-    setScaling: undefined,
+    setScaleMultiplier: undefined,
+    setScaleDivisor: undefined,
     setRotation: undefined,
+    resetProcessor: undefined,
+    setTempLayerEnabled: undefined,
+    setTempLayerLayer: undefined,
+    setTempLayerActivationDelay: undefined,
+    setTempLayerDeactivationDelay: undefined,
   };
 }
 
@@ -724,11 +1458,30 @@ export const Response: MessageFns<Response> = {
     if (message.getProcessor !== undefined) {
       GetProcessorResponse.encode(message.getProcessor, writer.uint32(26).fork()).join();
     }
-    if (message.setScaling !== undefined) {
-      SetScalingResponse.encode(message.setScaling, writer.uint32(34).fork()).join();
+    if (message.setScaleMultiplier !== undefined) {
+      SetScaleMultiplierResponse.encode(message.setScaleMultiplier, writer.uint32(34).fork()).join();
+    }
+    if (message.setScaleDivisor !== undefined) {
+      SetScaleDivisorResponse.encode(message.setScaleDivisor, writer.uint32(42).fork()).join();
     }
     if (message.setRotation !== undefined) {
-      SetRotationResponse.encode(message.setRotation, writer.uint32(42).fork()).join();
+      SetRotationResponse.encode(message.setRotation, writer.uint32(50).fork()).join();
+    }
+    if (message.resetProcessor !== undefined) {
+      ResetProcessorResponse.encode(message.resetProcessor, writer.uint32(58).fork()).join();
+    }
+    if (message.setTempLayerEnabled !== undefined) {
+      SetTempLayerEnabledResponse.encode(message.setTempLayerEnabled, writer.uint32(66).fork()).join();
+    }
+    if (message.setTempLayerLayer !== undefined) {
+      SetTempLayerLayerResponse.encode(message.setTempLayerLayer, writer.uint32(74).fork()).join();
+    }
+    if (message.setTempLayerActivationDelay !== undefined) {
+      SetTempLayerActivationDelayResponse.encode(message.setTempLayerActivationDelay, writer.uint32(82).fork()).join();
+    }
+    if (message.setTempLayerDeactivationDelay !== undefined) {
+      SetTempLayerDeactivationDelayResponse.encode(message.setTempLayerDeactivationDelay, writer.uint32(90).fork())
+        .join();
     }
     return writer;
   },
@@ -769,7 +1522,7 @@ export const Response: MessageFns<Response> = {
             break;
           }
 
-          message.setScaling = SetScalingResponse.decode(reader, reader.uint32());
+          message.setScaleMultiplier = SetScaleMultiplierResponse.decode(reader, reader.uint32());
           continue;
         }
         case 5: {
@@ -777,7 +1530,55 @@ export const Response: MessageFns<Response> = {
             break;
           }
 
+          message.setScaleDivisor = SetScaleDivisorResponse.decode(reader, reader.uint32());
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
           message.setRotation = SetRotationResponse.decode(reader, reader.uint32());
+          continue;
+        }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.resetProcessor = ResetProcessorResponse.decode(reader, reader.uint32());
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.setTempLayerEnabled = SetTempLayerEnabledResponse.decode(reader, reader.uint32());
+          continue;
+        }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.setTempLayerLayer = SetTempLayerLayerResponse.decode(reader, reader.uint32());
+          continue;
+        }
+        case 10: {
+          if (tag !== 82) {
+            break;
+          }
+
+          message.setTempLayerActivationDelay = SetTempLayerActivationDelayResponse.decode(reader, reader.uint32());
+          continue;
+        }
+        case 11: {
+          if (tag !== 90) {
+            break;
+          }
+
+          message.setTempLayerDeactivationDelay = SetTempLayerDeactivationDelayResponse.decode(reader, reader.uint32());
           continue;
         }
       }
@@ -803,32 +1604,52 @@ export const Response: MessageFns<Response> = {
     message.getProcessor = (object.getProcessor !== undefined && object.getProcessor !== null)
       ? GetProcessorResponse.fromPartial(object.getProcessor)
       : undefined;
-    message.setScaling = (object.setScaling !== undefined && object.setScaling !== null)
-      ? SetScalingResponse.fromPartial(object.setScaling)
+    message.setScaleMultiplier = (object.setScaleMultiplier !== undefined && object.setScaleMultiplier !== null)
+      ? SetScaleMultiplierResponse.fromPartial(object.setScaleMultiplier)
+      : undefined;
+    message.setScaleDivisor = (object.setScaleDivisor !== undefined && object.setScaleDivisor !== null)
+      ? SetScaleDivisorResponse.fromPartial(object.setScaleDivisor)
       : undefined;
     message.setRotation = (object.setRotation !== undefined && object.setRotation !== null)
       ? SetRotationResponse.fromPartial(object.setRotation)
       : undefined;
+    message.resetProcessor = (object.resetProcessor !== undefined && object.resetProcessor !== null)
+      ? ResetProcessorResponse.fromPartial(object.resetProcessor)
+      : undefined;
+    message.setTempLayerEnabled = (object.setTempLayerEnabled !== undefined && object.setTempLayerEnabled !== null)
+      ? SetTempLayerEnabledResponse.fromPartial(object.setTempLayerEnabled)
+      : undefined;
+    message.setTempLayerLayer = (object.setTempLayerLayer !== undefined && object.setTempLayerLayer !== null)
+      ? SetTempLayerLayerResponse.fromPartial(object.setTempLayerLayer)
+      : undefined;
+    message.setTempLayerActivationDelay =
+      (object.setTempLayerActivationDelay !== undefined && object.setTempLayerActivationDelay !== null)
+        ? SetTempLayerActivationDelayResponse.fromPartial(object.setTempLayerActivationDelay)
+        : undefined;
+    message.setTempLayerDeactivationDelay =
+      (object.setTempLayerDeactivationDelay !== undefined && object.setTempLayerDeactivationDelay !== null)
+        ? SetTempLayerDeactivationDelayResponse.fromPartial(object.setTempLayerDeactivationDelay)
+        : undefined;
     return message;
   },
 };
 
-function createBaseProcessorSettingsNotification(): ProcessorSettingsNotification {
+function createBaseProcessorChangedNotification(): ProcessorChangedNotification {
   return { processor: undefined };
 }
 
-export const ProcessorSettingsNotification: MessageFns<ProcessorSettingsNotification> = {
-  encode(message: ProcessorSettingsNotification, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+export const ProcessorChangedNotification: MessageFns<ProcessorChangedNotification> = {
+  encode(message: ProcessorChangedNotification, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.processor !== undefined) {
       ProcessorInfo.encode(message.processor, writer.uint32(10).fork()).join();
     }
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): ProcessorSettingsNotification {
+  decode(input: BinaryReader | Uint8Array, length?: number): ProcessorChangedNotification {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseProcessorSettingsNotification();
+    const message = createBaseProcessorChangedNotification();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -849,11 +1670,11 @@ export const ProcessorSettingsNotification: MessageFns<ProcessorSettingsNotifica
     return message;
   },
 
-  create(base?: DeepPartial<ProcessorSettingsNotification>): ProcessorSettingsNotification {
-    return ProcessorSettingsNotification.fromPartial(base ?? {});
+  create(base?: DeepPartial<ProcessorChangedNotification>): ProcessorChangedNotification {
+    return ProcessorChangedNotification.fromPartial(base ?? {});
   },
-  fromPartial(object: DeepPartial<ProcessorSettingsNotification>): ProcessorSettingsNotification {
-    const message = createBaseProcessorSettingsNotification();
+  fromPartial(object: DeepPartial<ProcessorChangedNotification>): ProcessorChangedNotification {
+    const message = createBaseProcessorChangedNotification();
     message.processor = (object.processor !== undefined && object.processor !== null)
       ? ProcessorInfo.fromPartial(object.processor)
       : undefined;
@@ -862,13 +1683,13 @@ export const ProcessorSettingsNotification: MessageFns<ProcessorSettingsNotifica
 };
 
 function createBaseNotification(): Notification {
-  return { processorSettings: undefined };
+  return { processorChanged: undefined };
 }
 
 export const Notification: MessageFns<Notification> = {
   encode(message: Notification, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.processorSettings !== undefined) {
-      ProcessorSettingsNotification.encode(message.processorSettings, writer.uint32(10).fork()).join();
+    if (message.processorChanged !== undefined) {
+      ProcessorChangedNotification.encode(message.processorChanged, writer.uint32(10).fork()).join();
     }
     return writer;
   },
@@ -885,7 +1706,7 @@ export const Notification: MessageFns<Notification> = {
             break;
           }
 
-          message.processorSettings = ProcessorSettingsNotification.decode(reader, reader.uint32());
+          message.processorChanged = ProcessorChangedNotification.decode(reader, reader.uint32());
           continue;
         }
       }
@@ -902,8 +1723,8 @@ export const Notification: MessageFns<Notification> = {
   },
   fromPartial(object: DeepPartial<Notification>): Notification {
     const message = createBaseNotification();
-    message.processorSettings = (object.processorSettings !== undefined && object.processorSettings !== null)
-      ? ProcessorSettingsNotification.fromPartial(object.processorSettings)
+    message.processorChanged = (object.processorChanged !== undefined && object.processorChanged !== null)
+      ? ProcessorChangedNotification.fromPartial(object.processorChanged)
       : undefined;
     return message;
   },

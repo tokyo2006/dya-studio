@@ -4,60 +4,113 @@ package zmk.runtime_input_processor;
 
 // Information about a single input processor
 message ProcessorInfo {
+    // Processor ID (index in array)
+    uint32 id = 1;
     // Processor name (max 16 characters, short for BLE efficiency)
-    string name = 1;
+    string name = 2;
     // Current scale multiplier (for speed adjustment)
-    int32 scale_multiplier = 2;
+    uint32 scale_multiplier = 3;
     // Current scale divisor (for speed adjustment)
-    int32 scale_divisor = 3;
+    uint32 scale_divisor = 4;
     // Current rotation in degrees
-    int32 rotation_degrees = 4;
+    int32 rotation_degrees = 5;
+    // Temporary layer settings
+    bool temp_layer_enabled = 6;
+    uint32 temp_layer_layer = 7;
+    uint32 temp_layer_activation_delay_ms = 8;
+    uint32 temp_layer_deactivation_delay_ms = 9;
 }
 
 // Request to list all available input processors
 message ListProcessorsRequest {}
 
-message ListProcessorsResponse {
-    repeated ProcessorInfo processors = 1;
-}
+message ListProcessorsResponse {}
 
 // Request to get settings for a specific processor
 message GetProcessorRequest {
-    string name = 1;
+    uint32 id = 1;
 }
 
 message GetProcessorResponse {
     ProcessorInfo processor = 1;
 }
 
-// Request to update scaling settings
-message SetScalingRequest {
-    string name = 1;
-    int32 scale_multiplier = 2;
-    int32 scale_divisor = 3;
+// Request to update scale multiplier
+message SetScaleMultiplierRequest {
+    uint32 id = 1;
+    uint32 value = 2;
 }
 
-message SetScalingResponse {
-    bool success = 1;
+message SetScaleMultiplierResponse {}
+
+// Request to update scale divisor
+message SetScaleDivisorRequest {
+    uint32 id = 1;
+    uint32 value = 2;
 }
+
+message SetScaleDivisorResponse {}
 
 // Request to update rotation settings
 message SetRotationRequest {
-    string name = 1;
-    int32 rotation_degrees = 2;
+    uint32 id = 1;
+    int32 value = 2;
 }
 
-message SetRotationResponse {
-    bool success = 1;
+message SetRotationResponse {}
+
+// Request to reset input processor
+message ResetProcessorRequest {
+    uint32 id = 1;
 }
+
+message ResetProcessorResponse {}
+
+// Request to set temp layer enabled
+message SetTempLayerEnabledRequest {
+    uint32 id = 1;
+    bool enabled = 2;
+}
+
+message SetTempLayerEnabledResponse {}
+
+// Request to set temp layer layer
+message SetTempLayerLayerRequest {
+    uint32 id = 1;
+    uint32 layer = 2;
+}
+
+message SetTempLayerLayerResponse {}
+
+// Request to set temp layer activation delay
+message SetTempLayerActivationDelayRequest {
+    uint32 id = 1;
+    uint32 activation_delay_ms = 2;
+}
+
+message SetTempLayerActivationDelayResponse {}
+
+// Request to set temp layer deactivation delay
+message SetTempLayerDeactivationDelayRequest {
+    uint32 id = 1;
+    uint32 deactivation_delay_ms = 2;
+}
+
+message SetTempLayerDeactivationDelayResponse {}
 
 // Main request message
 message Request {
     oneof request_type {
         ListProcessorsRequest list_processors = 1;
         GetProcessorRequest get_processor = 2;
-        SetScalingRequest set_scaling = 3;
-        SetRotationRequest set_rotation = 4;
+        SetScaleMultiplierRequest set_scale_multiplier = 3;
+        SetScaleDivisorRequest set_scale_divisor = 4;
+        SetRotationRequest set_rotation = 5;
+        ResetProcessorRequest reset_processor = 6;
+        SetTempLayerEnabledRequest set_temp_layer_enabled = 7;
+        SetTempLayerLayerRequest set_temp_layer_layer = 8;
+        SetTempLayerActivationDelayRequest set_temp_layer_activation_delay = 9;
+        SetTempLayerDeactivationDelayRequest set_temp_layer_deactivation_delay = 10;
     }
 }
 
@@ -72,19 +125,25 @@ message Response {
         ErrorResponse error = 1;
         ListProcessorsResponse list_processors = 2;
         GetProcessorResponse get_processor = 3;
-        SetScalingResponse set_scaling = 4;
-        SetRotationResponse set_rotation = 5;
+        SetScaleMultiplierResponse set_scale_multiplier = 4;
+        SetScaleDivisorResponse set_scale_divisor = 5;
+        SetRotationResponse set_rotation = 6;
+        ResetProcessorResponse reset_processor = 7;
+        SetTempLayerEnabledResponse set_temp_layer_enabled = 8;
+        SetTempLayerLayerResponse set_temp_layer_layer = 9;
+        SetTempLayerActivationDelayResponse set_temp_layer_activation_delay = 10;
+        SetTempLayerDeactivationDelayResponse set_temp_layer_deactivation_delay = 11;
     }
 }
 
 // Notification when processor settings change
-message ProcessorSettingsNotification {
+message ProcessorChangedNotification {
     ProcessorInfo processor = 1;
 }
 
 // Notification wrapper
 message Notification {
     oneof notification_type {
-        ProcessorSettingsNotification processor_settings = 1;
+        ProcessorChangedNotification processor_changed = 1;
     }
 }

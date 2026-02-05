@@ -11,8 +11,7 @@ import {
   type ProcessorInfo,
 } from "../../proto/zmk/runtime_input_processor/runtime_input_processor";
 
-export const RUNTIME_INPUT_PROCESSOR_IDENTIFIER =
-  "zmk__runtime_input_processor";
+export const RUNTIME_INPUT_PROCESSOR_IDENTIFIER = "cormoran_rip";
 
 /**
  * Mock runtime input processor data
@@ -20,10 +19,15 @@ export const RUNTIME_INPUT_PROCESSOR_IDENTIFIER =
  */
 const MOCK_PROCESSORS: ProcessorInfo[] = [
   {
+    id: 0,
     name: "trackpad",
     scaleMultiplier: 1,
     scaleDivisor: 1,
     rotationDegrees: 0,
+    tempLayerEnabled: false,
+    tempLayerLayer: 0,
+    tempLayerActivationDelayMs: 100,
+    tempLayerDeactivationDelayMs: 500,
   },
 ];
 
@@ -45,7 +49,7 @@ export class RuntimeInputProcessorHandler {
           this.callbacks.forEach((cb) => {
             cb(
               Notification.encode({
-                processorSettings: {
+                processorChanged: {
                   processor,
                 },
               }).finish(),
@@ -54,27 +58,26 @@ export class RuntimeInputProcessorHandler {
         });
       }, 100);
 
-      return { listProcessors: { processors: this.processors } };
+      return { listProcessors: {} };
     }
 
     if (request.getProcessor !== undefined) {
-      const { name } = request.getProcessor;
-      const processor = this.processors.find((p) => p.name === name);
+      const { id } = request.getProcessor;
+      const processor = this.processors.find((p) => p.id === id);
 
       if (processor) {
         return { getProcessor: { processor } };
       }
 
-      return { error: { message: `Processor not found: ${name}` } };
+      return { error: { message: `Processor not found: ${id}` } };
     }
 
-    if (request.setScaling !== undefined) {
-      const { name, scaleMultiplier, scaleDivisor } = request.setScaling;
-      const processor = this.processors.find((p) => p.name === name);
+    if (request.setScaleMultiplier !== undefined) {
+      const { id, value } = request.setScaleMultiplier;
+      const processor = this.processors.find((p) => p.id === id);
 
       if (processor) {
-        processor.scaleMultiplier = scaleMultiplier;
-        processor.scaleDivisor = scaleDivisor;
+        processor.scaleMultiplier = value;
 
         // Send notification about the update
         setTimeout(() => {
@@ -82,7 +85,7 @@ export class RuntimeInputProcessorHandler {
           this.callbacks.forEach((cb) => {
             cb(
               Notification.encode({
-                processorSettings: {
+                processorChanged: {
                   processor,
                 },
               }).finish(),
@@ -90,18 +93,45 @@ export class RuntimeInputProcessorHandler {
           });
         }, 50);
 
-        return { setScaling: { success: true } };
+        return { setScaleMultiplier: {} };
       }
 
-      return { setScaling: { success: false } };
+      return { error: { message: `Processor not found: ${id}` } };
+    }
+
+    if (request.setScaleDivisor !== undefined) {
+      const { id, value } = request.setScaleDivisor;
+      const processor = this.processors.find((p) => p.id === id);
+
+      if (processor) {
+        processor.scaleDivisor = value;
+
+        // Send notification about the update
+        setTimeout(() => {
+          console.log("Demo sending updated processor settings:", processor);
+          this.callbacks.forEach((cb) => {
+            cb(
+              Notification.encode({
+                processorChanged: {
+                  processor,
+                },
+              }).finish(),
+            );
+          });
+        }, 50);
+
+        return { setScaleDivisor: {} };
+      }
+
+      return { error: { message: `Processor not found: ${id}` } };
     }
 
     if (request.setRotation !== undefined) {
-      const { name, rotationDegrees } = request.setRotation;
-      const processor = this.processors.find((p) => p.name === name);
+      const { id, value } = request.setRotation;
+      const processor = this.processors.find((p) => p.id === id);
 
       if (processor) {
-        processor.rotationDegrees = rotationDegrees;
+        processor.rotationDegrees = value;
 
         // Send notification about the update
         setTimeout(() => {
@@ -109,7 +139,7 @@ export class RuntimeInputProcessorHandler {
           this.callbacks.forEach((cb) => {
             cb(
               Notification.encode({
-                processorSettings: {
+                processorChanged: {
                   processor,
                 },
               }).finish(),
@@ -117,10 +147,118 @@ export class RuntimeInputProcessorHandler {
           });
         }, 50);
 
-        return { setRotation: { success: true } };
+        return { setRotation: {} };
       }
 
-      return { setRotation: { success: false } };
+      return { error: { message: `Processor not found: ${id}` } };
+    }
+
+    if (request.setTempLayerEnabled !== undefined) {
+      const { id, enabled } = request.setTempLayerEnabled;
+      const processor = this.processors.find((p) => p.id === id);
+
+      if (processor) {
+        processor.tempLayerEnabled = enabled;
+
+        // Send notification about the update
+        setTimeout(() => {
+          console.log("Demo sending updated processor settings:", processor);
+          this.callbacks.forEach((cb) => {
+            cb(
+              Notification.encode({
+                processorChanged: {
+                  processor,
+                },
+              }).finish(),
+            );
+          });
+        }, 50);
+
+        return { setTempLayerEnabled: {} };
+      }
+
+      return { error: { message: `Processor not found: ${id}` } };
+    }
+
+    if (request.setTempLayerLayer !== undefined) {
+      const { id, layer } = request.setTempLayerLayer;
+      const processor = this.processors.find((p) => p.id === id);
+
+      if (processor) {
+        processor.tempLayerLayer = layer;
+
+        // Send notification about the update
+        setTimeout(() => {
+          console.log("Demo sending updated processor settings:", processor);
+          this.callbacks.forEach((cb) => {
+            cb(
+              Notification.encode({
+                processorChanged: {
+                  processor,
+                },
+              }).finish(),
+            );
+          });
+        }, 50);
+
+        return { setTempLayerLayer: {} };
+      }
+
+      return { error: { message: `Processor not found: ${id}` } };
+    }
+
+    if (request.setTempLayerActivationDelay !== undefined) {
+      const { id, activationDelayMs } = request.setTempLayerActivationDelay;
+      const processor = this.processors.find((p) => p.id === id);
+
+      if (processor) {
+        processor.tempLayerActivationDelayMs = activationDelayMs;
+
+        // Send notification about the update
+        setTimeout(() => {
+          console.log("Demo sending updated processor settings:", processor);
+          this.callbacks.forEach((cb) => {
+            cb(
+              Notification.encode({
+                processorChanged: {
+                  processor,
+                },
+              }).finish(),
+            );
+          });
+        }, 50);
+
+        return { setTempLayerActivationDelay: {} };
+      }
+
+      return { error: { message: `Processor not found: ${id}` } };
+    }
+
+    if (request.setTempLayerDeactivationDelay !== undefined) {
+      const { id, deactivationDelayMs } = request.setTempLayerDeactivationDelay;
+      const processor = this.processors.find((p) => p.id === id);
+
+      if (processor) {
+        processor.tempLayerDeactivationDelayMs = deactivationDelayMs;
+
+        // Send notification about the update
+        setTimeout(() => {
+          console.log("Demo sending updated processor settings:", processor);
+          this.callbacks.forEach((cb) => {
+            cb(
+              Notification.encode({
+                processorChanged: {
+                  processor,
+                },
+              }).finish(),
+            );
+          });
+        }, 50);
+
+        return { setTempLayerDeactivationDelay: {} };
+      }
+
+      return { error: { message: `Processor not found: ${id}` } };
     }
 
     return { error: { message: "Not implemented" } };
