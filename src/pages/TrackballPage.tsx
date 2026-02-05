@@ -109,23 +109,16 @@ export function TrackballPage() {
 
   // Aggregate save status from all debounced saves
   const saveStatus =
-    scalingMultiplierSave.saveStatus !== "idle"
-      ? scalingMultiplierSave.saveStatus
-      : scalingDivisorSave.saveStatus !== "idle"
-        ? scalingDivisorSave.saveStatus
-        : rotationSave.saveStatus !== "idle"
-          ? rotationSave.saveStatus
-          : tempLayerEnabledSave.saveStatus !== "idle"
-            ? tempLayerEnabledSave.saveStatus
-            : tempLayerLayerSave.saveStatus !== "idle"
-              ? tempLayerLayerSave.saveStatus
-              : tempLayerActivationDelaySave.saveStatus !== "idle"
-                ? tempLayerActivationDelaySave.saveStatus
-                : tempLayerDeactivationDelaySave.saveStatus !== "idle"
-                  ? tempLayerDeactivationDelaySave.saveStatus
-                  : activeLayersSave.saveStatus !== "idle"
-                    ? activeLayersSave.saveStatus
-                    : "idle";
+    [
+      scalingMultiplierSave,
+      scalingDivisorSave,
+      rotationSave,
+      tempLayerEnabledSave,
+      tempLayerLayerSave,
+      tempLayerActivationDelaySave,
+      tempLayerDeactivationDelaySave,
+      activeLayersSave,
+    ].find((save) => save.saveStatus !== "idle")?.saveStatus ?? "idle";
 
   // Handler functions using useDebouncedSave
   const handleScalingMultiplierChange = (multiplier: number) => {
@@ -147,12 +140,16 @@ export function TrackballPage() {
 
   const handleScalingPreset = (multiplier: number, divisor: number) => {
     if (!processor) return;
-    scalingMultiplierSave.setPendingValue(multiplier, async (m) => {
-      await setScaling(processor.id, m, divisor);
+    // Cancel any pending individual saves to avoid conflicts
+    scalingMultiplierSave.cancel();
+    scalingDivisorSave.cancel();
+    // Set both values together with a single save call
+    scalingMultiplierSave.setPendingValue(multiplier, async () => {
+      await setScaling(processor.id, multiplier, divisor);
     });
-    scalingDivisorSave.setPendingValue(divisor, async (d) => {
-      const m = scalingMultiplierSave.pendingValue ?? multiplier;
-      await setScaling(processor.id, m, d);
+    // Update the divisor display value without triggering another save
+    scalingDivisorSave.setPendingValue(divisor, async () => {
+      // No-op: multiplier save already handles both values
     });
   };
 
