@@ -1,34 +1,32 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import { IconPointer, IconCheck } from "@tabler/icons-react";
 import * as Switch from "@radix-ui/react-switch";
 import { useRuntimeInputProcessor } from "../hooks/useRuntimeInputProcessor";
-import { useKeymap } from "../hooks/useKeymap";
-import { ButtonListSelector } from "../components/ButtonListSelector";
+import { useDebouncedSave } from "../hooks/useDebouncedSave";
 
-// Speed multiplier options for trackball scaling
-const SPEED_OPTIONS = [
-  { value: 50, label: "0.5x", shortLabel: "0.5x" },
-  { value: 75, label: "0.75x", shortLabel: "0.75x" },
-  { value: 100, label: "1.0x", shortLabel: "1.0x" },
-  { value: 150, label: "1.5x", shortLabel: "1.5x" },
-  { value: 200, label: "2.0x", shortLabel: "2.0x" },
-  { value: 300, label: "3.0x", shortLabel: "3.0x" },
+// Scaling preset types
+type ScalingPresetType = "wheel" | "scroll";
+
+// Wheel/mouse preset options (multipliers as percentage)
+const WHEEL_PRESETS = [
+  { multiplier: 50, divisor: 100, label: "0.5x" },
+  { multiplier: 75, divisor: 100, label: "0.75x" },
+  { multiplier: 1, divisor: 1, label: "1.0x" },
+  { multiplier: 3, divisor: 2, label: "1.5x" },
+  { multiplier: 2, divisor: 1, label: "2.0x" },
 ];
 
-// Rotation angle options
-const ROTATION_OPTIONS = [
-  { value: 0, label: "0°", shortLabel: "0°" },
-  { value: 90, label: "90°", shortLabel: "90°" },
-  { value: 180, label: "180°", shortLabel: "180°" },
-  { value: 270, label: "270°", shortLabel: "270°" },
+// Scroll preset options (shown as fractions)
+const SCROLL_PRESETS = [
+  { multiplier: 1, divisor: 30, label: "1/30" },
+  { multiplier: 1, divisor: 60, label: "1/60" },
+  { multiplier: 1, divisor: 120, label: "1/120" },
 ];
-
-// Auto-save debounce delay in milliseconds
-const AUTO_SAVE_DELAY_MS = 1000;
 
 export function TrackballPage() {
   const {
     processors,
+    layers,
     isLoading,
     error,
     setScaling,
@@ -37,288 +35,184 @@ export function TrackballPage() {
     setTempLayerLayer,
     setTempLayerActivationDelay,
     setTempLayerDeactivationDelay,
+    setActiveLayers,
   } = useRuntimeInputProcessor();
-
-  const keymap = useKeymap();
 
   // Selected processor index
   const [selectedProcessorIndex, setSelectedProcessorIndex] = useState(0);
 
-  // Local state for pending changes (before auto-save)
-  const [pendingSpeed, setPendingSpeed] = useState<number | null>(null);
-  const [pendingRotation, setPendingRotation] = useState<number | null>(null);
-  const [pendingTempLayerEnabled, setPendingTempLayerEnabled] = useState<
-    boolean | null
-  >(null);
-  const [pendingTempLayerLayer, setPendingTempLayerLayer] = useState<
-    number | null
-  >(null);
-  const [pendingTempLayerActivationDelay, setPendingTempLayerActivationDelay] =
-    useState<number | null>(null);
-  const [
-    pendingTempLayerDeactivationDelay,
-    setPendingTempLayerDeactivationDelay,
-  ] = useState<number | null>(null);
+  // Scaling preset type selector
+  const [scalingPresetType, setScalingPresetType] =
+    useState<ScalingPresetType>("wheel");
 
-  // Save status visualization
-  const [saveStatus, setSaveStatus] = useState<
-    "idle" | "pending" | "saving" | "saved"
-  >("idle");
+  // Rotation enabled state
+  const [rotationEnabled, setRotationEnabled] = useState(false);
 
-  // Debounce timer refs
-  const speedTimerRef = useRef<number | null>(null);
-  const rotationTimerRef = useRef<number | null>(null);
-  const tempLayerEnabledTimerRef = useRef<number | null>(null);
-  const tempLayerLayerTimerRef = useRef<number | null>(null);
-  const tempLayerActivationDelayTimerRef = useRef<number | null>(null);
-  const tempLayerDeactivationDelayTimerRef = useRef<number | null>(null);
-  const saveStatusTimerRef = useRef<number | null>(null);
+  // Debounced save hooks for each field
+  const scalingMultiplierSave = useDebouncedSave<number>();
+  const scalingDivisorSave = useDebouncedSave<number>();
+  const rotationSave = useDebouncedSave<number>();
+  const tempLayerEnabledSave = useDebouncedSave<boolean>();
+  const tempLayerLayerSave = useDebouncedSave<number>();
+  const tempLayerActivationDelaySave = useDebouncedSave<number>();
+  const tempLayerDeactivationDelaySave = useDebouncedSave<number>();
+  const activeLayersSave = useDebouncedSave<number[]>();
 
-  // Track previous processor to detect changes
+  // Track previous processor to detect changes and reset pending state
   const previousProcessorRef = useRef<string | null>(null);
 
   // Get the selected processor
   const processor = processors[selectedProcessorIndex] || null;
 
-  // Reset pending state when processor changes (derived state pattern)
+  // Reset pending state when processor changes
   const currentProcessorName = processor?.name || null;
   if (previousProcessorRef.current !== currentProcessorName) {
     previousProcessorRef.current = currentProcessorName;
-    // Reset pending states and status when processor changes
-    if (pendingSpeed !== null) setPendingSpeed(null);
-    if (pendingRotation !== null) setPendingRotation(null);
-    if (pendingTempLayerEnabled !== null) setPendingTempLayerEnabled(null);
-    if (pendingTempLayerLayer !== null) setPendingTempLayerLayer(null);
-    if (pendingTempLayerActivationDelay !== null)
-      setPendingTempLayerActivationDelay(null);
-    if (pendingTempLayerDeactivationDelay !== null)
-      setPendingTempLayerDeactivationDelay(null);
-    if (saveStatus !== "idle") setSaveStatus("idle");
+    scalingMultiplierSave.reset();
+    scalingDivisorSave.reset();
+    rotationSave.reset();
+    tempLayerEnabledSave.reset();
+    tempLayerLayerSave.reset();
+    tempLayerActivationDelaySave.reset();
+    tempLayerDeactivationDelaySave.reset();
+    activeLayersSave.reset();
+    setRotationEnabled(processor?.rotationDegrees !== 0);
   }
 
-  // Calculate current speed as percentage (multiplier/divisor * 100)
-  const currentSpeed = processor
-    ? Math.round((processor.scaleMultiplier / processor.scaleDivisor) * 100)
-    : 100;
-
-  // Use pending speed if available, otherwise use current speed
-  const displaySpeed = pendingSpeed !== null ? pendingSpeed : currentSpeed;
+  // Calculate display values with pending states
+  const displayScalingMultiplier =
+    scalingMultiplierSave.pendingValue ?? processor?.scaleMultiplier ?? 1;
+  const displayScalingDivisor =
+    scalingDivisorSave.pendingValue ?? processor?.scaleDivisor ?? 1;
   const displayRotation =
-    pendingRotation !== null
-      ? pendingRotation
-      : processor?.rotationDegrees || 0;
-
-  // Temp layer display values
+    rotationSave.pendingValue ?? processor?.rotationDegrees ?? 0;
   const displayTempLayerEnabled =
-    pendingTempLayerEnabled !== null
-      ? pendingTempLayerEnabled
-      : processor?.tempLayerEnabled || false;
+    tempLayerEnabledSave.pendingValue ?? processor?.tempLayerEnabled ?? false;
   const displayTempLayerLayer =
-    pendingTempLayerLayer !== null
-      ? pendingTempLayerLayer
-      : processor?.tempLayerLayer || 0;
+    tempLayerLayerSave.pendingValue ?? processor?.tempLayerLayer ?? 0;
   const displayTempLayerActivationDelay =
-    pendingTempLayerActivationDelay !== null
-      ? pendingTempLayerActivationDelay
-      : processor?.tempLayerActivationDelayMs || 100;
+    tempLayerActivationDelaySave.pendingValue ??
+    processor?.tempLayerActivationDelayMs ??
+    100;
   const displayTempLayerDeactivationDelay =
-    pendingTempLayerDeactivationDelay !== null
-      ? pendingTempLayerDeactivationDelay
-      : processor?.tempLayerDeactivationDelayMs || 500;
+    tempLayerDeactivationDelaySave.pendingValue ??
+    processor?.tempLayerDeactivationDelayMs ??
+    500;
+  const displayActiveLayers =
+    activeLayersSave.pendingValue ?? processor?.activeLayers ?? [];
 
-  // Get layer options from keymap
-  const layerOptions =
-    keymap.keymap?.layers.map((layer) => ({
-      value: layer.id,
-      label: layer.name || `Layer ${layer.id}`,
-      shortLabel: layer.name || `L${layer.id}`,
-    })) || [];
+  // Calculate final scaling value (multiplier/divisor)
+  const finalScalingValue =
+    displayScalingDivisor !== 0
+      ? displayScalingMultiplier / displayScalingDivisor
+      : 1;
 
-  // Cleanup timers on unmount
-  useEffect(() => {
-    return () => {
-      if (speedTimerRef.current) clearTimeout(speedTimerRef.current);
-      if (rotationTimerRef.current) clearTimeout(rotationTimerRef.current);
-      if (tempLayerEnabledTimerRef.current)
-        clearTimeout(tempLayerEnabledTimerRef.current);
-      if (tempLayerLayerTimerRef.current)
-        clearTimeout(tempLayerLayerTimerRef.current);
-      if (tempLayerActivationDelayTimerRef.current)
-        clearTimeout(tempLayerActivationDelayTimerRef.current);
-      if (tempLayerDeactivationDelayTimerRef.current)
-        clearTimeout(tempLayerDeactivationDelayTimerRef.current);
-      if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
-    };
-  }, []);
+  // Aggregate save status from all debounced saves
+  const saveStatus =
+    scalingMultiplierSave.saveStatus !== "idle"
+      ? scalingMultiplierSave.saveStatus
+      : scalingDivisorSave.saveStatus !== "idle"
+        ? scalingDivisorSave.saveStatus
+        : rotationSave.saveStatus !== "idle"
+          ? rotationSave.saveStatus
+          : tempLayerEnabledSave.saveStatus !== "idle"
+            ? tempLayerEnabledSave.saveStatus
+            : tempLayerLayerSave.saveStatus !== "idle"
+              ? tempLayerLayerSave.saveStatus
+              : tempLayerActivationDelaySave.saveStatus !== "idle"
+                ? tempLayerActivationDelaySave.saveStatus
+                : tempLayerDeactivationDelaySave.saveStatus !== "idle"
+                  ? tempLayerDeactivationDelaySave.saveStatus
+                  : activeLayersSave.saveStatus !== "idle"
+                    ? activeLayersSave.saveStatus
+                    : "idle";
 
-  // Auto-save speed with debouncing
-  const handleSpeedChange = (speedPercent: number) => {
+  // Handler functions using useDebouncedSave
+  const handleScalingMultiplierChange = (multiplier: number) => {
     if (!processor) return;
-
-    setPendingSpeed(speedPercent);
-    setSaveStatus("pending");
-
-    // Clear existing timer
-    if (speedTimerRef.current) {
-      clearTimeout(speedTimerRef.current);
-    }
-
-    // Set new timer for auto-save
-    speedTimerRef.current = setTimeout(async () => {
-      setSaveStatus("saving");
-      // Convert percentage to multiplier/divisor
-      await setScaling(processor.id, speedPercent, 100);
-      setPendingSpeed(null);
-      setSaveStatus("saved");
-
-      // Clear "saved" status after 2 seconds
-      if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
-      saveStatusTimerRef.current = setTimeout(() => {
-        setSaveStatus("idle");
-      }, 2000);
-    }, AUTO_SAVE_DELAY_MS);
+    scalingMultiplierSave.setPendingValue(multiplier, async (value) => {
+      const divisor = scalingDivisorSave.pendingValue ?? processor.scaleDivisor;
+      await setScaling(processor.id, value, divisor);
+    });
   };
 
-  // Auto-save rotation with debouncing
+  const handleScalingDivisorChange = (divisor: number) => {
+    if (!processor) return;
+    scalingDivisorSave.setPendingValue(divisor, async (value) => {
+      const multiplier =
+        scalingMultiplierSave.pendingValue ?? processor.scaleMultiplier;
+      await setScaling(processor.id, multiplier, value);
+    });
+  };
+
+  const handleScalingPreset = (multiplier: number, divisor: number) => {
+    if (!processor) return;
+    scalingMultiplierSave.setPendingValue(multiplier, async (m) => {
+      await setScaling(processor.id, m, divisor);
+    });
+    scalingDivisorSave.setPendingValue(divisor, async (d) => {
+      const m = scalingMultiplierSave.pendingValue ?? multiplier;
+      await setScaling(processor.id, m, d);
+    });
+  };
+
+  const handleRotationEnabledChange = (enabled: boolean) => {
+    setRotationEnabled(enabled);
+    if (!enabled && processor) {
+      rotationSave.setPendingValue(0, async () => {
+        await setRotation(processor.id, 0);
+      });
+    }
+  };
+
   const handleRotationChange = (degrees: number) => {
     if (!processor) return;
-
-    setPendingRotation(degrees);
-    setSaveStatus("pending");
-
-    // Clear existing timer
-    if (rotationTimerRef.current) {
-      clearTimeout(rotationTimerRef.current);
-    }
-
-    // Set new timer for auto-save
-    rotationTimerRef.current = setTimeout(async () => {
-      setSaveStatus("saving");
-      await setRotation(processor.id, degrees);
-      setPendingRotation(null);
-      setSaveStatus("saved");
-
-      // Clear "saved" status after 2 seconds
-      if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
-      saveStatusTimerRef.current = setTimeout(() => {
-        setSaveStatus("idle");
-      }, 2000);
-    }, AUTO_SAVE_DELAY_MS);
+    rotationSave.setPendingValue(degrees, async (value) => {
+      await setRotation(processor.id, value);
+    });
   };
 
-  // Handle temp layer enabled toggle
   const handleTempLayerEnabledChange = (enabled: boolean) => {
     if (!processor) return;
-
-    setPendingTempLayerEnabled(enabled);
-    setSaveStatus("pending");
-
-    if (tempLayerEnabledTimerRef.current) {
-      clearTimeout(tempLayerEnabledTimerRef.current);
-    }
-
-    tempLayerEnabledTimerRef.current = setTimeout(async () => {
-      setSaveStatus("saving");
-      await setTempLayerEnabled(processor.id, enabled);
-      setPendingTempLayerEnabled(null);
-      setSaveStatus("saved");
-
-      if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
-      saveStatusTimerRef.current = setTimeout(() => {
-        setSaveStatus("idle");
-      }, 2000);
-    }, AUTO_SAVE_DELAY_MS);
+    tempLayerEnabledSave.setPendingValue(enabled, async (value) => {
+      await setTempLayerEnabled(processor.id, value);
+    });
   };
 
-  // Handle temp layer layer selection
   const handleTempLayerLayerChange = (layer: number) => {
     if (!processor) return;
-
-    setPendingTempLayerLayer(layer);
-    setSaveStatus("pending");
-
-    if (tempLayerLayerTimerRef.current) {
-      clearTimeout(tempLayerLayerTimerRef.current);
-    }
-
-    tempLayerLayerTimerRef.current = setTimeout(async () => {
-      setSaveStatus("saving");
-      await setTempLayerLayer(processor.id, layer);
-      setPendingTempLayerLayer(null);
-      setSaveStatus("saved");
-
-      if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
-      saveStatusTimerRef.current = setTimeout(() => {
-        setSaveStatus("idle");
-      }, 2000);
-    }, AUTO_SAVE_DELAY_MS);
+    tempLayerLayerSave.setPendingValue(layer, async (value) => {
+      await setTempLayerLayer(processor.id, value);
+    });
   };
 
-  // Handle temp layer activation delay
   const handleTempLayerActivationDelayChange = (delayMs: number) => {
     if (!processor) return;
-
-    setPendingTempLayerActivationDelay(delayMs);
-    setSaveStatus("pending");
-
-    if (tempLayerActivationDelayTimerRef.current) {
-      clearTimeout(tempLayerActivationDelayTimerRef.current);
-    }
-
-    tempLayerActivationDelayTimerRef.current = setTimeout(async () => {
-      setSaveStatus("saving");
-      await setTempLayerActivationDelay(processor.id, delayMs);
-      setPendingTempLayerActivationDelay(null);
-      setSaveStatus("saved");
-
-      if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
-      saveStatusTimerRef.current = setTimeout(() => {
-        setSaveStatus("idle");
-      }, 2000);
-    }, AUTO_SAVE_DELAY_MS);
+    tempLayerActivationDelaySave.setPendingValue(delayMs, async (value) => {
+      await setTempLayerActivationDelay(processor.id, value);
+    });
   };
 
-  // Handle temp layer deactivation delay
   const handleTempLayerDeactivationDelayChange = (delayMs: number) => {
     if (!processor) return;
-
-    setPendingTempLayerDeactivationDelay(delayMs);
-    setSaveStatus("pending");
-
-    if (tempLayerDeactivationDelayTimerRef.current) {
-      clearTimeout(tempLayerDeactivationDelayTimerRef.current);
-    }
-
-    tempLayerDeactivationDelayTimerRef.current = setTimeout(async () => {
-      setSaveStatus("saving");
-      await setTempLayerDeactivationDelay(processor.id, delayMs);
-      setPendingTempLayerDeactivationDelay(null);
-      setSaveStatus("saved");
-
-      if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
-      saveStatusTimerRef.current = setTimeout(() => {
-        setSaveStatus("idle");
-      }, 2000);
-    }, AUTO_SAVE_DELAY_MS);
+    tempLayerDeactivationDelaySave.setPendingValue(delayMs, async (value) => {
+      await setTempLayerDeactivationDelay(processor.id, value);
+    });
   };
 
-  // Handle processor selection change
-  const handleProcessorChange = (index: number) => {
-    // Save any pending changes before switching
-    if (speedTimerRef.current) {
-      clearTimeout(speedTimerRef.current);
-      if (pendingSpeed !== null && processor) {
-        setScaling(processor.id, pendingSpeed, 100);
-      }
-    }
-    if (rotationTimerRef.current) {
-      clearTimeout(rotationTimerRef.current);
-      if (pendingRotation !== null && processor) {
-        setRotation(processor.id, pendingRotation);
-      }
-    }
+  const handleActiveLayersChange = (layerIds: number[]) => {
+    if (!processor) return;
+    activeLayersSave.setPendingValue(layerIds, async (value) => {
+      await setActiveLayers(processor.id, value);
+    });
+  };
 
-    setSelectedProcessorIndex(index);
+  const handleLayerToggle = (layerId: number) => {
+    const currentLayers = displayActiveLayers;
+    const newLayers = currentLayers.includes(layerId)
+      ? currentLayers.filter((id) => id !== layerId)
+      : [...currentLayers, layerId];
+    handleActiveLayersChange(newLayers);
   };
 
   return (
@@ -374,16 +268,19 @@ export function TrackballPage() {
                 <h3 className="text-sm font-medium text-[var(--color-text)] mb-4">
                   Select Processor
                 </h3>
-                <ButtonListSelector
-                  options={processors.map((p, index) => ({
-                    value: index,
-                    label: p.name,
-                    shortLabel: p.name,
-                  }))}
+                <select
                   value={selectedProcessorIndex}
-                  onChange={handleProcessorChange}
-                  columns={Math.min(processors.length, 3)}
-                />
+                  onChange={(e) =>
+                    setSelectedProcessorIndex(Number(e.target.value))
+                  }
+                  className="w-full px-4 py-2 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)] text-sm cursor-pointer hover:border-[var(--color-border-hover)] focus:outline-none focus:border-[var(--color-electric)] transition-colors"
+                >
+                  {processors.map((p, index) => (
+                    <option key={index} value={index}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
               </div>
             )}
 
@@ -426,61 +323,137 @@ export function TrackballPage() {
               </div>
             </div>
 
-            {/* Speed Setting */}
+            {/* Active Layers Selection */}
+            <div className="glass-card p-6">
+              <h3 className="text-sm font-medium text-[var(--color-text)] mb-4">
+                Active on Layers
+              </h3>
+              <p className="text-xs text-[var(--color-text-muted)] mb-4">
+                Select which layers this processor should be active on. Empty
+                selection means active on all layers.
+              </p>
+              <div className="space-y-2">
+                {layers.length > 0 ? (
+                  layers.map((layer) => (
+                    <label
+                      key={layer.id}
+                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-[var(--color-border)]/50 cursor-pointer transition-colors"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={displayActiveLayers.includes(layer.id)}
+                        onChange={() => handleLayerToggle(layer.id)}
+                        className="w-4 h-4 rounded border-[var(--color-border)] text-[var(--color-electric)] focus:ring-[var(--color-electric)] focus:ring-offset-0 cursor-pointer"
+                      />
+                      <span className="text-sm text-[var(--color-text-secondary)]">
+                        {layer.name || `Layer ${layer.id}`}
+                      </span>
+                    </label>
+                  ))
+                ) : (
+                  <p className="text-xs text-[var(--color-text-muted)]">
+                    Loading layers...
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Scaling Setting */}
             <div className="glass-card p-6">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-sm font-medium text-[var(--color-text)]">
-                    Pointer Speed
+                    Scaling
                   </h3>
                   <p className="text-xs text-[var(--color-text-muted)]">
-                    Adjust sensitivity multiplier
+                    Adjust sensitivity multiplier and divisor
                   </p>
                 </div>
                 <span className="text-lg font-mono text-[var(--color-electric)]">
-                  {(displaySpeed / 100).toFixed(1)}x
+                  {finalScalingValue.toFixed(2)}x
                 </span>
               </div>
 
-              {/* Slider for continuous adjustment */}
-              <div className="mb-4">
-                <input
-                  type="range"
-                  min={10}
-                  max={500}
-                  step={5}
-                  value={displaySpeed}
-                  onChange={(e) => handleSpeedChange(Number(e.target.value))}
-                  className="w-full h-2 rounded-lg appearance-none cursor-pointer
-                    bg-[var(--color-border)]
-                    [&::-webkit-slider-thumb]:appearance-none
-                    [&::-webkit-slider-thumb]:w-4
-                    [&::-webkit-slider-thumb]:h-4
-                    [&::-webkit-slider-thumb]:rounded-full
-                    [&::-webkit-slider-thumb]:bg-[var(--color-electric)]
-                    [&::-webkit-slider-thumb]:cursor-pointer
-                    [&::-webkit-slider-thumb]:shadow-[0_0_8px_var(--color-electric)]
-                    [&::-moz-range-thumb]:w-4
-                    [&::-moz-range-thumb]:h-4
-                    [&::-moz-range-thumb]:rounded-full
-                    [&::-moz-range-thumb]:bg-[var(--color-electric)]
-                    [&::-moz-range-thumb]:border-0
-                    [&::-moz-range-thumb]:cursor-pointer
-                    [&::-moz-range-thumb]:shadow-[0_0_8px_var(--color-electric)]"
-                />
-                <div className="flex justify-between mt-2 text-xs text-[var(--color-text-muted)]">
-                  <span>0.1x</span>
-                  <span>5.0x</span>
+              {/* Multiplier and Divisor Controls */}
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="text-sm text-[var(--color-text-secondary)] mb-2 block">
+                    Multiplier
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={1000}
+                    value={displayScalingMultiplier}
+                    onChange={(e) =>
+                      handleScalingMultiplierChange(Number(e.target.value))
+                    }
+                    className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)] text-sm focus:outline-none focus:border-[var(--color-electric)] transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-[var(--color-text-secondary)] mb-2 block">
+                    Divisor
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={1000}
+                    value={displayScalingDivisor}
+                    onChange={(e) =>
+                      handleScalingDivisorChange(Number(e.target.value))
+                    }
+                    className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)] text-sm focus:outline-none focus:border-[var(--color-electric)] transition-colors"
+                  />
                 </div>
               </div>
 
-              {/* Preset buttons */}
-              <ButtonListSelector
-                options={SPEED_OPTIONS}
-                value={displaySpeed}
-                onChange={handleSpeedChange}
-                columns={3}
-              />
+              {/* Preset Type Tabs */}
+              <div className="flex gap-2 mb-4">
+                <button
+                  onClick={() => setScalingPresetType("wheel")}
+                  className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    scalingPresetType === "wheel"
+                      ? "bg-[var(--color-electric)] text-white"
+                      : "bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border)]"
+                  }`}
+                >
+                  Wheel/Mouse
+                </button>
+                <button
+                  onClick={() => setScalingPresetType("scroll")}
+                  className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    scalingPresetType === "scroll"
+                      ? "bg-[var(--color-electric)] text-white"
+                      : "bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border)]"
+                  }`}
+                >
+                  Scroll
+                </button>
+              </div>
+
+              {/* Preset Buttons */}
+              <div className="grid grid-cols-3 gap-2">
+                {(scalingPresetType === "wheel"
+                  ? WHEEL_PRESETS
+                  : SCROLL_PRESETS
+                ).map((preset) => (
+                  <button
+                    key={preset.label}
+                    onClick={() =>
+                      handleScalingPreset(preset.multiplier, preset.divisor)
+                    }
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      displayScalingMultiplier === preset.multiplier &&
+                      displayScalingDivisor === preset.divisor
+                        ? "bg-[var(--color-electric)] text-white"
+                        : "bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border)]"
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Rotation Setting */}
@@ -494,50 +467,56 @@ export function TrackballPage() {
                     Rotate input for different mounting angles
                   </p>
                 </div>
-                <span className="text-lg font-mono text-[var(--color-electric)]">
-                  {displayRotation}°
-                </span>
-              </div>
-
-              {/* Slider for continuous adjustment */}
-              <div className="mb-4">
-                <input
-                  type="range"
-                  min={0}
-                  max={359}
-                  step={1}
-                  value={displayRotation}
-                  onChange={(e) => handleRotationChange(Number(e.target.value))}
-                  className="w-full h-2 rounded-lg appearance-none cursor-pointer
-                    bg-[var(--color-border)]
-                    [&::-webkit-slider-thumb]:appearance-none
-                    [&::-webkit-slider-thumb]:w-4
-                    [&::-webkit-slider-thumb]:h-4
-                    [&::-webkit-slider-thumb]:rounded-full
-                    [&::-webkit-slider-thumb]:bg-[var(--color-electric)]
-                    [&::-webkit-slider-thumb]:cursor-pointer
-                    [&::-webkit-slider-thumb]:shadow-[0_0_8px_var(--color-electric)]
-                    [&::-moz-range-thumb]:w-4
-                    [&::-moz-range-thumb]:h-4
-                    [&::-moz-range-thumb]:rounded-full
-                    [&::-moz-range-thumb]:bg-[var(--color-electric)]
-                    [&::-moz-range-thumb]:border-0
-                    [&::-moz-range-thumb]:cursor-pointer
-                    [&::-moz-range-thumb]:shadow-[0_0_8px_var(--color-electric)]"
-                />
-                <div className="flex justify-between mt-2 text-xs text-[var(--color-text-muted)]">
-                  <span>0°</span>
-                  <span>359°</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-lg font-mono text-[var(--color-electric)]">
+                    {displayRotation}°
+                  </span>
+                  <Switch.Root
+                    checked={rotationEnabled}
+                    onCheckedChange={handleRotationEnabledChange}
+                    className="w-11 h-6 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-surface)] border border-[var(--color-border)] transition-colors cursor-pointer"
+                  >
+                    <Switch.Thumb className="block w-5 h-5 bg-white rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform" />
+                  </Switch.Root>
                 </div>
               </div>
 
-              {/* Preset buttons */}
-              <ButtonListSelector
-                options={ROTATION_OPTIONS}
-                value={displayRotation}
-                onChange={handleRotationChange}
-                columns={4}
-              />
+              {rotationEnabled && (
+                <div>
+                  {/* Slider centered at 0, ranging from -180 to +180 */}
+                  <input
+                    type="range"
+                    min={-180}
+                    max={180}
+                    step={1}
+                    value={displayRotation}
+                    onChange={(e) =>
+                      handleRotationChange(Number(e.target.value))
+                    }
+                    className="w-full h-2 rounded-lg appearance-none cursor-pointer
+                      bg-[var(--color-border)]
+                      [&::-webkit-slider-thumb]:appearance-none
+                      [&::-webkit-slider-thumb]:w-4
+                      [&::-webkit-slider-thumb]:h-4
+                      [&::-webkit-slider-thumb]:rounded-full
+                      [&::-webkit-slider-thumb]:bg-[var(--color-electric)]
+                      [&::-webkit-slider-thumb]:cursor-pointer
+                      [&::-webkit-slider-thumb]:shadow-[0_0_8px_var(--color-electric)]
+                      [&::-moz-range-thumb]:w-4
+                      [&::-moz-range-thumb]:h-4
+                      [&::-moz-range-thumb]:rounded-full
+                      [&::-moz-range-thumb]:bg-[var(--color-electric)]
+                      [&::-moz-range-thumb]:border-0
+                      [&::-moz-range-thumb]:cursor-pointer
+                      [&::-moz-range-thumb]:shadow-[0_0_8px_var(--color-electric)]"
+                  />
+                  <div className="flex justify-between mt-2 text-xs text-[var(--color-text-muted)]">
+                    <span>-180°</span>
+                    <span>0°</span>
+                    <span>+180°</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Temp Layer Settings */}
@@ -567,13 +546,20 @@ export function TrackballPage() {
                     <label className="text-sm text-[var(--color-text-secondary)] mb-3 block">
                       Target Layer
                     </label>
-                    {layerOptions.length > 0 ? (
-                      <ButtonListSelector
-                        options={layerOptions}
+                    {layers.length > 0 ? (
+                      <select
                         value={displayTempLayerLayer}
-                        onChange={handleTempLayerLayerChange}
-                        columns={Math.min(layerOptions.length, 4)}
-                      />
+                        onChange={(e) =>
+                          handleTempLayerLayerChange(Number(e.target.value))
+                        }
+                        className="w-full px-4 py-2 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)] text-sm cursor-pointer hover:border-[var(--color-border-hover)] focus:outline-none focus:border-[var(--color-electric)] transition-colors"
+                      >
+                        {layers.map((layer) => (
+                          <option key={layer.id} value={layer.id}>
+                            {layer.name || `Layer ${layer.id}`}
+                          </option>
+                        ))}
+                      </select>
                     ) : (
                       <p className="text-xs text-[var(--color-text-muted)]">
                         Loading layers...

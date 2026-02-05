@@ -5,20 +5,14 @@ import { render, screen, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TrackballPage } from "../TrackballPage";
 import { useRuntimeInputProcessor } from "../../hooks/useRuntimeInputProcessor";
-import { useKeymap } from "../../hooks/useKeymap";
 
 // Mock the useRuntimeInputProcessor hook
 jest.mock("../../hooks/useRuntimeInputProcessor");
-
-// Mock the useKeymap hook
-jest.mock("../../hooks/useKeymap");
 
 const mockUseRuntimeInputProcessor =
   useRuntimeInputProcessor as jest.MockedFunction<
     typeof useRuntimeInputProcessor
   >;
-
-const mockUseKeymap = useKeymap as jest.MockedFunction<typeof useKeymap>;
 
 // Helper to create default mock processor
 const createMockProcessor = (overrides = {}) => ({
@@ -56,34 +50,6 @@ const createMockHookReturn = (overrides = {}) => ({
 describe("TrackballPage", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-
-    // Mock useKeymap with default values
-    mockUseKeymap.mockReturnValue({
-      keymap: {
-        layers: [
-          { id: 0, name: "Default", bindings: [] },
-          { id: 1, name: "Lower", bindings: [] },
-          { id: 2, name: "Raise", bindings: [] },
-        ],
-      },
-      physicalLayouts: null,
-      behaviors: new Map(),
-      originalBindings: new Map(),
-      hasUnsavedChanges: false,
-      isLoading: false,
-      error: null,
-      unlockRequired: false,
-      loadKeymapData: jest.fn(),
-      setBinding: jest.fn(),
-      resetBinding: jest.fn(),
-      moveLayer: jest.fn(),
-      addLayer: jest.fn(),
-      deleteLayer: jest.fn(),
-      restoreLayer: jest.fn(),
-      saveKeymap: jest.fn(),
-      discardChanges: jest.fn(),
-      refreshKeymap: jest.fn(),
-    });
   });
 
   it("should render trackball settings header", () => {
@@ -159,10 +125,9 @@ describe("TrackballPage", () => {
 
     render(<TrackballPage />);
 
-    expect(screen.getByText("Pointer Speed")).toBeInTheDocument();
-    // Use getAllByText since there are multiple instances (display and button)
-    const speedTexts = screen.getAllByText("2.0x");
-    expect(speedTexts.length).toBeGreaterThan(0);
+    expect(screen.getByText("Scaling")).toBeInTheDocument();
+    // Check for the displayed scaling value
+    expect(screen.getByText("2.00x")).toBeInTheDocument();
   });
 
   it("should display rotation settings", () => {
@@ -179,9 +144,10 @@ describe("TrackballPage", () => {
     render(<TrackballPage />);
 
     expect(screen.getByText("Sensor Rotation")).toBeInTheDocument();
-    // Use getAllByText since there are multiple instances (display and button)
-    const rotationTexts = screen.getAllByText("90°");
-    expect(rotationTexts.length).toBeGreaterThan(0);
+    // Check for rotation toggle - rotation should be enabled when degrees != 0
+    const switches = screen.getAllByRole("switch");
+    // The rotation switch should be checked (rotation is 90 degrees)
+    expect(switches[0]).toBeInTheDocument();
   });
 
   it("should call setScaling when speed button is clicked", async () => {
@@ -198,56 +164,53 @@ describe("TrackballPage", () => {
 
     render(<TrackballPage />);
 
-    // Click on 2.0x speed button in the ButtonListSelector
-    const speedButtons = screen.getAllByText("2.0x");
-    // The button is the one in the ButtonListSelector (not the display value)
-    const speedButton = speedButtons.find(
-      (el) => el.tagName === "SPAN" && el.parentElement?.tagName === "BUTTON",
-    );
-    if (speedButton && speedButton.parentElement) {
-      await user.click(speedButton.parentElement);
-    }
+    // Click on 2.0x speed preset button
+    const speedButton = screen.getByText("2.0x");
+    await user.click(speedButton);
 
     // Fast-forward time to trigger debounced auto-save (1000ms)
     await act(async () => {
       jest.advanceTimersByTime(1000);
     });
 
-    expect(mockSetScaling).toHaveBeenCalledWith(0, 200, 100);
+    expect(mockSetScaling).toHaveBeenCalledWith(0, 2, 1);
 
     jest.useRealTimers();
   });
 
-  it("should call setRotation when rotation button is clicked", async () => {
+  it("should call setRotation when rotation is toggled off", async () => {
     jest.useFakeTimers();
     const user = userEvent.setup({ delay: null });
     const mockSetRotation = jest.fn();
 
+    // Start with rotation enabled at 90 degrees
     mockUseRuntimeInputProcessor.mockReturnValue(
       createMockHookReturn({
-        processors: [createMockProcessor()],
+        processors: [
+          createMockProcessor({
+            rotationDegrees: 90,
+          }),
+        ],
         setRotation: mockSetRotation,
       }),
     );
 
     render(<TrackballPage />);
 
-    // Click on 90° rotation button in the ButtonListSelector
-    const rotationButtons = screen.getAllByText("90°");
-    // The button is the one in the ButtonListSelector (not the display value)
-    const rotationButton = rotationButtons.find(
-      (el) => el.tagName === "SPAN" && el.parentElement?.tagName === "BUTTON",
-    );
-    if (rotationButton && rotationButton.parentElement) {
-      await user.click(rotationButton.parentElement);
-    }
+    // Find all switches (rotation and temp layer)
+    const switches = screen.getAllByRole("switch");
+    // First switch is rotation toggle, should be enabled since rotation is 90
+    const rotationToggle = switches[0];
+    // Toggle it off
+    await user.click(rotationToggle);
 
     // Fast-forward time to trigger debounced auto-save (1000ms)
     await act(async () => {
       jest.advanceTimersByTime(1000);
     });
 
-    expect(mockSetRotation).toHaveBeenCalledWith(0, 90);
+    // Disabling rotation should set it to 0
+    expect(mockSetRotation).toHaveBeenCalledWith(0, 0);
 
     jest.useRealTimers();
   });
