@@ -53,7 +53,7 @@ export interface InputProcessor {
   tempLayerLayer: number;
   tempLayerActivationDelayMs: number;
   tempLayerDeactivationDelayMs: number;
-  activeLayers: number[]; // Empty = active on all layers
+  activeLayers: number; // Bitmask of active layers (0 = all layers)
 }
 
 export interface LayerInformation {
@@ -78,7 +78,7 @@ export interface UseRuntimeInputProcessorReturn {
   setTempLayerLayer: (id: number, layer: number) => Promise<void>;
   setTempLayerActivationDelay: (id: number, delayMs: number) => Promise<void>;
   setTempLayerDeactivationDelay: (id: number, delayMs: number) => Promise<void>;
-  setActiveLayers: (id: number, layers: number[]) => Promise<void>;
+  setActiveLayers: (id: number, layersBitmask: number) => Promise<void>;
 }
 
 export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
@@ -131,7 +131,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
               processorInfo.tempLayerActivationDelayMs,
             tempLayerDeactivationDelayMs:
               processorInfo.tempLayerDeactivationDelayMs,
-            activeLayers: processorInfo.activeLayers || [],
+            activeLayers: processorInfo.activeLayers || 0,
           });
 
           // Update state with all collected processors
@@ -481,7 +481,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
   );
 
   const setActiveLayers = useCallback(
-    async (id: number, layers: number[]) => {
+    async (id: number, layersBitmask: number) => {
       if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
 
       setIsLoading(true);
@@ -496,7 +496,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         const request = Request.create({
           setActiveLayers: {
             id,
-            layers,
+            layers: layersBitmask,
           },
         });
 

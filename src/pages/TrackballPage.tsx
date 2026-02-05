@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { IconPointer, IconCheck } from "@tabler/icons-react";
+import { IconPointer } from "@tabler/icons-react";
 import * as Switch from "@radix-ui/react-switch";
 import { useRuntimeInputProcessor } from "../hooks/useRuntimeInputProcessor";
 import { useDebouncedSave } from "../hooks/useDebouncedSave";
@@ -48,6 +48,11 @@ export function TrackballPage() {
   // Rotation enabled state
   const [rotationEnabled, setRotationEnabled] = useState(false);
 
+  // Active layers mode: "all" or "specific"
+  const [activeLayersMode, setActiveLayersMode] = useState<"all" | "specific">(
+    "all",
+  );
+
   // Debounced save hooks for each field
   const scalingMultiplierSave = useDebouncedSave<number>();
   const scalingDivisorSave = useDebouncedSave<number>();
@@ -56,7 +61,7 @@ export function TrackballPage() {
   const tempLayerLayerSave = useDebouncedSave<number>();
   const tempLayerActivationDelaySave = useDebouncedSave<number>();
   const tempLayerDeactivationDelaySave = useDebouncedSave<number>();
-  const activeLayersSave = useDebouncedSave<number[]>();
+  const activeLayersSave = useDebouncedSave<number>();
 
   // Track previous processor to detect changes and reset pending state
   const previousProcessorRef = useRef<string | null>(null);
@@ -77,6 +82,7 @@ export function TrackballPage() {
     tempLayerDeactivationDelaySave.reset();
     activeLayersSave.reset();
     setRotationEnabled(processor?.rotationDegrees !== 0);
+    setActiveLayersMode(processor?.activeLayers === 0 ? "all" : "specific");
   }
 
   // Calculate display values with pending states
@@ -99,26 +105,13 @@ export function TrackballPage() {
     processor?.tempLayerDeactivationDelayMs ??
     500;
   const displayActiveLayers =
-    activeLayersSave.pendingValue ?? processor?.activeLayers ?? [];
+    activeLayersSave.pendingValue ?? processor?.activeLayers ?? 0;
 
   // Calculate final scaling value (multiplier/divisor)
   const finalScalingValue =
     displayScalingDivisor !== 0
       ? displayScalingMultiplier / displayScalingDivisor
       : 1;
-
-  // Aggregate save status from all debounced saves
-  const saveStatus =
-    [
-      scalingMultiplierSave,
-      scalingDivisorSave,
-      rotationSave,
-      tempLayerEnabledSave,
-      tempLayerLayerSave,
-      tempLayerActivationDelaySave,
-      tempLayerDeactivationDelaySave,
-      activeLayersSave,
-    ].find((save) => save.saveStatus !== "idle")?.saveStatus ?? "idle";
 
   // Handler functions using useDebouncedSave
   const handleScalingMultiplierChange = (multiplier: number) => {
@@ -197,19 +190,28 @@ export function TrackballPage() {
     });
   };
 
-  const handleActiveLayersChange = (layerIds: number[]) => {
-    if (!processor) return;
-    activeLayersSave.setPendingValue(layerIds, async (value) => {
-      await setActiveLayers(processor.id, value);
-    });
+  const handleActiveLayersModeChange = (mode: "all" | "specific") => {
+    setActiveLayersMode(mode);
+    if (mode === "all" && processor) {
+      // Set bitmask to 0 for all layers
+      activeLayersSave.setPendingValue(0, async () => {
+        await setActiveLayers(processor.id, 0);
+      });
+    }
   };
 
   const handleLayerToggle = (layerId: number) => {
-    const currentLayers = displayActiveLayers;
-    const newLayers = currentLayers.includes(layerId)
-      ? currentLayers.filter((id) => id !== layerId)
-      : [...currentLayers, layerId];
-    handleActiveLayersChange(newLayers);
+    if (!processor) return;
+    const currentBitmask = displayActiveLayers;
+    const layerBit = 1 << layerId;
+    const newBitmask =
+      (currentBitmask & layerBit) !== 0
+        ? currentBitmask & ~layerBit // Clear bit
+        : currentBitmask | layerBit; // Set bit
+
+    activeLayersSave.setPendingValue(newBitmask, async (value) => {
+      await setActiveLayers(processor.id, value);
+    });
   };
 
   return (
@@ -262,9 +264,12 @@ export function TrackballPage() {
             {/* Processor Selector (if multiple processors) */}
             {processors.length > 1 && (
               <div className="glass-card p-6">
-                <h3 className="text-sm font-medium text-[var(--color-text)] mb-4">
+                <h3 className="text-sm font-medium text-[var(--color-text)] mb-2">
                   Select Processor
                 </h3>
+                <p className="text-xs text-[var(--color-text-muted)] mb-4">
+                  {processors.length} processors detected
+                </p>
                 <select
                   value={selectedProcessorIndex}
                   onChange={(e) =>
@@ -281,78 +286,64 @@ export function TrackballPage() {
               </div>
             )}
 
-            {/* Processor Info with Save Status */}
-            <div className="glass-card p-4 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-[var(--color-text)]">
-                  Active Processor
-                </p>
-                <p className="text-xs text-[var(--color-text-muted)]">
-                  {processors.length > 1
-                    ? "Selected processor"
-                    : "Detected from device"}
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-mono text-[var(--color-neon)]">
-                  {processor.name}
-                </span>
-                {saveStatus !== "idle" && (
-                  <div className="flex items-center gap-2">
-                    {saveStatus === "pending" && (
-                      <span className="text-xs text-[var(--color-text-muted)]">
-                        Pending...
-                      </span>
-                    )}
-                    {saveStatus === "saving" && (
-                      <span className="text-xs text-[var(--color-electric)]">
-                        Saving...
-                      </span>
-                    )}
-                    {saveStatus === "saved" && (
-                      <div className="flex items-center gap-1 text-[var(--color-neon)]">
-                        <IconCheck size={16} />
-                        <span className="text-xs">Saved</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-
             {/* Active Layers Selection */}
             <div className="glass-card p-6">
-              <h3 className="text-sm font-medium text-[var(--color-text)] mb-4">
-                Active on Layers
-              </h3>
-              <p className="text-xs text-[var(--color-text-muted)] mb-4">
-                Select which layers this processor should be active on. Empty
-                selection means active on all layers.
-              </p>
-              <div className="space-y-2">
-                {layers.length > 0 ? (
-                  layers.map((layer) => (
-                    <label
-                      key={layer.id}
-                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-[var(--color-border)]/50 cursor-pointer transition-colors"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={displayActiveLayers.includes(layer.id)}
-                        onChange={() => handleLayerToggle(layer.id)}
-                        className="w-4 h-4 rounded border-[var(--color-border)] text-[var(--color-electric)] focus:ring-[var(--color-electric)] focus:ring-offset-0 cursor-pointer"
-                      />
-                      <span className="text-sm text-[var(--color-text-secondary)]">
-                        {layer.name || `Layer ${layer.id}`}
-                      </span>
-                    </label>
-                  ))
-                ) : (
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-sm font-medium text-[var(--color-text)]">
+                    Active on Layers
+                  </h3>
                   <p className="text-xs text-[var(--color-text-muted)]">
-                    Loading layers...
+                    Configure which layers this processor is active on
                   </p>
-                )}
+                </div>
+                <Switch.Root
+                  checked={activeLayersMode === "specific"}
+                  onCheckedChange={(checked) =>
+                    handleActiveLayersModeChange(checked ? "specific" : "all")
+                  }
+                  className="w-11 h-6 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-surface)] border border-[var(--color-border)] transition-colors cursor-pointer"
+                >
+                  <Switch.Thumb className="block w-5 h-5 bg-white rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform" />
+                </Switch.Root>
               </div>
+
+              {activeLayersMode === "specific" && (
+                <div className="space-y-2 mt-4">
+                  {layers.length > 0 ? (
+                    layers.map((layer) => {
+                      const isChecked =
+                        (displayActiveLayers & (1 << layer.id)) !== 0;
+                      return (
+                        <label
+                          key={layer.id}
+                          className="flex items-center gap-3 p-2 rounded-lg hover:bg-[var(--color-border)]/50 cursor-pointer transition-colors"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => handleLayerToggle(layer.id)}
+                            className="w-4 h-4 rounded border-[var(--color-border)] text-[var(--color-electric)] focus:ring-[var(--color-electric)] focus:ring-offset-0 cursor-pointer"
+                          />
+                          <span className="text-sm text-[var(--color-text-secondary)]">
+                            {layer.name || `Layer ${layer.id}`}
+                          </span>
+                        </label>
+                      );
+                    })
+                  ) : (
+                    <p className="text-xs text-[var(--color-text-muted)]">
+                      Loading layers...
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {activeLayersMode === "all" && (
+                <p className="text-sm text-[var(--color-text-secondary)] mt-4">
+                  Processor is active on all layers
+                </p>
+              )}
             </div>
 
             {/* Scaling Setting */}
@@ -651,27 +642,6 @@ export function TrackballPage() {
                   </div>
                 </div>
               )}
-            </div>
-
-            {/* Current Settings Display */}
-            <div className="glass-card p-6">
-              <h3 className="text-sm font-medium text-[var(--color-text)] mb-4">
-                Current Configuration
-              </h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="data-card">
-                  <span className="data-card-label">Scale Multiplier</span>
-                  <span className="data-card-value text-[var(--color-neon)]">
-                    {processor.scaleMultiplier}
-                  </span>
-                </div>
-                <div className="data-card">
-                  <span className="data-card-label">Scale Divisor</span>
-                  <span className="data-card-value text-[var(--color-neon)]">
-                    {processor.scaleDivisor}
-                  </span>
-                </div>
-              </div>
             </div>
           </div>
         )}

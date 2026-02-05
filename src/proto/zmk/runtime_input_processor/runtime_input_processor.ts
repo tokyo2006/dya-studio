@@ -26,8 +26,8 @@ export interface ProcessorInfo {
   tempLayerLayer: number;
   tempLayerActivationDelayMs: number;
   tempLayerDeactivationDelayMs: number;
-  /** Active layers (list of layer IDs on which this processor is active, empty = all layers) */
-  activeLayers: number[];
+  /** Active layers bitmask (0 = all layers) */
+  activeLayers: number;
 }
 
 /** Information about a keyboard layer */
@@ -128,7 +128,8 @@ export interface SetTempLayerDeactivationDelayResponse {
 /** Request to set active layers for a processor */
 export interface SetActiveLayersRequest {
   id: number;
-  layers: number[];
+  /** Bitmask of layers where processor is active (0 = all) */
+  layers: number;
 }
 
 export interface SetActiveLayersResponse {
@@ -201,7 +202,7 @@ function createBaseProcessorInfo(): ProcessorInfo {
     tempLayerLayer: 0,
     tempLayerActivationDelayMs: 0,
     tempLayerDeactivationDelayMs: 0,
-    activeLayers: [],
+    activeLayers: 0,
   };
 }
 
@@ -234,11 +235,9 @@ export const ProcessorInfo: MessageFns<ProcessorInfo> = {
     if (message.tempLayerDeactivationDelayMs !== 0) {
       writer.uint32(72).uint32(message.tempLayerDeactivationDelayMs);
     }
-    writer.uint32(82).fork();
-    for (const v of message.activeLayers) {
-      writer.uint32(v);
+    if (message.activeLayers !== 0) {
+      writer.uint32(80).uint32(message.activeLayers);
     }
-    writer.join();
     return writer;
   },
 
@@ -322,22 +321,12 @@ export const ProcessorInfo: MessageFns<ProcessorInfo> = {
           continue;
         }
         case 10: {
-          if (tag === 80) {
-            message.activeLayers.push(reader.uint32());
-
-            continue;
+          if (tag !== 80) {
+            break;
           }
 
-          if (tag === 82) {
-            const end2 = reader.uint32() + reader.pos;
-            while (reader.pos < end2) {
-              message.activeLayers.push(reader.uint32());
-            }
-
-            continue;
-          }
-
-          break;
+          message.activeLayers = reader.uint32();
+          continue;
         }
       }
       if ((tag & 7) === 4 || tag === 0) {
@@ -362,7 +351,7 @@ export const ProcessorInfo: MessageFns<ProcessorInfo> = {
     message.tempLayerLayer = object.tempLayerLayer ?? 0;
     message.tempLayerActivationDelayMs = object.tempLayerActivationDelayMs ?? 0;
     message.tempLayerDeactivationDelayMs = object.tempLayerDeactivationDelayMs ?? 0;
-    message.activeLayers = object.activeLayers?.map((e) => e) || [];
+    message.activeLayers = object.activeLayers ?? 0;
     return message;
   },
 };
@@ -1312,7 +1301,7 @@ export const SetTempLayerDeactivationDelayResponse: MessageFns<SetTempLayerDeact
 };
 
 function createBaseSetActiveLayersRequest(): SetActiveLayersRequest {
-  return { id: 0, layers: [] };
+  return { id: 0, layers: 0 };
 }
 
 export const SetActiveLayersRequest: MessageFns<SetActiveLayersRequest> = {
@@ -1320,11 +1309,9 @@ export const SetActiveLayersRequest: MessageFns<SetActiveLayersRequest> = {
     if (message.id !== 0) {
       writer.uint32(8).uint32(message.id);
     }
-    writer.uint32(18).fork();
-    for (const v of message.layers) {
-      writer.uint32(v);
+    if (message.layers !== 0) {
+      writer.uint32(16).uint32(message.layers);
     }
-    writer.join();
     return writer;
   },
 
@@ -1344,22 +1331,12 @@ export const SetActiveLayersRequest: MessageFns<SetActiveLayersRequest> = {
           continue;
         }
         case 2: {
-          if (tag === 16) {
-            message.layers.push(reader.uint32());
-
-            continue;
+          if (tag !== 16) {
+            break;
           }
 
-          if (tag === 18) {
-            const end2 = reader.uint32() + reader.pos;
-            while (reader.pos < end2) {
-              message.layers.push(reader.uint32());
-            }
-
-            continue;
-          }
-
-          break;
+          message.layers = reader.uint32();
+          continue;
         }
       }
       if ((tag & 7) === 4 || tag === 0) {
@@ -1376,7 +1353,7 @@ export const SetActiveLayersRequest: MessageFns<SetActiveLayersRequest> = {
   fromPartial(object: DeepPartial<SetActiveLayersRequest>): SetActiveLayersRequest {
     const message = createBaseSetActiveLayersRequest();
     message.id = object.id ?? 0;
-    message.layers = object.layers?.map((e) => e) || [];
+    message.layers = object.layers ?? 0;
     return message;
   },
 };

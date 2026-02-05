@@ -28,7 +28,7 @@ const MOCK_PROCESSORS: ProcessorInfo[] = [
     tempLayerLayer: 0,
     tempLayerActivationDelayMs: 100,
     tempLayerDeactivationDelayMs: 500,
-    activeLayers: [], // Empty = active on all layers
+    activeLayers: 0, // Bitmask: 0 = active on all layers
   },
 ];
 

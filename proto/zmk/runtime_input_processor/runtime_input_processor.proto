@@ -19,8 +19,8 @@ message ProcessorInfo {
     uint32 temp_layer_layer = 7;
     uint32 temp_layer_activation_delay_ms = 8;
     uint32 temp_layer_deactivation_delay_ms = 9;
-    // Active layers (list of layer IDs on which this processor is active, empty = all layers)
-    repeated uint32 active_layers = 10;
+    // Active layers bitmask (0 = all layers)
+    uint32 active_layers = 10;
 }
 
 // Information about a keyboard layer
@@ -111,7 +111,7 @@ message SetTempLayerDeactivationDelayResponse {}
 // Request to set active layers for a processor
 message SetActiveLayersRequest {
     uint32 id = 1;
-    repeated uint32 layers = 2;
+    uint32 layers = 2;  // Bitmask of layers where processor is active (0 = all)
 }
 
 message SetActiveLayersResponse {}

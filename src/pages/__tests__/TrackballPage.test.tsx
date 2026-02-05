@@ -25,7 +25,7 @@ const createMockProcessor = (overrides = {}) => ({
   tempLayerLayer: 0,
   tempLayerActivationDelayMs: 100,
   tempLayerDeactivationDelayMs: 500,
-  activeLayers: [],
+  activeLayers: 0,
   ...overrides,
 });
 
@@ -107,8 +107,9 @@ describe("TrackballPage", () => {
 
     render(<TrackballPage />);
 
-    expect(screen.getByText("Active Processor")).toBeInTheDocument();
-    expect(screen.getByText("trackpad")).toBeInTheDocument();
+    // Check for "Active on Layers" section instead
+    expect(screen.getByText("Active on Layers")).toBeInTheDocument();
+    expect(screen.getByText("Scaling")).toBeInTheDocument();
   });
 
   it("should display current speed settings", () => {
@@ -197,10 +198,10 @@ describe("TrackballPage", () => {
 
     render(<TrackballPage />);
 
-    // Find all switches (rotation and temp layer)
+    // Find all switches (active layers toggle, rotation toggle, temp layer toggle)
     const switches = screen.getAllByRole("switch");
-    // First switch is rotation toggle, should be enabled since rotation is 90
-    const rotationToggle = switches[0];
+    // Second switch is rotation toggle (first is active layers mode), should be enabled since rotation is 90
+    const rotationToggle = switches[1];
     // Toggle it off
     await user.click(rotationToggle);
 
@@ -230,11 +231,10 @@ describe("TrackballPage", () => {
 
     render(<TrackballPage />);
 
-    expect(screen.getByText("Current Configuration")).toBeInTheDocument();
-    expect(screen.getByText("Scale Multiplier")).toBeInTheDocument();
-    expect(screen.getByText("3")).toBeInTheDocument();
-    expect(screen.getByText("Scale Divisor")).toBeInTheDocument();
-    expect(screen.getByText("2")).toBeInTheDocument();
+    // Test that the scaling section shows the calculated value
+    expect(screen.getByText("Scaling")).toBeInTheDocument();
+    // The final scaling value should be displayed (3/2 = 1.50x)
+    expect(screen.getByText("1.50x")).toBeInTheDocument();
   });
 
   it("should display info message about runtime input processor", () => {
