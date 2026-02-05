@@ -11,8 +11,7 @@ import {
   type ProcessorInfo,
 } from "../../proto/zmk/runtime_input_processor/runtime_input_processor";
 
-export const RUNTIME_INPUT_PROCESSOR_IDENTIFIER =
-  "zmk__runtime_input_processor";
+export const RUNTIME_INPUT_PROCESSOR_IDENTIFIER = "cormoran_rip";
 
 /**
  * Mock runtime input processor data

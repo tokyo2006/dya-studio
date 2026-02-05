@@ -12,7 +12,7 @@ import {
 
 // Subsystem identifier for ZMK runtime input processor custom protocol
 // This matches the identifier registered in the ZMK firmware module
-const SUBSYSTEM_IDENTIFIER = "zmk__runtime_input_processor";
+const SUBSYSTEM_IDENTIFIER = "cormoran_rip";
 
 // Time to wait for all notifications to arrive after requesting processors
 const NOTIFICATION_COLLECTION_TIMEOUT_MS = 500;

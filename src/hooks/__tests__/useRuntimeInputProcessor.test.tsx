@@ -135,13 +135,11 @@ describe("useRuntimeInputProcessor", () => {
       const wrapper = createWrapper({
         state: {
           connection: mockConnection as never,
-          customSubsystems: [
-            { index: 0, identifier: "zmk__runtime_input_processor" },
-          ],
+          customSubsystems: [{ index: 0, identifier: "cormoran_rip" }],
         },
         findSubsystem: (id: string) =>
-          id === "zmk__runtime_input_processor"
-            ? { index: 0, identifier: "zmk__runtime_input_processor" }
+          id === "cormoran_rip"
+            ? { index: 0, identifier: "cormoran_rip" }
             : null,
         onNotification: mockOnNotification,
       });
@@ -205,8 +203,8 @@ describe("useRuntimeInputProcessor", () => {
           customSubsystems: [],
         },
         findSubsystem: (id: string) =>
-          id === "zmk__runtime_input_processor"
-            ? { index: 0, identifier: "zmk__runtime_input_processor" }
+          id === "cormoran_rip"
+            ? { index: 0, identifier: "cormoran_rip" }
             : null,
         onNotification: mockOnNotification,
       });
@@ -263,13 +261,11 @@ describe("useRuntimeInputProcessor", () => {
       const wrapper = createWrapper({
         state: {
           connection: mockConnection as never,
-          customSubsystems: [
-            { index: 0, identifier: "zmk__runtime_input_processor" },
-          ],
+          customSubsystems: [{ index: 0, identifier: "cormoran_rip" }],
         },
         findSubsystem: (id: string) =>
-          id === "zmk__runtime_input_processor"
-            ? { index: 0, identifier: "zmk__runtime_input_processor" }
+          id === "cormoran_rip"
+            ? { index: 0, identifier: "cormoran_rip" }
             : null,
         onNotification: mockOnNotification,
       });
@@ -370,13 +366,11 @@ describe("useRuntimeInputProcessor", () => {
       const wrapper = createWrapper({
         state: {
           connection: mockConnection as never,
-          customSubsystems: [
-            { index: 0, identifier: "zmk__runtime_input_processor" },
-          ],
+          customSubsystems: [{ index: 0, identifier: "cormoran_rip" }],
         },
         findSubsystem: (id: string) =>
-          id === "zmk__runtime_input_processor"
-            ? { index: 0, identifier: "zmk__runtime_input_processor" }
+          id === "cormoran_rip"
+            ? { index: 0, identifier: "cormoran_rip" }
             : null,
         onNotification: mockOnNotification,
       });
@@ -452,13 +446,11 @@ describe("useRuntimeInputProcessor", () => {
       const wrapper = createWrapper({
         state: {
           connection: mockConnection as never,
-          customSubsystems: [
-            { index: 0, identifier: "zmk__runtime_input_processor" },
-          ],
+          customSubsystems: [{ index: 0, identifier: "cormoran_rip" }],
         },
         findSubsystem: (id: string) =>
-          id === "zmk__runtime_input_processor"
-            ? { index: 0, identifier: "zmk__runtime_input_processor" }
+          id === "cormoran_rip"
+            ? { index: 0, identifier: "cormoran_rip" }
             : null,
         onNotification: mockOnNotification,
       });
@@ -486,13 +478,11 @@ describe("useRuntimeInputProcessor", () => {
       const wrapper = createWrapper({
         state: {
           connection: mockConnection as never,
-          customSubsystems: [
-            { index: 0, identifier: "zmk__runtime_input_processor" },
-          ],
+          customSubsystems: [{ index: 0, identifier: "cormoran_rip" }],
         },
         findSubsystem: (id: string) =>
-          id === "zmk__runtime_input_processor"
-            ? { index: 0, identifier: "zmk__runtime_input_processor" }
+          id === "cormoran_rip"
+            ? { index: 0, identifier: "cormoran_rip" }
             : null,
         onNotification: mockOnNotification,
       });

@@ -11,7 +11,7 @@ import {
 
 // Subsystem identifier for ZMK BLE management custom protocol
 // This matches the identifier registered in the ZMK firmware module
-const SUBSYSTEM_IDENTIFIER = "zmk__ble_management";
+const SUBSYSTEM_IDENTIFIER = "cormoran_ble";
 
 export interface BLEProfile {
   index: number;
