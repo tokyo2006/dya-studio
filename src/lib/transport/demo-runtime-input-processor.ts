@@ -303,6 +303,87 @@ export class RuntimeInputProcessorHandler {
       return { error: { message: `Processor not found: ${id}` } };
     }
 
+    if (request.setSnapMode !== undefined) {
+      const { id, mode } = request.setSnapMode;
+      const processor = this.processors.find((p) => p.id === id);
+
+      if (processor) {
+        processor.snapMode = mode;
+
+        // Send notification about the update
+        setTimeout(() => {
+          console.log("Demo sending updated processor settings:", processor);
+          this.callbacks.forEach((cb) => {
+            cb(
+              Notification.encode({
+                processorChanged: {
+                  processor,
+                },
+              }).finish(),
+            );
+          });
+        }, 50);
+
+        return { setSnapMode: {} };
+      }
+
+      return { error: { message: `Processor not found: ${id}` } };
+    }
+
+    if (request.setSnapThreshold !== undefined) {
+      const { id, threshold } = request.setSnapThreshold;
+      const processor = this.processors.find((p) => p.id === id);
+
+      if (processor) {
+        processor.snapThreshold = threshold;
+
+        // Send notification about the update
+        setTimeout(() => {
+          console.log("Demo sending updated processor settings:", processor);
+          this.callbacks.forEach((cb) => {
+            cb(
+              Notification.encode({
+                processorChanged: {
+                  processor,
+                },
+              }).finish(),
+            );
+          });
+        }, 50);
+
+        return { setSnapThreshold: {} };
+      }
+
+      return { error: { message: `Processor not found: ${id}` } };
+    }
+
+    if (request.setSnapDecay !== undefined) {
+      const { id, decayMs } = request.setSnapDecay;
+      const processor = this.processors.find((p) => p.id === id);
+
+      if (processor) {
+        processor.snapDecayMs = decayMs;
+
+        // Send notification about the update
+        setTimeout(() => {
+          console.log("Demo sending updated processor settings:", processor);
+          this.callbacks.forEach((cb) => {
+            cb(
+              Notification.encode({
+                processorChanged: {
+                  processor,
+                },
+              }).finish(),
+            );
+          });
+        }, 50);
+
+        return { setSnapDecay: {} };
+      }
+
+      return { error: { message: `Processor not found: ${id}` } };
+    }
+
     if (request.getLayerInfo !== undefined) {
       return { getLayerInfo: { layers: MOCK_LAYERS } };
     }
