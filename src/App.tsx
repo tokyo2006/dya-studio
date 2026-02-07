@@ -4,6 +4,7 @@ import {
   IconBattery2,
   IconBluetooth,
   IconHeartRateMonitor,
+  IconHome,
   IconKeyboard,
   IconPointer,
   IconSettings,
@@ -18,6 +19,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { TabNavigation } from "./components/TabNavigation";
 import type { TabItem } from "./components/TabNavigation";
 import { AppLayout } from "./layouts/AppLayout";
+import { HomePage } from "./pages/HomePage";
 import { BatteryPage } from "./pages/BatteryPage";
 import { BLEConnectionsPage } from "./pages/BLEConnectionsPage";
 import { HealthCheckPage } from "./pages/HealthCheckPage";
@@ -26,6 +28,12 @@ import { TrackballPage } from "./pages/TrackballPage";
 import { SettingsPage } from "./pages/SettingsPage";
 
 const tabs: TabItem[] = [
+  {
+    id: "home",
+    label: "Home",
+    icon: <IconHome size={18} />,
+    content: <HomePage />,
+  },
   {
     id: "battery",
     label: "Battery",
@@ -76,7 +84,7 @@ function App() {
 
 function AppContent() {
   const connection = useContext(ConnectionContext);
-  const [activeTab, setActiveTab] = useState("battery");
+  const [activeTab, setActiveTab] = useState("home");
 
   const setActiveTabWithTracking = useCallback(
     (tabId: string) => {
