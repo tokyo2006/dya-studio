@@ -1,4 +1,4 @@
-import { useState, useContext } from "react";
+import { useState, useContext, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   IconBattery2,
@@ -78,6 +78,27 @@ function AppContent() {
   const connection = useContext(ConnectionContext);
   const [activeTab, setActiveTab] = useState("battery");
 
+  const setActiveTabWithTracking = useCallback(
+    (tabId: string) => {
+      // Google Analytics pageview tracking
+      if (window.gtag) {
+        window.gtag("event", "page_view", {
+          page_title: tabs.find((tab) => tab.id === tabId)?.label || "Unknown",
+          page_path: `/${tabId}`,
+        });
+      }
+      setActiveTab(tabId);
+    },
+    [setActiveTab],
+  );
+  useEffect(() => {
+    if (connection.deviceName && window.gtag) {
+      window.gtag("event", "keyboard_connected", {
+        name: connection.deviceName,
+      });
+    }
+  }, [connection.deviceName]);
+
   return (
     <>
       <AnimatePresence>
@@ -114,7 +135,7 @@ function AppContent() {
             <TabNavigation
               tabs={tabs}
               activeTab={activeTab}
-              onTabChange={setActiveTab}
+              onTabChange={setActiveTabWithTracking}
             />
           </AppLayout>
         </motion.div>
