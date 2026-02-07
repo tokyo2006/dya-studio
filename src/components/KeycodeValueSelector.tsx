@@ -37,7 +37,7 @@ const KEYCODE_CATEGORY_ORDER: KeycodeCategory[] = [
 
 interface KeycodeValueSelectorProps {
   value: number;
-  onChange: (value: number) => void;
+  onChange: (value: number, shouldNotClose?: boolean) => void;
   showModifiers?: boolean;
 }
 
@@ -94,7 +94,7 @@ export function KeycodeValueSelector({
       // Update the current value with new modifiers if a keycode is selected
       const baseCode = extractBaseKeycode(value);
       if (baseCode !== NO_PARAM_VALUE) {
-        onChange(combineWithModifiers(baseCode, newModifiers));
+        onChange(combineWithModifiers(baseCode, newModifiers), true);
       }
     },
     [selectedModifiers, value, onChange],

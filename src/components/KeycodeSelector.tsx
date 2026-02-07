@@ -9,7 +9,7 @@
  * - Close on select: Automatically close the dialog after selecting the last parameter
  *   (setting is persisted in localStorage)
  */
-import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { IconX } from "@tabler/icons-react";
 import {
@@ -208,11 +208,11 @@ export function KeycodeSelector({
   const [activeParam, setActiveParam] = useState<1 | 2>(1);
   const [closeOnSelect, setCloseOnSelect] = useState<boolean>(() => {
     const saved = localStorage.getItem("keycodeSelectorCloseOnSelect");
-    return saved !== null ? saved === "true" : false;
+    return saved !== null ? saved === "true" : true;
   });
 
   // Initial values to detect changes
-  const initialValuesRef = useRef<{
+  const [initialValues, setInitialValues] = useState<{
     behaviorId: number | null;
     param1: number;
     param2: number;
@@ -226,11 +226,11 @@ export function KeycodeSelector({
   // Check if values have changed
   const hasChanges = useMemo(() => {
     return (
-      selectedBehavior !== initialValuesRef.current.behaviorId ||
-      param1 !== initialValuesRef.current.param1 ||
-      param2 !== initialValuesRef.current.param2
+      selectedBehavior !== initialValues.behaviorId ||
+      param1 !== initialValues.param1 ||
+      param2 !== initialValues.param2
     );
-  }, [selectedBehavior, param1, param2]);
+  }, [selectedBehavior, param1, param2, initialValues]);
 
   // Get selected behavior info
   const selectedBehaviorInfo = useMemo((): SelectedBehaviorInfo | null => {
@@ -326,12 +326,16 @@ export function KeycodeSelector({
 
   // Handle param1 change
   const handleParam1Change = useCallback(
-    (value: number) => {
+    (value: number, shouldNotClose?: boolean) => {
       setParam1(value);
       // Auto-advance to param2 if needed
       if (needsParam2) {
         setActiveParam(2);
-      } else if (closeOnSelect && selectedBehavior !== null) {
+      } else if (
+        shouldNotClose !== true &&
+        closeOnSelect &&
+        selectedBehavior !== null
+      ) {
         // If param1 is the last param and closeOnSelect is enabled, apply and close
         onSelect({
           behaviorId: selectedBehavior,
@@ -346,10 +350,14 @@ export function KeycodeSelector({
 
   // Handle param2 change
   const handleParam2Change = useCallback(
-    (value: number) => {
+    (value: number, shouldNotClose?: boolean) => {
       setParam2(value);
       // If param2 is set and closeOnSelect is enabled, apply and close
-      if (closeOnSelect && selectedBehavior !== null) {
+      if (
+        shouldNotClose !== true &&
+        closeOnSelect &&
+        selectedBehavior !== null
+      ) {
         onSelect({
           behaviorId: selectedBehavior,
           param1,
@@ -363,11 +371,11 @@ export function KeycodeSelector({
 
   // Handle revert button click
   const handleRevert = useCallback(() => {
-    setSelectedBehavior(initialValuesRef.current.behaviorId);
-    setParam1(initialValuesRef.current.param1);
-    setParam2(initialValuesRef.current.param2);
+    setSelectedBehavior(initialValues.behaviorId);
+    setParam1(initialValues.param1);
+    setParam2(initialValues.param2);
     setActiveParam(1);
-  }, []);
+  }, [initialValues.behaviorId, initialValues.param1, initialValues.param2]);
 
   // Reset state when dialog opens
   const handleOpenChange = useCallback(
@@ -378,12 +386,11 @@ export function KeycodeSelector({
           setSelectedBehavior(currentBinding.behaviorId);
           setParam1(currentBinding.param1);
           setParam2(currentBinding.param2);
-          // Set initial values
-          initialValuesRef.current = {
+          setInitialValues({
             behaviorId: currentBinding.behaviorId,
             param1: currentBinding.param1,
             param2: currentBinding.param2,
-          };
+          });
         } else {
           // Default to keypress behavior
           const kpMetadata = getBehaviorMetadata("kp");
@@ -393,12 +400,11 @@ export function KeycodeSelector({
             );
             if (kpBehavior) {
               setSelectedBehavior(kpBehavior.id);
-              // Set initial values
-              initialValuesRef.current = {
+              setInitialValues({
                 behaviorId: kpBehavior.id,
                 param1: 0,
                 param2: 0,
-              };
+              });
             }
           }
           setParam1(0);
@@ -413,12 +419,11 @@ export function KeycodeSelector({
             param1,
             param2,
           });
-          // Update initial values to current values after applying
-          initialValuesRef.current = {
+          setInitialValues({
             behaviorId: selectedBehavior,
-            param1,
-            param2,
-          };
+            param1: param1,
+            param2: param2,
+          });
         }
         onClose();
       }
@@ -444,7 +449,11 @@ export function KeycodeSelector({
 
   // Render parameter value selector based on type
   const renderParamValueSelector = useCallback(
-    (value: number, onChange: (v: number) => void, paramNumber: 1 | 2) => {
+    (
+      value: number,
+      onChange: (v: number, shouldNotClose?: boolean) => void,
+      paramNumber: 1 | 2,
+    ) => {
       // Get paramType from selectedBehaviorInfo
       const paramType = selectedBehaviorInfo
         ? paramNumber === 1
