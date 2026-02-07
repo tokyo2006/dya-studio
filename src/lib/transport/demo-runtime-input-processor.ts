@@ -9,7 +9,7 @@ import {
   type Request,
   type Response,
   type ProcessorInfo,
-  SnapMode,
+  AxisSnapMode,
 } from "../../proto/zmk/runtime_input_processor/runtime_input_processor";
 
 export const RUNTIME_INPUT_PROCESSOR_IDENTIFIER = "cormoran_rip";
@@ -30,9 +30,9 @@ const MOCK_PROCESSORS: ProcessorInfo[] = [
     tempLayerActivationDelayMs: 100,
     tempLayerDeactivationDelayMs: 500,
     activeLayers: 0, // Bitmask: 0 = active on all layers
-    snapMode: SnapMode.SNAP_DISABLED,
-    snapThreshold: 50,
-    snapDecayMs: 200,
+    axisSnapMode: AxisSnapMode.AXIS_SNAP_MODE_NONE,
+    axisSnapThreshold: 50,
+    axisSnapTimeoutMs: 200,
   },
 ];
 
@@ -303,12 +303,12 @@ export class RuntimeInputProcessorHandler {
       return { error: { message: `Processor not found: ${id}` } };
     }
 
-    if (request.setSnapMode !== undefined) {
-      const { id, mode } = request.setSnapMode;
+    if (request.setAxisSnapMode !== undefined) {
+      const { id, mode } = request.setAxisSnapMode;
       const processor = this.processors.find((p) => p.id === id);
 
       if (processor) {
-        processor.snapMode = mode;
+        processor.axisSnapMode = mode;
 
         // Send notification about the update
         setTimeout(() => {
@@ -324,18 +324,18 @@ export class RuntimeInputProcessorHandler {
           });
         }, 50);
 
-        return { setSnapMode: {} };
+        return { setAxisSnapMode: {} };
       }
 
       return { error: { message: `Processor not found: ${id}` } };
     }
 
-    if (request.setSnapThreshold !== undefined) {
-      const { id, threshold } = request.setSnapThreshold;
+    if (request.setAxisSnapThreshold !== undefined) {
+      const { id, threshold } = request.setAxisSnapThreshold;
       const processor = this.processors.find((p) => p.id === id);
 
       if (processor) {
-        processor.snapThreshold = threshold;
+        processor.axisSnapThreshold = threshold;
 
         // Send notification about the update
         setTimeout(() => {
@@ -351,18 +351,18 @@ export class RuntimeInputProcessorHandler {
           });
         }, 50);
 
-        return { setSnapThreshold: {} };
+        return { setAxisSnapThreshold: {} };
       }
 
       return { error: { message: `Processor not found: ${id}` } };
     }
 
-    if (request.setSnapDecay !== undefined) {
-      const { id, decayMs } = request.setSnapDecay;
+    if (request.setAxisSnapTimeout !== undefined) {
+      const { id, timeoutMs } = request.setAxisSnapTimeout;
       const processor = this.processors.find((p) => p.id === id);
 
       if (processor) {
-        processor.snapDecayMs = decayMs;
+        processor.axisSnapTimeoutMs = timeoutMs;
 
         // Send notification about the update
         setTimeout(() => {
@@ -378,7 +378,7 @@ export class RuntimeInputProcessorHandler {
           });
         }, 50);
 
-        return { setSnapDecay: {} };
+        return { setAxisSnapTimeout: {} };
       }
 
       return { error: { message: `Processor not found: ${id}` } };

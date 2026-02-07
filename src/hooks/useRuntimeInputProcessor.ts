@@ -9,11 +9,11 @@ import {
   Notification,
   ProcessorInfo,
   LayerInfo,
-  SnapMode,
+  AxisSnapMode,
 } from "../proto/zmk/runtime_input_processor/runtime_input_processor";
 
-// Re-export SnapMode for convenience
-export { SnapMode };
+// Re-export AxisSnapMode for convenience
+export { AxisSnapMode };
 
 // Subsystem identifier for ZMK runtime input processor custom protocol
 // This matches the identifier registered in the ZMK firmware module
@@ -58,9 +58,9 @@ export interface InputProcessor {
   tempLayerActivationDelayMs: number;
   tempLayerDeactivationDelayMs: number;
   activeLayers: number; // Bitmask of active layers (0 = all layers)
-  snapMode: SnapMode;
-  snapThreshold: number;
-  snapDecayMs: number;
+  axisSnapMode: AxisSnapMode;
+  axisSnapThreshold: number;
+  axisSnapTimeoutMs: number;
 }
 
 export interface LayerInformation {
@@ -86,9 +86,9 @@ export interface UseRuntimeInputProcessorReturn {
   setTempLayerActivationDelay: (id: number, delayMs: number) => Promise<void>;
   setTempLayerDeactivationDelay: (id: number, delayMs: number) => Promise<void>;
   setActiveLayers: (id: number, layersBitmask: number) => Promise<void>;
-  setSnapMode: (id: number, mode: SnapMode) => Promise<void>;
-  setSnapThreshold: (id: number, threshold: number) => Promise<void>;
-  setSnapDecay: (id: number, decayMs: number) => Promise<void>;
+  setAxisSnapMode: (id: number, mode: AxisSnapMode) => Promise<void>;
+  setAxisSnapThreshold: (id: number, threshold: number) => Promise<void>;
+  setAxisSnapTimeout: (id: number, timeoutMs: number) => Promise<void>;
 }
 
 export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
@@ -142,9 +142,10 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
             tempLayerDeactivationDelayMs:
               processorInfo.tempLayerDeactivationDelayMs,
             activeLayers: processorInfo.activeLayers || 0,
-            snapMode: processorInfo.snapMode ?? SnapMode.SNAP_DISABLED,
-            snapThreshold: processorInfo.snapThreshold ?? 0,
-            snapDecayMs: processorInfo.snapDecayMs ?? 0,
+            axisSnapMode:
+              processorInfo.axisSnapMode ?? AxisSnapMode.AXIS_SNAP_MODE_NONE,
+            axisSnapThreshold: processorInfo.axisSnapThreshold ?? 0,
+            axisSnapTimeoutMs: processorInfo.axisSnapTimeoutMs ?? 0,
           });
 
           // Update state with all collected processors
@@ -537,8 +538,8 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
     [zmkApp?.state.connection, subsystemIndex, loadProcessors],
   );
 
-  const setSnapMode = useCallback(
-    async (id: number, mode: SnapMode) => {
+  const setAxisSnapMode = useCallback(
+    async (id: number, mode: AxisSnapMode) => {
       if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
 
       setIsLoading(true);
@@ -551,7 +552,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         );
 
         const request = Request.create({
-          setSnapMode: {
+          setAxisSnapMode: {
             id,
             mode,
           },
@@ -570,9 +571,9 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
 
         await loadProcessors();
       } catch (err) {
-        console.error("Failed to set snap mode:", err);
+        console.error("Failed to set axis snap mode:", err);
         setError(
-          `Failed to set snap mode: ${err instanceof Error ? err.message : "Unknown error"}`,
+          `Failed to set axis snap mode: ${err instanceof Error ? err.message : "Unknown error"}`,
         );
       } finally {
         setIsLoading(false);
@@ -581,7 +582,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
     [zmkApp?.state.connection, subsystemIndex, loadProcessors],
   );
 
-  const setSnapThreshold = useCallback(
+  const setAxisSnapThreshold = useCallback(
     async (id: number, threshold: number) => {
       if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
 
@@ -595,7 +596,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         );
 
         const request = Request.create({
-          setSnapThreshold: {
+          setAxisSnapThreshold: {
             id,
             threshold,
           },
@@ -614,9 +615,9 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
 
         await loadProcessors();
       } catch (err) {
-        console.error("Failed to set snap threshold:", err);
+        console.error("Failed to set axis snap threshold:", err);
         setError(
-          `Failed to set snap threshold: ${err instanceof Error ? err.message : "Unknown error"}`,
+          `Failed to set axis snap threshold: ${err instanceof Error ? err.message : "Unknown error"}`,
         );
       } finally {
         setIsLoading(false);
@@ -625,8 +626,8 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
     [zmkApp?.state.connection, subsystemIndex, loadProcessors],
   );
 
-  const setSnapDecay = useCallback(
-    async (id: number, decayMs: number) => {
+  const setAxisSnapTimeout = useCallback(
+    async (id: number, timeoutMs: number) => {
       if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
 
       setIsLoading(true);
@@ -639,9 +640,9 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         );
 
         const request = Request.create({
-          setSnapDecay: {
+          setAxisSnapTimeout: {
             id,
-            decayMs,
+            timeoutMs,
           },
         });
 
@@ -658,9 +659,9 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
 
         await loadProcessors();
       } catch (err) {
-        console.error("Failed to set snap decay:", err);
+        console.error("Failed to set axis snap timeout:", err);
         setError(
-          `Failed to set snap decay: ${err instanceof Error ? err.message : "Unknown error"}`,
+          `Failed to set axis snap timeout: ${err instanceof Error ? err.message : "Unknown error"}`,
         );
       } finally {
         setIsLoading(false);
@@ -739,8 +740,8 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
     setTempLayerActivationDelay,
     setTempLayerDeactivationDelay,
     setActiveLayers,
-    setSnapMode,
-    setSnapThreshold,
-    setSnapDecay,
+    setAxisSnapMode,
+    setAxisSnapThreshold,
+    setAxisSnapTimeout,
   };
 }

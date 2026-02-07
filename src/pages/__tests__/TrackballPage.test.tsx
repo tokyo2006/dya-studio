@@ -26,6 +26,9 @@ const createMockProcessor = (overrides = {}) => ({
   tempLayerActivationDelayMs: 100,
   tempLayerDeactivationDelayMs: 500,
   activeLayers: 0,
+  axisSnapMode: 0,
+  axisSnapThreshold: 50,
+  axisSnapTimeoutMs: 200,
   ...overrides,
 });
 
@@ -44,6 +47,9 @@ const createMockHookReturn = (overrides = {}) => ({
   setTempLayerActivationDelay: jest.fn(),
   setTempLayerDeactivationDelay: jest.fn(),
   setActiveLayers: jest.fn(),
+  setAxisSnapMode: jest.fn(),
+  setAxisSnapThreshold: jest.fn(),
+  setAxisSnapTimeout: jest.fn(),
   ...overrides,
 });
 
