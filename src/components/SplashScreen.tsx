@@ -1,7 +1,6 @@
 import { motion } from "framer-motion";
 import { IconBluetooth, IconUsb, IconDeviceDesktop } from "@tabler/icons-react";
 import { useMemo } from "react";
-import DyaLogo from "../assets/dya.svg?react";
 import type { ConnectionMethod } from "./DeviceConnection";
 
 interface SplashScreenProps {
@@ -58,32 +57,13 @@ export function SplashScreen({
         transition={{ duration: 1.2, ease: "easeOut", delay: 0.2 }}
       />
 
-      {/* Logo container */}
+      {/* Content container */}
       <motion.div
         className="relative z-10 flex flex-col items-center gap-8"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, ease: "easeOut", delay: 0.2 }}
       >
-        {/* Logo with glow effect */}
-        <motion.div
-          className="relative"
-          animate={{
-            filter: [
-              "drop-shadow(0 0 20px rgba(0, 212, 255, 0.3))",
-              "drop-shadow(0 0 40px rgba(0, 212, 255, 0.5))",
-              "drop-shadow(0 0 20px rgba(0, 212, 255, 0.3))",
-            ],
-          }}
-          transition={{
-            duration: 2,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-        >
-          <DyaLogo className="w-16 h-16 [&_polygon]:fill-[var(--color-text)]" />
-        </motion.div>
-
         {/* Brand name */}
         <motion.div
           className="flex flex-col items-center gap-2"
@@ -112,47 +92,52 @@ export function SplashScreen({
           </p>
 
           {/* Connection buttons */}
-          <div className="flex gap-6">
-            <button
-              onClick={() => onConnect("serial")}
-              disabled={isConnecting || !isSerialAvailable}
-              className="relative w-16 h-16 rounded-full flex items-center justify-center border-2 transition-all disabled:opacity-30 disabled:cursor-not-allowed border-[var(--color-electric)] bg-[var(--color-electric)]/10 hover:bg-[var(--color-electric)]/20 hover:border-[var(--color-electric)] hover:shadow-[0_0_20px_rgba(0,212,255,0.3)]"
-              aria-label="Connect via USB"
-              title={
-                isSerialAvailable
-                  ? "Connect via USB"
-                  : "Web Serial not available in this browser"
-              }
-            >
-              <IconUsb
-                size={28}
-                className="text-[var(--color-electric)] relative z-10"
-                strokeWidth={1.5}
-              />
-              {(isConnecting || !isSerialAvailable) && (
-                <DisabledSlash color="bg-[var(--color-electric)]" />
-              )}
-            </button>
-            <button
-              onClick={() => onConnect("ble")}
-              disabled={isConnecting || !isBLEAvailable}
-              className="relative w-16 h-16 rounded-full flex items-center justify-center border-2 transition-all disabled:opacity-30 disabled:cursor-not-allowed border-[var(--color-neon)] bg-[var(--color-neon)]/10 hover:bg-[var(--color-neon)]/20 hover:border-[var(--color-neon)] hover:shadow-[0_0_20px_rgba(0,255,204,0.3)]"
-              aria-label="Connect via Bluetooth"
-              title={
-                isBLEAvailable
-                  ? "Connect via Bluetooth"
-                  : "Web Bluetooth not available in this browser"
-              }
-            >
-              <IconBluetooth
-                size={28}
-                className="text-[var(--color-neon)] relative z-10"
-                strokeWidth={1.5}
-              />
-              {(isConnecting || !isBLEAvailable) && (
-                <DisabledSlash color="bg-[var(--color-neon)]" />
-              )}
-            </button>
+          <div className="flex flex-col items-center gap-4">
+            {/* Device connection buttons */}
+            <div className="flex gap-6">
+              <button
+                onClick={() => onConnect("serial")}
+                disabled={isConnecting || !isSerialAvailable}
+                className="relative w-16 h-16 rounded-full flex items-center justify-center border-2 transition-all disabled:opacity-30 disabled:cursor-not-allowed border-[var(--color-electric)] bg-[var(--color-electric)]/10 hover:bg-[var(--color-electric)]/20 hover:border-[var(--color-electric)] hover:shadow-[0_0_20px_rgba(0,212,255,0.3)]"
+                aria-label="Connect via USB"
+                title={
+                  isSerialAvailable
+                    ? "Connect via USB"
+                    : "Web Serial not available in this browser"
+                }
+              >
+                <IconUsb
+                  size={28}
+                  className="text-[var(--color-electric)] relative z-10"
+                  strokeWidth={1.5}
+                />
+                {(isConnecting || !isSerialAvailable) && (
+                  <DisabledSlash color="bg-[var(--color-electric)]" />
+                )}
+              </button>
+              <button
+                onClick={() => onConnect("ble")}
+                disabled={isConnecting || !isBLEAvailable}
+                className="relative w-16 h-16 rounded-full flex items-center justify-center border-2 transition-all disabled:opacity-30 disabled:cursor-not-allowed border-[var(--color-neon)] bg-[var(--color-neon)]/10 hover:bg-[var(--color-neon)]/20 hover:border-[var(--color-neon)] hover:shadow-[0_0_20px_rgba(0,255,204,0.3)]"
+                aria-label="Connect via Bluetooth"
+                title={
+                  isBLEAvailable
+                    ? "Connect via Bluetooth"
+                    : "Web Bluetooth not available in this browser"
+                }
+              >
+                <IconBluetooth
+                  size={28}
+                  className="text-[var(--color-neon)] relative z-10"
+                  strokeWidth={1.5}
+                />
+                {(isConnecting || !isBLEAvailable) && (
+                  <DisabledSlash color="bg-[var(--color-neon)]" />
+                )}
+              </button>
+            </div>
+
+            {/* Demo mode button - separated */}
             <button
               onClick={() => onConnect("demo")}
               disabled={isConnecting}
