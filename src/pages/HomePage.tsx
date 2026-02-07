@@ -20,7 +20,7 @@ const Dya2Images = [DYA2Img, DYA2Img2];
 
 const xShareContents = {
   title: encodeURIComponent("DYA Studio for DYA & ZMK Keyboards"),
-  link: encodeURIComponent("https://studio.dya.cormoran.works/"),
+  link: encodeURIComponent("https://studio.dya.cormoran.works"),
   tags: "dya_studio,dy_kbd",
 };
 const xShareUrl = `https://twitter.com/intent/tweet?text=${xShareContents.title}&url=${xShareContents.link}&hashtags=${xShareContents.tags}`;
