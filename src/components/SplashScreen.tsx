@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { IconBluetooth, IconUsb, IconDeviceDesktop } from "@tabler/icons-react";
-import { useMemo, useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import type { ConnectionMethod } from "./DeviceConnection";
 import { ConnectionNoticeDialog } from "./ConnectionNoticeDialog";
 import { hasAcceptedNotice } from "../lib/connectionNoticeStorage";
@@ -25,10 +25,6 @@ export function SplashScreen({
   isConnecting,
   error,
 }: SplashScreenProps) {
-  // Check if Web Serial API and Web Bluetooth API are available
-  const isSerialAvailable = useMemo(() => "serial" in navigator, []);
-  const isBLEAvailable = useMemo(() => "bluetooth" in navigator, []);
-
   // Dialog state
   const [showNotice, setShowNotice] = useState(false);
   const [pendingMethod, setPendingMethod] = useState<ConnectionMethod | null>(
@@ -139,41 +135,33 @@ export function SplashScreen({
             <div className="flex gap-6">
               <button
                 onClick={() => handleConnectClick("serial")}
-                disabled={isConnecting || !isSerialAvailable}
+                disabled={isConnecting}
                 className="relative w-16 h-16 rounded-full flex items-center justify-center border-2 transition-all disabled:opacity-30 disabled:cursor-not-allowed border-[var(--color-electric)] bg-[var(--color-electric)]/10 hover:bg-[var(--color-electric)]/20 hover:border-[var(--color-electric)] hover:shadow-[0_0_20px_rgba(0,212,255,0.3)]"
                 aria-label="Connect via USB"
-                title={
-                  isSerialAvailable
-                    ? "Connect via USB"
-                    : "Web Serial not available in this browser"
-                }
+                title={"Connect via USB"}
               >
                 <IconUsb
                   size={28}
                   className="text-[var(--color-electric)] relative z-10"
                   strokeWidth={1.5}
                 />
-                {(isConnecting || !isSerialAvailable) && (
+                {isConnecting && (
                   <DisabledSlash color="bg-[var(--color-electric)]" />
                 )}
               </button>
               <button
                 onClick={() => handleConnectClick("ble")}
-                disabled={isConnecting || !isBLEAvailable}
+                disabled={isConnecting}
                 className="relative w-16 h-16 rounded-full flex items-center justify-center border-2 transition-all disabled:opacity-30 disabled:cursor-not-allowed border-[var(--color-neon)] bg-[var(--color-neon)]/10 hover:bg-[var(--color-neon)]/20 hover:border-[var(--color-neon)] hover:shadow-[0_0_20px_rgba(0,255,204,0.3)]"
                 aria-label="Connect via Bluetooth"
-                title={
-                  isBLEAvailable
-                    ? "Connect via Bluetooth"
-                    : "Web Bluetooth not available in this browser"
-                }
+                title={"Connect via Bluetooth"}
               >
                 <IconBluetooth
                   size={28}
                   className="text-[var(--color-neon)] relative z-10"
                   strokeWidth={1.5}
                 />
-                {(isConnecting || !isBLEAvailable) && (
+                {isConnecting && (
                   <DisabledSlash color="bg-[var(--color-neon)]" />
                 )}
               </button>
