@@ -33,6 +33,10 @@ const MOCK_PROCESSORS: ProcessorInfo[] = [
     axisSnapMode: AxisSnapMode.AXIS_SNAP_MODE_NONE,
     axisSnapThreshold: 50,
     axisSnapTimeoutMs: 200,
+    xInvert: false,
+    yInvert: false,
+    xyToScrollEnabled: false,
+    xySwapEnabled: false,
   },
 ];
 
@@ -379,6 +383,114 @@ export class RuntimeInputProcessorHandler {
         }, 50);
 
         return { setAxisSnapTimeout: {} };
+      }
+
+      return { error: { message: `Processor not found: ${id}` } };
+    }
+
+    if (request.setXInvert !== undefined) {
+      const { id, invert } = request.setXInvert;
+      const processor = this.processors.find((p) => p.id === id);
+
+      if (processor) {
+        processor.xInvert = invert;
+
+        // Send notification about the update
+        setTimeout(() => {
+          console.log("Demo sending updated processor settings:", processor);
+          this.callbacks.forEach((cb) => {
+            cb(
+              Notification.encode({
+                processorChanged: {
+                  processor,
+                },
+              }).finish(),
+            );
+          });
+        }, 50);
+
+        return { setXInvert: {} };
+      }
+
+      return { error: { message: `Processor not found: ${id}` } };
+    }
+
+    if (request.setYInvert !== undefined) {
+      const { id, invert } = request.setYInvert;
+      const processor = this.processors.find((p) => p.id === id);
+
+      if (processor) {
+        processor.yInvert = invert;
+
+        // Send notification about the update
+        setTimeout(() => {
+          console.log("Demo sending updated processor settings:", processor);
+          this.callbacks.forEach((cb) => {
+            cb(
+              Notification.encode({
+                processorChanged: {
+                  processor,
+                },
+              }).finish(),
+            );
+          });
+        }, 50);
+
+        return { setYInvert: {} };
+      }
+
+      return { error: { message: `Processor not found: ${id}` } };
+    }
+
+    if (request.setXyToScrollEnabled !== undefined) {
+      const { id, enabled } = request.setXyToScrollEnabled;
+      const processor = this.processors.find((p) => p.id === id);
+
+      if (processor) {
+        processor.xyToScrollEnabled = enabled;
+
+        // Send notification about the update
+        setTimeout(() => {
+          console.log("Demo sending updated processor settings:", processor);
+          this.callbacks.forEach((cb) => {
+            cb(
+              Notification.encode({
+                processorChanged: {
+                  processor,
+                },
+              }).finish(),
+            );
+          });
+        }, 50);
+
+        return { setXyToScrollEnabled: {} };
+      }
+
+      return { error: { message: `Processor not found: ${id}` } };
+    }
+
+    if (request.setXySwapEnabled !== undefined) {
+      const { id, enabled } = request.setXySwapEnabled;
+      const processor = this.processors.find((p) => p.id === id);
+
+      if (processor) {
+        processor.xySwapEnabled = enabled;
+
+        // Send notification about the update
+        setTimeout(() => {
+          console.log("Demo sending updated processor settings:", processor);
+          this.callbacks.forEach((cb) => {
+            cb(
+              Notification.encode({
+                processorChanged: {
+                  processor,
+                },
+              }).finish(),
+            );
+          });
+        }, 50);
+
+        return { setXySwapEnabled: {} };
       }
 
       return { error: { message: `Processor not found: ${id}` } };

@@ -31,7 +31,13 @@ message ProcessorInfo {
     // Axis snap settings
     AxisSnapMode axis_snap_mode = 11;  // Snap mode
     uint32 axis_snap_threshold = 12;  // Threshold for unsnapping
-    uint32 axis_snap_timeout_ms = 13;  // Time window for threshold check (ms)
+    uint32 axis_snap_timeout_ms = 13;  // Time window for threshold check (ms)    
+    // Code mapping features
+    bool xy_to_scroll_enabled = 14;  // Map X/Y to horizontal/vertical scroll
+    bool xy_swap_enabled = 15;  // Swap X and Y axes
+    // Axis invert settings
+    bool x_invert = 16;  // Whether to invert X axis
+    bool y_invert = 17;  // Whether to invert Y axis
 }
 
 // Information about a keyboard layer
@@ -151,6 +157,38 @@ message SetAxisSnapTimeoutRequest {
 
 message SetAxisSnapTimeoutResponse {}
 
+// Request to set X axis inversion
+message SetXInvertRequest {
+    uint32 id = 1;
+    bool invert = 2;
+}
+
+message SetXInvertResponse {}
+
+// Request to set Y axis inversion
+message SetYInvertRequest {
+    uint32 id = 1;
+    bool invert = 2;
+}
+
+message SetYInvertResponse {}
+
+// Request to set XY-to-scroll mapping
+message SetXyToScrollEnabledRequest {
+    uint32 id = 1;
+    bool enabled = 2;
+}
+
+message SetXyToScrollEnabledResponse {}
+
+// Request to set XY-swap mapping
+message SetXySwapEnabledRequest {
+    uint32 id = 1;
+    bool enabled = 2;
+}
+
+message SetXySwapEnabledResponse {}
+
 // Request to get layer information
 message GetLayerInfoRequest {}
 
@@ -175,7 +213,11 @@ message Request {
         GetLayerInfoRequest get_layer_info = 12;
         SetAxisSnapModeRequest set_axis_snap_mode = 13;
         SetAxisSnapThresholdRequest set_axis_snap_threshold = 14;
-        SetAxisSnapTimeoutRequest set_axis_snap_timeout = 15;
+        SetAxisSnapTimeoutRequest set_axis_snap_timeout = 15;        
+        SetXyToScrollEnabledRequest set_xy_to_scroll_enabled = 16;
+        SetXySwapEnabledRequest set_xy_swap_enabled = 17;
+        SetXInvertRequest set_x_invert = 18;
+        SetYInvertRequest set_y_invert = 19;
     }
 }
 
@@ -202,7 +244,11 @@ message Response {
         GetLayerInfoResponse get_layer_info = 13;
         SetAxisSnapModeResponse set_axis_snap_mode = 14;
         SetAxisSnapThresholdResponse set_axis_snap_threshold = 15;
-        SetAxisSnapTimeoutResponse set_axis_snap_timeout = 16;
+        SetAxisSnapTimeoutResponse set_axis_snap_timeout = 16;        
+        SetXyToScrollEnabledResponse set_xy_to_scroll_enabled = 17;
+        SetXySwapEnabledResponse set_xy_swap_enabled = 18;
+        SetXInvertResponse set_x_invert = 19;
+        SetYInvertResponse set_y_invert = 20;
     }
 }
 

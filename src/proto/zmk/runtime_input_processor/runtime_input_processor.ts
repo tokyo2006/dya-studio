@@ -54,6 +54,14 @@ export interface ProcessorInfo {
   axisSnapThreshold: number;
   /** Time window for threshold check (ms) */
   axisSnapTimeoutMs: number;
+  /** Code mapping features */
+  xyToScrollEnabled: boolean;
+  /** Swap X and Y axes */
+  xySwapEnabled: boolean;
+  /** Axis invert settings */
+  xInvert: boolean;
+  /** Whether to invert Y axis */
+  yInvert: boolean;
 }
 
 /** Information about a keyboard layer */
@@ -188,6 +196,42 @@ export interface SetAxisSnapTimeoutRequest {
 export interface SetAxisSnapTimeoutResponse {
 }
 
+/** Request to set X axis inversion */
+export interface SetXInvertRequest {
+  id: number;
+  invert: boolean;
+}
+
+export interface SetXInvertResponse {
+}
+
+/** Request to set Y axis inversion */
+export interface SetYInvertRequest {
+  id: number;
+  invert: boolean;
+}
+
+export interface SetYInvertResponse {
+}
+
+/** Request to set XY-to-scroll mapping */
+export interface SetXyToScrollEnabledRequest {
+  id: number;
+  enabled: boolean;
+}
+
+export interface SetXyToScrollEnabledResponse {
+}
+
+/** Request to set XY-swap mapping */
+export interface SetXySwapEnabledRequest {
+  id: number;
+  enabled: boolean;
+}
+
+export interface SetXySwapEnabledResponse {
+}
+
 /** Request to get layer information */
 export interface GetLayerInfoRequest {
 }
@@ -213,6 +257,10 @@ export interface Request {
   setAxisSnapMode?: SetAxisSnapModeRequest | undefined;
   setAxisSnapThreshold?: SetAxisSnapThresholdRequest | undefined;
   setAxisSnapTimeout?: SetAxisSnapTimeoutRequest | undefined;
+  setXyToScrollEnabled?: SetXyToScrollEnabledRequest | undefined;
+  setXySwapEnabled?: SetXySwapEnabledRequest | undefined;
+  setXInvert?: SetXInvertRequest | undefined;
+  setYInvert?: SetYInvertRequest | undefined;
 }
 
 /** Error response */
@@ -238,6 +286,10 @@ export interface Response {
   setAxisSnapMode?: SetAxisSnapModeResponse | undefined;
   setAxisSnapThreshold?: SetAxisSnapThresholdResponse | undefined;
   setAxisSnapTimeout?: SetAxisSnapTimeoutResponse | undefined;
+  setXyToScrollEnabled?: SetXyToScrollEnabledResponse | undefined;
+  setXySwapEnabled?: SetXySwapEnabledResponse | undefined;
+  setXInvert?: SetXInvertResponse | undefined;
+  setYInvert?: SetYInvertResponse | undefined;
 }
 
 /** Notification when processor settings change */
@@ -265,6 +317,10 @@ function createBaseProcessorInfo(): ProcessorInfo {
     axisSnapMode: 0,
     axisSnapThreshold: 0,
     axisSnapTimeoutMs: 0,
+    xyToScrollEnabled: false,
+    xySwapEnabled: false,
+    xInvert: false,
+    yInvert: false,
   };
 }
 
@@ -308,6 +364,18 @@ export const ProcessorInfo: MessageFns<ProcessorInfo> = {
     }
     if (message.axisSnapTimeoutMs !== 0) {
       writer.uint32(104).uint32(message.axisSnapTimeoutMs);
+    }
+    if (message.xyToScrollEnabled !== false) {
+      writer.uint32(112).bool(message.xyToScrollEnabled);
+    }
+    if (message.xySwapEnabled !== false) {
+      writer.uint32(120).bool(message.xySwapEnabled);
+    }
+    if (message.xInvert !== false) {
+      writer.uint32(128).bool(message.xInvert);
+    }
+    if (message.yInvert !== false) {
+      writer.uint32(136).bool(message.yInvert);
     }
     return writer;
   },
@@ -423,6 +491,38 @@ export const ProcessorInfo: MessageFns<ProcessorInfo> = {
           message.axisSnapTimeoutMs = reader.uint32();
           continue;
         }
+        case 14: {
+          if (tag !== 112) {
+            break;
+          }
+
+          message.xyToScrollEnabled = reader.bool();
+          continue;
+        }
+        case 15: {
+          if (tag !== 120) {
+            break;
+          }
+
+          message.xySwapEnabled = reader.bool();
+          continue;
+        }
+        case 16: {
+          if (tag !== 128) {
+            break;
+          }
+
+          message.xInvert = reader.bool();
+          continue;
+        }
+        case 17: {
+          if (tag !== 136) {
+            break;
+          }
+
+          message.yInvert = reader.bool();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -450,6 +550,10 @@ export const ProcessorInfo: MessageFns<ProcessorInfo> = {
     message.axisSnapMode = object.axisSnapMode ?? 0;
     message.axisSnapThreshold = object.axisSnapThreshold ?? 0;
     message.axisSnapTimeoutMs = object.axisSnapTimeoutMs ?? 0;
+    message.xyToScrollEnabled = object.xyToScrollEnabled ?? false;
+    message.xySwapEnabled = object.xySwapEnabled ?? false;
+    message.xInvert = object.xInvert ?? false;
+    message.yInvert = object.yInvert ?? false;
     return message;
   },
 };
@@ -1766,6 +1870,374 @@ export const SetAxisSnapTimeoutResponse: MessageFns<SetAxisSnapTimeoutResponse> 
   },
 };
 
+function createBaseSetXInvertRequest(): SetXInvertRequest {
+  return { id: 0, invert: false };
+}
+
+export const SetXInvertRequest: MessageFns<SetXInvertRequest> = {
+  encode(message: SetXInvertRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.id !== 0) {
+      writer.uint32(8).uint32(message.id);
+    }
+    if (message.invert !== false) {
+      writer.uint32(16).bool(message.invert);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): SetXInvertRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSetXInvertRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.id = reader.uint32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.invert = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<SetXInvertRequest>): SetXInvertRequest {
+    return SetXInvertRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<SetXInvertRequest>): SetXInvertRequest {
+    const message = createBaseSetXInvertRequest();
+    message.id = object.id ?? 0;
+    message.invert = object.invert ?? false;
+    return message;
+  },
+};
+
+function createBaseSetXInvertResponse(): SetXInvertResponse {
+  return {};
+}
+
+export const SetXInvertResponse: MessageFns<SetXInvertResponse> = {
+  encode(_: SetXInvertResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): SetXInvertResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSetXInvertResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<SetXInvertResponse>): SetXInvertResponse {
+    return SetXInvertResponse.fromPartial(base ?? {});
+  },
+  fromPartial(_: DeepPartial<SetXInvertResponse>): SetXInvertResponse {
+    const message = createBaseSetXInvertResponse();
+    return message;
+  },
+};
+
+function createBaseSetYInvertRequest(): SetYInvertRequest {
+  return { id: 0, invert: false };
+}
+
+export const SetYInvertRequest: MessageFns<SetYInvertRequest> = {
+  encode(message: SetYInvertRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.id !== 0) {
+      writer.uint32(8).uint32(message.id);
+    }
+    if (message.invert !== false) {
+      writer.uint32(16).bool(message.invert);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): SetYInvertRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSetYInvertRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.id = reader.uint32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.invert = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<SetYInvertRequest>): SetYInvertRequest {
+    return SetYInvertRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<SetYInvertRequest>): SetYInvertRequest {
+    const message = createBaseSetYInvertRequest();
+    message.id = object.id ?? 0;
+    message.invert = object.invert ?? false;
+    return message;
+  },
+};
+
+function createBaseSetYInvertResponse(): SetYInvertResponse {
+  return {};
+}
+
+export const SetYInvertResponse: MessageFns<SetYInvertResponse> = {
+  encode(_: SetYInvertResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): SetYInvertResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSetYInvertResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<SetYInvertResponse>): SetYInvertResponse {
+    return SetYInvertResponse.fromPartial(base ?? {});
+  },
+  fromPartial(_: DeepPartial<SetYInvertResponse>): SetYInvertResponse {
+    const message = createBaseSetYInvertResponse();
+    return message;
+  },
+};
+
+function createBaseSetXyToScrollEnabledRequest(): SetXyToScrollEnabledRequest {
+  return { id: 0, enabled: false };
+}
+
+export const SetXyToScrollEnabledRequest: MessageFns<SetXyToScrollEnabledRequest> = {
+  encode(message: SetXyToScrollEnabledRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.id !== 0) {
+      writer.uint32(8).uint32(message.id);
+    }
+    if (message.enabled !== false) {
+      writer.uint32(16).bool(message.enabled);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): SetXyToScrollEnabledRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSetXyToScrollEnabledRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.id = reader.uint32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.enabled = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<SetXyToScrollEnabledRequest>): SetXyToScrollEnabledRequest {
+    return SetXyToScrollEnabledRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<SetXyToScrollEnabledRequest>): SetXyToScrollEnabledRequest {
+    const message = createBaseSetXyToScrollEnabledRequest();
+    message.id = object.id ?? 0;
+    message.enabled = object.enabled ?? false;
+    return message;
+  },
+};
+
+function createBaseSetXyToScrollEnabledResponse(): SetXyToScrollEnabledResponse {
+  return {};
+}
+
+export const SetXyToScrollEnabledResponse: MessageFns<SetXyToScrollEnabledResponse> = {
+  encode(_: SetXyToScrollEnabledResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): SetXyToScrollEnabledResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSetXyToScrollEnabledResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<SetXyToScrollEnabledResponse>): SetXyToScrollEnabledResponse {
+    return SetXyToScrollEnabledResponse.fromPartial(base ?? {});
+  },
+  fromPartial(_: DeepPartial<SetXyToScrollEnabledResponse>): SetXyToScrollEnabledResponse {
+    const message = createBaseSetXyToScrollEnabledResponse();
+    return message;
+  },
+};
+
+function createBaseSetXySwapEnabledRequest(): SetXySwapEnabledRequest {
+  return { id: 0, enabled: false };
+}
+
+export const SetXySwapEnabledRequest: MessageFns<SetXySwapEnabledRequest> = {
+  encode(message: SetXySwapEnabledRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.id !== 0) {
+      writer.uint32(8).uint32(message.id);
+    }
+    if (message.enabled !== false) {
+      writer.uint32(16).bool(message.enabled);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): SetXySwapEnabledRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSetXySwapEnabledRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.id = reader.uint32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.enabled = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<SetXySwapEnabledRequest>): SetXySwapEnabledRequest {
+    return SetXySwapEnabledRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<SetXySwapEnabledRequest>): SetXySwapEnabledRequest {
+    const message = createBaseSetXySwapEnabledRequest();
+    message.id = object.id ?? 0;
+    message.enabled = object.enabled ?? false;
+    return message;
+  },
+};
+
+function createBaseSetXySwapEnabledResponse(): SetXySwapEnabledResponse {
+  return {};
+}
+
+export const SetXySwapEnabledResponse: MessageFns<SetXySwapEnabledResponse> = {
+  encode(_: SetXySwapEnabledResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): SetXySwapEnabledResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSetXySwapEnabledResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<SetXySwapEnabledResponse>): SetXySwapEnabledResponse {
+    return SetXySwapEnabledResponse.fromPartial(base ?? {});
+  },
+  fromPartial(_: DeepPartial<SetXySwapEnabledResponse>): SetXySwapEnabledResponse {
+    const message = createBaseSetXySwapEnabledResponse();
+    return message;
+  },
+};
+
 function createBaseGetLayerInfoRequest(): GetLayerInfoRequest {
   return {};
 }
@@ -1863,6 +2335,10 @@ function createBaseRequest(): Request {
     setAxisSnapMode: undefined,
     setAxisSnapThreshold: undefined,
     setAxisSnapTimeout: undefined,
+    setXyToScrollEnabled: undefined,
+    setXySwapEnabled: undefined,
+    setXInvert: undefined,
+    setYInvert: undefined,
   };
 }
 
@@ -1913,6 +2389,18 @@ export const Request: MessageFns<Request> = {
     }
     if (message.setAxisSnapTimeout !== undefined) {
       SetAxisSnapTimeoutRequest.encode(message.setAxisSnapTimeout, writer.uint32(122).fork()).join();
+    }
+    if (message.setXyToScrollEnabled !== undefined) {
+      SetXyToScrollEnabledRequest.encode(message.setXyToScrollEnabled, writer.uint32(130).fork()).join();
+    }
+    if (message.setXySwapEnabled !== undefined) {
+      SetXySwapEnabledRequest.encode(message.setXySwapEnabled, writer.uint32(138).fork()).join();
+    }
+    if (message.setXInvert !== undefined) {
+      SetXInvertRequest.encode(message.setXInvert, writer.uint32(146).fork()).join();
+    }
+    if (message.setYInvert !== undefined) {
+      SetYInvertRequest.encode(message.setYInvert, writer.uint32(154).fork()).join();
     }
     return writer;
   },
@@ -2044,6 +2532,38 @@ export const Request: MessageFns<Request> = {
           message.setAxisSnapTimeout = SetAxisSnapTimeoutRequest.decode(reader, reader.uint32());
           continue;
         }
+        case 16: {
+          if (tag !== 130) {
+            break;
+          }
+
+          message.setXyToScrollEnabled = SetXyToScrollEnabledRequest.decode(reader, reader.uint32());
+          continue;
+        }
+        case 17: {
+          if (tag !== 138) {
+            break;
+          }
+
+          message.setXySwapEnabled = SetXySwapEnabledRequest.decode(reader, reader.uint32());
+          continue;
+        }
+        case 18: {
+          if (tag !== 146) {
+            break;
+          }
+
+          message.setXInvert = SetXInvertRequest.decode(reader, reader.uint32());
+          continue;
+        }
+        case 19: {
+          if (tag !== 154) {
+            break;
+          }
+
+          message.setYInvert = SetYInvertRequest.decode(reader, reader.uint32());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2104,6 +2624,18 @@ export const Request: MessageFns<Request> = {
       : undefined;
     message.setAxisSnapTimeout = (object.setAxisSnapTimeout !== undefined && object.setAxisSnapTimeout !== null)
       ? SetAxisSnapTimeoutRequest.fromPartial(object.setAxisSnapTimeout)
+      : undefined;
+    message.setXyToScrollEnabled = (object.setXyToScrollEnabled !== undefined && object.setXyToScrollEnabled !== null)
+      ? SetXyToScrollEnabledRequest.fromPartial(object.setXyToScrollEnabled)
+      : undefined;
+    message.setXySwapEnabled = (object.setXySwapEnabled !== undefined && object.setXySwapEnabled !== null)
+      ? SetXySwapEnabledRequest.fromPartial(object.setXySwapEnabled)
+      : undefined;
+    message.setXInvert = (object.setXInvert !== undefined && object.setXInvert !== null)
+      ? SetXInvertRequest.fromPartial(object.setXInvert)
+      : undefined;
+    message.setYInvert = (object.setYInvert !== undefined && object.setYInvert !== null)
+      ? SetYInvertRequest.fromPartial(object.setYInvert)
       : undefined;
     return message;
   },
@@ -2173,6 +2705,10 @@ function createBaseResponse(): Response {
     setAxisSnapMode: undefined,
     setAxisSnapThreshold: undefined,
     setAxisSnapTimeout: undefined,
+    setXyToScrollEnabled: undefined,
+    setXySwapEnabled: undefined,
+    setXInvert: undefined,
+    setYInvert: undefined,
   };
 }
 
@@ -2226,6 +2762,18 @@ export const Response: MessageFns<Response> = {
     }
     if (message.setAxisSnapTimeout !== undefined) {
       SetAxisSnapTimeoutResponse.encode(message.setAxisSnapTimeout, writer.uint32(130).fork()).join();
+    }
+    if (message.setXyToScrollEnabled !== undefined) {
+      SetXyToScrollEnabledResponse.encode(message.setXyToScrollEnabled, writer.uint32(138).fork()).join();
+    }
+    if (message.setXySwapEnabled !== undefined) {
+      SetXySwapEnabledResponse.encode(message.setXySwapEnabled, writer.uint32(146).fork()).join();
+    }
+    if (message.setXInvert !== undefined) {
+      SetXInvertResponse.encode(message.setXInvert, writer.uint32(154).fork()).join();
+    }
+    if (message.setYInvert !== undefined) {
+      SetYInvertResponse.encode(message.setYInvert, writer.uint32(162).fork()).join();
     }
     return writer;
   },
@@ -2365,6 +2913,38 @@ export const Response: MessageFns<Response> = {
           message.setAxisSnapTimeout = SetAxisSnapTimeoutResponse.decode(reader, reader.uint32());
           continue;
         }
+        case 17: {
+          if (tag !== 138) {
+            break;
+          }
+
+          message.setXyToScrollEnabled = SetXyToScrollEnabledResponse.decode(reader, reader.uint32());
+          continue;
+        }
+        case 18: {
+          if (tag !== 146) {
+            break;
+          }
+
+          message.setXySwapEnabled = SetXySwapEnabledResponse.decode(reader, reader.uint32());
+          continue;
+        }
+        case 19: {
+          if (tag !== 154) {
+            break;
+          }
+
+          message.setXInvert = SetXInvertResponse.decode(reader, reader.uint32());
+          continue;
+        }
+        case 20: {
+          if (tag !== 162) {
+            break;
+          }
+
+          message.setYInvert = SetYInvertResponse.decode(reader, reader.uint32());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2428,6 +3008,18 @@ export const Response: MessageFns<Response> = {
       : undefined;
     message.setAxisSnapTimeout = (object.setAxisSnapTimeout !== undefined && object.setAxisSnapTimeout !== null)
       ? SetAxisSnapTimeoutResponse.fromPartial(object.setAxisSnapTimeout)
+      : undefined;
+    message.setXyToScrollEnabled = (object.setXyToScrollEnabled !== undefined && object.setXyToScrollEnabled !== null)
+      ? SetXyToScrollEnabledResponse.fromPartial(object.setXyToScrollEnabled)
+      : undefined;
+    message.setXySwapEnabled = (object.setXySwapEnabled !== undefined && object.setXySwapEnabled !== null)
+      ? SetXySwapEnabledResponse.fromPartial(object.setXySwapEnabled)
+      : undefined;
+    message.setXInvert = (object.setXInvert !== undefined && object.setXInvert !== null)
+      ? SetXInvertResponse.fromPartial(object.setXInvert)
+      : undefined;
+    message.setYInvert = (object.setYInvert !== undefined && object.setYInvert !== null)
+      ? SetYInvertResponse.fromPartial(object.setYInvert)
       : undefined;
     return message;
   },

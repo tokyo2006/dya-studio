@@ -7,7 +7,6 @@ import {
   Request,
   Response,
   Notification,
-  ProcessorInfo,
   LayerInfo,
   AxisSnapMode,
 } from "../proto/zmk/runtime_input_processor/runtime_input_processor";
@@ -61,6 +60,10 @@ export interface InputProcessor {
   axisSnapMode: AxisSnapMode;
   axisSnapThreshold: number;
   axisSnapTimeoutMs: number;
+  xInvert: boolean;
+  yInvert: boolean;
+  xyToScrollEnabled: boolean;
+  xySwapEnabled: boolean;
 }
 
 export interface LayerInformation {
@@ -90,6 +93,10 @@ export interface UseRuntimeInputProcessorReturn {
   setAxisSnapMode: (id: number, mode: AxisSnapMode) => Promise<void>;
   setAxisSnapThreshold: (id: number, threshold: number) => Promise<void>;
   setAxisSnapTimeout: (id: number, timeoutMs: number) => Promise<void>;
+  setXInvert: (id: number, invert: boolean) => Promise<void>;
+  setYInvert: (id: number, invert: boolean) => Promise<void>;
+  setXyToScrollEnabled: (id: number, enabled: boolean) => Promise<void>;
+  setXySwapEnabled: (id: number, enabled: boolean) => Promise<void>;
 }
 
 export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
@@ -109,6 +116,66 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
   // Extract subsystem index as a stable primitive value for dependencies
   const subsystemIndex = subsystem?.index;
 
+  // Set up persistent notification listener for processor updates
+  useEffect(() => {
+    if (!zmkApp || subsystemIndex === undefined) {
+      return;
+    }
+
+    const unsubscribe = zmkApp.onNotification({
+      type: "custom",
+      subsystemIndex,
+      callback: (customNotification) => {
+        try {
+          const notification = Notification.decode(customNotification.payload);
+          if (notification.processorChanged?.processor) {
+            const processorInfo = notification.processorChanged.processor;
+            const updatedProcessor: InputProcessor = {
+              id: processorInfo.id,
+              name: processorInfo.name,
+              scaleMultiplier: processorInfo.scaleMultiplier,
+              scaleDivisor: processorInfo.scaleDivisor,
+              rotationDegrees: processorInfo.rotationDegrees,
+              tempLayerEnabled: processorInfo.tempLayerEnabled,
+              tempLayerLayer: processorInfo.tempLayerLayer,
+              tempLayerActivationDelayMs:
+                processorInfo.tempLayerActivationDelayMs,
+              tempLayerDeactivationDelayMs:
+                processorInfo.tempLayerDeactivationDelayMs,
+              activeLayers: processorInfo.activeLayers || 0,
+              axisSnapMode:
+                processorInfo.axisSnapMode ?? AxisSnapMode.AXIS_SNAP_MODE_NONE,
+              axisSnapThreshold: processorInfo.axisSnapThreshold ?? 0,
+              axisSnapTimeoutMs: processorInfo.axisSnapTimeoutMs ?? 0,
+              xInvert: processorInfo.xInvert ?? false,
+              yInvert: processorInfo.yInvert ?? false,
+              xyToScrollEnabled: processorInfo.xyToScrollEnabled ?? false,
+              xySwapEnabled: processorInfo.xySwapEnabled ?? false,
+            };
+
+            // Update only the specific processor that changed
+            setProcessors((prev) => {
+              const index = prev.findIndex((p) => p.id === updatedProcessor.id);
+              if (index >= 0) {
+                const newProcessors = [...prev];
+                newProcessors[index] = updatedProcessor;
+                return newProcessors;
+              } else {
+                return [...prev, updatedProcessor];
+              }
+            });
+          }
+        } catch (err) {
+          console.error("Failed to decode processor notification:", err);
+        }
+      },
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [zmkApp, subsystemIndex]);
+
   const loadProcessors = useCallback(async () => {
     if (!zmkApp?.state.connection || subsystemIndex === undefined) {
       setError("Not connected to device or subsystem not found");
@@ -124,80 +191,26 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         subsystemIndex,
       );
 
-      // Map to store processors by name
-      const processorMap = new Map<string, InputProcessor>();
-
-      // Set up notification listener for processor settings
-      const notificationHandler = (processorInfo: ProcessorInfo) => {
-        try {
-          processorMap.set(processorInfo.name, {
-            id: processorInfo.id,
-            name: processorInfo.name,
-            scaleMultiplier: processorInfo.scaleMultiplier,
-            scaleDivisor: processorInfo.scaleDivisor,
-            rotationDegrees: processorInfo.rotationDegrees,
-            tempLayerEnabled: processorInfo.tempLayerEnabled,
-            tempLayerLayer: processorInfo.tempLayerLayer,
-            tempLayerActivationDelayMs:
-              processorInfo.tempLayerActivationDelayMs,
-            tempLayerDeactivationDelayMs:
-              processorInfo.tempLayerDeactivationDelayMs,
-            activeLayers: processorInfo.activeLayers || 0,
-            axisSnapMode:
-              processorInfo.axisSnapMode ?? AxisSnapMode.AXIS_SNAP_MODE_NONE,
-            axisSnapThreshold: processorInfo.axisSnapThreshold ?? 0,
-            axisSnapTimeoutMs: processorInfo.axisSnapTimeoutMs ?? 0,
-          });
-
-          // Update state with all collected processors
-          setProcessors(Array.from(processorMap.values()));
-        } catch (err) {
-          console.error("Failed to process processor notification:", err);
-        }
-      };
-
-      // Subscribe to notifications using zmkApp's onNotification
-      const unsubscribe = zmkApp.onNotification({
-        type: "custom",
-        subsystemIndex,
-        callback: (customNotification) => {
-          // Decode the payload
-          try {
-            const notification = Notification.decode(
-              customNotification.payload,
-            );
-            if (notification.processorChanged?.processor) {
-              notificationHandler(notification.processorChanged.processor);
-            }
-          } catch (err) {
-            console.error("Failed to decode processor notification:", err);
-          }
-        },
+      // Send request to list processors
+      // The actual processor data will come via notifications handled by the useEffect above
+      const request = Request.create({
+        listProcessors: {},
       });
 
-      try {
-        // Send request to list processors
-        const request = Request.create({
-          listProcessors: {},
-        });
+      const payload = Request.encode(request).finish();
+      const responsePayload = await service.callRPC(payload);
 
-        const payload = Request.encode(request).finish();
-        const responsePayload = await service.callRPC(payload);
-
-        if (responsePayload) {
-          const resp = Response.decode(responsePayload);
-          if (resp.error) {
-            setError(resp.error.message);
-          }
-          // Note: The actual processor data comes via notifications, not the response
+      if (responsePayload) {
+        const resp = Response.decode(responsePayload);
+        if (resp.error) {
+          setError(resp.error.message);
         }
-      } finally {
-        // Wait for all notifications to arrive from devices
-        await new Promise((resolve) =>
-          setTimeout(resolve, NOTIFICATION_COLLECTION_TIMEOUT_MS),
-        );
-        unsubscribe();
       }
+
+      // Wait for notifications to arrive
+      await new Promise((resolve) =>
+        setTimeout(resolve, NOTIFICATION_COLLECTION_TIMEOUT_MS),
+      );
     } catch (err) {
       console.error("Failed to load processors:", err);
       setError(
@@ -261,8 +274,6 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
             return;
           }
         }
-
-        await loadProcessors();
       } catch (err) {
         console.error("Failed to set scaling:", err);
         setError(
@@ -272,7 +283,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, loadProcessors],
+    [zmkApp?.state.connection, subsystemIndex],
   );
 
   const setRotation = useCallback(
@@ -305,8 +316,6 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
             return;
           }
         }
-
-        await loadProcessors();
       } catch (err) {
         console.error("Failed to set rotation:", err);
         setError(
@@ -316,7 +325,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, loadProcessors],
+    [zmkApp?.state.connection, subsystemIndex],
   );
 
   const setTempLayerEnabled = useCallback(
@@ -349,8 +358,6 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
             return;
           }
         }
-
-        await loadProcessors();
       } catch (err) {
         console.error("Failed to set temp layer enabled:", err);
         setError(
@@ -360,7 +367,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, loadProcessors],
+    [zmkApp?.state.connection, subsystemIndex],
   );
 
   const setTempLayerLayer = useCallback(
@@ -393,8 +400,6 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
             return;
           }
         }
-
-        await loadProcessors();
       } catch (err) {
         console.error("Failed to set temp layer:", err);
         setError(
@@ -404,7 +409,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, loadProcessors],
+    [zmkApp?.state.connection, subsystemIndex],
   );
 
   const setTempLayerActivationDelay = useCallback(
@@ -437,8 +442,6 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
             return;
           }
         }
-
-        await loadProcessors();
       } catch (err) {
         console.error("Failed to set temp layer activation delay:", err);
         setError(
@@ -448,7 +451,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, loadProcessors],
+    [zmkApp?.state.connection, subsystemIndex],
   );
 
   const setTempLayerDeactivationDelay = useCallback(
@@ -481,8 +484,6 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
             return;
           }
         }
-
-        await loadProcessors();
       } catch (err) {
         console.error("Failed to set temp layer deactivation delay:", err);
         setError(
@@ -492,7 +493,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, loadProcessors],
+    [zmkApp?.state.connection, subsystemIndex],
   );
 
   const setActiveLayers = useCallback(
@@ -525,8 +526,6 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
             return;
           }
         }
-
-        await loadProcessors();
       } catch (err) {
         console.error("Failed to set active layers:", err);
         setError(
@@ -536,7 +535,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, loadProcessors],
+    [zmkApp?.state.connection, subsystemIndex],
   );
 
   const setAxisSnapMode = useCallback(
@@ -569,8 +568,6 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
             return;
           }
         }
-
-        await loadProcessors();
       } catch (err) {
         console.error("Failed to set axis snap mode:", err);
         setError(
@@ -580,7 +577,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, loadProcessors],
+    [zmkApp?.state.connection, subsystemIndex],
   );
 
   const setAxisSnapThreshold = useCallback(
@@ -613,8 +610,6 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
             return;
           }
         }
-
-        await loadProcessors();
       } catch (err) {
         console.error("Failed to set axis snap threshold:", err);
         setError(
@@ -624,7 +619,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, loadProcessors],
+    [zmkApp?.state.connection, subsystemIndex],
   );
 
   const setAxisSnapTimeout = useCallback(
@@ -657,8 +652,6 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
             return;
           }
         }
-
-        await loadProcessors();
       } catch (err) {
         console.error("Failed to set axis snap timeout:", err);
         setError(
@@ -668,7 +661,175 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, loadProcessors],
+    [zmkApp?.state.connection, subsystemIndex],
+  );
+
+  const setXInvert = useCallback(
+    async (id: number, invert: boolean) => {
+      if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const service = new ZMKCustomSubsystem(
+          zmkApp.state.connection,
+          subsystemIndex,
+        );
+
+        const request = Request.create({
+          setXInvert: {
+            id,
+            invert,
+          },
+        });
+
+        const payload = Request.encode(request).finish();
+        const responsePayload = await service.callRPC(payload);
+
+        if (responsePayload) {
+          const resp = Response.decode(responsePayload);
+          if (resp.error) {
+            setError(resp.error.message);
+            return;
+          }
+        }
+      } catch (err) {
+        console.error("Failed to set X invert:", err);
+        setError(
+          `Failed to set X invert: ${err instanceof Error ? err.message : "Unknown error"}`,
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [zmkApp?.state.connection, subsystemIndex],
+  );
+
+  const setYInvert = useCallback(
+    async (id: number, invert: boolean) => {
+      if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const service = new ZMKCustomSubsystem(
+          zmkApp.state.connection,
+          subsystemIndex,
+        );
+
+        const request = Request.create({
+          setYInvert: {
+            id,
+            invert,
+          },
+        });
+
+        const payload = Request.encode(request).finish();
+        const responsePayload = await service.callRPC(payload);
+
+        if (responsePayload) {
+          const resp = Response.decode(responsePayload);
+          if (resp.error) {
+            setError(resp.error.message);
+            return;
+          }
+        }
+      } catch (err) {
+        console.error("Failed to set Y invert:", err);
+        setError(
+          `Failed to set Y invert: ${err instanceof Error ? err.message : "Unknown error"}`,
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [zmkApp?.state.connection, subsystemIndex],
+  );
+
+  const setXyToScrollEnabled = useCallback(
+    async (id: number, enabled: boolean) => {
+      if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const service = new ZMKCustomSubsystem(
+          zmkApp.state.connection,
+          subsystemIndex,
+        );
+
+        const request = Request.create({
+          setXyToScrollEnabled: {
+            id,
+            enabled,
+          },
+        });
+
+        const payload = Request.encode(request).finish();
+        const responsePayload = await service.callRPC(payload);
+
+        if (responsePayload) {
+          const resp = Response.decode(responsePayload);
+          if (resp.error) {
+            setError(resp.error.message);
+            return;
+          }
+        }
+      } catch (err) {
+        console.error("Failed to set XY to scroll enabled:", err);
+        setError(
+          `Failed to set XY to scroll enabled: ${err instanceof Error ? err.message : "Unknown error"}`,
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [zmkApp?.state.connection, subsystemIndex],
+  );
+
+  const setXySwapEnabled = useCallback(
+    async (id: number, enabled: boolean) => {
+      if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const service = new ZMKCustomSubsystem(
+          zmkApp.state.connection,
+          subsystemIndex,
+        );
+
+        const request = Request.create({
+          setXySwapEnabled: {
+            id,
+            enabled,
+          },
+        });
+
+        const payload = Request.encode(request).finish();
+        const responsePayload = await service.callRPC(payload);
+
+        if (responsePayload) {
+          const resp = Response.decode(responsePayload);
+          if (resp.error) {
+            setError(resp.error.message);
+            return;
+          }
+        }
+      } catch (err) {
+        console.error("Failed to set XY swap enabled:", err);
+        setError(
+          `Failed to set XY swap enabled: ${err instanceof Error ? err.message : "Unknown error"}`,
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [zmkApp?.state.connection, subsystemIndex],
   );
 
   const loadLayers = useCallback(async () => {
@@ -745,5 +906,9 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
     setAxisSnapMode,
     setAxisSnapThreshold,
     setAxisSnapTimeout,
+    setXInvert,
+    setYInvert,
+    setXyToScrollEnabled,
+    setXySwapEnabled,
   };
 }
