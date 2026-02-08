@@ -194,6 +194,10 @@ describe("useRuntimeInputProcessor", () => {
         axisSnapMode: 0,
         axisSnapThreshold: 0,
         axisSnapTimeoutMs: 0,
+        xInvert: false,
+        yInvert: false,
+        xyToScrollEnabled: false,
+        xySwapEnabled: false,
       });
       expect(result.current.error).toBe(null);
     });

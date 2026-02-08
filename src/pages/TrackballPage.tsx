@@ -41,6 +41,10 @@ export function TrackballPage() {
     setAxisSnapMode,
     setAxisSnapThreshold,
     setAxisSnapTimeout,
+    setXInvert,
+    setYInvert,
+    setXyToScrollEnabled,
+    setXySwapEnabled,
   } = useRuntimeInputProcessor();
 
   // Selected processor index
@@ -70,6 +74,10 @@ export function TrackballPage() {
   const axisSnapModeSave = useDebouncedSave<AxisSnapMode>();
   const axisSnapThresholdSave = useDebouncedSave<number>();
   const axisSnapTimeoutSave = useDebouncedSave<number>();
+  const xInvertSave = useDebouncedSave<boolean>();
+  const yInvertSave = useDebouncedSave<boolean>();
+  const xyToScrollEnabledSave = useDebouncedSave<boolean>();
+  const xySwapEnabledSave = useDebouncedSave<boolean>();
 
   // Track previous processor to detect changes and reset pending state
   const previousProcessorRef = useRef<string | null>(null);
@@ -92,6 +100,10 @@ export function TrackballPage() {
     axisSnapModeSave.reset();
     axisSnapThresholdSave.reset();
     axisSnapTimeoutSave.reset();
+    xInvertSave.reset();
+    yInvertSave.reset();
+    xyToScrollEnabledSave.reset();
+    xySwapEnabledSave.reset();
     setRotationEnabled(processor?.rotationDegrees !== 0);
     setActiveLayersMode(processor?.activeLayers === 0 ? "all" : "specific");
   }
@@ -125,6 +137,14 @@ export function TrackballPage() {
     axisSnapThresholdSave.pendingValue ?? processor?.axisSnapThreshold ?? 50;
   const displayAxisSnapTimeout =
     axisSnapTimeoutSave.pendingValue ?? processor?.axisSnapTimeoutMs ?? 200;
+  const displayXInvert =
+    xInvertSave.pendingValue ?? processor?.xInvert ?? false;
+  const displayYInvert =
+    yInvertSave.pendingValue ?? processor?.yInvert ?? false;
+  const displayXyToScrollEnabled =
+    xyToScrollEnabledSave.pendingValue ?? processor?.xyToScrollEnabled ?? false;
+  const displayXySwapEnabled =
+    xySwapEnabledSave.pendingValue ?? processor?.xySwapEnabled ?? false;
 
   // Calculate final scaling value (multiplier/divisor)
   const finalScalingValue =
@@ -262,6 +282,34 @@ export function TrackballPage() {
     if (!processor) return;
     axisSnapTimeoutSave.setPendingValue(timeoutMs, async (value) => {
       await setAxisSnapTimeout(processor.id, value);
+    });
+  };
+
+  const handleXInvertChange = (invert: boolean) => {
+    if (!processor) return;
+    xInvertSave.setPendingValue(invert, async (value) => {
+      await setXInvert(processor.id, value);
+    });
+  };
+
+  const handleYInvertChange = (invert: boolean) => {
+    if (!processor) return;
+    yInvertSave.setPendingValue(invert, async (value) => {
+      await setYInvert(processor.id, value);
+    });
+  };
+
+  const handleXyToScrollEnabledChange = (enabled: boolean) => {
+    if (!processor) return;
+    xyToScrollEnabledSave.setPendingValue(enabled, async (value) => {
+      await setXyToScrollEnabled(processor.id, value);
+    });
+  };
+
+  const handleXySwapEnabledChange = (enabled: boolean) => {
+    if (!processor) return;
+    xySwapEnabledSave.setPendingValue(enabled, async (value) => {
+      await setXySwapEnabled(processor.id, value);
     });
   };
 
@@ -723,6 +771,110 @@ export function TrackballPage() {
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* Axis Inversion */}
+            <div className="glass-card p-6">
+              <div className="mb-4">
+                <h3 className="text-sm font-medium text-[var(--color-text)]">
+                  Axis Inversion
+                </h3>
+                <p className="text-xs text-[var(--color-text-muted)]">
+                  Reverse the direction of X or Y axis movement
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                {/* X Invert */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-[var(--color-text-secondary)]">
+                      Invert X Axis
+                    </p>
+                    <p className="text-xs text-[var(--color-text-muted)]">
+                      Reverse horizontal movement direction
+                    </p>
+                  </div>
+                  <Switch.Root
+                    checked={displayXInvert}
+                    onCheckedChange={handleXInvertChange}
+                    className="w-11 h-6 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-surface)] border border-[var(--color-border)] transition-colors cursor-pointer"
+                  >
+                    <Switch.Thumb className="block w-5 h-5 bg-white rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform" />
+                  </Switch.Root>
+                </div>
+
+                {/* Y Invert */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-[var(--color-text-secondary)]">
+                      Invert Y Axis
+                    </p>
+                    <p className="text-xs text-[var(--color-text-muted)]">
+                      Reverse vertical movement direction
+                    </p>
+                  </div>
+                  <Switch.Root
+                    checked={displayYInvert}
+                    onCheckedChange={handleYInvertChange}
+                    className="w-11 h-6 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-surface)] border border-[var(--color-border)] transition-colors cursor-pointer"
+                  >
+                    <Switch.Thumb className="block w-5 h-5 bg-white rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform" />
+                  </Switch.Root>
+                </div>
+              </div>
+            </div>
+
+            {/* Code Mapping */}
+            <div className="glass-card p-6">
+              <div className="mb-4">
+                <h3 className="text-sm font-medium text-[var(--color-text)]">
+                  Code Mapping
+                </h3>
+                <p className="text-xs text-[var(--color-text-muted)]">
+                  Transform trackball movement into different input types
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                {/* XY to Scroll */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-[var(--color-text-secondary)]">
+                      XY-to-Scroll
+                    </p>
+                    <p className="text-xs text-[var(--color-text-muted)]">
+                      Map X/Y movement to horizontal/vertical scroll
+                    </p>
+                  </div>
+                  <Switch.Root
+                    checked={displayXyToScrollEnabled}
+                    onCheckedChange={handleXyToScrollEnabledChange}
+                    className="w-11 h-6 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-surface)] border border-[var(--color-border)] transition-colors cursor-pointer"
+                  >
+                    <Switch.Thumb className="block w-5 h-5 bg-white rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform" />
+                  </Switch.Root>
+                </div>
+
+                {/* XY Swap */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-[var(--color-text-secondary)]">
+                      XY-Swap
+                    </p>
+                    <p className="text-xs text-[var(--color-text-muted)]">
+                      Swap X and Y axes
+                    </p>
+                  </div>
+                  <Switch.Root
+                    checked={displayXySwapEnabled}
+                    onCheckedChange={handleXySwapEnabledChange}
+                    className="w-11 h-6 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-surface)] border border-[var(--color-border)] transition-colors cursor-pointer"
+                  >
+                    <Switch.Thumb className="block w-5 h-5 bg-white rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform" />
+                  </Switch.Root>
+                </div>
+              </div>
             </div>
 
             {/* Temp Layer Settings */}

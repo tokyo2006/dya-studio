@@ -32,6 +32,12 @@ message ProcessorInfo {
     AxisSnapMode axis_snap_mode = 11;  // Snap mode
     uint32 axis_snap_threshold = 12;  // Threshold for unsnapping
     uint32 axis_snap_timeout_ms = 13;  // Time window for threshold check (ms)
+    // Axis invert settings
+    bool x_invert = 14;  // Whether to invert X axis
+    bool y_invert = 15;  // Whether to invert Y axis
+    // Code mapping features
+    bool xy_to_scroll_enabled = 16;  // Map X/Y to horizontal/vertical scroll
+    bool xy_swap_enabled = 17;  // Swap X and Y axes
 }
 
 // Information about a keyboard layer
@@ -151,6 +157,38 @@ message SetAxisSnapTimeoutRequest {
 
 message SetAxisSnapTimeoutResponse {}
 
+// Request to set X axis inversion
+message SetXInvertRequest {
+    uint32 id = 1;
+    bool invert = 2;
+}
+
+message SetXInvertResponse {}
+
+// Request to set Y axis inversion
+message SetYInvertRequest {
+    uint32 id = 1;
+    bool invert = 2;
+}
+
+message SetYInvertResponse {}
+
+// Request to set XY-to-scroll mapping
+message SetXyToScrollEnabledRequest {
+    uint32 id = 1;
+    bool enabled = 2;
+}
+
+message SetXyToScrollEnabledResponse {}
+
+// Request to set XY-swap mapping
+message SetXySwapEnabledRequest {
+    uint32 id = 1;
+    bool enabled = 2;
+}
+
+message SetXySwapEnabledResponse {}
+
 // Request to get layer information
 message GetLayerInfoRequest {}
 
@@ -176,6 +214,10 @@ message Request {
         SetAxisSnapModeRequest set_axis_snap_mode = 13;
         SetAxisSnapThresholdRequest set_axis_snap_threshold = 14;
         SetAxisSnapTimeoutRequest set_axis_snap_timeout = 15;
+        SetXInvertRequest set_x_invert = 16;
+        SetYInvertRequest set_y_invert = 17;
+        SetXyToScrollEnabledRequest set_xy_to_scroll_enabled = 18;
+        SetXySwapEnabledRequest set_xy_swap_enabled = 19;
     }
 }
 
@@ -203,6 +245,10 @@ message Response {
         SetAxisSnapModeResponse set_axis_snap_mode = 14;
         SetAxisSnapThresholdResponse set_axis_snap_threshold = 15;
         SetAxisSnapTimeoutResponse set_axis_snap_timeout = 16;
+        SetXInvertResponse set_x_invert = 17;
+        SetYInvertResponse set_y_invert = 18;
+        SetXyToScrollEnabledResponse set_xy_to_scroll_enabled = 19;
+        SetXySwapEnabledResponse set_xy_swap_enabled = 20;
     }
 }
 

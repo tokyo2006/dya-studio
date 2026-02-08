@@ -61,6 +61,10 @@ export interface InputProcessor {
   axisSnapMode: AxisSnapMode;
   axisSnapThreshold: number;
   axisSnapTimeoutMs: number;
+  xInvert: boolean;
+  yInvert: boolean;
+  xyToScrollEnabled: boolean;
+  xySwapEnabled: boolean;
 }
 
 export interface LayerInformation {
@@ -90,6 +94,10 @@ export interface UseRuntimeInputProcessorReturn {
   setAxisSnapMode: (id: number, mode: AxisSnapMode) => Promise<void>;
   setAxisSnapThreshold: (id: number, threshold: number) => Promise<void>;
   setAxisSnapTimeout: (id: number, timeoutMs: number) => Promise<void>;
+  setXInvert: (id: number, invert: boolean) => Promise<void>;
+  setYInvert: (id: number, invert: boolean) => Promise<void>;
+  setXyToScrollEnabled: (id: number, enabled: boolean) => Promise<void>;
+  setXySwapEnabled: (id: number, enabled: boolean) => Promise<void>;
 }
 
 export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
@@ -147,6 +155,10 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
               processorInfo.axisSnapMode ?? AxisSnapMode.AXIS_SNAP_MODE_NONE,
             axisSnapThreshold: processorInfo.axisSnapThreshold ?? 0,
             axisSnapTimeoutMs: processorInfo.axisSnapTimeoutMs ?? 0,
+            xInvert: processorInfo.xInvert ?? false,
+            yInvert: processorInfo.yInvert ?? false,
+            xyToScrollEnabled: processorInfo.xyToScrollEnabled ?? false,
+            xySwapEnabled: processorInfo.xySwapEnabled ?? false,
           });
 
           // Update state with all collected processors
@@ -671,6 +683,182 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
     [zmkApp?.state.connection, subsystemIndex, loadProcessors],
   );
 
+  const setXInvert = useCallback(
+    async (id: number, invert: boolean) => {
+      if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const service = new ZMKCustomSubsystem(
+          zmkApp.state.connection,
+          subsystemIndex,
+        );
+
+        const request = Request.create({
+          setXInvert: {
+            id,
+            invert,
+          },
+        });
+
+        const payload = Request.encode(request).finish();
+        const responsePayload = await service.callRPC(payload);
+
+        if (responsePayload) {
+          const resp = Response.decode(responsePayload);
+          if (resp.error) {
+            setError(resp.error.message);
+            return;
+          }
+        }
+
+        await loadProcessors();
+      } catch (err) {
+        console.error("Failed to set X invert:", err);
+        setError(
+          `Failed to set X invert: ${err instanceof Error ? err.message : "Unknown error"}`,
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [zmkApp?.state.connection, subsystemIndex, loadProcessors],
+  );
+
+  const setYInvert = useCallback(
+    async (id: number, invert: boolean) => {
+      if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const service = new ZMKCustomSubsystem(
+          zmkApp.state.connection,
+          subsystemIndex,
+        );
+
+        const request = Request.create({
+          setYInvert: {
+            id,
+            invert,
+          },
+        });
+
+        const payload = Request.encode(request).finish();
+        const responsePayload = await service.callRPC(payload);
+
+        if (responsePayload) {
+          const resp = Response.decode(responsePayload);
+          if (resp.error) {
+            setError(resp.error.message);
+            return;
+          }
+        }
+
+        await loadProcessors();
+      } catch (err) {
+        console.error("Failed to set Y invert:", err);
+        setError(
+          `Failed to set Y invert: ${err instanceof Error ? err.message : "Unknown error"}`,
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [zmkApp?.state.connection, subsystemIndex, loadProcessors],
+  );
+
+  const setXyToScrollEnabled = useCallback(
+    async (id: number, enabled: boolean) => {
+      if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const service = new ZMKCustomSubsystem(
+          zmkApp.state.connection,
+          subsystemIndex,
+        );
+
+        const request = Request.create({
+          setXyToScrollEnabled: {
+            id,
+            enabled,
+          },
+        });
+
+        const payload = Request.encode(request).finish();
+        const responsePayload = await service.callRPC(payload);
+
+        if (responsePayload) {
+          const resp = Response.decode(responsePayload);
+          if (resp.error) {
+            setError(resp.error.message);
+            return;
+          }
+        }
+
+        await loadProcessors();
+      } catch (err) {
+        console.error("Failed to set XY to scroll enabled:", err);
+        setError(
+          `Failed to set XY to scroll enabled: ${err instanceof Error ? err.message : "Unknown error"}`,
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [zmkApp?.state.connection, subsystemIndex, loadProcessors],
+  );
+
+  const setXySwapEnabled = useCallback(
+    async (id: number, enabled: boolean) => {
+      if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const service = new ZMKCustomSubsystem(
+          zmkApp.state.connection,
+          subsystemIndex,
+        );
+
+        const request = Request.create({
+          setXySwapEnabled: {
+            id,
+            enabled,
+          },
+        });
+
+        const payload = Request.encode(request).finish();
+        const responsePayload = await service.callRPC(payload);
+
+        if (responsePayload) {
+          const resp = Response.decode(responsePayload);
+          if (resp.error) {
+            setError(resp.error.message);
+            return;
+          }
+        }
+
+        await loadProcessors();
+      } catch (err) {
+        console.error("Failed to set XY swap enabled:", err);
+        setError(
+          `Failed to set XY swap enabled: ${err instanceof Error ? err.message : "Unknown error"}`,
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [zmkApp?.state.connection, subsystemIndex, loadProcessors],
+  );
+
   const loadLayers = useCallback(async () => {
     if (!zmkApp?.state.connection || subsystemIndex === undefined) {
       setError("Not connected to device or subsystem not found");
@@ -745,5 +933,9 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
     setAxisSnapMode,
     setAxisSnapThreshold,
     setAxisSnapTimeout,
+    setXInvert,
+    setYInvert,
+    setXyToScrollEnabled,
+    setXySwapEnabled,
   };
 }

@@ -29,6 +29,10 @@ const createMockProcessor = (overrides = {}) => ({
   axisSnapMode: 0,
   axisSnapThreshold: 50,
   axisSnapTimeoutMs: 200,
+  xInvert: false,
+  yInvert: false,
+  xyToScrollEnabled: false,
+  xySwapEnabled: false,
   ...overrides,
 });
 
@@ -50,6 +54,10 @@ const createMockHookReturn = (overrides = {}) => ({
   setAxisSnapMode: jest.fn(),
   setAxisSnapThreshold: jest.fn(),
   setAxisSnapTimeout: jest.fn(),
+  setXInvert: jest.fn(),
+  setYInvert: jest.fn(),
+  setXyToScrollEnabled: jest.fn(),
+  setXySwapEnabled: jest.fn(),
   ...overrides,
 });
 
