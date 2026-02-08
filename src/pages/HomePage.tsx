@@ -30,31 +30,33 @@ export function HomePage() {
     <div className="p-6 h-full overflow-auto">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="flex items-center gap-3 mb-8">
-          <div>
-            <h1 className="text-xl font-medium text-[var(--color-text)]">
-              Welcome to DYA Studio
-            </h1>
-            <p className="text-sm text-[var(--color-text-muted)] mt-1">
-              DYA Studio is yet another
-              <a
-                href="https://zmk.studio/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline text-[var(--color-electric)] hover:text-[var(--color-neon)] transition-colors mx-1"
-              >
-                ZMK Studio
-              </a>
-              for DYA keyboard series, designed by
-              <a
-                href="https://x.com/cormoran707"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline text-[var(--color-electric)] hover:text-[var(--color-neon)] transition-colors mx-1"
-              >
-                cormoran707
-              </a>
-            </p>
+        <div className="flex flex-col tablet:flex-row tablet:items-center gap-3 mb-8">
+          <div className="flex items-center gap-3 flex-1">
+            <div className="flex-1">
+              <h1 className="text-xl font-medium text-[var(--color-text)] text-center tablet:text-left">
+                Welcome to DYA Studio
+              </h1>
+              <p className="text-sm text-[var(--color-text-muted)] mt-1">
+                DYA Studio is yet another
+                <a
+                  href="https://zmk.studio/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline text-[var(--color-electric)] hover:text-[var(--color-neon)] transition-colors mx-1"
+                >
+                  ZMK Studio
+                </a>
+                for DYA keyboard series, designed by
+                <a
+                  href="https://x.com/cormoran707"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline text-[var(--color-electric)] hover:text-[var(--color-neon)] transition-colors mx-1"
+                >
+                  cormoran707
+                </a>
+              </p>
+            </div>
           </div>
           <div className="ml-auto">
             <a

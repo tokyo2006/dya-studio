@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { IconSun, IconMoon } from "@tabler/icons-react";
+import { IconSun, IconMoon, IconPlugConnectedX } from "@tabler/icons-react";
 import DyaLogo from "../assets/dya.svg?react";
 import { useTheme } from "../hooks/useTheme";
 import type { ConnectionMethod } from "../components/DeviceConnection";
@@ -28,9 +28,9 @@ export function AppLayout({
       {/* Header */}
       <header className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)] bg-[var(--color-surface)]/80 backdrop-blur-sm transition-colors duration-300">
         {/* Logo & Brand */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-shrink-0 mr-4">
           <DyaLogo className="w-8 h-8 [&_polygon]:fill-[var(--color-text)]" />
-          <div className="flex items-center gap-2">
+          <div className="hidden sm:flex items-center gap-2">
             <span className="text-lg font-light tracking-widest text-[var(--color-text)]">
               DYA
             </span>
@@ -45,13 +45,17 @@ export function AppLayout({
           {isConnected ? (
             <>
               <div className="flex items-center gap-3">
-                <div className="status-indicator connected" />
+                <div className="status-indicator connected flex-shrink-0" />
                 <span className="text-sm text-[var(--color-text-secondary)]">
                   {deviceName || "Connected"}
                 </span>
               </div>
-              <button onClick={onDisconnect} className="btn-ghost text-sm">
-                Disconnect
+              <button
+                onClick={onDisconnect}
+                className="btn-ghost text-sm flex items-center gap-1.5"
+              >
+                <IconPlugConnectedX size={18} />
+                <span className="hidden tablet:inline">Disconnect</span>
               </button>
             </>
           ) : (

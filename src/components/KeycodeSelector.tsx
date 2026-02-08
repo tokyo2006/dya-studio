@@ -11,7 +11,7 @@
  */
 import { useState, useMemo, useCallback, useEffect } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { IconX } from "@tabler/icons-react";
+import { IconRestore, IconX } from "@tabler/icons-react";
 import {
   MOUSE_KEYCODES,
   MOUSE_MOVEMENTS,
@@ -660,7 +660,7 @@ export function KeycodeSelector({
     <Dialog.Root open={open} onOpenChange={handleOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" />
-        <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-4xl h-[85vh] bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] shadow-2xl z-50 flex flex-col overflow-hidden">
+        <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full tablet:w-[90vw] max-w-4xl h-full tablet:h-[85vh] bg-[var(--color-surface)] rounded-none tablet:rounded-xl border border-[var(--color-border)] shadow-2xl z-50 flex flex-col overflow-hidden">
           {/* Header with Cancel Button */}
           <div className="flex items-center justify-between p-4 border-b border-[var(--color-border)]">
             <Dialog.Title className="text-lg font-medium text-[var(--color-text)] flex items-center gap-2">
@@ -681,8 +681,8 @@ export function KeycodeSelector({
                   className="px-4 py-2 text-sm rounded-lg border border-red-400 text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2"
                   onClick={handleRevert}
                 >
-                  <span className="w-2 h-2 bg-red-400 rounded-full mr-2 animate-pulse"></span>
-                  Revert change
+                  <IconRestore size={16} className="animate-pulse" />
+                  <span className="hidden tablet:inline">Revert</span>
                 </button>
               )}
               <Dialog.Close asChild>
