@@ -66,19 +66,24 @@ export function BatteryPage() {
     <div className="p-6 h-full overflow-auto">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="flex items-center gap-3 mb-8">
-          <div className="p-2 rounded-lg bg-[var(--color-electric)]/10 border border-[var(--color-electric)]/20">
-            <IconBattery2 size={24} className="text-[var(--color-electric)]" />
+        <div className="flex flex-col tablet:flex-row tablet:items-center gap-3 mb-8">
+          <div className="flex items-center gap-3 flex-1">
+            <div className="p-2 rounded-lg bg-[var(--color-electric)]/10 border border-[var(--color-electric)]/20">
+              <IconBattery2
+                size={24}
+                className="text-[var(--color-electric)]"
+              />
+            </div>
+            <div>
+              <h1 className="text-xl font-medium text-[var(--color-text)]">
+                Battery Status
+              </h1>
+              <p className="text-sm text-[var(--color-text-muted)]">
+                Monitor battery levels and history
+              </p>
+            </div>
           </div>
-          <div className="flex-1">
-            <h1 className="text-xl font-medium text-[var(--color-text)]">
-              Battery Status
-            </h1>
-            <p className="text-sm text-[var(--color-text-muted)]">
-              Monitor battery levels and history
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 ml-auto">
             <button
               onClick={loadBatteryHistory}
               disabled={isLoading}

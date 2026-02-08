@@ -149,7 +149,7 @@ describe("BLEConnectionsPage", () => {
 
     it('should show "Connected" status for connected profile', () => {
       renderComponent({ isConnected: true }, { profiles: mockProfiles });
-      expect(screen.getByText(/Connected •/)).toBeInTheDocument();
+      expect(screen.getByText(/Connected/)).toBeInTheDocument();
     });
 
     it("should apply active profile styling", () => {
@@ -409,11 +409,15 @@ describe("BLEConnectionsPage", () => {
       const activeProfileCard = screen
         .getByText("Work Laptop")
         .closest(".glass-card");
-      const spacer = activeProfileCard?.querySelector(
-        'div[aria-hidden="true"]',
+      const actionButtons = activeProfileCard?.querySelector(
+        ".flex.items-center.gap-2:last-child",
       );
-      expect(spacer).toBeInTheDocument();
-      expect(spacer).toHaveClass("w-[72px]");
+
+      const buttons = actionButtons?.querySelectorAll("button");
+
+      // First button should be unpair, second should be switch
+      expect(buttons?.[0]?.textContent).toContain("Unpair");
+      expect(buttons?.[1]?.textContent).toContain("Active");
     });
 
     it("should show unpair button before switch button", () => {

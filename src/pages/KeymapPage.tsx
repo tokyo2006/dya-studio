@@ -2,7 +2,6 @@ import { useState, useContext, useCallback, useMemo } from "react";
 import {
   IconKeyboard,
   IconDeviceFloppy,
-  IconRefresh,
   IconChevronUp,
   IconChevronDown,
   IconAlertCircle,
@@ -177,8 +176,8 @@ export function KeymapPage() {
     <div className="p-6 h-full overflow-auto">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-col tablet:flex-row tablet:items-center gap-3 mb-4">
+          <div className="flex items-center gap-3 mb-4">
             <div className="p-2 rounded-lg bg-[var(--color-electric)]/10 border border-[var(--color-electric)]/20">
               <IconKeyboard
                 size={24}
@@ -197,7 +196,7 @@ export function KeymapPage() {
 
           {/* Action Buttons */}
           {connection.isConnected && keymap.keymap && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 ml-auto">
               {keymap.hasUnsavedChanges && (
                 <span className="text-xs text-[var(--color-neon)] mr-2">
                   ● Unsaved changes
@@ -213,7 +212,7 @@ export function KeymapPage() {
                 {isDiscarding ? (
                   <IconLoader2 size={16} className="animate-spin" />
                 ) : (
-                  <IconRefresh size={16} />
+                  <IconRestore size={16} />
                 )}
                 Reset All
               </button>
@@ -268,8 +267,8 @@ export function KeymapPage() {
         {connection.isConnected && keymap.keymap && currentLayout && (
           <>
             {/* Layer Tabs */}
-            <div className="flex items-center gap-2 mb-6">
-              <div className="flex gap-2 flex-1 overflow-x-auto pb-2">
+            <div className="flex flex-wrap items-center gap-2 mb-6">
+              <div className="flex gap-2 flex-1 overflow-x-auto pb-2 basis-full sm:basis-auto">
                 {keymap.keymap.layers.map((layer, index) => (
                   <button
                     key={layer.id}
@@ -287,7 +286,7 @@ export function KeymapPage() {
 
               {/* Layer Management Buttons */}
               <Tooltip.Provider delayDuration={200}>
-                <div className="flex items-center gap-1 border-l border-[var(--color-border)] pl-2">
+                <div className="flex items-center gap-1 border-l border-[var(--color-border)] pl-2 ml-auto">
                   {/* Layer Sorting Label */}
                   <span className="text-xs text-[var(--color-text-muted)] mr-1">
                     Sort:

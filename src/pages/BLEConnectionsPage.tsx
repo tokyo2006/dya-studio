@@ -82,28 +82,35 @@ export function BLEConnectionsPage() {
     setPendingOutputPriority(null);
   };
 
+  const reload = () => {
+    loadProfiles();
+    getOutputPriority();
+  };
+
   return (
     <div className="p-6 h-full overflow-auto">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="flex items-center gap-3 mb-8">
-          <div className="p-2 rounded-lg bg-[var(--color-cyber)]/10 border border-[var(--color-cyber)]/20">
-            <IconBluetooth size={24} className="text-[var(--color-cyber)]" />
+        <div className="flex flex-col tablet:flex-row tablet:items-center gap-3 mb-8">
+          <div className="flex items-center gap-3 flex-1">
+            <div className="p-2 rounded-lg bg-[var(--color-cyber)]/10 border border-[var(--color-cyber)]/20">
+              <IconBluetooth size={24} className="text-[var(--color-cyber)]" />
+            </div>
+            <div className="flex-1">
+              <h1 className="text-xl font-medium text-[var(--color-text)]">
+                BLE Connections
+              </h1>
+              <p className="text-sm text-[var(--color-text-muted)]">
+                Manage Bluetooth upstream connections
+              </p>
+            </div>
           </div>
-          <div className="flex-1">
-            <h1 className="text-xl font-medium text-[var(--color-text)]">
-              BLE Connections
-            </h1>
-            <p className="text-sm text-[var(--color-text-muted)]">
-              Manage Bluetooth upstream connections
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 ml-auto">
             {/* Refresh Button */}
             {profiles.length > 0 && (
               <button
                 className="btn-ghost flex items-center gap-2"
-                onClick={loadProfiles}
+                onClick={reload}
                 disabled={isLoading}
                 aria-label="Refresh profiles"
               >
@@ -155,14 +162,6 @@ export function BLEConnectionsPage() {
                   <h3 className="text-sm font-medium text-[var(--color-text)]">
                     Output Priority
                   </h3>
-                  <button
-                    className="btn-ghost p-1"
-                    onClick={getOutputPriority}
-                    disabled={isLoading}
-                    aria-label="Refresh output priority"
-                  >
-                    <IconRefresh size={14} />
-                  </button>
                 </div>
                 <p className="text-xs text-[var(--color-text-muted)]">
                   Prioritized connection for keystrokes
@@ -313,7 +312,12 @@ export function BLEConnectionsPage() {
                       ) : (
                         <>
                           <div className="flex items-center gap-2">
-                            <p className="text-sm font-medium text-[var(--color-text-secondary)]">
+                            <p
+                              className="text-sm font-medium text-[var(--color-text-secondary)] truncate max-w-[12rem]"
+                              title={
+                                profile.name || `Profile ${profile.index + 1}`
+                              }
+                            >
                               {profile.name || `Profile ${profile.index + 1}`}
                             </p>
                             {!profile.isOpen && (
@@ -329,41 +333,71 @@ export function BLEConnectionsPage() {
                               </button>
                             )}
                           </div>
-                          <p className="text-xs text-[var(--color-text-muted)] truncate">
-                            {profile.isOpen
-                              ? "Not paired"
-                              : profile.isConnected
-                                ? `Connected • ${profile.address}`
-                                : profile.address || "No address"}
-                          </p>
+                          <div className="flex flex-wrap">
+                            {profile.isOpen ? (
+                              <p className="text-xs text-[var(--color-text-muted)] truncate">
+                                Not paired
+                              </p>
+                            ) : profile.isConnected ? (
+                              <>
+                                <span className="text-xs text-[var(--color-text-muted)] pr-1">
+                                  Connected
+                                </span>
+                                {profile.address && (
+                                  <span className="text-xs text-[var(--color-text-muted)] block tablet:inline truncate">
+                                    {profile.address}
+                                  </span>
+                                )}
+                              </>
+                            ) : (
+                              <p className="text-xs text-[var(--color-text-muted)] truncate">
+                                {profile.address || "No address"}
+                              </p>
+                            )}
+                          </div>
                         </>
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {!profile.isOpen && (
-                      <button
-                        className="btn-ghost text-sm flex items-center gap-1.5 text-red-400 hover:text-red-300"
-                        onClick={() => handleUnpair(profile.index)}
-                        disabled={isLoading}
-                      >
-                        <IconLinkOff size={16} />
-                        <span className="hidden tablet:inline">Unpair</span>
-                      </button>
-                    )}
-                    {!profile.isActive ? (
-                      <button
-                        className="btn-ghost text-sm flex items-center gap-1.5"
-                        onClick={() => handleSwitch(profile.index)}
-                        disabled={isLoading}
-                      >
-                        <IconLink size={16} />
-                        <span className="hidden tablet:inline">Switch</span>
-                      </button>
-                    ) : (
-                      <div className="w-[72px]" aria-hidden="true"></div>
-                    )}
-                  </div>
+                  {editingIndex != profile.index && (
+                    <div className="flex items-center gap-2">
+                      {!profile.isOpen && (
+                        <button
+                          className="btn-ghost text-sm flex items-center gap-1.5 text-red-400 hover:text-red-300"
+                          onClick={() => handleUnpair(profile.index)}
+                          disabled={isLoading}
+                        >
+                          <IconLinkOff size={16} />
+                          <span className="hidden tablet:inline">Unpair</span>
+                        </button>
+                      )}
+                      {!profile.isActive ? (
+                        <button
+                          className="btn-ghost text-sm flex items-center gap-1.5"
+                          onClick={() => handleSwitch(profile.index)}
+                          disabled={isLoading}
+                        >
+                          <IconLink size={16} />
+                          <span className="hidden tablet:inline">Switch</span>
+                        </button>
+                      ) : (
+                        <button
+                          className="btn-ghost text-sm flex items-center gap-1.5"
+                          disabled
+                          aria-disabled="true"
+                          tabIndex={-1}
+                        >
+                          <IconLink
+                            size={16}
+                            className="text-[var(--color-cyber)]"
+                          />
+                          <span className="hidden tablet:inline text-[var(--color-cyber)] font-semibold">
+                            Active
+                          </span>
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
