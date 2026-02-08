@@ -653,8 +653,8 @@ export function TrackballPage() {
                     <input
                       type="range"
                       min={0}
-                      max={200}
-                      step={5}
+                      max={1000}
+                      step={1}
                       value={displayAxisSnapThreshold}
                       onChange={(e) =>
                         handleAxisSnapThresholdChange(Number(e.target.value))

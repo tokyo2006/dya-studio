@@ -268,12 +268,12 @@ export function HomePage() {
                 <br />
                 Please refer to the
                 <a
-                  href="https://github.com/cormoran/zmk-keyboard-dya-dash"
+                  href="https://github.com/cormoran/zmk-keyboard-dya-dash/pull/9"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="underline text-[var(--color-electric)] hover:text-[var(--color-neon)] transition-colors mx-1"
                 >
-                  zmk-config
+                  experimental zmk-config
                 </a>
                 for DYA Dash keyboard.
                 <div className="mt-2 p-3 rounded bg-[var(--color-warning)]/20 border border-[var(--color-warning)] text-[var(--color-warning)] text-xs">
