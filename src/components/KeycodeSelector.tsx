@@ -719,7 +719,7 @@ export function KeycodeSelector({
           {selectedBehaviorInfo && needsAnyParam && (
             <div className="flex-1 flex flex-col overflow-hidden min-h-0">
               {/* Parameters Label */}
-              <div className="px-4 pt-4 pb-1">
+              <div className="px-4 pt-4 pb-1 hidden tablet:block">
                 <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1">
                   Parameters
                 </label>
@@ -789,7 +789,7 @@ export function KeycodeSelector({
               </div>
 
               {/* Parameter Description */}
-              <div className="px-4 py-2 bg-[var(--color-bg)] border-b border-[var(--color-border)]">
+              <div className="px-4 py-2 bg-[var(--color-bg)] border-b border-[var(--color-border)] hidden tablet:block">
                 <p className="text-xs text-[var(--color-text-muted)]">
                   {activeParam === 1
                     ? getParamTypeDescription(selectedBehaviorInfo.param1Type)

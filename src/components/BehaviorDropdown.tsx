@@ -186,8 +186,8 @@ export function BehaviorDropdown({
       </button>
 
       {/* Quick Select Buttons with label (moved to bottom) */}
-      <div className="items-center gap-1 mt-2 pl-2 overflow-x-auto hidden tablet:flex">
-        <span className="text-xs text-[var(--color-text-muted)] mr-1">
+      <div className="items-center gap-1 mt-2 pl-2 overflow-x-auto flex">
+        <span className="text-xs text-[var(--color-text-muted)] mr-1 flex-shrink-0">
           Quick Select:
         </span>
         {quickSelectBehaviors.map((qb) => (

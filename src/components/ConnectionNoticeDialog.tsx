@@ -11,6 +11,7 @@ import {
   IconBluetooth,
   IconCheck,
   IconX,
+  IconAlertTriangleFilled,
 } from "@tabler/icons-react";
 import type { ConnectionMethod } from "./DeviceConnection";
 import { saveNoticeAcceptance } from "../lib/connectionNoticeStorage";
@@ -53,7 +54,7 @@ export function ConnectionNoticeDialog({
         <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" />
         <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-md bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] shadow-2xl z-50 p-6 max-h-[90vh] overflow-y-auto">
           {/* Icon */}
-          <div className="flex justify-center mb-4">
+          <div className="hidden tablet:flex justify-center mb-4">
             <div className="w-16 h-16 rounded-full bg-[var(--color-electric)]/10 border border-[var(--color-electric)]/20 flex items-center justify-center">
               {isUSB && (
                 <IconUsb size={32} className="text-[var(--color-electric)]" />
@@ -70,28 +71,30 @@ export function ConnectionNoticeDialog({
           </Dialog.Title>
 
           {/* Data Collection Notice */}
-          <div className="glass-card p-4 mb-4">
-            <h4 className="text-sm font-medium text-[var(--color-text)] mb-3 flex items-center gap-2">
-              <IconAlertCircle
-                size={18}
-                className="text-[var(--color-text-muted)]"
-              />
-              Data Collection Notice
-            </h4>
-            <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">
-              DYA Studio collects your <strong>keyboard name</strong> for usage
-              analysis purposes. However,{" "}
-              <strong>no other keyboard data</strong> is sent to any servers.
-              All of your keyboard configurations, keymaps, or settings are
-              handled locally.
-            </p>
-          </div>
+          {canContinue && (
+            <div className="glass-card p-4 mb-4">
+              <h4 className="text-sm font-medium text-[var(--color-text)] mb-3 flex items-center gap-2">
+                <IconAlertCircle
+                  size={18}
+                  className="text-[var(--color-text-muted)]"
+                />
+                Data Collection Notice
+              </h4>
+              <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">
+                DYA Studio collects your <strong>keyboard name</strong> for
+                usage analysis purposes. However,{" "}
+                <strong>no other keyboard data</strong> is sent to any servers.
+                All of your keyboard configurations, keymaps, or settings are
+                handled locally.
+              </p>
+            </div>
+          )}
 
           {/* Unavailability Warning */}
           {isBLE && !isBLEAvailable && (
             <div className="glass-card p-4 mb-4 border-l-4 border-[var(--color-warning)] bg-[var(--color-warning)]/10">
               <h4 className="text-sm font-medium text-[var(--color-text)] mb-3 flex items-center gap-2">
-                <IconAlertCircle
+                <IconAlertTriangleFilled
                   size={18}
                   className="text-[var(--color-cyber)]"
                 />
@@ -118,7 +121,7 @@ export function ConnectionNoticeDialog({
           {isUSB && !isSerialAvailable && (
             <div className="glass-card p-4 mb-4 border-l-4 border-[var(--color-warning)] bg-[var(--color-warning)]/10">
               <h4 className="text-sm font-medium text-[var(--color-text)] mb-3 flex items-center gap-2">
-                <IconAlertCircle
+                <IconAlertTriangleFilled
                   size={18}
                   className="text-[var(--color-cyber)]"
                 />
@@ -161,18 +164,20 @@ export function ConnectionNoticeDialog({
           )}
 
           {/* Never show again checkbox */}
-          <div className="mb-6 flex items-center justify-center">
-            <label className="flex items-center gap-2 cursor-pointer text-sm text-[var(--color-text-secondary)]">
-              <input
-                type="checkbox"
-                className="accent-[var(--color-electric)]"
-                id="neverShowAgain"
-                checked={neverShowAgain}
-                onChange={(e) => setNeverShowAgain(e.target.checked)}
-              />
-              Never show again
-            </label>
-          </div>
+          {canContinue && (
+            <div className="mb-6 flex items-center justify-center">
+              <label className="flex items-center gap-2 cursor-pointer text-sm text-[var(--color-text-secondary)]">
+                <input
+                  type="checkbox"
+                  className="accent-[var(--color-electric)]"
+                  id="neverShowAgain"
+                  checked={neverShowAgain}
+                  onChange={(e) => setNeverShowAgain(e.target.checked)}
+                />
+                Never show again
+              </label>
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex gap-3">
@@ -183,14 +188,16 @@ export function ConnectionNoticeDialog({
               <IconX size={18} />
               Cancel
             </button>
-            <button
-              className="flex-1 btn-electric flex items-center justify-center gap-2"
-              disabled={!canContinue}
-              onClick={handleAgree}
-            >
-              <IconCheck size={18} />
-              Agree to start
-            </button>
+            {canContinue && (
+              <button
+                className="flex-1 btn-electric flex items-center justify-center gap-2"
+                disabled={!canContinue}
+                onClick={handleAgree}
+              >
+                <IconCheck size={18} />
+                Agree to start
+              </button>
+            )}
           </div>
         </Dialog.Content>
       </Dialog.Portal>

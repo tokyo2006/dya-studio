@@ -70,7 +70,12 @@ export function KeycodeValueSelector({
   }, [value]);
   // Focus the search input when the component is mounted (shown)
   useEffect(() => {
-    searchInputRef.current?.focus();
+    const isTouchDevice = window.matchMedia(
+      "(hover: none) and (pointer: coarse)",
+    ).matches;
+    if (!isTouchDevice) {
+      searchInputRef.current?.focus();
+    }
   }, []);
   const filteredKeycodes = useMemo((): KeycodeDefinition[] => {
     if (searchQuery.trim()) {
@@ -201,7 +206,11 @@ export function KeycodeValueSelector({
 
         {/* Keycode Grid */}
         <div className="flex-1 overflow-y-auto pl-2">
-          <div className="grid grid-cols-5 gap-1">
+          <div
+            className={`grid gap-1 tablet:grid-cols-5 ${
+              searchQuery.trim() ? "grid-cols-4" : "grid-cols-2 "
+            }`}
+          >
             {filteredKeycodes.map((keycode) => {
               const isSelected =
                 extractBaseKeycode(value) === keycode.code ||
