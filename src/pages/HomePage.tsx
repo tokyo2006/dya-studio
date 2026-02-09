@@ -139,6 +139,22 @@ export function HomePage() {
                   どちらのキーボードも無線・分割・トラックボール・乾電池動作で、さらにタッチセンサーが搭載されています。
                 </p>
                 <p>どちらも半田付けの不要なビルドキットとなる予定です。</p>
+                <p className="mt-2">
+                  入場チケットの買い方は
+                  <a
+                    href="https://note.com/keyket_jp/n/n2d05204a7533"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline text-[var(--color-electric)] hover:text-[var(--color-neon)] transition-colors mx-1"
+                  >
+                    こちらのキーケット公式ブログ
+                  </a>
+                  をご覧ください。
+                  <br />
+                  超先行入場チケットは2027/02/11
+                  23:59まで、先行チケットは14日の23:59まで抽選受付のようです。
+                  通常チケットも数量限定ですので、お早めに。
+                </p>
               </div>
             </div>
           </div>
