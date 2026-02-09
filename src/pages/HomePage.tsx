@@ -144,6 +144,47 @@ export function HomePage() {
           </div>
         </div>
 
+        {/* Guide */}
+        <div className="glass-card p-6 mb-6">
+          <h2 className="text-sm font-medium text-[var(--color-text-secondary)] mb-4">
+            Features - DYA Studio でできること
+          </h2>
+          <div className="text-sm text-[var(--color-text-muted)] space-y-4">
+            <ul className="list-disc list-outside space-y-2 pl-5">
+              <li>
+                少し使いやすい UI で ZMK Studio
+                と同等のキーマッピングカスタマイズができます
+                <br />
+                You can customize keymaps with a slightly easier UI, equivalent
+                to ZMK Studio.
+              </li>
+              <li>
+                トラックボールの感度や自動レイヤー切り替えの設定ができます
+                <br />
+                You can configure trackball sensitivity, auto layer switching
+                and various input processor settings.
+              </li>
+              <li>
+                デバイスに保存されたバッテリー消費履歴が確認できます
+                <br />
+                You can check battery consumption history stored on the device.
+              </li>
+              <li>
+                BLE 接続先に名前をつけたり、ペアリングを解除したりできます
+                <br />
+                You can name BLE connection targets and unpair them.
+              </li>
+              <li>
+                スリープに入る時間の変更など各種設定ができます
+                <br />
+                You can change various settings such as the time to enter sleep
+                mode.
+              </li>
+            </ul>
+            <p>See also below Q&amp;A section for more details.</p>
+          </div>
+        </div>
+
         {/* DYA Keyboards Section */}
         <div className="glass-card p-6 mb-6">
           <h2 className="text-sm font-medium text-[var(--color-text-secondary)] mb-4">
