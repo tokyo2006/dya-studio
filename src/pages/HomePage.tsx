@@ -3,6 +3,7 @@ import {
   IconShoppingCart,
   IconFile,
   IconBrandX,
+  IconInfoCircle,
 } from "@tabler/icons-react";
 
 import Keyket2026 from "../assets/keyket2026.jpeg";
@@ -30,7 +31,7 @@ export function HomePage() {
     <div className="p-6 h-full overflow-auto">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="flex flex-col tablet:flex-row tablet:items-center gap-3 mb-8">
+        <div className="flex flex-col tablet:flex-row tablet:items-center gap-3 mb-6">
           <div className="flex items-center gap-3 flex-1">
             <div className="flex-1">
               <h1 className="text-xl font-medium text-[var(--color-text)] text-center tablet:text-left">
@@ -69,6 +70,13 @@ export function HomePage() {
               Share on <IconBrandX size={16} className="ml-1" />
             </a>
           </div>
+        </div>
+        <div className="mb-4 text-xs text-[var(--color-text-muted)] flex items-center gap-1">
+          <IconInfoCircle size={14} /> DYA の読み方はダイアです
+        </div>
+        <div className="mb-4 text-xs text-[var(--color-text-muted)] flex items-center gap-1">
+          <IconInfoCircle size={14} /> cormoran
+          の読み方はコーモラン[kˈɔɚm(ə)rən]です
         </div>
 
         {/* DYA Keyboards Section */}
