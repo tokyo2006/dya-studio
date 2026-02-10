@@ -12,32 +12,17 @@ import {
 import {
   Request,
   Response,
-  Notification,
   SensorInfo,
-  LayerSensorConfig,
-  SensorBinding,
+  LayerBindings,
+  Binding,
 } from "../proto/zmk/runtime_sensor_rotate/runtime_sensor_rotate";
 
 // Re-export types for convenience
-export type { SensorInfo, LayerSensorConfig, SensorBinding };
+export type { SensorInfo, LayerBindings, Binding };
 
 // Subsystem identifier for ZMK runtime sensor rotate custom protocol
 // This should match the identifier registered in the ZMK firmware module
 const SUBSYSTEM_IDENTIFIER = "cormoran_rsr";
-
-// Time to wait for all notifications to arrive
-const NOTIFICATION_COLLECTION_TIMEOUT_MS = 500;
-
-/**
- * Sensor configuration for a specific layer
- */
-export interface SensorLayerConfig {
-  layerId: number;
-  sensorIndex: number;
-  clockwise: SensorBinding;
-  counterClockwise: SensorBinding;
-  tapMs: number;
-}
 
 /**
  * Sensor information
@@ -59,23 +44,17 @@ export interface UseRuntimeSensorRotateReturn {
   isLoading: boolean;
   /** Error message if any */
   error: string | null;
-  /** Whether there are unsaved changes */
-  hasUnsavedChanges: boolean;
   /** Load all sensors */
   loadSensors: () => Promise<void>;
-  /** Get configuration for a sensor on a specific layer */
-  getLayerSensorConfig: (
-    layerId: number,
+  /** Get all layer bindings for a sensor */
+  getAllLayerBindings: (sensorIndex: number) => Promise<LayerBindings[]>;
+  /** Set bindings for a sensor on a specific layer */
+  setLayerBindings: (
     sensorIndex: number,
-  ) => Promise<SensorLayerConfig | null>;
-  /** Set configuration for a sensor on a specific layer */
-  setLayerSensorConfig: (config: SensorLayerConfig) => Promise<boolean>;
-  /** Save all changes to persistent storage */
-  saveChanges: () => Promise<boolean>;
-  /** Discard all unsaved changes */
-  discardChanges: () => Promise<boolean>;
-  /** Check if there are unsaved changes */
-  checkUnsavedChanges: () => Promise<void>;
+    layer: number,
+    cwBinding: Binding,
+    ccwBinding: Binding,
+  ) => Promise<boolean>;
 }
 
 export function useRuntimeSensorRotate(): UseRuntimeSensorRotateReturn {
@@ -83,7 +62,6 @@ export function useRuntimeSensorRotate(): UseRuntimeSensorRotateReturn {
   const [sensors, setSensors] = useState<Sensor[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Memoize subsystem to avoid unnecessary re-renders
   const subsystem = useMemo(
@@ -94,36 +72,6 @@ export function useRuntimeSensorRotate(): UseRuntimeSensorRotateReturn {
 
   // Extract subsystem index as a stable primitive value for dependencies
   const subsystemIndex = subsystem?.index;
-
-  // Set up persistent notification listener for updates
-  useEffect(() => {
-    if (!zmkApp || subsystemIndex === undefined) {
-      return;
-    }
-
-    const unsubscribe = zmkApp.onNotification({
-      type: "custom",
-      subsystemIndex,
-      callback: (customNotification) => {
-        try {
-          const notification = Notification.decode(customNotification.payload);
-
-          // Handle unsaved changes status notification
-          if (notification.unsavedChangesStatusChanged !== undefined) {
-            setHasUnsavedChanges(
-              notification.unsavedChangesStatusChanged.hasUnsavedChanges,
-            );
-          }
-        } catch (err) {
-          console.error("Failed to decode sensor rotation notification:", err);
-        }
-      },
-    });
-
-    return () => {
-      unsubscribe();
-    };
-  }, [zmkApp, subsystemIndex]);
 
   const loadSensors = useCallback(async () => {
     if (!zmkApp?.state.connection || subsystemIndex === undefined) {
@@ -141,7 +89,7 @@ export function useRuntimeSensorRotate(): UseRuntimeSensorRotateReturn {
       );
 
       const request = Request.create({
-        listSensors: {},
+        getSensors: {},
       });
 
       const payload = Request.encode(request).finish();
@@ -153,8 +101,8 @@ export function useRuntimeSensorRotate(): UseRuntimeSensorRotateReturn {
           setError(resp.error.message);
           return;
         }
-        if (resp.listSensors?.sensors) {
-          const sensorInfos: Sensor[] = resp.listSensors.sensors.map(
+        if (resp.getSensors?.sensors) {
+          const sensorInfos: Sensor[] = resp.getSensors.sensors.map(
             (s: SensorInfo) => ({
               index: s.index,
               name: s.name,
@@ -163,11 +111,6 @@ export function useRuntimeSensorRotate(): UseRuntimeSensorRotateReturn {
           setSensors(sensorInfos);
         }
       }
-
-      // Wait for notifications to arrive
-      await new Promise((resolve) =>
-        setTimeout(resolve, NOTIFICATION_COLLECTION_TIMEOUT_MS),
-      );
     } catch (err) {
       console.error("Failed to load sensors:", err);
       setError(
@@ -178,14 +121,11 @@ export function useRuntimeSensorRotate(): UseRuntimeSensorRotateReturn {
     }
   }, [zmkApp, subsystemIndex]);
 
-  const getLayerSensorConfig = useCallback(
-    async (
-      layerId: number,
-      sensorIndex: number,
-    ): Promise<SensorLayerConfig | null> => {
+  const getAllLayerBindings = useCallback(
+    async (sensorIndex: number): Promise<LayerBindings[]> => {
       if (!zmkApp?.state.connection || subsystemIndex === undefined) {
         setError("Not connected to device or subsystem not found");
-        return null;
+        return [];
       }
 
       setIsLoading(true);
@@ -198,8 +138,7 @@ export function useRuntimeSensorRotate(): UseRuntimeSensorRotateReturn {
         );
 
         const request = Request.create({
-          getLayerSensorConfig: {
-            layerId,
+          getAllLayerBindings: {
             sensorIndex,
           },
         });
@@ -211,34 +150,19 @@ export function useRuntimeSensorRotate(): UseRuntimeSensorRotateReturn {
           const resp = Response.decode(responsePayload);
           if (resp.error) {
             setError(resp.error.message);
-            return null;
+            return [];
           }
-          if (resp.getLayerSensorConfig?.config) {
-            const config = resp.getLayerSensorConfig.config;
-            return {
-              layerId: config.layerId,
-              sensorIndex: config.sensorIndex,
-              clockwise: config.clockwise ?? {
-                behaviorId: 0,
-                param1: 0,
-                param2: 0,
-              },
-              counterClockwise: config.counterClockwise ?? {
-                behaviorId: 0,
-                param1: 0,
-                param2: 0,
-              },
-              tapMs: config.tapMs,
-            };
+          if (resp.getAllLayerBindings?.bindings) {
+            return resp.getAllLayerBindings.bindings;
           }
         }
-        return null;
+        return [];
       } catch (err) {
-        console.error("Failed to get layer sensor config:", err);
+        console.error("Failed to get all layer bindings:", err);
         setError(
-          `Failed to get layer sensor config: ${err instanceof Error ? err.message : "Unknown error"}`,
+          `Failed to get all layer bindings: ${err instanceof Error ? err.message : "Unknown error"}`,
         );
-        return null;
+        return [];
       } finally {
         setIsLoading(false);
       }
@@ -246,8 +170,13 @@ export function useRuntimeSensorRotate(): UseRuntimeSensorRotateReturn {
     [zmkApp, subsystemIndex],
   );
 
-  const setLayerSensorConfig = useCallback(
-    async (config: SensorLayerConfig): Promise<boolean> => {
+  const setLayerBindings = useCallback(
+    async (
+      sensorIndex: number,
+      layer: number,
+      cwBinding: Binding,
+      ccwBinding: Binding,
+    ): Promise<boolean> => {
       if (!zmkApp?.state.connection || subsystemIndex === undefined) {
         setError("Not connected to device or subsystem not found");
         return false;
@@ -263,14 +192,11 @@ export function useRuntimeSensorRotate(): UseRuntimeSensorRotateReturn {
         );
 
         const request = Request.create({
-          setLayerSensorConfig: {
-            config: {
-              layerId: config.layerId,
-              sensorIndex: config.sensorIndex,
-              clockwise: config.clockwise,
-              counterClockwise: config.counterClockwise,
-              tapMs: config.tapMs,
-            },
+          setLayerBindings: {
+            sensorIndex,
+            layer,
+            cwBinding,
+            ccwBinding,
           },
         });
 
@@ -283,14 +209,15 @@ export function useRuntimeSensorRotate(): UseRuntimeSensorRotateReturn {
             setError(resp.error.message);
             return false;
           }
-          // Configuration set successfully
-          return true;
+          if (resp.setLayerBindings) {
+            return resp.setLayerBindings.success;
+          }
         }
         return false;
       } catch (err) {
-        console.error("Failed to set layer sensor config:", err);
+        console.error("Failed to set layer bindings:", err);
         setError(
-          `Failed to set layer sensor config: ${err instanceof Error ? err.message : "Unknown error"}`,
+          `Failed to set layer bindings: ${err instanceof Error ? err.message : "Unknown error"}`,
         );
         return false;
       } finally {
@@ -300,139 +227,17 @@ export function useRuntimeSensorRotate(): UseRuntimeSensorRotateReturn {
     [zmkApp, subsystemIndex],
   );
 
-  const saveChanges = useCallback(async (): Promise<boolean> => {
-    if (!zmkApp?.state.connection || subsystemIndex === undefined) {
-      setError("Not connected to device or subsystem not found");
-      return false;
-    }
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const service = new ZMKCustomSubsystem(
-        zmkApp.state.connection,
-        subsystemIndex,
-      );
-
-      const request = Request.create({
-        saveChanges: {},
-      });
-
-      const payload = Request.encode(request).finish();
-      const responsePayload = await service.callRPC(payload);
-
-      if (responsePayload) {
-        const resp = Response.decode(responsePayload);
-        if (resp.error) {
-          setError(resp.error.message);
-          return false;
-        }
-        setHasUnsavedChanges(false);
-        return true;
-      }
-      return false;
-    } catch (err) {
-      console.error("Failed to save changes:", err);
-      setError(
-        `Failed to save changes: ${err instanceof Error ? err.message : "Unknown error"}`,
-      );
-      return false;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [zmkApp, subsystemIndex]);
-
-  const discardChanges = useCallback(async (): Promise<boolean> => {
-    if (!zmkApp?.state.connection || subsystemIndex === undefined) {
-      setError("Not connected to device or subsystem not found");
-      return false;
-    }
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const service = new ZMKCustomSubsystem(
-        zmkApp.state.connection,
-        subsystemIndex,
-      );
-
-      const request = Request.create({
-        discardChanges: {},
-      });
-
-      const payload = Request.encode(request).finish();
-      const responsePayload = await service.callRPC(payload);
-
-      if (responsePayload) {
-        const resp = Response.decode(responsePayload);
-        if (resp.error) {
-          setError(resp.error.message);
-          return false;
-        }
-        setHasUnsavedChanges(false);
-        return true;
-      }
-      return false;
-    } catch (err) {
-      console.error("Failed to discard changes:", err);
-      setError(
-        `Failed to discard changes: ${err instanceof Error ? err.message : "Unknown error"}`,
-      );
-      return false;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [zmkApp, subsystemIndex]);
-
-  const checkUnsavedChanges = useCallback(async () => {
-    if (!zmkApp?.state.connection || subsystemIndex === undefined) {
-      return;
-    }
-
-    try {
-      const service = new ZMKCustomSubsystem(
-        zmkApp.state.connection,
-        subsystemIndex,
-      );
-
-      const request = Request.create({
-        checkUnsavedChanges: {},
-      });
-
-      const payload = Request.encode(request).finish();
-      const responsePayload = await service.callRPC(payload);
-
-      if (responsePayload) {
-        const resp = Response.decode(responsePayload);
-        if (resp.error) {
-          setError(resp.error.message);
-          return;
-        }
-        if (resp.checkUnsavedChanges) {
-          setHasUnsavedChanges(resp.checkUnsavedChanges.hasUnsavedChanges);
-        }
-      }
-    } catch (err) {
-      console.error("Failed to check unsaved changes:", err);
-    }
-  }, [zmkApp, subsystemIndex]);
-
   // Load sensors when connection or subsystem changes
   useEffect(() => {
     if (subsystemIndex !== undefined && zmkApp?.state.connection) {
       loadSensors();
-      checkUnsavedChanges();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subsystemIndex, zmkApp?.state.connection]);
+  }, [subsystemIndex, zmkApp?.state.connection, loadSensors]);
 
   // Reset state when disconnected
   useEffect(() => {
     if (!zmkApp?.state.connection) {
       setSensors([]);
-      setHasUnsavedChanges(false);
       setError(null);
     }
   }, [zmkApp?.state.connection]);
@@ -442,12 +247,8 @@ export function useRuntimeSensorRotate(): UseRuntimeSensorRotateReturn {
     sensors,
     isLoading,
     error,
-    hasUnsavedChanges,
     loadSensors,
-    getLayerSensorConfig,
-    setLayerSensorConfig,
-    saveChanges,
-    discardChanges,
-    checkUnsavedChanges,
+    getAllLayerBindings,
+    setLayerBindings,
   };
 }

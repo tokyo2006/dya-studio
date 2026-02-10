@@ -7,140 +7,76 @@
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
 
-export const protobufPackage = "zmk.runtime_sensor_rotate";
+export const protobufPackage = "cormoran.rsr";
 
-/** Behavior binding for a sensor rotation direction */
-export interface SensorBinding {
-  /** Behavior ID */
+/** Runtime sensor rotate messages */
+export interface Binding {
   behaviorId: number;
-  /** Parameter 1 */
   param1: number;
-  /** Parameter 2 */
   param2: number;
-}
-
-/** Configuration for a sensor on a specific layer */
-export interface LayerSensorConfig {
-  /** Layer ID */
-  layerId: number;
-  /** Sensor index */
-  sensorIndex: number;
-  /** Clockwise rotation binding */
-  clockwise:
-    | SensorBinding
-    | undefined;
-  /** Counter-clockwise rotation binding */
-  counterClockwise:
-    | SensorBinding
-    | undefined;
-  /** Tap time in milliseconds */
   tapMs: number;
 }
 
-/** Information about a sensor */
-export interface SensorInfo {
-  /** Sensor index */
-  index: number;
-  /** Sensor name */
-  name: string;
+export interface SetLayerBindingsRequest {
+  sensorIndex: number;
+  layer: number;
+  cwBinding: Binding | undefined;
+  ccwBinding: Binding | undefined;
 }
 
-/** Request to list all available sensors */
-export interface ListSensorsRequest {
+export interface SetLayerBindingsResponse {
+  success: boolean;
 }
 
-export interface ListSensorsResponse {
-  sensors: SensorInfo[];
-}
-
-/** Request to get configuration for a sensor on a layer */
-export interface GetLayerSensorConfigRequest {
-  layerId: number;
+export interface GetAllLayerBindingsRequest {
   sensorIndex: number;
 }
 
-export interface GetLayerSensorConfigResponse {
-  config: LayerSensorConfig | undefined;
+export interface LayerBindings {
+  layer: number;
+  cwBinding: Binding | undefined;
+  ccwBinding: Binding | undefined;
 }
 
-/** Request to set configuration for a sensor on a layer */
-export interface SetLayerSensorConfigRequest {
-  config: LayerSensorConfig | undefined;
+export interface GetAllLayerBindingsResponse {
+  bindings: LayerBindings[];
 }
 
-export interface SetLayerSensorConfigResponse {
+export interface GetSensorsRequest {
 }
 
-/** Request to save all changes */
-export interface SaveChangesRequest {
+export interface SensorInfo {
+  index: number;
+  name: string;
 }
 
-export interface SaveChangesResponse {
+export interface GetSensorsResponse {
+  sensors: SensorInfo[];
 }
 
-/** Request to discard all unsaved changes */
-export interface DiscardChangesRequest {
-}
-
-export interface DiscardChangesResponse {
-}
-
-/** Request to check if there are unsaved changes */
-export interface CheckUnsavedChangesRequest {
-}
-
-export interface CheckUnsavedChangesResponse {
-  hasUnsavedChanges: boolean;
-}
-
-/** Main request message */
 export interface Request {
-  listSensors?: ListSensorsRequest | undefined;
-  getLayerSensorConfig?: GetLayerSensorConfigRequest | undefined;
-  setLayerSensorConfig?: SetLayerSensorConfigRequest | undefined;
-  saveChanges?: SaveChangesRequest | undefined;
-  discardChanges?: DiscardChangesRequest | undefined;
-  checkUnsavedChanges?: CheckUnsavedChangesRequest | undefined;
+  setLayerBindings?: SetLayerBindingsRequest | undefined;
+  getAllLayerBindings?: GetAllLayerBindingsRequest | undefined;
+  getSensors?: GetSensorsRequest | undefined;
 }
 
-/** Error response */
 export interface ErrorResponse {
   message: string;
 }
 
-/** Main response message */
 export interface Response {
   error?: ErrorResponse | undefined;
-  listSensors?: ListSensorsResponse | undefined;
-  getLayerSensorConfig?: GetLayerSensorConfigResponse | undefined;
-  setLayerSensorConfig?: SetLayerSensorConfigResponse | undefined;
-  saveChanges?: SaveChangesResponse | undefined;
-  discardChanges?: DiscardChangesResponse | undefined;
-  checkUnsavedChanges?: CheckUnsavedChangesResponse | undefined;
+  setLayerBindings?: SetLayerBindingsResponse | undefined;
+  getAllLayerBindings?: GetAllLayerBindingsResponse | undefined;
+  getSensors?: GetSensorsResponse | undefined;
 }
 
-/** Notification when sensor configuration changes */
-export interface SensorConfigChangedNotification {
-  config: LayerSensorConfig | undefined;
+function createBaseBinding(): Binding {
+  return { behaviorId: 0, param1: 0, param2: 0, tapMs: 0 };
 }
 
-/** Notification when unsaved changes status changes */
-export interface UnsavedChangesStatusChangedNotification {
-  hasUnsavedChanges: boolean;
-}
-
-/** Notification wrapper */
-export interface Notification {
-  sensorConfigChanged?: SensorConfigChangedNotification | undefined;
-  unsavedChangesStatusChanged?: UnsavedChangesStatusChangedNotification | undefined;
-}
-
-function createBaseSensorBinding(): SensorBinding {
-  return { behaviorId: 0, param1: 0, param2: 0 };
-}
-
-export const SensorBinding: MessageFns<SensorBinding> = {
-  encode(message: SensorBinding, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+export const Binding: MessageFns<Binding> = {
+  encode(message: Binding, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.behaviorId !== 0) {
       writer.uint32(8).uint32(message.behaviorId);
     }
@@ -150,13 +86,16 @@ export const SensorBinding: MessageFns<SensorBinding> = {
     if (message.param2 !== 0) {
       writer.uint32(24).uint32(message.param2);
     }
+    if (message.tapMs !== 0) {
+      writer.uint32(32).uint32(message.tapMs);
+    }
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): SensorBinding {
+  decode(input: BinaryReader | Uint8Array, length?: number): Binding {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseSensorBinding();
+    const message = createBaseBinding();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -184,92 +123,8 @@ export const SensorBinding: MessageFns<SensorBinding> = {
           message.param2 = reader.uint32();
           continue;
         }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  create(base?: DeepPartial<SensorBinding>): SensorBinding {
-    return SensorBinding.fromPartial(base ?? {});
-  },
-  fromPartial(object: DeepPartial<SensorBinding>): SensorBinding {
-    const message = createBaseSensorBinding();
-    message.behaviorId = object.behaviorId ?? 0;
-    message.param1 = object.param1 ?? 0;
-    message.param2 = object.param2 ?? 0;
-    return message;
-  },
-};
-
-function createBaseLayerSensorConfig(): LayerSensorConfig {
-  return { layerId: 0, sensorIndex: 0, clockwise: undefined, counterClockwise: undefined, tapMs: 0 };
-}
-
-export const LayerSensorConfig: MessageFns<LayerSensorConfig> = {
-  encode(message: LayerSensorConfig, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.layerId !== 0) {
-      writer.uint32(8).uint32(message.layerId);
-    }
-    if (message.sensorIndex !== 0) {
-      writer.uint32(16).uint32(message.sensorIndex);
-    }
-    if (message.clockwise !== undefined) {
-      SensorBinding.encode(message.clockwise, writer.uint32(26).fork()).join();
-    }
-    if (message.counterClockwise !== undefined) {
-      SensorBinding.encode(message.counterClockwise, writer.uint32(34).fork()).join();
-    }
-    if (message.tapMs !== 0) {
-      writer.uint32(40).uint32(message.tapMs);
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): LayerSensorConfig {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseLayerSensorConfig();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 8) {
-            break;
-          }
-
-          message.layerId = reader.uint32();
-          continue;
-        }
-        case 2: {
-          if (tag !== 16) {
-            break;
-          }
-
-          message.sensorIndex = reader.uint32();
-          continue;
-        }
-        case 3: {
-          if (tag !== 26) {
-            break;
-          }
-
-          message.clockwise = SensorBinding.decode(reader, reader.uint32());
-          continue;
-        }
         case 4: {
-          if (tag !== 34) {
-            break;
-          }
-
-          message.counterClockwise = SensorBinding.decode(reader, reader.uint32());
-          continue;
-        }
-        case 5: {
-          if (tag !== 40) {
+          if (tag !== 32) {
             break;
           }
 
@@ -285,20 +140,347 @@ export const LayerSensorConfig: MessageFns<LayerSensorConfig> = {
     return message;
   },
 
-  create(base?: DeepPartial<LayerSensorConfig>): LayerSensorConfig {
-    return LayerSensorConfig.fromPartial(base ?? {});
+  create(base?: DeepPartial<Binding>): Binding {
+    return Binding.fromPartial(base ?? {});
   },
-  fromPartial(object: DeepPartial<LayerSensorConfig>): LayerSensorConfig {
-    const message = createBaseLayerSensorConfig();
-    message.layerId = object.layerId ?? 0;
-    message.sensorIndex = object.sensorIndex ?? 0;
-    message.clockwise = (object.clockwise !== undefined && object.clockwise !== null)
-      ? SensorBinding.fromPartial(object.clockwise)
-      : undefined;
-    message.counterClockwise = (object.counterClockwise !== undefined && object.counterClockwise !== null)
-      ? SensorBinding.fromPartial(object.counterClockwise)
-      : undefined;
+  fromPartial(object: DeepPartial<Binding>): Binding {
+    const message = createBaseBinding();
+    message.behaviorId = object.behaviorId ?? 0;
+    message.param1 = object.param1 ?? 0;
+    message.param2 = object.param2 ?? 0;
     message.tapMs = object.tapMs ?? 0;
+    return message;
+  },
+};
+
+function createBaseSetLayerBindingsRequest(): SetLayerBindingsRequest {
+  return { sensorIndex: 0, layer: 0, cwBinding: undefined, ccwBinding: undefined };
+}
+
+export const SetLayerBindingsRequest: MessageFns<SetLayerBindingsRequest> = {
+  encode(message: SetLayerBindingsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.sensorIndex !== 0) {
+      writer.uint32(8).uint32(message.sensorIndex);
+    }
+    if (message.layer !== 0) {
+      writer.uint32(16).uint32(message.layer);
+    }
+    if (message.cwBinding !== undefined) {
+      Binding.encode(message.cwBinding, writer.uint32(26).fork()).join();
+    }
+    if (message.ccwBinding !== undefined) {
+      Binding.encode(message.ccwBinding, writer.uint32(34).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): SetLayerBindingsRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSetLayerBindingsRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.sensorIndex = reader.uint32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.layer = reader.uint32();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.cwBinding = Binding.decode(reader, reader.uint32());
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.ccwBinding = Binding.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<SetLayerBindingsRequest>): SetLayerBindingsRequest {
+    return SetLayerBindingsRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<SetLayerBindingsRequest>): SetLayerBindingsRequest {
+    const message = createBaseSetLayerBindingsRequest();
+    message.sensorIndex = object.sensorIndex ?? 0;
+    message.layer = object.layer ?? 0;
+    message.cwBinding = (object.cwBinding !== undefined && object.cwBinding !== null)
+      ? Binding.fromPartial(object.cwBinding)
+      : undefined;
+    message.ccwBinding = (object.ccwBinding !== undefined && object.ccwBinding !== null)
+      ? Binding.fromPartial(object.ccwBinding)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseSetLayerBindingsResponse(): SetLayerBindingsResponse {
+  return { success: false };
+}
+
+export const SetLayerBindingsResponse: MessageFns<SetLayerBindingsResponse> = {
+  encode(message: SetLayerBindingsResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.success !== false) {
+      writer.uint32(8).bool(message.success);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): SetLayerBindingsResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSetLayerBindingsResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.success = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<SetLayerBindingsResponse>): SetLayerBindingsResponse {
+    return SetLayerBindingsResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<SetLayerBindingsResponse>): SetLayerBindingsResponse {
+    const message = createBaseSetLayerBindingsResponse();
+    message.success = object.success ?? false;
+    return message;
+  },
+};
+
+function createBaseGetAllLayerBindingsRequest(): GetAllLayerBindingsRequest {
+  return { sensorIndex: 0 };
+}
+
+export const GetAllLayerBindingsRequest: MessageFns<GetAllLayerBindingsRequest> = {
+  encode(message: GetAllLayerBindingsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.sensorIndex !== 0) {
+      writer.uint32(8).uint32(message.sensorIndex);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetAllLayerBindingsRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetAllLayerBindingsRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.sensorIndex = reader.uint32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<GetAllLayerBindingsRequest>): GetAllLayerBindingsRequest {
+    return GetAllLayerBindingsRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetAllLayerBindingsRequest>): GetAllLayerBindingsRequest {
+    const message = createBaseGetAllLayerBindingsRequest();
+    message.sensorIndex = object.sensorIndex ?? 0;
+    return message;
+  },
+};
+
+function createBaseLayerBindings(): LayerBindings {
+  return { layer: 0, cwBinding: undefined, ccwBinding: undefined };
+}
+
+export const LayerBindings: MessageFns<LayerBindings> = {
+  encode(message: LayerBindings, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.layer !== 0) {
+      writer.uint32(8).uint32(message.layer);
+    }
+    if (message.cwBinding !== undefined) {
+      Binding.encode(message.cwBinding, writer.uint32(18).fork()).join();
+    }
+    if (message.ccwBinding !== undefined) {
+      Binding.encode(message.ccwBinding, writer.uint32(26).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): LayerBindings {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseLayerBindings();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.layer = reader.uint32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.cwBinding = Binding.decode(reader, reader.uint32());
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.ccwBinding = Binding.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<LayerBindings>): LayerBindings {
+    return LayerBindings.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<LayerBindings>): LayerBindings {
+    const message = createBaseLayerBindings();
+    message.layer = object.layer ?? 0;
+    message.cwBinding = (object.cwBinding !== undefined && object.cwBinding !== null)
+      ? Binding.fromPartial(object.cwBinding)
+      : undefined;
+    message.ccwBinding = (object.ccwBinding !== undefined && object.ccwBinding !== null)
+      ? Binding.fromPartial(object.ccwBinding)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseGetAllLayerBindingsResponse(): GetAllLayerBindingsResponse {
+  return { bindings: [] };
+}
+
+export const GetAllLayerBindingsResponse: MessageFns<GetAllLayerBindingsResponse> = {
+  encode(message: GetAllLayerBindingsResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.bindings) {
+      LayerBindings.encode(v!, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetAllLayerBindingsResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetAllLayerBindingsResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.bindings.push(LayerBindings.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<GetAllLayerBindingsResponse>): GetAllLayerBindingsResponse {
+    return GetAllLayerBindingsResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetAllLayerBindingsResponse>): GetAllLayerBindingsResponse {
+    const message = createBaseGetAllLayerBindingsResponse();
+    message.bindings = object.bindings?.map((e) => LayerBindings.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseGetSensorsRequest(): GetSensorsRequest {
+  return {};
+}
+
+export const GetSensorsRequest: MessageFns<GetSensorsRequest> = {
+  encode(_: GetSensorsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetSensorsRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetSensorsRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<GetSensorsRequest>): GetSensorsRequest {
+    return GetSensorsRequest.fromPartial(base ?? {});
+  },
+  fromPartial(_: DeepPartial<GetSensorsRequest>): GetSensorsRequest {
+    const message = createBaseGetSensorsRequest();
     return message;
   },
 };
@@ -361,56 +543,22 @@ export const SensorInfo: MessageFns<SensorInfo> = {
   },
 };
 
-function createBaseListSensorsRequest(): ListSensorsRequest {
-  return {};
-}
-
-export const ListSensorsRequest: MessageFns<ListSensorsRequest> = {
-  encode(_: ListSensorsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): ListSensorsRequest {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseListSensorsRequest();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  create(base?: DeepPartial<ListSensorsRequest>): ListSensorsRequest {
-    return ListSensorsRequest.fromPartial(base ?? {});
-  },
-  fromPartial(_: DeepPartial<ListSensorsRequest>): ListSensorsRequest {
-    const message = createBaseListSensorsRequest();
-    return message;
-  },
-};
-
-function createBaseListSensorsResponse(): ListSensorsResponse {
+function createBaseGetSensorsResponse(): GetSensorsResponse {
   return { sensors: [] };
 }
 
-export const ListSensorsResponse: MessageFns<ListSensorsResponse> = {
-  encode(message: ListSensorsResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+export const GetSensorsResponse: MessageFns<GetSensorsResponse> = {
+  encode(message: GetSensorsResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     for (const v of message.sensors) {
       SensorInfo.encode(v!, writer.uint32(10).fork()).join();
     }
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): ListSensorsResponse {
+  decode(input: BinaryReader | Uint8Array, length?: number): GetSensorsResponse {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseListSensorsResponse();
+    const message = createBaseGetSensorsResponse();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -431,450 +579,30 @@ export const ListSensorsResponse: MessageFns<ListSensorsResponse> = {
     return message;
   },
 
-  create(base?: DeepPartial<ListSensorsResponse>): ListSensorsResponse {
-    return ListSensorsResponse.fromPartial(base ?? {});
+  create(base?: DeepPartial<GetSensorsResponse>): GetSensorsResponse {
+    return GetSensorsResponse.fromPartial(base ?? {});
   },
-  fromPartial(object: DeepPartial<ListSensorsResponse>): ListSensorsResponse {
-    const message = createBaseListSensorsResponse();
+  fromPartial(object: DeepPartial<GetSensorsResponse>): GetSensorsResponse {
+    const message = createBaseGetSensorsResponse();
     message.sensors = object.sensors?.map((e) => SensorInfo.fromPartial(e)) || [];
     return message;
   },
 };
 
-function createBaseGetLayerSensorConfigRequest(): GetLayerSensorConfigRequest {
-  return { layerId: 0, sensorIndex: 0 };
-}
-
-export const GetLayerSensorConfigRequest: MessageFns<GetLayerSensorConfigRequest> = {
-  encode(message: GetLayerSensorConfigRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.layerId !== 0) {
-      writer.uint32(8).uint32(message.layerId);
-    }
-    if (message.sensorIndex !== 0) {
-      writer.uint32(16).uint32(message.sensorIndex);
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): GetLayerSensorConfigRequest {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseGetLayerSensorConfigRequest();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 8) {
-            break;
-          }
-
-          message.layerId = reader.uint32();
-          continue;
-        }
-        case 2: {
-          if (tag !== 16) {
-            break;
-          }
-
-          message.sensorIndex = reader.uint32();
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  create(base?: DeepPartial<GetLayerSensorConfigRequest>): GetLayerSensorConfigRequest {
-    return GetLayerSensorConfigRequest.fromPartial(base ?? {});
-  },
-  fromPartial(object: DeepPartial<GetLayerSensorConfigRequest>): GetLayerSensorConfigRequest {
-    const message = createBaseGetLayerSensorConfigRequest();
-    message.layerId = object.layerId ?? 0;
-    message.sensorIndex = object.sensorIndex ?? 0;
-    return message;
-  },
-};
-
-function createBaseGetLayerSensorConfigResponse(): GetLayerSensorConfigResponse {
-  return { config: undefined };
-}
-
-export const GetLayerSensorConfigResponse: MessageFns<GetLayerSensorConfigResponse> = {
-  encode(message: GetLayerSensorConfigResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.config !== undefined) {
-      LayerSensorConfig.encode(message.config, writer.uint32(10).fork()).join();
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): GetLayerSensorConfigResponse {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseGetLayerSensorConfigResponse();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
-
-          message.config = LayerSensorConfig.decode(reader, reader.uint32());
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  create(base?: DeepPartial<GetLayerSensorConfigResponse>): GetLayerSensorConfigResponse {
-    return GetLayerSensorConfigResponse.fromPartial(base ?? {});
-  },
-  fromPartial(object: DeepPartial<GetLayerSensorConfigResponse>): GetLayerSensorConfigResponse {
-    const message = createBaseGetLayerSensorConfigResponse();
-    message.config = (object.config !== undefined && object.config !== null)
-      ? LayerSensorConfig.fromPartial(object.config)
-      : undefined;
-    return message;
-  },
-};
-
-function createBaseSetLayerSensorConfigRequest(): SetLayerSensorConfigRequest {
-  return { config: undefined };
-}
-
-export const SetLayerSensorConfigRequest: MessageFns<SetLayerSensorConfigRequest> = {
-  encode(message: SetLayerSensorConfigRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.config !== undefined) {
-      LayerSensorConfig.encode(message.config, writer.uint32(10).fork()).join();
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): SetLayerSensorConfigRequest {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseSetLayerSensorConfigRequest();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
-
-          message.config = LayerSensorConfig.decode(reader, reader.uint32());
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  create(base?: DeepPartial<SetLayerSensorConfigRequest>): SetLayerSensorConfigRequest {
-    return SetLayerSensorConfigRequest.fromPartial(base ?? {});
-  },
-  fromPartial(object: DeepPartial<SetLayerSensorConfigRequest>): SetLayerSensorConfigRequest {
-    const message = createBaseSetLayerSensorConfigRequest();
-    message.config = (object.config !== undefined && object.config !== null)
-      ? LayerSensorConfig.fromPartial(object.config)
-      : undefined;
-    return message;
-  },
-};
-
-function createBaseSetLayerSensorConfigResponse(): SetLayerSensorConfigResponse {
-  return {};
-}
-
-export const SetLayerSensorConfigResponse: MessageFns<SetLayerSensorConfigResponse> = {
-  encode(_: SetLayerSensorConfigResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): SetLayerSensorConfigResponse {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseSetLayerSensorConfigResponse();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  create(base?: DeepPartial<SetLayerSensorConfigResponse>): SetLayerSensorConfigResponse {
-    return SetLayerSensorConfigResponse.fromPartial(base ?? {});
-  },
-  fromPartial(_: DeepPartial<SetLayerSensorConfigResponse>): SetLayerSensorConfigResponse {
-    const message = createBaseSetLayerSensorConfigResponse();
-    return message;
-  },
-};
-
-function createBaseSaveChangesRequest(): SaveChangesRequest {
-  return {};
-}
-
-export const SaveChangesRequest: MessageFns<SaveChangesRequest> = {
-  encode(_: SaveChangesRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): SaveChangesRequest {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseSaveChangesRequest();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  create(base?: DeepPartial<SaveChangesRequest>): SaveChangesRequest {
-    return SaveChangesRequest.fromPartial(base ?? {});
-  },
-  fromPartial(_: DeepPartial<SaveChangesRequest>): SaveChangesRequest {
-    const message = createBaseSaveChangesRequest();
-    return message;
-  },
-};
-
-function createBaseSaveChangesResponse(): SaveChangesResponse {
-  return {};
-}
-
-export const SaveChangesResponse: MessageFns<SaveChangesResponse> = {
-  encode(_: SaveChangesResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): SaveChangesResponse {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseSaveChangesResponse();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  create(base?: DeepPartial<SaveChangesResponse>): SaveChangesResponse {
-    return SaveChangesResponse.fromPartial(base ?? {});
-  },
-  fromPartial(_: DeepPartial<SaveChangesResponse>): SaveChangesResponse {
-    const message = createBaseSaveChangesResponse();
-    return message;
-  },
-};
-
-function createBaseDiscardChangesRequest(): DiscardChangesRequest {
-  return {};
-}
-
-export const DiscardChangesRequest: MessageFns<DiscardChangesRequest> = {
-  encode(_: DiscardChangesRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): DiscardChangesRequest {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseDiscardChangesRequest();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  create(base?: DeepPartial<DiscardChangesRequest>): DiscardChangesRequest {
-    return DiscardChangesRequest.fromPartial(base ?? {});
-  },
-  fromPartial(_: DeepPartial<DiscardChangesRequest>): DiscardChangesRequest {
-    const message = createBaseDiscardChangesRequest();
-    return message;
-  },
-};
-
-function createBaseDiscardChangesResponse(): DiscardChangesResponse {
-  return {};
-}
-
-export const DiscardChangesResponse: MessageFns<DiscardChangesResponse> = {
-  encode(_: DiscardChangesResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): DiscardChangesResponse {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseDiscardChangesResponse();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  create(base?: DeepPartial<DiscardChangesResponse>): DiscardChangesResponse {
-    return DiscardChangesResponse.fromPartial(base ?? {});
-  },
-  fromPartial(_: DeepPartial<DiscardChangesResponse>): DiscardChangesResponse {
-    const message = createBaseDiscardChangesResponse();
-    return message;
-  },
-};
-
-function createBaseCheckUnsavedChangesRequest(): CheckUnsavedChangesRequest {
-  return {};
-}
-
-export const CheckUnsavedChangesRequest: MessageFns<CheckUnsavedChangesRequest> = {
-  encode(_: CheckUnsavedChangesRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): CheckUnsavedChangesRequest {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseCheckUnsavedChangesRequest();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  create(base?: DeepPartial<CheckUnsavedChangesRequest>): CheckUnsavedChangesRequest {
-    return CheckUnsavedChangesRequest.fromPartial(base ?? {});
-  },
-  fromPartial(_: DeepPartial<CheckUnsavedChangesRequest>): CheckUnsavedChangesRequest {
-    const message = createBaseCheckUnsavedChangesRequest();
-    return message;
-  },
-};
-
-function createBaseCheckUnsavedChangesResponse(): CheckUnsavedChangesResponse {
-  return { hasUnsavedChanges: false };
-}
-
-export const CheckUnsavedChangesResponse: MessageFns<CheckUnsavedChangesResponse> = {
-  encode(message: CheckUnsavedChangesResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.hasUnsavedChanges !== false) {
-      writer.uint32(8).bool(message.hasUnsavedChanges);
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): CheckUnsavedChangesResponse {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseCheckUnsavedChangesResponse();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 8) {
-            break;
-          }
-
-          message.hasUnsavedChanges = reader.bool();
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  create(base?: DeepPartial<CheckUnsavedChangesResponse>): CheckUnsavedChangesResponse {
-    return CheckUnsavedChangesResponse.fromPartial(base ?? {});
-  },
-  fromPartial(object: DeepPartial<CheckUnsavedChangesResponse>): CheckUnsavedChangesResponse {
-    const message = createBaseCheckUnsavedChangesResponse();
-    message.hasUnsavedChanges = object.hasUnsavedChanges ?? false;
-    return message;
-  },
-};
-
 function createBaseRequest(): Request {
-  return {
-    listSensors: undefined,
-    getLayerSensorConfig: undefined,
-    setLayerSensorConfig: undefined,
-    saveChanges: undefined,
-    discardChanges: undefined,
-    checkUnsavedChanges: undefined,
-  };
+  return { setLayerBindings: undefined, getAllLayerBindings: undefined, getSensors: undefined };
 }
 
 export const Request: MessageFns<Request> = {
   encode(message: Request, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.listSensors !== undefined) {
-      ListSensorsRequest.encode(message.listSensors, writer.uint32(10).fork()).join();
+    if (message.setLayerBindings !== undefined) {
+      SetLayerBindingsRequest.encode(message.setLayerBindings, writer.uint32(10).fork()).join();
     }
-    if (message.getLayerSensorConfig !== undefined) {
-      GetLayerSensorConfigRequest.encode(message.getLayerSensorConfig, writer.uint32(18).fork()).join();
+    if (message.getAllLayerBindings !== undefined) {
+      GetAllLayerBindingsRequest.encode(message.getAllLayerBindings, writer.uint32(18).fork()).join();
     }
-    if (message.setLayerSensorConfig !== undefined) {
-      SetLayerSensorConfigRequest.encode(message.setLayerSensorConfig, writer.uint32(26).fork()).join();
-    }
-    if (message.saveChanges !== undefined) {
-      SaveChangesRequest.encode(message.saveChanges, writer.uint32(34).fork()).join();
-    }
-    if (message.discardChanges !== undefined) {
-      DiscardChangesRequest.encode(message.discardChanges, writer.uint32(42).fork()).join();
-    }
-    if (message.checkUnsavedChanges !== undefined) {
-      CheckUnsavedChangesRequest.encode(message.checkUnsavedChanges, writer.uint32(50).fork()).join();
+    if (message.getSensors !== undefined) {
+      GetSensorsRequest.encode(message.getSensors, writer.uint32(26).fork()).join();
     }
     return writer;
   },
@@ -891,7 +619,7 @@ export const Request: MessageFns<Request> = {
             break;
           }
 
-          message.listSensors = ListSensorsRequest.decode(reader, reader.uint32());
+          message.setLayerBindings = SetLayerBindingsRequest.decode(reader, reader.uint32());
           continue;
         }
         case 2: {
@@ -899,7 +627,7 @@ export const Request: MessageFns<Request> = {
             break;
           }
 
-          message.getLayerSensorConfig = GetLayerSensorConfigRequest.decode(reader, reader.uint32());
+          message.getAllLayerBindings = GetAllLayerBindingsRequest.decode(reader, reader.uint32());
           continue;
         }
         case 3: {
@@ -907,31 +635,7 @@ export const Request: MessageFns<Request> = {
             break;
           }
 
-          message.setLayerSensorConfig = SetLayerSensorConfigRequest.decode(reader, reader.uint32());
-          continue;
-        }
-        case 4: {
-          if (tag !== 34) {
-            break;
-          }
-
-          message.saveChanges = SaveChangesRequest.decode(reader, reader.uint32());
-          continue;
-        }
-        case 5: {
-          if (tag !== 42) {
-            break;
-          }
-
-          message.discardChanges = DiscardChangesRequest.decode(reader, reader.uint32());
-          continue;
-        }
-        case 6: {
-          if (tag !== 50) {
-            break;
-          }
-
-          message.checkUnsavedChanges = CheckUnsavedChangesRequest.decode(reader, reader.uint32());
+          message.getSensors = GetSensorsRequest.decode(reader, reader.uint32());
           continue;
         }
       }
@@ -948,23 +652,14 @@ export const Request: MessageFns<Request> = {
   },
   fromPartial(object: DeepPartial<Request>): Request {
     const message = createBaseRequest();
-    message.listSensors = (object.listSensors !== undefined && object.listSensors !== null)
-      ? ListSensorsRequest.fromPartial(object.listSensors)
+    message.setLayerBindings = (object.setLayerBindings !== undefined && object.setLayerBindings !== null)
+      ? SetLayerBindingsRequest.fromPartial(object.setLayerBindings)
       : undefined;
-    message.getLayerSensorConfig = (object.getLayerSensorConfig !== undefined && object.getLayerSensorConfig !== null)
-      ? GetLayerSensorConfigRequest.fromPartial(object.getLayerSensorConfig)
+    message.getAllLayerBindings = (object.getAllLayerBindings !== undefined && object.getAllLayerBindings !== null)
+      ? GetAllLayerBindingsRequest.fromPartial(object.getAllLayerBindings)
       : undefined;
-    message.setLayerSensorConfig = (object.setLayerSensorConfig !== undefined && object.setLayerSensorConfig !== null)
-      ? SetLayerSensorConfigRequest.fromPartial(object.setLayerSensorConfig)
-      : undefined;
-    message.saveChanges = (object.saveChanges !== undefined && object.saveChanges !== null)
-      ? SaveChangesRequest.fromPartial(object.saveChanges)
-      : undefined;
-    message.discardChanges = (object.discardChanges !== undefined && object.discardChanges !== null)
-      ? DiscardChangesRequest.fromPartial(object.discardChanges)
-      : undefined;
-    message.checkUnsavedChanges = (object.checkUnsavedChanges !== undefined && object.checkUnsavedChanges !== null)
-      ? CheckUnsavedChangesRequest.fromPartial(object.checkUnsavedChanges)
+    message.getSensors = (object.getSensors !== undefined && object.getSensors !== null)
+      ? GetSensorsRequest.fromPartial(object.getSensors)
       : undefined;
     return message;
   },
@@ -1017,15 +712,7 @@ export const ErrorResponse: MessageFns<ErrorResponse> = {
 };
 
 function createBaseResponse(): Response {
-  return {
-    error: undefined,
-    listSensors: undefined,
-    getLayerSensorConfig: undefined,
-    setLayerSensorConfig: undefined,
-    saveChanges: undefined,
-    discardChanges: undefined,
-    checkUnsavedChanges: undefined,
-  };
+  return { error: undefined, setLayerBindings: undefined, getAllLayerBindings: undefined, getSensors: undefined };
 }
 
 export const Response: MessageFns<Response> = {
@@ -1033,23 +720,14 @@ export const Response: MessageFns<Response> = {
     if (message.error !== undefined) {
       ErrorResponse.encode(message.error, writer.uint32(10).fork()).join();
     }
-    if (message.listSensors !== undefined) {
-      ListSensorsResponse.encode(message.listSensors, writer.uint32(18).fork()).join();
+    if (message.setLayerBindings !== undefined) {
+      SetLayerBindingsResponse.encode(message.setLayerBindings, writer.uint32(18).fork()).join();
     }
-    if (message.getLayerSensorConfig !== undefined) {
-      GetLayerSensorConfigResponse.encode(message.getLayerSensorConfig, writer.uint32(26).fork()).join();
+    if (message.getAllLayerBindings !== undefined) {
+      GetAllLayerBindingsResponse.encode(message.getAllLayerBindings, writer.uint32(26).fork()).join();
     }
-    if (message.setLayerSensorConfig !== undefined) {
-      SetLayerSensorConfigResponse.encode(message.setLayerSensorConfig, writer.uint32(34).fork()).join();
-    }
-    if (message.saveChanges !== undefined) {
-      SaveChangesResponse.encode(message.saveChanges, writer.uint32(42).fork()).join();
-    }
-    if (message.discardChanges !== undefined) {
-      DiscardChangesResponse.encode(message.discardChanges, writer.uint32(50).fork()).join();
-    }
-    if (message.checkUnsavedChanges !== undefined) {
-      CheckUnsavedChangesResponse.encode(message.checkUnsavedChanges, writer.uint32(58).fork()).join();
+    if (message.getSensors !== undefined) {
+      GetSensorsResponse.encode(message.getSensors, writer.uint32(34).fork()).join();
     }
     return writer;
   },
@@ -1074,7 +752,7 @@ export const Response: MessageFns<Response> = {
             break;
           }
 
-          message.listSensors = ListSensorsResponse.decode(reader, reader.uint32());
+          message.setLayerBindings = SetLayerBindingsResponse.decode(reader, reader.uint32());
           continue;
         }
         case 3: {
@@ -1082,7 +760,7 @@ export const Response: MessageFns<Response> = {
             break;
           }
 
-          message.getLayerSensorConfig = GetLayerSensorConfigResponse.decode(reader, reader.uint32());
+          message.getAllLayerBindings = GetAllLayerBindingsResponse.decode(reader, reader.uint32());
           continue;
         }
         case 4: {
@@ -1090,31 +768,7 @@ export const Response: MessageFns<Response> = {
             break;
           }
 
-          message.setLayerSensorConfig = SetLayerSensorConfigResponse.decode(reader, reader.uint32());
-          continue;
-        }
-        case 5: {
-          if (tag !== 42) {
-            break;
-          }
-
-          message.saveChanges = SaveChangesResponse.decode(reader, reader.uint32());
-          continue;
-        }
-        case 6: {
-          if (tag !== 50) {
-            break;
-          }
-
-          message.discardChanges = DiscardChangesResponse.decode(reader, reader.uint32());
-          continue;
-        }
-        case 7: {
-          if (tag !== 58) {
-            break;
-          }
-
-          message.checkUnsavedChanges = CheckUnsavedChangesResponse.decode(reader, reader.uint32());
+          message.getSensors = GetSensorsResponse.decode(reader, reader.uint32());
           continue;
         }
       }
@@ -1134,182 +788,15 @@ export const Response: MessageFns<Response> = {
     message.error = (object.error !== undefined && object.error !== null)
       ? ErrorResponse.fromPartial(object.error)
       : undefined;
-    message.listSensors = (object.listSensors !== undefined && object.listSensors !== null)
-      ? ListSensorsResponse.fromPartial(object.listSensors)
+    message.setLayerBindings = (object.setLayerBindings !== undefined && object.setLayerBindings !== null)
+      ? SetLayerBindingsResponse.fromPartial(object.setLayerBindings)
       : undefined;
-    message.getLayerSensorConfig = (object.getLayerSensorConfig !== undefined && object.getLayerSensorConfig !== null)
-      ? GetLayerSensorConfigResponse.fromPartial(object.getLayerSensorConfig)
+    message.getAllLayerBindings = (object.getAllLayerBindings !== undefined && object.getAllLayerBindings !== null)
+      ? GetAllLayerBindingsResponse.fromPartial(object.getAllLayerBindings)
       : undefined;
-    message.setLayerSensorConfig = (object.setLayerSensorConfig !== undefined && object.setLayerSensorConfig !== null)
-      ? SetLayerSensorConfigResponse.fromPartial(object.setLayerSensorConfig)
+    message.getSensors = (object.getSensors !== undefined && object.getSensors !== null)
+      ? GetSensorsResponse.fromPartial(object.getSensors)
       : undefined;
-    message.saveChanges = (object.saveChanges !== undefined && object.saveChanges !== null)
-      ? SaveChangesResponse.fromPartial(object.saveChanges)
-      : undefined;
-    message.discardChanges = (object.discardChanges !== undefined && object.discardChanges !== null)
-      ? DiscardChangesResponse.fromPartial(object.discardChanges)
-      : undefined;
-    message.checkUnsavedChanges = (object.checkUnsavedChanges !== undefined && object.checkUnsavedChanges !== null)
-      ? CheckUnsavedChangesResponse.fromPartial(object.checkUnsavedChanges)
-      : undefined;
-    return message;
-  },
-};
-
-function createBaseSensorConfigChangedNotification(): SensorConfigChangedNotification {
-  return { config: undefined };
-}
-
-export const SensorConfigChangedNotification: MessageFns<SensorConfigChangedNotification> = {
-  encode(message: SensorConfigChangedNotification, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.config !== undefined) {
-      LayerSensorConfig.encode(message.config, writer.uint32(10).fork()).join();
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): SensorConfigChangedNotification {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseSensorConfigChangedNotification();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
-
-          message.config = LayerSensorConfig.decode(reader, reader.uint32());
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  create(base?: DeepPartial<SensorConfigChangedNotification>): SensorConfigChangedNotification {
-    return SensorConfigChangedNotification.fromPartial(base ?? {});
-  },
-  fromPartial(object: DeepPartial<SensorConfigChangedNotification>): SensorConfigChangedNotification {
-    const message = createBaseSensorConfigChangedNotification();
-    message.config = (object.config !== undefined && object.config !== null)
-      ? LayerSensorConfig.fromPartial(object.config)
-      : undefined;
-    return message;
-  },
-};
-
-function createBaseUnsavedChangesStatusChangedNotification(): UnsavedChangesStatusChangedNotification {
-  return { hasUnsavedChanges: false };
-}
-
-export const UnsavedChangesStatusChangedNotification: MessageFns<UnsavedChangesStatusChangedNotification> = {
-  encode(message: UnsavedChangesStatusChangedNotification, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.hasUnsavedChanges !== false) {
-      writer.uint32(8).bool(message.hasUnsavedChanges);
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): UnsavedChangesStatusChangedNotification {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseUnsavedChangesStatusChangedNotification();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 8) {
-            break;
-          }
-
-          message.hasUnsavedChanges = reader.bool();
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  create(base?: DeepPartial<UnsavedChangesStatusChangedNotification>): UnsavedChangesStatusChangedNotification {
-    return UnsavedChangesStatusChangedNotification.fromPartial(base ?? {});
-  },
-  fromPartial(object: DeepPartial<UnsavedChangesStatusChangedNotification>): UnsavedChangesStatusChangedNotification {
-    const message = createBaseUnsavedChangesStatusChangedNotification();
-    message.hasUnsavedChanges = object.hasUnsavedChanges ?? false;
-    return message;
-  },
-};
-
-function createBaseNotification(): Notification {
-  return { sensorConfigChanged: undefined, unsavedChangesStatusChanged: undefined };
-}
-
-export const Notification: MessageFns<Notification> = {
-  encode(message: Notification, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.sensorConfigChanged !== undefined) {
-      SensorConfigChangedNotification.encode(message.sensorConfigChanged, writer.uint32(10).fork()).join();
-    }
-    if (message.unsavedChangesStatusChanged !== undefined) {
-      UnsavedChangesStatusChangedNotification.encode(message.unsavedChangesStatusChanged, writer.uint32(18).fork())
-        .join();
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): Notification {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseNotification();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
-
-          message.sensorConfigChanged = SensorConfigChangedNotification.decode(reader, reader.uint32());
-          continue;
-        }
-        case 2: {
-          if (tag !== 18) {
-            break;
-          }
-
-          message.unsavedChangesStatusChanged = UnsavedChangesStatusChangedNotification.decode(reader, reader.uint32());
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  create(base?: DeepPartial<Notification>): Notification {
-    return Notification.fromPartial(base ?? {});
-  },
-  fromPartial(object: DeepPartial<Notification>): Notification {
-    const message = createBaseNotification();
-    message.sensorConfigChanged = (object.sensorConfigChanged !== undefined && object.sensorConfigChanged !== null)
-      ? SensorConfigChangedNotification.fromPartial(object.sensorConfigChanged)
-      : undefined;
-    message.unsavedChangesStatusChanged =
-      (object.unsavedChangesStatusChanged !== undefined && object.unsavedChangesStatusChanged !== null)
-        ? UnsavedChangesStatusChangedNotification.fromPartial(object.unsavedChangesStatusChanged)
-        : undefined;
     return message;
   },
 };

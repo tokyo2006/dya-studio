@@ -1,124 +1,58 @@
 syntax = "proto3";
 
-package zmk.runtime_sensor_rotate;
+package cormoran.rsr;
 
-// Behavior binding for a sensor rotation direction
-message SensorBinding {
-    // Behavior ID
+// Runtime sensor rotate messages
+message Binding {
     uint32 behavior_id = 1;
-    // Parameter 1
     uint32 param1 = 2;
-    // Parameter 2
     uint32 param2 = 3;
+    uint32 tap_ms = 4;
 }
 
-// Configuration for a sensor on a specific layer
-message LayerSensorConfig {
-    // Layer ID
-    uint32 layer_id = 1;
-    // Sensor index
-    uint32 sensor_index = 2;
-    // Clockwise rotation binding
-    SensorBinding clockwise = 3;
-    // Counter-clockwise rotation binding
-    SensorBinding counter_clockwise = 4;
-    // Tap time in milliseconds
-    uint32 tap_ms = 5;
+message SetLayerBindingsRequest {
+    uint32 sensor_index = 1;
+    uint32 layer = 2;
+    Binding cw_binding = 3;
+    Binding ccw_binding = 4;
 }
 
-// Information about a sensor
+message SetLayerBindingsResponse { bool success = 1; }
+
+message GetAllLayerBindingsRequest { uint32 sensor_index = 1; }
+
+message LayerBindings {
+    uint32 layer = 1;
+    Binding cw_binding = 2;
+    Binding ccw_binding = 3;
+}
+
+message GetAllLayerBindingsResponse { repeated LayerBindings bindings = 1; }
+
+message GetSensorsRequest {}
+
 message SensorInfo {
-    // Sensor index
     uint32 index = 1;
-    // Sensor name
     string name = 2;
 }
 
-// Request to list all available sensors
-message ListSensorsRequest {}
+message GetSensorsResponse { repeated SensorInfo sensors = 1; }
 
-message ListSensorsResponse {
-    repeated SensorInfo sensors = 1;
-}
-
-// Request to get configuration for a sensor on a layer
-message GetLayerSensorConfigRequest {
-    uint32 layer_id = 1;
-    uint32 sensor_index = 2;
-}
-
-message GetLayerSensorConfigResponse {
-    LayerSensorConfig config = 1;
-}
-
-// Request to set configuration for a sensor on a layer
-message SetLayerSensorConfigRequest {
-    LayerSensorConfig config = 1;
-}
-
-message SetLayerSensorConfigResponse {}
-
-// Request to save all changes
-message SaveChangesRequest {}
-
-message SaveChangesResponse {}
-
-// Request to discard all unsaved changes
-message DiscardChangesRequest {}
-
-message DiscardChangesResponse {}
-
-// Request to check if there are unsaved changes
-message CheckUnsavedChangesRequest {}
-
-message CheckUnsavedChangesResponse {
-    bool has_unsaved_changes = 1;
-}
-
-// Main request message
 message Request {
     oneof request_type {
-        ListSensorsRequest list_sensors = 1;
-        GetLayerSensorConfigRequest get_layer_sensor_config = 2;
-        SetLayerSensorConfigRequest set_layer_sensor_config = 3;
-        SaveChangesRequest save_changes = 4;
-        DiscardChangesRequest discard_changes = 5;
-        CheckUnsavedChangesRequest check_unsaved_changes = 6;
+        SetLayerBindingsRequest set_layer_bindings = 1;
+        GetAllLayerBindingsRequest get_all_layer_bindings = 2;
+        GetSensorsRequest get_sensors = 3;
     }
 }
 
-// Error response
-message ErrorResponse {
-    string message = 1;
-}
+message ErrorResponse { string message = 1; }
 
-// Main response message
 message Response {
     oneof response_type {
         ErrorResponse error = 1;
-        ListSensorsResponse list_sensors = 2;
-        GetLayerSensorConfigResponse get_layer_sensor_config = 3;
-        SetLayerSensorConfigResponse set_layer_sensor_config = 4;
-        SaveChangesResponse save_changes = 5;
-        DiscardChangesResponse discard_changes = 6;
-        CheckUnsavedChangesResponse check_unsaved_changes = 7;
-    }
-}
-
-// Notification when sensor configuration changes
-message SensorConfigChangedNotification {
-    LayerSensorConfig config = 1;
-}
-
-// Notification when unsaved changes status changes
-message UnsavedChangesStatusChangedNotification {
-    bool has_unsaved_changes = 1;
-}
-
-// Notification wrapper
-message Notification {
-    oneof notification_type {
-        SensorConfigChangedNotification sensor_config_changed = 1;
-        UnsavedChangesStatusChangedNotification unsaved_changes_status_changed = 2;
+        SetLayerBindingsResponse set_layer_bindings = 2;
+        GetAllLayerBindingsResponse get_all_layer_bindings = 3;
+        GetSensorsResponse get_sensors = 4;
     }
 }

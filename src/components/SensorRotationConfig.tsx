@@ -11,10 +11,7 @@ import {
   IconLoader2,
 } from "@tabler/icons-react";
 import { useRuntimeSensorRotate } from "../hooks/useRuntimeSensorRotate";
-import type {
-  SensorLayerConfig,
-  SensorBinding,
-} from "../hooks/useRuntimeSensorRotate";
+import type { LayerBindings, Binding } from "../hooks/useRuntimeSensorRotate";
 import type { BehaviorDefinition } from "../hooks/useKeymap";
 import type { BehaviorBinding } from "../hooks/useKeymap";
 import { KeycodeSelector } from "./KeycodeSelector";
@@ -32,9 +29,9 @@ export function SensorRotationConfig({
 }: SensorRotationConfigProps) {
   const sensorRotate = useRuntimeSensorRotate();
 
-  // Local state for sensor configurations
-  const [sensorConfigs, setSensorConfigs] = useState<
-    Map<number, SensorLayerConfig>
+  // Local state for sensor bindings per sensor
+  const [sensorBindings, setSensorBindings] = useState<
+    Map<number, LayerBindings[]>
   >(new Map());
 
   // State for behavior selector dialog
@@ -42,45 +39,46 @@ export function SensorRotationConfig({
   const [editingConfig, setEditingConfig] = useState<{
     sensorIndex: number;
     direction: "clockwise" | "counterClockwise";
-    currentBinding: SensorBinding;
+    currentBinding: Binding | null;
   } | null>(null);
 
-  // Load configurations for all sensors on the current layer
+  // Load bindings for all sensors
   useEffect(() => {
     if (!sensorRotate.isAvailable || sensorRotate.sensors.length === 0) {
       return;
     }
 
-    const loadConfigs = async () => {
-      const configs = new Map<number, SensorLayerConfig>();
+    const loadAllBindings = async () => {
+      const allBindings = new Map<number, LayerBindings[]>();
       for (const sensor of sensorRotate.sensors) {
-        const config = await sensorRotate.getLayerSensorConfig(
-          selectedLayerId,
-          sensor.index,
-        );
-        if (config) {
-          configs.set(sensor.index, config);
-        }
+        const bindings = await sensorRotate.getAllLayerBindings(sensor.index);
+        allBindings.set(sensor.index, bindings);
       }
-      setSensorConfigs(configs);
+      setSensorBindings(allBindings);
     };
 
-    loadConfigs();
-  }, [
-    selectedLayerId,
-    sensorRotate.sensors,
-    sensorRotate.isAvailable,
-    sensorRotate,
-  ]);
+    loadAllBindings();
+  }, [sensorRotate.sensors, sensorRotate.isAvailable, sensorRotate]);
+
+  // Get bindings for a specific sensor and layer
+  const getBindingsForLayer = useCallback(
+    (sensorIndex: number, layerId: number): LayerBindings | null => {
+      const bindings = sensorBindings.get(sensorIndex);
+      if (!bindings) return null;
+      return bindings.find((b) => b.layer === layerId) ?? null;
+    },
+    [sensorBindings],
+  );
 
   // Handle clicking on a sensor binding to edit it
   const handleBindingClick = useCallback(
     (sensorIndex: number, direction: "clockwise" | "counterClockwise") => {
-      const config = sensorConfigs.get(sensorIndex);
-      if (!config) return;
+      const layerBindings = getBindingsForLayer(sensorIndex, selectedLayerId);
 
       const currentBinding =
-        direction === "clockwise" ? config.clockwise : config.counterClockwise;
+        direction === "clockwise"
+          ? (layerBindings?.cwBinding ?? null)
+          : (layerBindings?.ccwBinding ?? null);
 
       setEditingConfig({
         sensorIndex,
@@ -89,7 +87,7 @@ export function SensorRotationConfig({
       });
       setShowBehaviorSelector(true);
     },
-    [sensorConfigs],
+    [getBindingsForLayer, selectedLayerId],
   );
 
   // Handle behavior selection from the dialog
@@ -98,49 +96,77 @@ export function SensorRotationConfig({
       if (!editingConfig) return;
 
       const { sensorIndex, direction } = editingConfig;
-      const currentConfig = sensorConfigs.get(sensorIndex);
+      const layerBindings = getBindingsForLayer(sensorIndex, selectedLayerId);
 
-      if (!currentConfig) return;
+      // Create new binding with tap_ms from current or default to 5ms
+      const tapMs =
+        layerBindings?.cwBinding?.tapMs ||
+        layerBindings?.ccwBinding?.tapMs ||
+        5;
 
-      const updatedConfig: SensorLayerConfig = {
-        ...currentConfig,
-        clockwise:
-          direction === "clockwise"
-            ? {
-                behaviorId: binding.behaviorId,
-                param1: binding.param1,
-                param2: binding.param2,
-              }
-            : currentConfig.clockwise,
-        counterClockwise:
-          direction === "counterClockwise"
-            ? {
-                behaviorId: binding.behaviorId,
-                param1: binding.param1,
-                param2: binding.param2,
-              }
-            : currentConfig.counterClockwise,
+      const newBinding: Binding = {
+        behaviorId: binding.behaviorId,
+        param1: binding.param1,
+        param2: binding.param2,
+        tapMs,
       };
 
-      // Update local state optimistically
-      setSensorConfigs((prev) => {
-        const newConfigs = new Map(prev);
-        newConfigs.set(sensorIndex, updatedConfig);
-        return newConfigs;
-      });
+      // Determine cw and ccw bindings
+      const cwBinding =
+        direction === "clockwise"
+          ? newBinding
+          : (layerBindings?.cwBinding ?? {
+              behaviorId: 0,
+              param1: 0,
+              param2: 0,
+              tapMs,
+            });
+
+      const ccwBinding =
+        direction === "counterClockwise"
+          ? newBinding
+          : (layerBindings?.ccwBinding ?? {
+              behaviorId: 0,
+              param1: 0,
+              param2: 0,
+              tapMs,
+            });
 
       // Send to device
-      await sensorRotate.setLayerSensorConfig(updatedConfig);
+      const success = await sensorRotate.setLayerBindings(
+        sensorIndex,
+        selectedLayerId,
+        cwBinding,
+        ccwBinding,
+      );
+
+      if (success) {
+        // Update local state optimistically
+        setSensorBindings((prev) => {
+          const newBindings = new Map(prev);
+          const sensorBindingsList = newBindings.get(sensorIndex) ?? [];
+          const updatedBindings = sensorBindingsList.filter(
+            (b) => b.layer !== selectedLayerId,
+          );
+          updatedBindings.push({
+            layer: selectedLayerId,
+            cwBinding,
+            ccwBinding,
+          });
+          newBindings.set(sensorIndex, updatedBindings);
+          return newBindings;
+        });
+      }
 
       setShowBehaviorSelector(false);
       setEditingConfig(null);
     },
-    [editingConfig, sensorConfigs, sensorRotate],
+    [editingConfig, getBindingsForLayer, selectedLayerId, sensorRotate],
   );
 
   // Get display name for a sensor binding
   const getBindingDisplayName = useCallback(
-    (binding: SensorBinding): string => {
+    (binding: Binding | null | undefined): string => {
       if (!binding || binding.behaviorId === 0) {
         return "None";
       }
@@ -153,9 +179,9 @@ export function SensorRotationConfig({
     [behaviors],
   );
 
-  // Convert SensorBinding to BehaviorBinding for KeycodeSelector
+  // Convert Binding to BehaviorBinding for KeycodeSelector
   const currentBindingForSelector = useMemo(() => {
-    if (!editingConfig) return null;
+    if (!editingConfig || !editingConfig.currentBinding) return null;
     return {
       behaviorId: editingConfig.currentBinding.behaviorId,
       param1: editingConfig.currentBinding.param1,
@@ -173,9 +199,12 @@ export function SensorRotationConfig({
         {/* Sensors Grid */}
         <div className="flex flex-wrap gap-4">
           {sensorRotate.sensors.map((sensor) => {
-            const config = sensorConfigs.get(sensor.index);
-            const cwBinding = config?.clockwise;
-            const ccwBinding = config?.counterClockwise;
+            const layerBindings = getBindingsForLayer(
+              sensor.index,
+              selectedLayerId,
+            );
+            const cwBinding = layerBindings?.cwBinding;
+            const ccwBinding = layerBindings?.ccwBinding;
 
             return (
               <div
@@ -218,9 +247,7 @@ export function SensorRotationConfig({
                         handleBindingClick(sensor.index, "clockwise")
                       }
                     >
-                      {cwBinding
-                        ? getBindingDisplayName(cwBinding)
-                        : "Not configured"}
+                      {getBindingDisplayName(cwBinding)}
                     </button>
                   </div>
 
@@ -241,9 +268,7 @@ export function SensorRotationConfig({
                         handleBindingClick(sensor.index, "counterClockwise")
                       }
                     >
-                      {ccwBinding
-                        ? getBindingDisplayName(ccwBinding)
-                        : "Not configured"}
+                      {getBindingDisplayName(ccwBinding)}
                     </button>
                   </div>
 
@@ -254,7 +279,7 @@ export function SensorRotationConfig({
                         Tap Time
                       </span>
                       <span className="text-xs font-mono text-[var(--color-text-secondary)]">
-                        {config?.tapMs || 5} ms
+                        {cwBinding?.tapMs || ccwBinding?.tapMs || 5} ms
                       </span>
                     </div>
                     <div className="text-xs text-[var(--color-text-muted)] opacity-70">
