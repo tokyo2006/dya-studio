@@ -15,12 +15,15 @@ import { ConnectionContext } from "../components/DeviceConnection";
 import { KeyboardLayout } from "../components/KeyboardLayout";
 import { KeycodeSelector } from "../components/KeycodeSelector";
 import { UnlockPrompt } from "../components/UnlockPrompt";
+import { SensorRotationConfig } from "../components/SensorRotationConfig";
 import { useKeymap } from "../hooks/useKeymap";
+import { useRuntimeSensorRotate } from "../hooks/useRuntimeSensorRotate";
 import type { BehaviorBinding } from "../hooks/useKeymap";
 
 export function KeymapPage() {
   const connection = useContext(ConnectionContext);
   const keymap = useKeymap();
+  const sensorRotate = useRuntimeSensorRotate();
 
   // Local UI state
   const [selectedLayerIndex, setSelectedLayerIndex] = useState(0);
@@ -467,6 +470,28 @@ export function KeymapPage() {
                   onKeyReset={handleKeyReset}
                   isBindingModified={keymap.isBindingModified}
                   getOriginalBinding={keymap.getOriginalBinding}
+                />
+              </div>
+            )}
+
+            {/* Sensor Rotation Configuration */}
+            {!sensorRotate.isAvailable && (
+              <div className="glass-card p-4 mb-4 border-yellow-500/20 bg-yellow-500/10 flex items-center gap-3">
+                <IconAlertCircle size={20} className="text-yellow-400" />
+                <p className="text-sm text-yellow-400">
+                  Runtime sensor rotation subsystem is not available for your
+                  keyboard. Sensor configuration will not be displayed, but
+                  normal keymap editing works fine.
+                </p>
+              </div>
+            )}
+
+            {sensorRotate.isAvailable && currentLayer && (
+              <div className="mt-6">
+                <SensorRotationConfig
+                  selectedLayerId={currentLayer.id}
+                  behaviors={keymap.behaviors}
+                  layers={layersForSelector}
                 />
               </div>
             )}
