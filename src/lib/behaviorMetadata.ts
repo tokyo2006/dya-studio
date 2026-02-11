@@ -20,6 +20,7 @@ import {
   MOUSE_MOVEMENTS,
   MOUSE_SCROLLS,
   dropModifierFlags,
+  decodeMouseMove,
 } from "./keycodes";
 
 /**
@@ -316,12 +317,19 @@ const BEHAVIOR_METADATA_BASE: Record<string, BehaviorMetadata> = {
     shortCode: "MMV",
     param1Type: "mouse_movement",
     getDisplayText: (binding) => {
+      // Check if it matches a preset
       const movement = MOUSE_MOVEMENTS.find(
         (mm) => mm.value === binding.param1,
       );
-      return movement?.label || `MMV ${binding.param1}`;
+      if (movement) {
+        return `MMV ${movement.shortLabel}`;
+      }
+      // Otherwise, decode and show X/Y values
+      const { x, y } = decodeMouseMove(binding.param1);
+      return `MMV X${x} Y${y}`;
     },
-    description: "Move mouse cursor",
+    description:
+      "Move mouse cursor. Param1 encodes X/Y deltas (upper 16 bits = X, lower 16 bits = Y)",
   },
   "Mouse Scroll": {
     category: "mouse",
@@ -329,10 +337,17 @@ const BEHAVIOR_METADATA_BASE: Record<string, BehaviorMetadata> = {
     shortCode: "MSC",
     param1Type: "mouse_scroll",
     getDisplayText: (binding) => {
+      // Check if it matches a preset
       const scroll = MOUSE_SCROLLS.find((ms) => ms.value === binding.param1);
-      return scroll?.label || `MSC ${binding.param1}`;
+      if (scroll) {
+        return `MSC ${scroll.shortLabel}`;
+      }
+      // Otherwise, decode and show X/Y values
+      const { x, y } = decodeMouseMove(binding.param1);
+      return `MSC X${x} Y${y}`;
     },
-    description: "Scroll mouse wheel",
+    description:
+      "Scroll mouse wheel. Param1 encodes X/Y deltas (upper 16 bits = X, lower 16 bits = Y)",
   },
   // ============================================================================
   // System Behaviors

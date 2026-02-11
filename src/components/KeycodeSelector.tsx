@@ -19,6 +19,7 @@ import {
   NO_PARAM_VALUE,
   formatKeycodeWithModifiers,
   getKeycodeByCode,
+  decodeMouseMove,
 } from "../lib/keycodes";
 import {
   getBehaviorMetadata,
@@ -34,6 +35,7 @@ import { BehaviorDropdown } from "./BehaviorDropdown";
 import { ButtonListSelector } from "./ButtonListSelector";
 import { KeycodeValueSelector } from "./KeycodeValueSelector";
 import { RangeValueSelector } from "./RangeValueSelector";
+import { MouseMoveInputSelector } from "./MouseMoveInputSelector";
 
 // =============================================================================
 // Types
@@ -106,9 +108,9 @@ function getParamTypeDescription(paramType: ParamType | undefined): string {
     case "mouse_keycode":
       return "Select a mouse button";
     case "mouse_movement":
-      return "Select movement direction";
+      return "Configure movement speed (X/Y axis in pixels)";
     case "mouse_scroll":
-      return "Select scroll direction";
+      return "Configure scroll amount (X/Y axis)";
     case "number":
       return "Enter a numeric value";
     default:
@@ -169,11 +171,19 @@ function formatParamValue(
     }
     case "mouse_movement": {
       const mm = MOUSE_MOVEMENTS.find((m) => m.value === value);
-      return mm?.label || `Direction ${value}`;
+      if (mm) {
+        return mm.label;
+      }
+      const { x, y } = decodeMouseMove(value);
+      return `X:${x} Y:${y}`;
     }
     case "mouse_scroll": {
       const ms = MOUSE_SCROLLS.find((m) => m.value === value);
-      return ms?.label || `Direction ${value}`;
+      if (ms) {
+        return ms.label;
+      }
+      const { x, y } = decodeMouseMove(value);
+      return `X:${x} Y:${y}`;
     }
     case "number":
       return String(value);
@@ -550,29 +560,19 @@ export function KeycodeSelector({
 
           case "mouse_movement":
             return (
-              <ButtonListSelector
-                options={MOUSE_MOVEMENTS.map((mm) => ({
-                  value: mm.value,
-                  label: mm.label,
-                  shortLabel: mm.shortLabel,
-                }))}
+              <MouseMoveInputSelector
                 value={value}
                 onChange={onChange}
-                columns={2}
+                isScroll={false}
               />
             );
 
           case "mouse_scroll":
             return (
-              <ButtonListSelector
-                options={MOUSE_SCROLLS.map((ms) => ({
-                  value: ms.value,
-                  label: ms.label,
-                  shortLabel: ms.shortLabel,
-                }))}
+              <MouseMoveInputSelector
                 value={value}
                 onChange={onChange}
-                columns={2}
+                isScroll={true}
               />
             );
 
