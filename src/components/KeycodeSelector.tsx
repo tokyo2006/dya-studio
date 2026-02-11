@@ -210,6 +210,7 @@ export function KeycodeSelector({
     const saved = localStorage.getItem("keycodeSelectorCloseOnSelect");
     return saved !== null ? saved === "true" : true;
   });
+  const [wasOpened, setWasOpened] = useState<boolean>(false);
 
   // Initial values to detect changes
   const [initialValues, setInitialValues] = useState<{
@@ -411,9 +412,11 @@ export function KeycodeSelector({
           setParam2(0);
         }
         setActiveParam(1);
+        setWasOpened(true);
       } else {
         // Always apply changes when closing
-        if (selectedBehavior !== null) {
+        if (selectedBehavior !== null && wasOpened) {
+          setWasOpened(false);
           onSelect({
             behaviorId: selectedBehavior,
             param1,
@@ -436,6 +439,7 @@ export function KeycodeSelector({
       param1,
       param2,
       onSelect,
+      wasOpened,
     ],
   );
 

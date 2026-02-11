@@ -9,18 +9,22 @@ import {
   IconPlus,
   IconTrash,
   IconRestore,
+  IconAlertTriangle,
 } from "@tabler/icons-react";
 import * as Tooltip from "@radix-ui/react-tooltip";
 import { ConnectionContext } from "../components/DeviceConnection";
 import { KeyboardLayout } from "../components/KeyboardLayout";
 import { KeycodeSelector } from "../components/KeycodeSelector";
 import { UnlockPrompt } from "../components/UnlockPrompt";
+import { SensorRotationConfig } from "../components/SensorRotationConfig";
 import { useKeymap } from "../hooks/useKeymap";
+import { useRuntimeSensorRotate } from "../hooks/useRuntimeSensorRotate";
 import type { BehaviorBinding } from "../hooks/useKeymap";
 
 export function KeymapPage() {
   const connection = useContext(ConnectionContext);
   const keymap = useKeymap();
+  const sensorRotate = useRuntimeSensorRotate();
 
   // Local UI state
   const [selectedLayerIndex, setSelectedLayerIndex] = useState(0);
@@ -470,9 +474,42 @@ export function KeymapPage() {
                 />
               </div>
             )}
+
+            {/* Sensor Rotation Configuration */}
+            {!sensorRotate.isAvailable && (
+              <div className="glass-card p-4 mb-4 border-yellow-500/20 bg-yellow-500/10 flex items-center gap-3">
+                <div className="p-2">
+                  <IconAlertTriangle size={24} />
+                </div>
+                <p className="text-sm">
+                  Runtime sensor rotation subsystem is not available for your
+                  keyboard. Rotary encoder configuration will not be displayed.
+                  <br />
+                  You can enable the feature by applying
+                  <a
+                    href="https://github.com/cormoran/zmk-behavior-runtime-sensor-rotate"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[var(--color-electric)] underline mx-1"
+                  >
+                    cormoran/zmk-behavior-runtime-sensor-rotate
+                  </a>
+                  in your firmware.
+                </p>
+              </div>
+            )}
+
+            {sensorRotate.isAvailable && currentLayer && (
+              <div className="mt-6">
+                <SensorRotationConfig
+                  selectedLayerId={currentLayer.id}
+                  behaviors={keymap.behaviors}
+                  layers={layersForSelector}
+                />
+              </div>
+            )}
           </>
         )}
-
         {/* Info */}
         <div className="mt-8 p-4 rounded-lg bg-[var(--color-border)] border border-[var(--color-border-hover)]">
           <p className="text-xs text-[var(--color-text-muted)]">

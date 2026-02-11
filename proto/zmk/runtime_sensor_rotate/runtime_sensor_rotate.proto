@@ -1,0 +1,79 @@
+syntax = "proto3";
+
+package cormoran.rsr;
+
+// Runtime sensor rotate messages
+message Binding {
+    uint32 behavior_id = 1;
+    uint32 param1      = 2;
+    uint32 param2      = 3;
+    uint32 tap_ms      = 4;
+}
+
+message SetLayerCwBindingRequest {
+    uint32 sensor_index = 1;
+    uint32 layer        = 2;
+    Binding binding     = 3;
+}
+
+message SetLayerCwBindingResponse {
+    bool success = 1;
+}
+
+message SetLayerCcwBindingRequest {
+    uint32 sensor_index = 1;
+    uint32 layer        = 2;
+    Binding binding     = 3;
+}
+
+message SetLayerCcwBindingResponse {
+    bool success = 1;
+}
+
+message GetAllLayerBindingsRequest {
+    uint32 sensor_index = 1;
+}
+
+message LayerBindings {
+    uint32 layer        = 1;
+    Binding cw_binding  = 2;
+    Binding ccw_binding = 3;
+}
+
+message GetAllLayerBindingsResponse {
+    repeated LayerBindings bindings = 1;
+}
+
+message GetSensorsRequest {}
+
+message SensorInfo {
+    uint32 index = 1;
+    string name  = 2;
+}
+
+message GetSensorsResponse {
+    repeated SensorInfo sensors = 1;
+}
+
+message Request {
+    oneof request_type {
+        SetLayerCwBindingRequest set_layer_cw_binding     = 1;
+        SetLayerCcwBindingRequest set_layer_ccw_binding   = 2;
+        GetAllLayerBindingsRequest get_all_layer_bindings = 3;
+        GetSensorsRequest get_sensors                     = 4;
+    }
+}
+
+message ErrorResponse {
+    string message = 1;
+}
+
+message Response {
+    oneof response_type {
+        ErrorResponse error                                = 1;
+        SetLayerCwBindingResponse set_layer_cw_binding     = 2;
+        SetLayerCcwBindingResponse set_layer_ccw_binding   = 3;
+        GetAllLayerBindingsResponse get_all_layer_bindings = 4;
+        GetSensorsResponse get_sensors                     = 5;
+    }
+}
