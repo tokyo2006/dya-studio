@@ -22,6 +22,10 @@ import {
   RUNTIME_INPUT_PROCESSOR_IDENTIFIER,
 } from "./demo-runtime-input-processor";
 import {
+  RuntimeSensorRotateHandler,
+  RUNTIME_SENSOR_ROTATE_IDENTIFIER,
+} from "./demo-runtime-sensor-rotate";
+import {
   Request as BLERequest,
   Response as BLEResponse,
 } from "../../proto/zmk/ble_management/ble_management";
@@ -37,6 +41,10 @@ import {
   Request as RuntimeInputProcessorRequest,
   Response as RuntimeInputProcessorResponse,
 } from "../../proto/zmk/runtime_input_processor/runtime_input_processor";
+import {
+  Request as RuntimeSensorRotateRequest,
+  Response as RuntimeSensorRotateResponse,
+} from "../../proto/zmk/runtime_sensor_rotate/runtime_sensor_rotate";
 import {
   ANSI60,
   ORTHO,
@@ -143,12 +151,14 @@ class Keyboard {
   private settingsHandler = new SettingsHandler();
   private batteryHistoryHandler = new BatteryHistoryHandler();
   private runtimeInputProcessorHandler = new RuntimeInputProcessorHandler();
+  private runtimeSensorRotateHandler = new RuntimeSensorRotateHandler();
 
   // Custom subsystems registry
   private readonly BLE_SUBSYSTEM_INDEX = 0;
   private readonly SETTINGS_SUBSYSTEM_INDEX = 1;
   private readonly BATTERY_HISTORY_SUBSYSTEM_INDEX = 2;
   private readonly RUNTIME_INPUT_PROCESSOR_SUBSYSTEM_INDEX = 3;
+  private readonly RUNTIME_SENSOR_ROTATE_SUBSYSTEM_INDEX = 4;
 
   private customSubsystems = [
     {
@@ -169,6 +179,11 @@ class Keyboard {
     {
       index: this.RUNTIME_INPUT_PROCESSOR_SUBSYSTEM_INDEX,
       identifier: RUNTIME_INPUT_PROCESSOR_IDENTIFIER,
+      uiUrl: [],
+    },
+    {
+      index: this.RUNTIME_SENSOR_ROTATE_SUBSYSTEM_INDEX,
+      identifier: RUNTIME_SENSOR_ROTATE_IDENTIFIER,
       uiUrl: [],
     },
   ];
@@ -360,6 +375,18 @@ class Keyboard {
         } catch (e) {
           console.error("Runtime Input Processor subsystem error:", e);
         }
+      } else if (
+        subsystemIndex === this.RUNTIME_SENSOR_ROTATE_SUBSYSTEM_INDEX
+      ) {
+        // Runtime Sensor Rotate
+        try {
+          const sensorReq = RuntimeSensorRotateRequest.decode(data);
+          const sensorResp = this.runtimeSensorRotateHandler.process(sensorReq);
+          responseData =
+            RuntimeSensorRotateResponse.encode(sensorResp).finish();
+        } catch (e) {
+          console.error("Runtime Sensor Rotate subsystem error:", e);
+        }
       }
 
       if (responseData) {
@@ -422,6 +449,21 @@ class Keyboard {
             custom: {
               customNotification: {
                 subsystemIndex: this.RUNTIME_INPUT_PROCESSOR_SUBSYSTEM_INDEX,
+                payload: payload,
+              },
+            },
+          },
+        }).finish(),
+      );
+    });
+
+    this.runtimeSensorRotateHandler.notify((payload: Uint8Array) => {
+      callback(
+        Response.encode({
+          notification: {
+            custom: {
+              customNotification: {
+                subsystemIndex: this.RUNTIME_SENSOR_ROTATE_SUBSYSTEM_INDEX,
                 payload: payload,
               },
             },
