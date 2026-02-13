@@ -14,8 +14,8 @@ import type {
   BehaviorBinding,
   BehaviorDefinition,
 } from "../hooks/useKeymap";
-import { getKeycodeByCode } from "../lib/keycodes";
 import { formatBehaviorBinding } from "../lib/behaviorMetadata";
+import type { KeyboardLayoutType } from "../lib/keyboardLayouts";
 
 // Base unit size for 1U key in pixels at scale 1.0
 const BASE_UNIT_SIZE = 54;
@@ -48,7 +48,7 @@ interface KeyboardLayoutProps {
     keyPosition: number,
   ) => BehaviorBinding | null;
   /** Keyboard layout for keycode display */
-  keyboardLayout?: import("../lib/keyboardLayouts").KeyboardLayoutType;
+  keyboardLayout?: KeyboardLayoutType;
 }
 
 export function KeyboardLayout({
@@ -142,7 +142,6 @@ export function KeyboardLayout({
       const behavior = behaviors.get(binding.behaviorId) || null;
       return formatBehaviorBinding(binding, behavior, {
         // Skip passing layers to displayShortName
-        getKeycodeByCode: (code: number) => getKeycodeByCode(code) || null,
         keyboardLayout,
       });
     },
@@ -155,7 +154,6 @@ export function KeyboardLayout({
       const behavior = behaviors.get(binding.behaviorId) || null;
       return formatBehaviorBinding(binding, behavior, {
         layers: layers,
-        getKeycodeByCode: (code: number) => getKeycodeByCode(code) || null,
         keyboardLayout,
       });
     },
@@ -170,7 +168,6 @@ export function KeyboardLayout({
       const behavior = behaviors.get(original.behaviorId) || null;
       return formatBehaviorBinding(original, behavior, {
         layers: layers,
-        getKeycodeByCode: (code: number) => getKeycodeByCode(code) || null,
         keyboardLayout,
       });
     },

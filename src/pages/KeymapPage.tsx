@@ -10,6 +10,7 @@ import {
   IconTrash,
   IconRestore,
   IconAlertTriangle,
+  IconInfoCircle,
 } from "@tabler/icons-react";
 import * as Tooltip from "@radix-ui/react-tooltip";
 import { ConnectionContext } from "../components/DeviceConnection";
@@ -438,50 +439,91 @@ export function KeymapPage() {
               </Tooltip.Provider>
             </div>
 
-            {/* Physical Layout Selector (if multiple layouts) */}
-            {keymap.physicalLayouts &&
-              keymap.physicalLayouts.layouts.length > 1 && (
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="text-xs text-[var(--color-text-muted)]">
-                    Layout:
-                  </span>
-                  <select
-                    value={keymap.physicalLayouts.activeLayoutIndex}
-                    onChange={(e) =>
-                      keymap.setActiveLayout(Number(e.target.value))
-                    }
-                    className="px-2 py-1 rounded bg-[var(--color-surface)] border border-[var(--color-border)] text-sm text-[var(--color-text)]"
-                  >
-                    {keymap.physicalLayouts.layouts.map((layout, index) => (
-                      <option key={index} value={index}>
-                        {layout.name || `Layout ${index + 1}`}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
+            <div className="flex items-center gap-2 justify-between flex-wrap mb-4">
+              {/* Physical Layout Selector (if multiple layouts) */}
+              {keymap.physicalLayouts &&
+                keymap.physicalLayouts.layouts.length > 1 && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-[var(--color-text-muted)]">
+                      Physical Layout:
+                    </span>
+                    <select
+                      value={keymap.physicalLayouts.activeLayoutIndex}
+                      onChange={(e) =>
+                        keymap.setActiveLayout(Number(e.target.value))
+                      }
+                      className="px-2 py-1 rounded bg-[var(--color-surface)] border border-[var(--color-border)] text-sm text-[var(--color-text)]"
+                    >
+                      {keymap.physicalLayouts.layouts.map((layout, index) => (
+                        <option key={index} value={index}>
+                          {layout.name || `Layout ${index + 1}`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
-            {/* Keyboard Layout Selector */}
-            <div className="flex items-center gap-2 mb-4">
-              <span className="text-xs text-[var(--color-text-muted)]">
-                Keycode Display:
-              </span>
-              <select
-                value={keyboardLayoutContext.layout}
-                onChange={(e) =>
-                  keyboardLayoutContext.setLayout(
-                    e.target
-                      .value as import("../lib/keyboardLayouts").KeyboardLayoutType,
-                  )
-                }
-                className="px-2 py-1 rounded bg-[var(--color-surface)] border border-[var(--color-border)] text-sm text-[var(--color-text)]"
-              >
-                {getAvailableLayouts().map((layoutType) => (
-                  <option key={layoutType} value={layoutType}>
-                    {getLayoutLabel(layoutType)}
-                  </option>
-                ))}
-              </select>
+              {/* Keyboard Layout Selector */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[var(--color-text-muted)]">
+                  OS Layout:
+                </span>
+                <select
+                  value={keyboardLayoutContext.layout}
+                  onChange={(e) =>
+                    keyboardLayoutContext.setLayout(
+                      e.target
+                        .value as import("../lib/keyboardLayouts").KeyboardLayoutType,
+                    )
+                  }
+                  className="px-2 py-1 rounded bg-[var(--color-surface)] border border-[var(--color-border)] text-sm text-[var(--color-text)]"
+                >
+                  {getAvailableLayouts().map((layoutType) => (
+                    <option key={layoutType} value={layoutType}>
+                      {getLayoutLabel(layoutType)}
+                    </option>
+                  ))}
+                </select>
+                <Tooltip.Provider delayDuration={200}>
+                  {/* Tips: */}
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <IconInfoCircle size={14} />
+                    </Tooltip.Trigger>
+                    <Tooltip.Portal>
+                      <Tooltip.Content
+                        className="px-3 py-2 rounded bg-[var(--color-surface-elevated)] border border-[var(--color-border)] text-xs text-[var(--color-text-secondary)] shadow-lg z-50 max-w-xs"
+                        sideOffset={5}
+                      >
+                        <div className="mb-1 font-semibold text-[var(--color-electric)]">
+                          Choose OS's keyboard layout setting
+                        </div>
+                        <ul className="list-disc pl-4 space-y-1">
+                          <li>
+                            This setting only affects the visual key labels in
+                            DYA Studio web UI.
+                          </li>
+                          <li>
+                            Changing this does not update any firmware setting.
+                            The keyboard is
+                            <strong className="mx-1">detected as US</strong>
+                            regardless of this setting. <br />
+                            Please change the layout setting in your OS if
+                            needed.
+                            <br /> For MacOS, USB connection is always detected
+                            as US and cannot be changed for now.
+                          </li>
+                          <li>
+                            The selection is saved in your browser's local
+                            storage for now.
+                          </li>
+                        </ul>
+                        <Tooltip.Arrow className="fill-[var(--color-surface-elevated)]" />
+                      </Tooltip.Content>
+                    </Tooltip.Portal>
+                  </Tooltip.Root>
+                </Tooltip.Provider>
+              </div>
             </div>
 
             {/* Keyboard Layout */}
@@ -532,6 +574,7 @@ export function KeymapPage() {
                   selectedLayerId={currentLayer.id}
                   behaviors={keymap.behaviors}
                   layers={layersForSelector}
+                  keyboardLayout={keyboardLayoutContext.layout}
                 />
               </div>
             )}

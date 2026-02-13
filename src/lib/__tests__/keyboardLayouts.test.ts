@@ -18,9 +18,9 @@ describe("keyboardLayouts", () => {
   });
 
   describe("getAvailableLayouts", () => {
-    it("should return US and JIS layouts", () => {
+    it("should return all layouts", () => {
       const layouts = getAvailableLayouts();
-      expect(layouts).toEqual(["US", "JIS"]);
+      expect(layouts).toEqual(["US", "JIS", "US_JP"]);
     });
   });
 
@@ -39,17 +39,15 @@ describe("keyboardLayouts", () => {
 
     it("should return JIS display names for mapped keycodes", () => {
       // 0x2f ([): In US shows "[", in JIS shows "@"
-      expect(getLayoutDisplayName(0x2f, "JIS")).toBe("@");
+      expect(getLayoutDisplayName(0x2f, "JIS")).toBe("@`");
       // 0x30 (]): In US shows "]", in JIS shows "["
-      expect(getLayoutDisplayName(0x30, "JIS")).toBe("[");
-      // 0x31 (\): In US shows "\", in JIS shows "]"
-      expect(getLayoutDisplayName(0x31, "JIS")).toBe("]");
+      expect(getLayoutDisplayName(0x30, "JIS")).toBe("[{");
       // 0x34 ('): In US shows "'", in JIS shows ":"
-      expect(getLayoutDisplayName(0x34, "JIS")).toBe(":");
+      expect(getLayoutDisplayName(0x34, "JIS")).toBe(":*");
       // 0x35 (`): In US shows "`", in JIS shows "半/全"
       expect(getLayoutDisplayName(0x35, "JIS")).toBe("半/全");
       // 0x2e (=): In US shows "=", in JIS shows "^"
-      expect(getLayoutDisplayName(0x2e, "JIS")).toBe("^");
+      expect(getLayoutDisplayName(0x2e, "JIS")).toBe("^~");
     });
 
     it("should return undefined for unmapped keycodes", () => {
@@ -66,7 +64,6 @@ describe("keyboardLayouts", () => {
     it("should return JIS full names for mapped keycodes", () => {
       expect(getLayoutName(0x2f, "JIS")).toBe("At Sign");
       expect(getLayoutName(0x30, "JIS")).toBe("Left Bracket");
-      expect(getLayoutName(0x31, "JIS")).toBe("Right Bracket");
     });
 
     it("should return undefined for unmapped keycodes", () => {

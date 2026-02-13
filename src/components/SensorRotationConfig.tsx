@@ -16,18 +16,20 @@ import type { BehaviorDefinition } from "../hooks/useKeymap";
 import type { BehaviorBinding } from "../hooks/useKeymap";
 import { KeycodeSelector } from "./KeycodeSelector";
 import { formatBehaviorBinding } from "../lib/behaviorMetadata";
-import { getKeycodeByCode } from "../lib/keycodes";
+import type { KeyboardLayoutType } from "../lib/keyboardLayouts";
 
 interface SensorRotationConfigProps {
   selectedLayerId: number;
   behaviors: Map<number, BehaviorDefinition>;
   layers: Array<{ id: number; name: string }>;
+  keyboardLayout?: KeyboardLayoutType;
 }
 
 export function SensorRotationConfig({
   selectedLayerId,
   behaviors,
   layers,
+  keyboardLayout,
 }: SensorRotationConfigProps) {
   const sensorRotate = useRuntimeSensorRotate();
 
@@ -175,10 +177,10 @@ export function SensorRotationConfig({
       return formatBehaviorBinding(binding, behavior, {
         // Skip passing layers to displayShortName
         layers: layers,
-        getKeycodeByCode: (code: number) => getKeycodeByCode(code) || null,
+        keyboardLayout: keyboardLayout,
       });
     },
-    [behaviors, layers],
+    [behaviors, layers, keyboardLayout],
   );
 
   // Convert Binding to BehaviorBinding for KeycodeSelector
@@ -384,6 +386,7 @@ export function SensorRotationConfig({
         currentBinding={currentBindingForSelector}
         behaviors={behaviors}
         layers={layers}
+        keyboardLayout={keyboardLayout}
       />
     </>
   );

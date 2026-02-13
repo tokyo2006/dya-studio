@@ -66,10 +66,6 @@ export interface ParamValueMapping {
 export interface FormatContext {
   /** Available layers for resolving layer names */
   layers?: (Omit<Layer, "bindings"> & Partial<Pick<Layer, "bindings">>)[];
-  /** Function to look up keycode by HID code */
-  getKeycodeByCode?: (
-    code: number,
-  ) => { displayName: string; name: string } | null;
   /** Keyboard layout for localized keycode display */
   keyboardLayout?: import("./keyboardLayouts").KeyboardLayoutType;
 }

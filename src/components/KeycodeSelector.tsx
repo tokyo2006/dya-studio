@@ -18,7 +18,6 @@ import {
   MOUSE_SCROLLS,
   NO_PARAM_VALUE,
   formatKeycodeWithModifiers,
-  getKeycodeByCode,
   decodeMouseMove,
 } from "../lib/keycodes";
 import {
@@ -36,6 +35,7 @@ import { ButtonListSelector } from "./ButtonListSelector";
 import { KeycodeValueSelector } from "./KeycodeValueSelector";
 import { RangeValueSelector } from "./RangeValueSelector";
 import { MouseMoveInputSelector } from "./MouseMoveInputSelector";
+import { type KeyboardLayoutType } from "../lib/keyboardLayouts";
 
 // =============================================================================
 // Types
@@ -60,7 +60,7 @@ interface KeycodeSelectorProps {
   currentBinding?: BehaviorBinding | null;
   behaviors: Map<number, BehaviorDefinition>;
   layers: Array<{ id: number; name: string }>;
-  keyboardLayout?: import("../lib/keyboardLayouts").KeyboardLayoutType;
+  keyboardLayout?: KeyboardLayoutType;
 }
 
 // =============================================================================
@@ -128,7 +128,7 @@ function formatParamValue(
   layers: Array<{ id: number; name: string }>,
   behavior: BehaviorDefinition | null,
   paramNumber: 1 | 2,
-  keyboardLayout?: import("../lib/keyboardLayouts").KeyboardLayoutType,
+  keyboardLayout?: KeyboardLayoutType,
 ): string {
   // For option-based paramTypes, 0 can be a valid value (e.g., BT_CLR)
   // Only show "Not set" for paramTypes where 0 has no meaning
@@ -195,7 +195,7 @@ function formatParamValue(
         value,
         {
           layers,
-          getKeycodeByCode: (code: number) => getKeycodeByCode(code) || null,
+          keyboardLayout,
         },
       );
   }
@@ -487,6 +487,7 @@ export function KeycodeSelector({
                 value={value}
                 onChange={onChange}
                 showModifiers={true}
+                keyboardLayout={keyboardLayout}
               />
             );
 
@@ -605,6 +606,7 @@ export function KeycodeSelector({
                     value={value}
                     onChange={onChange}
                     showModifiers={true}
+                    keyboardLayout={keyboardLayout}
                   />
                 );
 
@@ -660,7 +662,7 @@ export function KeycodeSelector({
         />
       );
     },
-    [layers, selectedBehaviorInfo, behaviors, selectedBehavior],
+    [layers, selectedBehaviorInfo, behaviors, selectedBehavior, keyboardLayout],
   );
 
   return (

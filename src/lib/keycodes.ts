@@ -17,6 +17,7 @@
 import {
   getLayoutDisplayName,
   getLayoutName,
+  mapToLayout,
   type KeyboardLayoutType,
 } from "./keyboardLayouts";
 
@@ -106,73 +107,73 @@ export const KEYBOARD_KEYCODES: KeycodeDefinition[] = [
   // Numbers (0x1E-0x27)
   {
     code: 0x1e,
-    displayName: "1",
+    displayName: "1!",
     name: "1",
     category: "numbers",
-    aliases: ["!"],
+    aliases: ["one", "exclamation"],
   },
   {
     code: 0x1f,
-    displayName: "2",
+    displayName: "2@",
     name: "2",
     category: "numbers",
-    aliases: ["@"],
+    aliases: ["two", "at"],
   },
   {
     code: 0x20,
-    displayName: "3",
+    displayName: "3#",
     name: "3",
     category: "numbers",
-    aliases: ["#"],
+    aliases: ["three", "hash"],
   },
   {
     code: 0x21,
-    displayName: "4",
+    displayName: "4$",
     name: "4",
     category: "numbers",
-    aliases: ["$"],
+    aliases: ["four", "dollar"],
   },
   {
     code: 0x22,
-    displayName: "5",
+    displayName: "5%",
     name: "5",
     category: "numbers",
-    aliases: ["%"],
+    aliases: ["five", "percent"],
   },
   {
     code: 0x23,
-    displayName: "6",
+    displayName: "6^",
     name: "6",
     category: "numbers",
-    aliases: ["^"],
+    aliases: ["six", "caret"],
   },
   {
     code: 0x24,
-    displayName: "7",
+    displayName: "7&",
     name: "7",
     category: "numbers",
-    aliases: ["&"],
+    aliases: ["seven", "ampersand", "and"],
   },
   {
     code: 0x25,
-    displayName: "8",
+    displayName: "8*",
     name: "8",
     category: "numbers",
-    aliases: ["*"],
+    aliases: ["eight", "asterisk"],
   },
   {
     code: 0x26,
-    displayName: "9",
+    displayName: "9(",
     name: "9",
     category: "numbers",
-    aliases: ["("],
+    aliases: ["nine", "left parenthesis"],
   },
   {
     code: 0x27,
-    displayName: "0",
+    displayName: "0)",
     name: "0",
     category: "numbers",
-    aliases: [")"],
+    aliases: ["zero", "right parenthesis"],
   },
 
   // Function keys (0x3A-0x45, 0x68-0x73)
@@ -397,80 +398,80 @@ export const KEYBOARD_KEYCODES: KeycodeDefinition[] = [
   // Punctuation
   {
     code: 0x2d,
-    displayName: "-",
+    displayName: "-_",
     name: "Minus",
     category: "punctuation",
-    aliases: ["MINUS", "_"],
+    aliases: ["MINUS", "underscore"],
   },
   {
     code: 0x2e,
-    displayName: "=",
+    displayName: "=+",
     name: "Equal",
     category: "punctuation",
-    aliases: ["EQUAL", "+"],
+    aliases: ["EQUAL", "plus"],
   },
   {
     code: 0x2f,
-    displayName: "[",
+    displayName: "[{",
     name: "Left Bracket",
     category: "punctuation",
-    aliases: ["LBKT", "{"],
+    aliases: ["LBKT", "left bracket", "open bracket"],
   },
   {
     code: 0x30,
-    displayName: "]",
+    displayName: "]}",
     name: "Right Bracket",
     category: "punctuation",
-    aliases: ["RBKT", "}"],
+    aliases: ["RBKT", "right bracket", "close bracket"],
   },
   {
     code: 0x31,
-    displayName: "\\",
+    displayName: "\\|",
     name: "Backslash",
     category: "punctuation",
-    aliases: ["BSLH", "|"],
+    aliases: ["BSLH", "backslash", "pipe"],
   },
   {
     code: 0x33,
-    displayName: ";",
+    displayName: ";:",
     name: "Semicolon",
     category: "punctuation",
-    aliases: ["SEMI", ":"],
+    aliases: ["SEMI", "semicolon", "colon"],
   },
   {
     code: 0x34,
-    displayName: "'",
+    displayName: "'\"",
     name: "Single Quote",
     category: "punctuation",
-    aliases: ["SQT", "APOS", '"'],
+    aliases: ["SQT", "APOS", "single quote", "double quote", "apostrophe"],
   },
   {
     code: 0x35,
-    displayName: "`",
+    displayName: "`~",
     name: "Grave",
     category: "punctuation",
-    aliases: ["GRAVE", "~"],
+    aliases: ["GRAVE", "tilde"],
   },
   {
     code: 0x36,
-    displayName: ",",
+    displayName: ",<",
     name: "Comma",
     category: "punctuation",
-    aliases: ["COMMA", "<"],
+    aliases: ["COMMA", "left angle bracket"],
   },
   {
     code: 0x37,
-    displayName: ".",
+    displayName: ".>",
     name: "Period",
     category: "punctuation",
-    aliases: ["DOT", ">"],
+    aliases: ["DOT", "right angle bracket"],
   },
   {
     code: 0x38,
-    displayName: "/",
+    displayName: "/?",
     name: "Forward Slash",
     category: "punctuation",
-    aliases: ["FSLH", "SLASH", "?"],
+    aliases: ["FSLH", "SLASH", "question mark"],
   },
   {
     code: 0x32,
@@ -636,52 +637,52 @@ export const KEYBOARD_KEYCODES: KeycodeDefinition[] = [
   // International keys
   {
     code: 0x87,
-    displayName: "RO",
-    name: "International 1 (Ro)",
+    displayName: "INT1",
+    name: "International1",
     category: "international",
     aliases: ["INT1", "INT_RO"],
   },
   {
     code: 0x88,
-    displayName: "KANA",
-    name: "International 2 (Kana)",
+    displayName: "INT2",
+    name: "International2",
     category: "international",
     aliases: ["INT2", "INT_KANA"],
   },
   {
     code: 0x89,
-    displayName: "JYEN",
-    name: "International 3 (Yen)",
+    displayName: "INT3",
+    name: "International3",
     category: "international",
-    aliases: ["INT3", "INT_YEN"],
+    aliases: ["INT3", "INT_YEN", "￥"],
   },
   {
     code: 0x8a,
-    displayName: "HENK",
-    name: "International 4 (Henkan)",
+    displayName: "INT4",
+    name: "International4",
     category: "international",
     aliases: ["INT4", "INT_HENKAN"],
   },
   {
     code: 0x8b,
-    displayName: "MHEN",
-    name: "International 5 (Muhenkan)",
+    displayName: "INT5",
+    name: "International5",
     category: "international",
     aliases: ["INT5", "INT_MUHENKAN"],
   },
   {
     code: 0x90,
     displayName: "Lang1",
-    name: "Language 1",
+    name: "Language1",
     category: "international",
-    aliases: ["LANG1", "HAEN"],
+    aliases: ["LANG1", "HAEN", "EN", "EISU"],
   },
   {
     code: 0x91,
     displayName: "Lang2",
-    name: "Language 2",
+    name: "Language2",
     category: "international",
-    aliases: ["LANG2", "HAEJ"],
+    aliases: ["LANG2", "HAEJ", "JA", "KANA"],
   },
 ];
 
@@ -923,17 +924,22 @@ export function getKeycodeByName(name: string): KeycodeDefinition | undefined {
  * Search keycodes by query string
  * Matches against name, displayName, and aliases
  */
-export function searchKeycodes(query: string): KeycodeDefinition[] {
+export function searchKeycodes(
+  query: string,
+  keyboardLayout?: KeyboardLayoutType,
+): KeycodeDefinition[] {
   if (!query.trim()) return [];
   const lowerQuery = query.toLowerCase();
 
-  return ALL_KEYCODES.filter((kc) => {
-    if (kc.name.toLowerCase().includes(lowerQuery)) return true;
-    if (kc.displayName.toLowerCase().includes(lowerQuery)) return true;
-    if (kc.aliases?.some((a) => a.toLowerCase().includes(lowerQuery)))
-      return true;
-    return false;
-  });
+  return ALL_KEYCODES.map((kc) => mapToLayout(kc, keyboardLayout)).filter(
+    (kc) => {
+      if (kc.name.toLowerCase().includes(lowerQuery)) return true;
+      if (kc.displayName.toLowerCase().includes(lowerQuery)) return true;
+      if (kc.aliases?.some((a) => a.toLowerCase().includes(lowerQuery)))
+        return true;
+      return false;
+    },
+  );
 }
 
 /**
@@ -941,8 +947,11 @@ export function searchKeycodes(query: string): KeycodeDefinition[] {
  */
 export function getKeycodesByCategory(
   category: KeycodeCategory,
+  keyboardLayout?: KeyboardLayoutType,
 ): KeycodeDefinition[] {
-  return ALL_KEYCODES.filter((kc) => kc.category === category);
+  return ALL_KEYCODES.map((kc) => mapToLayout(kc, keyboardLayout)).filter(
+    (kc) => kc.category === category,
+  );
 }
 
 /**
