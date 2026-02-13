@@ -14,8 +14,8 @@ import type {
   BehaviorBinding,
   BehaviorDefinition,
 } from "../hooks/useKeymap";
-import { getKeycodeByCode } from "../lib/keycodes";
 import { formatBehaviorBinding } from "../lib/behaviorMetadata";
+import type { KeyboardLayoutType } from "../lib/keyboardLayouts";
 
 // Base unit size for 1U key in pixels at scale 1.0
 const BASE_UNIT_SIZE = 54;
@@ -47,6 +47,8 @@ interface KeyboardLayoutProps {
     layerId: number,
     keyPosition: number,
   ) => BehaviorBinding | null;
+  /** Keyboard layout for keycode display */
+  keyboardLayout?: KeyboardLayoutType;
 }
 
 export function KeyboardLayout({
@@ -59,6 +61,7 @@ export function KeyboardLayout({
   onKeyReset,
   isBindingModified,
   getOriginalBinding,
+  keyboardLayout,
 }: KeyboardLayoutProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1.0);
@@ -139,10 +142,10 @@ export function KeyboardLayout({
       const behavior = behaviors.get(binding.behaviorId) || null;
       return formatBehaviorBinding(binding, behavior, {
         // Skip passing layers to displayShortName
-        getKeycodeByCode: (code: number) => getKeycodeByCode(code) || null,
+        keyboardLayout,
       });
     },
-    [behaviors],
+    [behaviors, keyboardLayout],
   );
 
   const getKeyLongDisplayName = useCallback(
@@ -151,10 +154,10 @@ export function KeyboardLayout({
       const behavior = behaviors.get(binding.behaviorId) || null;
       return formatBehaviorBinding(binding, behavior, {
         layers: layers,
-        getKeycodeByCode: (code: number) => getKeycodeByCode(code) || null,
+        keyboardLayout,
       });
     },
-    [behaviors, layers],
+    [behaviors, layers, keyboardLayout],
   );
 
   // Get original display name for tooltip
@@ -165,10 +168,10 @@ export function KeyboardLayout({
       const behavior = behaviors.get(original.behaviorId) || null;
       return formatBehaviorBinding(original, behavior, {
         layers: layers,
-        getKeycodeByCode: (code: number) => getKeycodeByCode(code) || null,
+        keyboardLayout,
       });
     },
-    [getOriginalBinding, layer, behaviors, layers],
+    [getOriginalBinding, layer, behaviors, layers, keyboardLayout],
   );
 
   // Get full binding description for tooltip

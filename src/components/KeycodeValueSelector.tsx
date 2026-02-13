@@ -19,6 +19,11 @@ import {
   extractBaseKeycode,
   combineWithModifiers,
 } from "../lib/keycodes";
+import {
+  getLayoutDisplayName,
+  getLayoutName,
+  type KeyboardLayoutType,
+} from "../lib/keyboardLayouts";
 
 // Keycode categories in display order
 const KEYCODE_CATEGORY_ORDER: KeycodeCategory[] = [
@@ -39,11 +44,13 @@ interface KeycodeValueSelectorProps {
   value: number;
   onChange: (value: number, shouldNotClose?: boolean) => void;
   showModifiers?: boolean;
+  keyboardLayout?: KeyboardLayoutType;
 }
 
 export function KeycodeValueSelector({
   value,
   onChange,
+  keyboardLayout,
   showModifiers = true,
 }: KeycodeValueSelectorProps) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -61,13 +68,15 @@ export function KeycodeValueSelector({
   // Update selectedCategory when value changes or initially provided
   useEffect(() => {
     const baseCode = extractBaseKeycode(value);
-    const keycodes = KEYCODE_CATEGORY_ORDER.flatMap(getKeycodesByCategory);
+    const keycodes = KEYCODE_CATEGORY_ORDER.flatMap((c) =>
+      getKeycodesByCategory(c, keyboardLayout),
+    );
     const found = keycodes.find((k) => k.code === baseCode);
     if (found && found.category !== selectedCategory) {
       setSelectedCategory(found.category);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
+  }, [value, keyboardLayout]);
   // Focus the search input when the component is mounted (shown)
   useEffect(() => {
     const isTouchDevice = window.matchMedia(
@@ -79,10 +88,10 @@ export function KeycodeValueSelector({
   }, []);
   const filteredKeycodes = useMemo((): KeycodeDefinition[] => {
     if (searchQuery.trim()) {
-      return searchKeycodes(searchQuery);
+      return searchKeycodes(searchQuery, keyboardLayout);
     }
-    return getKeycodesByCategory(selectedCategory);
-  }, [searchQuery, selectedCategory]);
+    return getKeycodesByCategory(selectedCategory, keyboardLayout);
+  }, [searchQuery, selectedCategory, keyboardLayout]);
 
   const handleKeycodeSelect = useCallback(
     (keycode: KeycodeDefinition) => {
@@ -228,11 +237,13 @@ export function KeycodeValueSelector({
                   title={`${keycode.name} (0x${keycode.code.toString(16).toUpperCase()})`}
                 >
                   <span className="block text-xs font-medium text-[var(--color-text)]">
-                    {keycode.displayName}
+                    {getLayoutDisplayName(keycode.code, keyboardLayout) ??
+                      keycode.displayName}
                   </span>
                   {keycode.displayName !== keycode.name && (
                     <span className="block text-[10px] text-[var(--color-text-muted)] truncate">
-                      {keycode.name}
+                      {getLayoutName(keycode.code, keyboardLayout) ??
+                        keycode.name}
                     </span>
                   )}
                 </button>

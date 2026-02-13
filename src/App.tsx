@@ -15,6 +15,7 @@ import {
   ConnectionContext,
 } from "./components/DeviceConnection";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { KeyboardLayoutProvider } from "./contexts/KeyboardLayoutProvider";
 import { TabNavigation } from "./components/TabNavigation";
 import type { TabItem } from "./components/TabNavigation";
 import { AppLayout } from "./layouts/AppLayout";
@@ -67,9 +68,11 @@ const tabs: TabItem[] = [
 function App() {
   return (
     <ThemeProvider>
-      <DeviceConnectionProvider>
-        <AppContent />
-      </DeviceConnectionProvider>
+      <KeyboardLayoutProvider>
+        <DeviceConnectionProvider>
+          <AppContent />
+        </DeviceConnectionProvider>
+      </KeyboardLayoutProvider>
     </ThemeProvider>
   );
 }
