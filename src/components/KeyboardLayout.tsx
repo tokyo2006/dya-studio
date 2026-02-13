@@ -47,6 +47,8 @@ interface KeyboardLayoutProps {
     layerId: number,
     keyPosition: number,
   ) => BehaviorBinding | null;
+  /** Keyboard layout for keycode display */
+  keyboardLayout?: import("../lib/keyboardLayouts").KeyboardLayoutType;
 }
 
 export function KeyboardLayout({
@@ -59,6 +61,7 @@ export function KeyboardLayout({
   onKeyReset,
   isBindingModified,
   getOriginalBinding,
+  keyboardLayout,
 }: KeyboardLayoutProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1.0);
@@ -140,9 +143,10 @@ export function KeyboardLayout({
       return formatBehaviorBinding(binding, behavior, {
         // Skip passing layers to displayShortName
         getKeycodeByCode: (code: number) => getKeycodeByCode(code) || null,
+        keyboardLayout,
       });
     },
-    [behaviors],
+    [behaviors, keyboardLayout],
   );
 
   const getKeyLongDisplayName = useCallback(
@@ -152,9 +156,10 @@ export function KeyboardLayout({
       return formatBehaviorBinding(binding, behavior, {
         layers: layers,
         getKeycodeByCode: (code: number) => getKeycodeByCode(code) || null,
+        keyboardLayout,
       });
     },
-    [behaviors, layers],
+    [behaviors, layers, keyboardLayout],
   );
 
   // Get original display name for tooltip
@@ -166,9 +171,10 @@ export function KeyboardLayout({
       return formatBehaviorBinding(original, behavior, {
         layers: layers,
         getKeycodeByCode: (code: number) => getKeycodeByCode(code) || null,
+        keyboardLayout,
       });
     },
-    [getOriginalBinding, layer, behaviors, layers],
+    [getOriginalBinding, layer, behaviors, layers, keyboardLayout],
   );
 
   // Get full binding description for tooltip

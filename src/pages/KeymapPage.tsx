@@ -13,16 +13,19 @@ import {
 } from "@tabler/icons-react";
 import * as Tooltip from "@radix-ui/react-tooltip";
 import { ConnectionContext } from "../components/DeviceConnection";
+import { KeyboardLayoutContext } from "../contexts/KeyboardLayoutContext";
 import { KeyboardLayout } from "../components/KeyboardLayout";
 import { KeycodeSelector } from "../components/KeycodeSelector";
 import { UnlockPrompt } from "../components/UnlockPrompt";
 import { SensorRotationConfig } from "../components/SensorRotationConfig";
 import { useKeymap } from "../hooks/useKeymap";
 import { useRuntimeSensorRotate } from "../hooks/useRuntimeSensorRotate";
+import { getAvailableLayouts, getLayoutLabel } from "../lib/keyboardLayouts";
 import type { BehaviorBinding } from "../hooks/useKeymap";
 
 export function KeymapPage() {
   const connection = useContext(ConnectionContext);
+  const keyboardLayoutContext = useContext(KeyboardLayoutContext);
   const keymap = useKeymap();
   const sensorRotate = useRuntimeSensorRotate();
 
@@ -458,6 +461,29 @@ export function KeymapPage() {
                 </div>
               )}
 
+            {/* Keyboard Layout Selector */}
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-xs text-[var(--color-text-muted)]">
+                Keycode Display:
+              </span>
+              <select
+                value={keyboardLayoutContext.layout}
+                onChange={(e) =>
+                  keyboardLayoutContext.setLayout(
+                    e.target
+                      .value as import("../lib/keyboardLayouts").KeyboardLayoutType,
+                  )
+                }
+                className="px-2 py-1 rounded bg-[var(--color-surface)] border border-[var(--color-border)] text-sm text-[var(--color-text)]"
+              >
+                {getAvailableLayouts().map((layoutType) => (
+                  <option key={layoutType} value={layoutType}>
+                    {getLayoutLabel(layoutType)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {/* Keyboard Layout */}
             {currentLayer && (
               <div className="glass-card p-8">
@@ -471,6 +497,7 @@ export function KeymapPage() {
                   onKeyReset={handleKeyReset}
                   isBindingModified={keymap.isBindingModified}
                   getOriginalBinding={keymap.getOriginalBinding}
+                  keyboardLayout={keyboardLayoutContext.layout}
                 />
               </div>
             )}
@@ -531,6 +558,7 @@ export function KeymapPage() {
         currentBinding={currentBinding}
         behaviors={keymap.behaviors}
         layers={layersForSelector}
+        keyboardLayout={keyboardLayoutContext.layout}
       />
 
       {/* Unlock Prompt */}

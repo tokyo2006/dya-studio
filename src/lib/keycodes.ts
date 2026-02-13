@@ -14,6 +14,12 @@
  * - bits 24-31 (8bits): modifier flags (custom for zmk)
  */
 
+import {
+  getLayoutDisplayName,
+  getLayoutName,
+  type KeyboardLayoutType,
+} from "./keyboardLayouts";
+
 // HID Usage Page definitions
 export const HID_USAGE_PAGE_KEYBOARD = 0x07;
 export const HID_USAGE_PAGE_CONSUMER = 0x0c;
@@ -1035,8 +1041,15 @@ export function combineWithModifiers(
 /**
  * Format keycode with modifiers for display.
  * Returns both human-readable text and raw code.
+ *
+ * @param hidUsage - HID usage value with optional modifier flags
+ * @param keyboardLayout - Optional keyboard layout for localized display names
+ * @returns Object with display string and raw code hex string
  */
-export function formatKeycodeWithModifiers(hidUsage: number): {
+export function formatKeycodeWithModifiers(
+  hidUsage: number,
+  keyboardLayout?: KeyboardLayoutType,
+): {
   display: string;
   rawCode: string;
 } {
@@ -1052,9 +1065,23 @@ export function formatKeycodeWithModifiers(hidUsage: number): {
     keycode = getKeycodeByCode(baseCode);
   }
 
-  const baseName =
+  // Check for layout-specific override
+  let baseName =
     keycode?.displayName || `0x${baseCode.toString(16).toUpperCase()}`;
-  const fullName = keycode?.name || baseName;
+  let fullName = keycode?.name || baseName;
+
+  if (keyboardLayout) {
+    const layoutDisplayName = getLayoutDisplayName(baseCode, keyboardLayout);
+    const layoutFullName = getLayoutName(baseCode, keyboardLayout);
+
+    if (layoutDisplayName) {
+      baseName = layoutDisplayName;
+    }
+    if (layoutFullName) {
+      fullName = layoutFullName;
+    }
+  }
+
   const rawCodeHex = `0x${hidUsageWithoutMods.toString(16).toUpperCase()}`;
 
   if (modifiers === 0) {

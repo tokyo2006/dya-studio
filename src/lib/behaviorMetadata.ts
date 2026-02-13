@@ -22,6 +22,7 @@ import {
   dropModifierFlags,
   decodeMouseMove,
 } from "./keycodes";
+import { getLayoutDisplayName } from "./keyboardLayouts";
 
 /**
  * Category types for organizing behaviors
@@ -69,13 +70,18 @@ export interface FormatContext {
   getKeycodeByCode?: (
     code: number,
   ) => { displayName: string; name: string } | null;
+  /** Keyboard layout for localized keycode display */
+  keyboardLayout?: import("./keyboardLayouts").KeyboardLayoutType;
 }
 
 /**
  * Format a keycode (HID usage) with modifiers for display.
  * Returns a human-readable string representation.
  */
-function formatKeycode(hidUsage: number): string {
+function formatKeycode(
+  hidUsage: number,
+  keyboardLayout?: import("./keyboardLayouts").KeyboardLayoutType,
+): string {
   const modifiers = extractModifierFlags(hidUsage);
   const hidUsageWithoutModifiers = dropModifierFlags(hidUsage);
   const page = getHidUsagePage(hidUsage);
@@ -90,12 +96,19 @@ function formatKeycode(hidUsage: number): string {
     keycode = getKeycodeByCode(hidUsageWithoutModifiers);
   }
 
-  const baseName =
+  // Apply keyboard layout override
+  let displayName =
     keycode?.displayName || `0x${code.toString(16).toUpperCase()}`;
+  if (keyboardLayout) {
+    const layoutDisplayName = getLayoutDisplayName(code, keyboardLayout);
+    if (layoutDisplayName) {
+      displayName = layoutDisplayName;
+    }
+  }
 
-  // No modifiers - return just the key name
+  // Format with modifiers
   if (modifiers === 0) {
-    return baseName;
+    return displayName;
   }
 
   // Build modifier prefix
@@ -105,8 +118,8 @@ function formatKeycode(hidUsage: number): string {
       modParts.push(mod.shortLabel);
     }
   });
-
-  return `${modParts.join("+")}(${baseName})`;
+  const modPrefix = modParts.join("+");
+  return `${modPrefix}(${displayName})`;
 }
 
 /**
@@ -164,8 +177,8 @@ const BEHAVIOR_METADATA_BASE: Record<string, BehaviorMetadata> = {
     displayNameVariants: ["Key Press", "kp", "key_press"],
     shortCode: "KP",
     param1Type: "keycode",
-    getDisplayText: (binding) => {
-      return formatKeycode(binding.param1);
+    getDisplayText: (binding, context) => {
+      return formatKeycode(binding.param1, context.keyboardLayout);
     },
     description: "Press a key",
   },
@@ -227,7 +240,7 @@ const BEHAVIOR_METADATA_BASE: Record<string, BehaviorMetadata> = {
     getDisplayText: (binding, context) => {
       const layerNum = binding.param1;
       const layerName = context.layers?.[layerNum]?.name || layerNum;
-      const keyName = formatKeycode(binding.param2);
+      const keyName = formatKeycode(binding.param2, context.keyboardLayout);
       return `LT${layerName} ${keyName}`;
     },
     description: "Layer on hold, key on tap",
@@ -260,9 +273,9 @@ const BEHAVIOR_METADATA_BASE: Record<string, BehaviorMetadata> = {
     shortCode: "MT",
     param1Type: "keycode",
     param2Type: "keycode",
-    getDisplayText: (binding) => {
-      const param1 = formatKeycode(binding.param1);
-      const param2 = formatKeycode(binding.param2);
+    getDisplayText: (binding, context) => {
+      const param1 = formatKeycode(binding.param1, context.keyboardLayout);
+      const param2 = formatKeycode(binding.param2, context.keyboardLayout);
       return `MT ${param1} ${param2}`;
     },
     description: "Modifier on hold, key on tap",
@@ -288,8 +301,8 @@ const BEHAVIOR_METADATA_BASE: Record<string, BehaviorMetadata> = {
     displayNameVariants: ["Sticky Key", "sk", "sticky_key"],
     shortCode: "SK",
     param1Type: "keycode",
-    getDisplayText: (binding) => {
-      const keyName = formatKeycode(binding.param1);
+    getDisplayText: (binding, context) => {
+      const keyName = formatKeycode(binding.param1, context.keyboardLayout);
       return `SK ${keyName}`;
     },
     description: "Sticky modifier key",
@@ -565,7 +578,7 @@ export function formatBehaviorParam(
     case "nil":
       return "";
     case "hidUsage":
-      return formatKeycode(value);
+      return formatKeycode(value, context.keyboardLayout);
     case "layerId":
       return context.layers?.[value]?.name || `Layer ${value}`;
     case "constant":

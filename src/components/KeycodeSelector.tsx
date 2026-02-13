@@ -60,6 +60,7 @@ interface KeycodeSelectorProps {
   currentBinding?: BehaviorBinding | null;
   behaviors: Map<number, BehaviorDefinition>;
   layers: Array<{ id: number; name: string }>;
+  keyboardLayout?: import("../lib/keyboardLayouts").KeyboardLayoutType;
 }
 
 // =============================================================================
@@ -127,6 +128,7 @@ function formatParamValue(
   layers: Array<{ id: number; name: string }>,
   behavior: BehaviorDefinition | null,
   paramNumber: 1 | 2,
+  keyboardLayout?: import("../lib/keyboardLayouts").KeyboardLayoutType,
 ): string {
   // For option-based paramTypes, 0 can be a valid value (e.g., BT_CLR)
   // Only show "Not set" for paramTypes where 0 has no meaning
@@ -149,7 +151,7 @@ function formatParamValue(
 
   switch (paramType) {
     case "keycode": {
-      const formatted = formatKeycodeWithModifiers(value);
+      const formatted = formatKeycodeWithModifiers(value, keyboardLayout);
       return formatted.display;
     }
     case "layer": {
@@ -210,6 +212,7 @@ export function KeycodeSelector({
   currentBinding,
   behaviors,
   layers,
+  keyboardLayout,
 }: KeycodeSelectorProps) {
   // State
   const [selectedBehavior, setSelectedBehavior] = useState<number | null>(null);
@@ -756,6 +759,7 @@ export function KeycodeSelector({
                         layers,
                         selectedBehaviorInfo.behavior,
                         1,
+                        keyboardLayout,
                       )}
                     </div>
                   </button>
@@ -786,6 +790,7 @@ export function KeycodeSelector({
                         layers,
                         selectedBehaviorInfo.behavior,
                         2,
+                        keyboardLayout,
                       )}
                     </div>
                   </button>
