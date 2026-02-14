@@ -4,7 +4,7 @@
  * Displays and configures rotary encoder sensor bindings for the selected layer.
  * Shows multiple sensors horizontally with wrapping.
  */
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import {
   IconRotateClockwise,
   IconRotateClockwise2,
@@ -45,6 +45,23 @@ export function SensorRotationConfig({
     direction: "clockwise" | "counterClockwise";
     currentBinding: Binding | null;
   } | null>(null);
+
+  // Debounced tap time state per sensor
+  const [pendingTapTimes, setPendingTapTimes] = useState<Map<number, number>>(
+    new Map(),
+  );
+  const tapTimeTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(
+    new Map(),
+  );
+
+  // Cleanup timers on unmount
+  useEffect(() => {
+    const timers = tapTimeTimersRef.current;
+    return () => {
+      timers.forEach((timer) => clearTimeout(timer));
+      timers.clear();
+    };
+  }, []);
 
   // Load bindings for all sensors
   useEffect(() => {
@@ -162,6 +179,77 @@ export function SensorRotationConfig({
       setEditingConfig(null);
     },
     [editingConfig, getBindingsForLayer, selectedLayerId, sensorRotate],
+  );
+
+  // Handle tap time change with debouncing
+  const handleTapTimeChange = useCallback(
+    (sensorIndex: number, newTapMs: number) => {
+      // Update pending state immediately for UI feedback
+      setPendingTapTimes((prev) => {
+        const newMap = new Map(prev);
+        newMap.set(sensorIndex, newTapMs);
+        return newMap;
+      });
+
+      // Clear existing timer for this sensor
+      const existingTimer = tapTimeTimersRef.current.get(sensorIndex);
+      if (existingTimer) {
+        clearTimeout(existingTimer);
+      }
+
+      // Set new debounced timer
+      const timer = setTimeout(async () => {
+        const layerBindings = getBindingsForLayer(sensorIndex, selectedLayerId);
+        const cwBinding = layerBindings?.cwBinding;
+        const ccwBinding = layerBindings?.ccwBinding;
+
+        // Update both bindings for this sensor/layer
+        if (cwBinding) {
+          await sensorRotate.setLayerCwBindings(sensorIndex, selectedLayerId, {
+            ...cwBinding,
+            tapMs: newTapMs,
+          });
+        }
+        if (ccwBinding) {
+          await sensorRotate.setLayerCcwBindings(sensorIndex, selectedLayerId, {
+            ...ccwBinding,
+            tapMs: newTapMs,
+          });
+        }
+
+        // Update local state
+        setSensorBindings((prev) => {
+          const newBindings = new Map(prev);
+          const sensorBindingsList = newBindings.get(sensorIndex) ?? [];
+          const updatedBindings = sensorBindingsList.filter(
+            (b) => b.layer !== selectedLayerId,
+          );
+          updatedBindings.push({
+            layer: selectedLayerId,
+            cwBinding: cwBinding
+              ? { ...cwBinding, tapMs: newTapMs }
+              : undefined,
+            ccwBinding: ccwBinding
+              ? { ...ccwBinding, tapMs: newTapMs }
+              : undefined,
+          });
+          newBindings.set(sensorIndex, updatedBindings);
+          return newBindings;
+        });
+
+        // Clear pending state
+        setPendingTapTimes((prev) => {
+          const newMap = new Map(prev);
+          newMap.delete(sensorIndex);
+          return newMap;
+        });
+
+        tapTimeTimersRef.current.delete(sensorIndex);
+      }, 3000); // 3 second debounce
+
+      tapTimeTimersRef.current.set(sensorIndex, timer);
+    },
+    [getBindingsForLayer, selectedLayerId, sensorRotate],
   );
 
   // Get display name for a sensor binding
@@ -295,53 +383,29 @@ export function SensorRotationConfig({
                         type="number"
                         min={1}
                         className="px-1 py-0.5 rounded text-base tablet:text-sm text-[var(--color-text-secondary)] bg-[var(--color-surface)] border border-[var(--color-border)] focus:outline-none focus:ring-2 focus:ring-[var(--color-electric)] text-right"
-                        value={cwBinding?.tapMs ?? ccwBinding?.tapMs ?? 5}
-                        step={50}
-                        onChange={async (e) => {
+                        value={
+                          pendingTapTimes.get(sensor.index) ??
+                          cwBinding?.tapMs ??
+                          ccwBinding?.tapMs ??
+                          5
+                        }
+                        step={5}
+                        onChange={(e) => {
                           const newTapMs = Number(e.target.value);
-                          // Update both bindings for this sensor/layer
-                          if (cwBinding) {
-                            await sensorRotate.setLayerCwBindings(
-                              sensor.index,
-                              selectedLayerId,
-                              { ...cwBinding, tapMs: newTapMs },
-                            );
-                          }
-                          if (ccwBinding) {
-                            await sensorRotate.setLayerCcwBindings(
-                              sensor.index,
-                              selectedLayerId,
-                              { ...ccwBinding, tapMs: newTapMs },
-                            );
-                          }
-                          setSensorBindings((prev) => {
-                            const newBindings = new Map(prev);
-                            const sensorBindingsList =
-                              newBindings.get(sensor.index) ?? [];
-                            const updatedBindings = sensorBindingsList.filter(
-                              (b) => b.layer !== selectedLayerId,
-                            );
-                            updatedBindings.push({
-                              layer: selectedLayerId,
-                              cwBinding: cwBinding
-                                ? { ...cwBinding, tapMs: newTapMs }
-                                : undefined,
-                              ccwBinding: ccwBinding
-                                ? { ...ccwBinding, tapMs: newTapMs }
-                                : undefined,
-                            });
-                            newBindings.set(sensor.index, updatedBindings);
-                            return newBindings;
-                          });
+                          handleTapTimeChange(sensor.index, newTapMs);
                         }}
                       />
                       <span className="ml-1 text-xs font-mono text-[var(--color-text-secondary)]">
                         ms
                       </span>
                     </div>
-                    <div className="text-xs text-[var(--color-text-muted)] opacity-70">
-                      Time between rotation triggers (Edit is currently
-                      disabled)
+                    <div className="text-xs text-[var(--color-text-muted)] opacity-70 flex items-center gap-1 justify-between my-2">
+                      <span>Time between rotation triggers</span>
+                      {pendingTapTimes.has(sensor.index) && (
+                        <span className="text-[var(--color-electric)] ml-1">
+                          pending to save...
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
