@@ -40,6 +40,7 @@ interface BehaviorDropdownProps {
   selectedBehaviorId: number | null;
   onSelect: (behaviorId: number) => void;
   onQuickSelect: (behaviorId: number) => void;
+  quickSelects?: string[];
 }
 
 export function BehaviorDropdown({
@@ -47,6 +48,7 @@ export function BehaviorDropdown({
   selectedBehaviorId,
   onSelect,
   onQuickSelect,
+  quickSelects,
 }: BehaviorDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [filterCategory, setFilterCategory] = useState<
@@ -125,21 +127,23 @@ export function BehaviorDropdown({
 
   // Quick select behaviors (predefined + recent)
   const quickSelectBehaviors = useMemo(() => {
-    const predefined = QUICK_SELECT_BEHAVIORS.map((name) => {
-      const metadata = getBehaviorMetadata(name);
-      if (!metadata) return null;
-      const behavior = Array.from(behaviors.values()).find((b) =>
-        metadata.displayNameVariants.includes(b.displayName),
-      );
-      return behavior
-        ? {
-            id: behavior.id,
-            name,
-            displayName: behavior.displayName,
-            isRecent: false,
-          }
-        : null;
-    }).filter(Boolean) as {
+    const predefined = (quickSelects || QUICK_SELECT_BEHAVIORS)
+      .map((name) => {
+        const metadata = getBehaviorMetadata(name);
+        if (!metadata) return null;
+        const behavior = Array.from(behaviors.values()).find((b) =>
+          metadata.displayNameVariants.includes(b.displayName),
+        );
+        return behavior
+          ? {
+              id: behavior.id,
+              name,
+              displayName: behavior.displayName,
+              isRecent: false,
+            }
+          : null;
+      })
+      .filter(Boolean) as {
       id: number;
       name: string;
       displayName: string;
@@ -161,7 +165,7 @@ export function BehaviorDropdown({
       });
 
     return [...predefined, ...recent];
-  }, [behaviors, recentBehaviors]);
+  }, [behaviors, recentBehaviors, quickSelects]);
 
   // Current selection display
   const selectedBehavior =

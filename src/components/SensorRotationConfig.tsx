@@ -9,6 +9,7 @@ import {
   IconRotateClockwise,
   IconRotateClockwise2,
   IconLoader2,
+  IconInfoTriangle,
 } from "@tabler/icons-react";
 import { useRuntimeSensorRotate } from "../hooks/useRuntimeSensorRotate";
 import type { LayerBindings, Binding } from "../hooks/useRuntimeSensorRotate";
@@ -281,6 +282,11 @@ export function SensorRotationConfig({
     };
   }, [editingConfig]);
 
+  const behaviorQuickSelects = useMemo(
+    () => ["kp", "mmv", "msc", "none", "transparent"],
+    [],
+  );
+
   return (
     <>
       <div className="glass-card p-6">
@@ -408,6 +414,17 @@ export function SensorRotationConfig({
                       )}
                     </div>
                   </div>
+                  {(pendingTapTimes.get(sensor.index) ??
+                    cwBinding?.tapMs ??
+                    ccwBinding?.tapMs ??
+                    5) < 20 && (
+                    <div className="text-xs text-[var(--color-text-muted)] opacity-70">
+                      <IconInfoTriangle size={14} className="inline mr-1" />
+                      For scroll or mouse move, tap time need to be &gt;
+                      behavior-input-two-axis's trigger-period-ms (default
+                      16ms).
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -451,6 +468,7 @@ export function SensorRotationConfig({
         behaviors={behaviors}
         layers={layers}
         keyboardLayout={keyboardLayout}
+        behaviorQuickSelects={behaviorQuickSelects}
       />
     </>
   );

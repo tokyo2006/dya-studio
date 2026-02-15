@@ -61,6 +61,7 @@ interface KeycodeSelectorProps {
   behaviors: Map<number, BehaviorDefinition>;
   layers: Array<{ id: number; name: string }>;
   keyboardLayout?: KeyboardLayoutType;
+  behaviorQuickSelects?: string[]; // Optional list of behavior displayNameVariants for quick select
 }
 
 // =============================================================================
@@ -213,6 +214,7 @@ export function KeycodeSelector({
   behaviors,
   layers,
   keyboardLayout,
+  behaviorQuickSelects,
 }: KeycodeSelectorProps) {
   // State
   const [selectedBehavior, setSelectedBehavior] = useState<number | null>(null);
@@ -720,6 +722,7 @@ export function KeycodeSelector({
                 selectedBehaviorId={selectedBehavior}
                 onSelect={handleBehaviorSelect}
                 onQuickSelect={handleQuickSelect}
+                quickSelects={behaviorQuickSelects}
               />
             )}
           </div>
