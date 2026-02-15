@@ -18,10 +18,6 @@ interface BatteryHistoryChartProps {
   deviceColors: string[];
 }
 
-// Timestamp threshold in seconds to detect keyboard restart
-// Timestamps less than 1 hour suggest the keyboard was recently restarted
-const ONE_HOUR_IN_SECONDS = 3600;
-
 interface ChartDataPoint {
   timestamp: number;
   timeLabel: string;
@@ -34,9 +30,12 @@ interface RestartMarker {
 
 // Format timestamp for display
 function formatTimestamp(timestamp: number): string {
-  const hours = Math.floor(timestamp / 3600);
+  const days = Math.floor(timestamp / (3600 * 24));
+  const hours = Math.floor((timestamp % (3600 * 24)) / 3600);
   const minutes = Math.floor((timestamp % 3600) / 60);
-
+  if (days > 0) {
+    return `${days}d ${hours}h`;
+  }
   if (hours > 0) {
     return `${hours}h ${minutes}m`;
   }
@@ -50,12 +49,8 @@ function detectRestarts(devices: DeviceBatteryHistory[]): RestartMarker[] {
 
   devices.forEach((device) => {
     for (let i = 1; i < device.entries.length; i++) {
-      const prevTimestamp = device.entries[i - 1].timestamp;
       const currTimestamp = device.entries[i].timestamp;
-
-      // Detect restart: timestamp goes backwards or resets to a very small value
-      const isRestart =
-        currTimestamp < prevTimestamp || currTimestamp < ONE_HOUR_IN_SECONDS;
+      const isRestart = device.entries[i].restarted;
 
       if (isRestart && !seenTimestamps.has(currTimestamp)) {
         restarts.push({ timestamp: currTimestamp });
@@ -109,7 +104,7 @@ function CustomTooltip({
     return (
       <div className="glass-card p-3 border border-[var(--color-border)]">
         <p className="text-xs font-medium text-[var(--color-text)] mb-2">
-          {label}
+          {formatTimestamp(Number(label))}
         </p>
         {payload.map((entry, index) => (
           <p key={index} className="text-xs text-[var(--color-text-secondary)]">
@@ -162,10 +157,11 @@ export function BatteryHistoryChart({
             opacity={0.3}
           />
           <XAxis
-            dataKey="timeLabel"
+            dataKey="timestamp"
             stroke="var(--color-text-muted)"
             tick={{ fill: "var(--color-text-muted)", fontSize: 12 }}
             tickLine={{ stroke: "var(--color-border)" }}
+            tickFormatter={formatTimestamp}
           />
           <YAxis
             stroke="var(--color-text-muted)"
@@ -189,10 +185,12 @@ export function BatteryHistoryChart({
           />
 
           {/* Restart markers */}
-          {restartMarkers.map((marker, index) => (
+          {restartMarkers.map((marker) => (
             <ReferenceLine
-              key={`restart-${index}`}
-              x={formatTimestamp(marker.timestamp)}
+              key={`restart-${marker.timestamp}}`}
+              ifOverflow="extendDomain"
+              x={marker.timestamp}
+              //   x={formatTimestamp(marker.timestamp)}
               stroke="var(--color-text-muted)"
               strokeDasharray="4 4"
               strokeWidth={1}
@@ -212,7 +210,7 @@ export function BatteryHistoryChart({
               type="monotone"
               dataKey={device.deviceName}
               stroke={deviceColors[index % deviceColors.length]}
-              strokeWidth={2}
+              strokeWidth={1}
               dot={{ fill: deviceColors[index % deviceColors.length], r: 3 }}
               activeDot={{ r: 5 }}
               connectNulls={false}

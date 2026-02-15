@@ -13,9 +13,16 @@ import {
 // Subsystem identifier for ZMK battery history custom protocol
 const SUBSYSTEM_IDENTIFIER = "zmk__battery_history";
 
+// Duration added to timestamps after a detected restart to keep them monotonic in the chart
+// const RESTART_TIMESTAMP_SHIFT_SECONDS = 60 * 60 * 24;
+const RESTART_TIMESTAMP_SHIFT_SECONDS = 0;
+
 export interface BatteryHistoryEntryData {
-  timestamp: number;
+  entryIndex: number;
+  timestamp: number; // monotonically increasing timestamp
+  rawTimestamp: number; // original timestamp from device. Reset on restart
   batteryLevel: number;
+  restarted: boolean;
 }
 
 export interface DeviceBatteryHistory {
@@ -55,7 +62,7 @@ export function useBatteryHistory(): UseBatteryHistoryReturn {
   const notificationHandler = useCallback(
     (notification: BatteryHistoryNotification) => {
       try {
-        const { sourceId, entry } = notification;
+        const { sourceId, entry, entryIndex } = notification;
         if (!entry) {
           return;
         }
@@ -67,13 +74,28 @@ export function useBatteryHistory(): UseBatteryHistoryReturn {
             totalEntries: notification.totalEntries || 0,
             lastEntryLoaded: notification.isLast || false,
           };
+          const lastEntry =
+            device.entries.length > 0
+              ? device.entries[device.entries.length - 1]
+              : null;
+          const prevTimestamp = lastEntry ? lastEntry.timestamp : 0;
+          const isRestart = lastEntry && entry.timestamp < prevTimestamp;
+          const offset = isRestart
+            ? lastEntry.timestamp + RESTART_TIMESTAMP_SHIFT_SECONDS
+            : lastEntry
+              ? lastEntry.timestamp - lastEntry.rawTimestamp
+              : 0;
+
           const newDevice = {
             ...device,
             entries: [
               ...device.entries,
               {
-                timestamp: entry.timestamp,
+                entryIndex,
+                timestamp: entry.timestamp + offset,
+                rawTimestamp: entry.timestamp,
                 batteryLevel: entry.batteryLevel,
+                restarted: isRestart ? true : false,
               },
             ],
           };

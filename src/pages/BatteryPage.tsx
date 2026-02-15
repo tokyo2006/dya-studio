@@ -36,14 +36,6 @@ export function BatteryPage() {
     };
   });
 
-  // Format last updated time
-  const lastUpdated =
-    currentLevels.length > 0
-      ? new Date(
-          Math.max(...currentLevels.map((d) => d.timestamp)) * 1000,
-        ).toLocaleTimeString()
-      : "--:--";
-
   // Device colors for chart
   const deviceColors = [
     "var(--color-electric)",
@@ -151,10 +143,6 @@ export function BatteryPage() {
                   </span>
                 </div>
               ))}
-              <div className="glass-card data-card">
-                <span className="data-card-label">Last Updated</span>
-                <span className="data-card-value text-lg">{lastUpdated}</span>
-              </div>
             </>
           ) : (
             <>
