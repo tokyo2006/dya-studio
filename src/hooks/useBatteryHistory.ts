@@ -78,8 +78,8 @@ export function useBatteryHistory(): UseBatteryHistoryReturn {
             device.entries.length > 0
               ? device.entries[device.entries.length - 1]
               : null;
-          const prevTimestamp = lastEntry ? lastEntry.timestamp : 0;
-          const isRestart = lastEntry && entry.timestamp < prevTimestamp;
+          const prevRawTimestamp = lastEntry ? lastEntry.rawTimestamp : 0;
+          const isRestart = lastEntry && entry.timestamp < prevRawTimestamp;
           const offset = isRestart
             ? lastEntry.timestamp + RESTART_TIMESTAMP_SHIFT_SECONDS
             : lastEntry
