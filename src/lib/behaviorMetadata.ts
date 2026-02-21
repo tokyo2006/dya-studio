@@ -268,7 +268,8 @@ const BEHAVIOR_METADATA_BASE: BehaviorMetadata[] = [
     category: "miscellaneous",
     displayNameVariants: ["Trans", "Transparent"],
     shortCode: "▽",
-    getDisplayText: (binding, context) => (context.shortFormat ? "▽" : "Trans"),
+    getDisplayText: (_binding, context) =>
+      context.shortFormat ? "▽" : "Trans",
     description: "Transparent (pass-through to lower layer)",
   },
 
@@ -276,7 +277,7 @@ const BEHAVIOR_METADATA_BASE: BehaviorMetadata[] = [
     category: "miscellaneous",
     displayNameVariants: ["None"],
     shortCode: "✕",
-    getDisplayText: (binding, context) => (context.shortFormat ? "✕" : "None"),
+    getDisplayText: (_binding, context) => (context.shortFormat ? "✕" : "None"),
     description: "No operation",
   },
 
@@ -535,7 +536,7 @@ const BEHAVIOR_METADATA_BASE: BehaviorMetadata[] = [
     category: "keypress",
     displayNameVariants: ["Grave/Escape", "grave_escape", "gresc"],
     shortCode: "`/ESC",
-    getDisplayText(binding, context, metadata) {
+    getDisplayText(_binding, context, metadata) {
       return context.shortFormat ? metadata.shortCode : null;
     },
     description: "Grave(`) on shift or GUI, otherwise Escape",
