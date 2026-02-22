@@ -131,9 +131,9 @@ describe("BLEConnectionsPage", () => {
 
     it("should display profile numbers correctly", () => {
       renderComponent({ isConnected: true }, { profiles: mockProfiles });
+      expect(screen.getByText("0")).toBeInTheDocument();
       expect(screen.getByText("1")).toBeInTheDocument();
       expect(screen.getByText("2")).toBeInTheDocument();
-      expect(screen.getByText("3")).toBeInTheDocument();
     });
 
     it("should show profile addresses", () => {

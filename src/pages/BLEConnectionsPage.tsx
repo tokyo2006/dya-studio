@@ -277,7 +277,7 @@ export function BLEConnectionsPage() {
                             : "text-[var(--color-text-muted)]"
                         }`}
                       >
-                        {profile.index + 1}
+                        {profile.index}
                       </span>
                     </div>
                     <div className="flex-1 min-w-0">
@@ -314,11 +314,9 @@ export function BLEConnectionsPage() {
                           <div className="flex items-center gap-2">
                             <p
                               className="text-sm font-medium text-[var(--color-text-secondary)] truncate max-w-[12rem]"
-                              title={
-                                profile.name || `Profile ${profile.index + 1}`
-                              }
+                              title={profile.name || `Profile ${profile.index}`}
                             >
-                              {profile.name || `Profile ${profile.index + 1}`}
+                              {profile.name || `Profile ${profile.index}`}
                             </p>
                             {!profile.isOpen && (
                               <button
