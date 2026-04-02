@@ -6,7 +6,6 @@ import {
   IconInfoCircle,
 } from "@tabler/icons-react";
 
-import Keyket2026 from "../assets/keyket2026.jpeg";
 import DyaDashImg from "../assets/dya-dash/dya-dash.jpeg";
 import DyaDashImg2 from "../assets/dya-dash/dya-dash2.jpeg";
 import DyaDashImg3 from "../assets/dya-dash/dya-dash3.jpeg";
