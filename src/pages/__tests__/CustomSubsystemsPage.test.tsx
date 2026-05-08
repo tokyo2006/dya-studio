@@ -285,7 +285,7 @@ describe("CustomSubsystemsPage", () => {
       fireEvent.click(screen.getByText("https://example.com/ui"));
 
       expect(
-        screen.getByLabelText(/don't show this warning again/i),
+        screen.getByLabelText(/trust this url and don't warn/i),
       ).toBeInTheDocument();
     });
 
@@ -293,7 +293,7 @@ describe("CustomSubsystemsPage", () => {
       renderWithSubsystems();
 
       fireEvent.click(screen.getByText("https://example.com/ui"));
-      fireEvent.click(screen.getByLabelText(/don't show this warning again/i));
+      fireEvent.click(screen.getByLabelText(/trust this url and don't warn/i));
       fireEvent.click(screen.getByText("Open"));
 
       const stored = JSON.parse(

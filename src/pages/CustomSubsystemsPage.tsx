@@ -27,6 +27,8 @@ function saveTrustedUrl(url: string): void {
   try {
     const trusted = getTrustedUrls();
     trusted.add(url);
+    // Trusted URLs are not sensitive data — they are UI links the user
+    // explicitly approved. Stored as plain text intentionally.
     localStorage.setItem(TRUSTED_URLS_KEY, JSON.stringify(Array.from(trusted)));
   } catch {
     // Ignore storage errors
@@ -108,7 +110,7 @@ function ExternalLinkWarningDialog({
             className="w-4 h-4 rounded accent-[var(--color-electric)]"
           />
           <span className="text-xs text-[var(--color-text-muted)]">
-            Don&apos;t show this warning again for this URL
+            Trust this URL and don&apos;t warn me again
           </span>
         </label>
 
