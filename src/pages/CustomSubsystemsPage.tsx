@@ -6,10 +6,36 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import { ZMKAppContext } from "@cormoran/zmk-studio-react-hook";
+import { navigateTo } from "../lib/navigate";
+
+// LocalStorage key for trusted subsystem UI URLs
+const TRUSTED_URLS_KEY = "dya-studio-trusted-subsystem-urls";
+
+function getTrustedUrls(): Set<string> {
+  try {
+    const stored = localStorage.getItem(TRUSTED_URLS_KEY);
+    if (stored) {
+      return new Set(JSON.parse(stored) as string[]);
+    }
+  } catch {
+    // Ignore storage errors
+  }
+  return new Set();
+}
+
+function saveTrustedUrl(url: string): void {
+  try {
+    const trusted = getTrustedUrls();
+    trusted.add(url);
+    localStorage.setItem(TRUSTED_URLS_KEY, JSON.stringify(Array.from(trusted)));
+  } catch {
+    // Ignore storage errors
+  }
+}
 
 interface ExternalLinkWarningDialogProps {
   url: string;
-  onConfirm: () => void;
+  onConfirm: (dontShowAgain: boolean) => void;
   onCancel: () => void;
 }
 
@@ -18,6 +44,8 @@ function ExternalLinkWarningDialog({
   onConfirm,
   onCancel,
 }: ExternalLinkWarningDialogProps) {
+  const [dontShowAgain, setDontShowAgain] = useState(false);
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
@@ -62,7 +90,7 @@ function ExternalLinkWarningDialog({
             {url}
           </span>
         </div>
-        <div className="mb-6 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+        <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
           <p className="text-xs text-red-400 leading-relaxed">
             <strong>Security Notice:</strong> Please do not connect to an
             unreliable author&apos;s web page. Only proceed if you trust the
@@ -71,6 +99,19 @@ function ExternalLinkWarningDialog({
           </p>
         </div>
 
+        {/* Don't show again */}
+        <label className="flex items-center gap-2 mb-6 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={dontShowAgain}
+            onChange={(e) => setDontShowAgain(e.target.checked)}
+            className="w-4 h-4 rounded accent-[var(--color-electric)]"
+          />
+          <span className="text-xs text-[var(--color-text-muted)]">
+            Don&apos;t show this warning again for this URL
+          </span>
+        </label>
+
         {/* Actions */}
         <div className="flex gap-3 justify-end">
           <button className="btn-ghost text-sm" onClick={onCancel}>
@@ -78,10 +119,10 @@ function ExternalLinkWarningDialog({
           </button>
           <button
             className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-red-500 hover:bg-red-600 transition-colors flex items-center gap-2"
-            onClick={onConfirm}
+            onClick={() => onConfirm(dontShowAgain)}
           >
             <IconExternalLink size={16} />
-            Open Anyway
+            Open
           </button>
         </div>
       </div>
@@ -95,13 +136,26 @@ export function CustomSubsystemsPage() {
 
   const subsystems = zmkApp?.state.customSubsystems?.subsystems ?? [];
 
-  const handleLinkClick = (url: string) => {
-    setPendingUrl(url);
+  const navigate = (url: string) => {
+    zmkApp?.disconnect();
+    navigateTo(url);
   };
 
-  const handleConfirm = () => {
+  const handleLinkClick = (url: string) => {
+    const trusted = getTrustedUrls();
+    if (trusted.has(url)) {
+      navigate(url);
+    } else {
+      setPendingUrl(url);
+    }
+  };
+
+  const handleConfirm = (dontShowAgain: boolean) => {
     if (pendingUrl) {
-      window.open(pendingUrl, "_blank", "noopener,noreferrer");
+      if (dontShowAgain) {
+        saveTrustedUrl(pendingUrl);
+      }
+      navigate(pendingUrl);
     }
     setPendingUrl(null);
   };

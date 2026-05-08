@@ -9,14 +9,30 @@ import {
   createMockSubsystems,
 } from "@cormoran/zmk-studio-react-hook/testing";
 
+// Mock the navigation utility so we can verify calls without touching window.location
+jest.mock("../../lib/navigate");
+import { navigateTo } from "../../lib/navigate";
+const mockNavigateTo = navigateTo as jest.MockedFunction<typeof navigateTo>;
+
+// LocalStorage key used by the component
+const TRUSTED_URLS_KEY = "dya-studio-trusted-subsystem-urls";
+
 describe("CustomSubsystemsPage", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    mockNavigateTo.mockReset();
+  });
+
   const renderComponent = (zmkAppOverrides = {}) => {
     const mockZMKApp = createMockZMKApp(zmkAppOverrides);
-    return render(
-      <ZMKAppProvider value={mockZMKApp}>
-        <CustomSubsystemsPage />
-      </ZMKAppProvider>,
-    );
+    return {
+      mockZMKApp,
+      ...render(
+        <ZMKAppProvider value={mockZMKApp}>
+          <CustomSubsystemsPage />
+        </ZMKAppProvider>,
+      ),
+    };
   };
 
   describe("Page Header", () => {
@@ -151,7 +167,7 @@ describe("CustomSubsystemsPage", () => {
       },
     ]);
 
-    const renderWithSubsystems = () =>
+    const renderWithSubsystems = (zmkAppOverrides = {}) =>
       renderComponent({
         state: {
           connection: null,
@@ -160,6 +176,7 @@ describe("CustomSubsystemsPage", () => {
           isLoading: false,
           error: null,
         },
+        ...zmkAppOverrides,
       });
 
     it("should show security warning dialog when URL is clicked", () => {
@@ -222,21 +239,95 @@ describe("CustomSubsystemsPage", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
 
-    it("should open URL in new tab when 'Open Anyway' is clicked", () => {
-      const openSpy = jest.spyOn(window, "open").mockImplementation(() => null);
+    it("should navigate in current tab when 'Open' is clicked", () => {
       renderWithSubsystems();
 
       fireEvent.click(screen.getByText("https://example.com/ui"));
-      fireEvent.click(screen.getByText("Open Anyway"));
+      fireEvent.click(screen.getByText("Open"));
 
-      expect(openSpy).toHaveBeenCalledWith(
-        "https://example.com/ui",
-        "_blank",
-        "noopener,noreferrer",
-      );
+      expect(mockNavigateTo).toHaveBeenCalledWith("https://example.com/ui");
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
 
-      openSpy.mockRestore();
+    it("should disconnect before navigating when 'Open' is clicked", () => {
+      const { mockZMKApp } = renderWithSubsystems();
+
+      fireEvent.click(screen.getByText("https://example.com/ui"));
+      fireEvent.click(screen.getByText("Open"));
+
+      expect(mockZMKApp.disconnect).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("Don't show again", () => {
+    const subsystemWithUrl = createMockSubsystems([
+      {
+        index: 0,
+        identifier: "zmk__custom",
+        uiUrl: ["https://example.com/ui"],
+      },
+    ]);
+
+    const renderWithSubsystems = () =>
+      renderComponent({
+        state: {
+          connection: null,
+          deviceInfo: null,
+          customSubsystems: subsystemWithUrl,
+          isLoading: false,
+          error: null,
+        },
+      });
+
+    it("should show 'don't show again' checkbox in the dialog", () => {
+      renderWithSubsystems();
+
+      fireEvent.click(screen.getByText("https://example.com/ui"));
+
+      expect(
+        screen.getByLabelText(/don't show this warning again/i),
+      ).toBeInTheDocument();
+    });
+
+    it("should save URL to localStorage when 'don't show again' is checked and Open is clicked", () => {
+      renderWithSubsystems();
+
+      fireEvent.click(screen.getByText("https://example.com/ui"));
+      fireEvent.click(screen.getByLabelText(/don't show this warning again/i));
+      fireEvent.click(screen.getByText("Open"));
+
+      const stored = JSON.parse(
+        localStorage.getItem(TRUSTED_URLS_KEY) ?? "[]",
+      ) as string[];
+      expect(stored).toContain("https://example.com/ui");
+    });
+
+    it("should not save URL to localStorage when 'don't show again' is unchecked", () => {
+      renderWithSubsystems();
+
+      fireEvent.click(screen.getByText("https://example.com/ui"));
+      // leave checkbox unchecked
+      fireEvent.click(screen.getByText("Open"));
+
+      const stored = localStorage.getItem(TRUSTED_URLS_KEY);
+      expect(stored).toBeNull();
+    });
+
+    it("should skip the warning dialog for trusted URLs", () => {
+      // Pre-populate trusted URLs
+      localStorage.setItem(
+        TRUSTED_URLS_KEY,
+        JSON.stringify(["https://example.com/ui"]),
+      );
+
+      renderWithSubsystems();
+
+      fireEvent.click(screen.getByText("https://example.com/ui"));
+
+      // Dialog should NOT appear
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      // Should navigate directly
+      expect(mockNavigateTo).toHaveBeenCalledWith("https://example.com/ui");
     });
   });
 });
