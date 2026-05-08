@@ -11,11 +11,27 @@ import { navigateTo } from "../lib/navigate";
 // LocalStorage key for trusted subsystem UI URLs
 const TRUSTED_URLS_KEY = "dya-studio-trusted-subsystem-urls";
 
+function isValidUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "https:" || parsed.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
 function getTrustedUrls(): Set<string> {
   try {
     const stored = localStorage.getItem(TRUSTED_URLS_KEY);
     if (stored) {
-      return new Set(JSON.parse(stored) as string[]);
+      const parsed = JSON.parse(stored) as unknown;
+      if (Array.isArray(parsed)) {
+        return new Set(
+          (parsed as unknown[]).filter(
+            (v): v is string => typeof v === "string" && isValidUrl(v),
+          ),
+        );
+      }
     }
   } catch {
     // Ignore storage errors
