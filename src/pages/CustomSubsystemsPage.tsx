@@ -64,7 +64,7 @@ function ExternalLinkWarningDialog({
         </div>
         <div className="mb-6 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
           <p className="text-xs text-red-400 leading-relaxed">
-            <strong>Security Notice:</strong> Please do not connect to
+            <strong>Security Notice:</strong> Please do not connect to an
             unreliable author&apos;s web page. Only proceed if you trust the
             keyboard firmware author. External pages may request sensitive
             permissions or send data to third-party servers.

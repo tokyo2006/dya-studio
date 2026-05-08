@@ -187,7 +187,7 @@ describe("CustomSubsystemsPage", () => {
       fireEvent.click(screen.getByText("https://example.com/ui"));
 
       expect(
-        screen.getByText(/please do not connect to unreliable author/i),
+        screen.getByText(/please do not connect to an unreliable author/i),
       ).toBeInTheDocument();
     });
 
