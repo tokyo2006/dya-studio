@@ -6,6 +6,7 @@ import {
   IconHome,
   IconKeyboard,
   IconPointer,
+  IconPuzzle,
   IconSettings,
 } from "@tabler/icons-react";
 
@@ -25,6 +26,7 @@ import { BLEConnectionsPage } from "./pages/BLEConnectionsPage";
 import { KeymapPage } from "./pages/KeymapPage";
 import { TrackballPage } from "./pages/TrackballPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { CustomSubsystemsPage } from "./pages/CustomSubsystemsPage";
 
 const tabs: TabItem[] = [
   {
@@ -62,6 +64,12 @@ const tabs: TabItem[] = [
     label: "Battery",
     icon: <IconBattery2 size={18} />,
     content: <BatteryPage />,
+  },
+  {
+    id: "subsystems",
+    label: "Subsystems",
+    icon: <IconPuzzle size={18} />,
+    content: <CustomSubsystemsPage />,
   },
 ];
 
