@@ -20,7 +20,6 @@
 #         run: npm run build
 #         env:
 #           VITE_BASE: /
-#           VITE_GOOGLE_ANALYTICS_ID: ${{ secrets.VITE_GOOGLE_ANALYTICS_ID }}
 #       - name: Deploy to Cloudflare Pages
 #         id: deploy
 #         uses: cloudflare/wrangler-action@v3

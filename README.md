@@ -38,10 +38,30 @@ Open [http://localhost:5173](http://localhost:5173) and connect your keyboard vi
 ```bash
 npm run dev            # Start dev server
 npm run build          # Production build
+npm run build:app      # Build renderer + Electron main process
+npm run dist:mac       # Package macOS desktop app
+npm run dist:win       # Package Windows desktop app
 npm run lint           # Lint code
 npm test               # Run tests
 npm run test:coverage  # Test coverage
 ```
+
+## Desktop Packaging
+
+Local desktop builds follow the npm scripts in [package.json](package.json):
+
+```bash
+npm run build:app
+npm run dist:mac
+```
+
+For Windows packages, use:
+
+```bash
+npm run dist:win
+```
+
+GitHub Actions desktop releases use the same npm entrypoints and only build macOS and Windows artifacts. The desktop release workflow runs on version tags matching `v*`, or can be started manually with `workflow_dispatch`.
 
 **For Coding Agents**: See [Development Guide](docs/DEVELOPMENT_GUIDE.md) for design system, component patterns, and implementation guidelines.
 

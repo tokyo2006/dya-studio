@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "main": "dist-electron/main.js",
   "scripts": {
     "dev": "npm run generate && vite",
     "build": "npm run generate && tsc -b && vite build",
@@ -19,7 +20,7 @@
     "dist": "npm run build:app && electron-builder",
     "dist:mac": "npm run build:app && electron-builder --mac",
     "dist:win": "npm run build:app && electron-builder --win",
-    "dist:linux": "npm run build:app && electron-builder --linux",
+    "dist:linux": "npm run build:app && electron-builder --linux"
   },
   "dependencies": {
     "@cormoran/zmk-studio-react-hook": "github:cormoran/react-zmk-studio",
