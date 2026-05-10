@@ -64,7 +64,7 @@ export function KeycodeValueSelector({
 
   // Update modifiers when value changes externally
   useEffect(() => {
-    setSelectedModifiers(extractModifierFlags(value));
+    queueMicrotask(() => setSelectedModifiers(extractModifierFlags(value)));
   }, [value]);
   // Update selectedCategory when value changes or initially provided
   useEffect(() => {
@@ -74,7 +74,7 @@ export function KeycodeValueSelector({
     );
     const found = keycodes.find((k) => k.code === baseCode);
     if (found && found.category !== selectedCategory) {
-      setSelectedCategory(found.category);
+      queueMicrotask(() => setSelectedCategory(found.category));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, keyboardLayout]);
@@ -184,7 +184,7 @@ export function KeycodeValueSelector({
                 setSearchQuery("");
                 searchInputRef.current?.focus();
               }}
-              aria-label="Clear search"
+              aria-label={t("keycodeValueSelector.clearSearch")}
               tabIndex={0}
             >
               <IconX size={16} />

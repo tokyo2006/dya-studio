@@ -179,7 +179,7 @@ export function PhysicalKey({
                 longDisplayName !== bindingDescription && (
                   <div>
                     <span className="text-[var(--color-text-muted)]">
-                      Binding:{" "}
+                      {t("physicalKey.binding")}{" "}
                     </span>
                     <span>{bindingDescription}</span>
                   </div>
@@ -188,7 +188,7 @@ export function PhysicalKey({
               {isModified && originalDisplayName && (
                 <div>
                   <span className="text-[var(--color-text-muted)]">
-                    Original:{" "}
+                    {t("physicalKey.original")}{" "}
                   </span>
                   <span>{originalDisplayName}</span>
                 </div>

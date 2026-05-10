@@ -1,4 +1,4 @@
-import { useState, useContext, useCallback, useEffect } from "react";
+import { useState, useContext, useCallback, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -34,50 +34,53 @@ function AppContent() {
   const connection = useContext(ConnectionContext);
   const [activeTab, setActiveTab] = useState("home");
 
-  const tabs: TabItem[] = [
-    {
-      id: "keymap",
-      label: t("app.tabKeymap"),
-      icon: <IconKeyboard size={18} />,
-      content: <KeymapPage />,
-    },
-    {
-      id: "trackball",
-      label: t("app.tabTrackball"),
-      icon: <IconPointer size={18} />,
-      content: <TrackballPage />,
-    },
-    {
-      id: "ble",
-      label: t("app.tabBLE"),
-      icon: <IconBluetooth size={18} />,
-      content: <BLEConnectionsPage />,
-    },
-    {
-      id: "settings",
-      label: t("app.tabSettings"),
-      icon: <IconSettings size={18} />,
-      content: <SettingsPage />,
-    },
-    {
-      id: "battery",
-      label: t("app.tabBattery"),
-      icon: <IconBattery2 size={18} />,
-      content: <BatteryPage />,
-    },
-    {
-      id: "subsystems",
-      label: t("app.tabSubsystems"),
-      icon: <IconPuzzle size={18} />,
-      content: <CustomSubsystemsPage />,
-    },
-    {
-      id: "home",
-      label: t("app.tabHome"),
-      icon: <IconHome size={18} />,
-      content: <HomePage />,
-    },
-  ];
+  const tabs: TabItem[] = useMemo(
+    () => [
+      {
+        id: "keymap",
+        label: t("app.tabKeymap"),
+        icon: <IconKeyboard size={18} />,
+        content: <KeymapPage />,
+      },
+      {
+        id: "trackball",
+        label: t("app.tabTrackball"),
+        icon: <IconPointer size={18} />,
+        content: <TrackballPage />,
+      },
+      {
+        id: "ble",
+        label: t("app.tabBLE"),
+        icon: <IconBluetooth size={18} />,
+        content: <BLEConnectionsPage />,
+      },
+      {
+        id: "settings",
+        label: t("app.tabSettings"),
+        icon: <IconSettings size={18} />,
+        content: <SettingsPage />,
+      },
+      {
+        id: "battery",
+        label: t("app.tabBattery"),
+        icon: <IconBattery2 size={18} />,
+        content: <BatteryPage />,
+      },
+      {
+        id: "subsystems",
+        label: t("app.tabSubsystems"),
+        icon: <IconPuzzle size={18} />,
+        content: <CustomSubsystemsPage />,
+      },
+      {
+        id: "home",
+        label: t("app.tabHome"),
+        icon: <IconHome size={18} />,
+        content: <HomePage />,
+      },
+    ],
+    [t],
+  );
 
   const setActiveTabWithTracking = useCallback(
     (tabId: string) => {
@@ -90,7 +93,7 @@ function AppContent() {
       }
       setActiveTab(tabId);
     },
-    [setActiveTab],
+    [setActiveTab, tabs],
   );
   useEffect(() => {
     if (connection.deviceName && window.gtag) {

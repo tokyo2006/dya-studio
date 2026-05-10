@@ -5,6 +5,7 @@
  * For small ranges (≤10 options), displays buttons instead of slider for better UX.
  */
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 
 interface RangeValueSelectorProps {
   min: number;
@@ -19,6 +20,7 @@ export function RangeValueSelector({
   value,
   onChange,
 }: RangeValueSelectorProps) {
+  const { t } = useTranslation();
   // Track slider value separately to avoid triggering onChange on every move
   const [sliderValue, setSliderValue] = useState(value);
 
@@ -27,7 +29,7 @@ export function RangeValueSelector({
 
   // When slider value changes externally, sync internal state
   useEffect(() => {
-    setSliderValue(value);
+    queueMicrotask(() => setSliderValue(value));
   }, [value]);
 
   // Handle slider release (apply the change)
@@ -50,7 +52,7 @@ export function RangeValueSelector({
             {value}
           </div>
           <div className="text-xs text-[var(--color-text-muted)] mt-1">
-            Select value ({min} to {max})
+            {t("rangeValueSelector.selectValue", { min, max })}
           </div>
         </div>
 
@@ -88,7 +90,7 @@ export function RangeValueSelector({
           {sliderValue}
         </div>
         <div className="text-xs text-[var(--color-text-muted)] mt-1">
-          Range: {min} to {max}
+          {t("rangeValueSelector.range", { min, max })}
         </div>
       </div>
 
@@ -149,7 +151,7 @@ export function RangeValueSelector({
             text-[var(--color-text-secondary)] hover:bg-[var(--color-border)]/50
             transition-colors text-sm"
         >
-          Min ({min})
+          {t("rangeValueSelector.min", { min })}
         </button>
         <button
           onClick={() => onChange(max)}
@@ -157,7 +159,7 @@ export function RangeValueSelector({
             text-[var(--color-text-secondary)] hover:bg-[var(--color-border)]/50
             transition-colors text-sm"
         >
-          Max ({max})
+          {t("rangeValueSelector.max", { max })}
         </button>
       </div>
     </div>

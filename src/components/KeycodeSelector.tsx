@@ -68,6 +68,7 @@ interface KeycodeSelectorProps {
 function getParamTypeLabel(
   behaviorInfo: SelectedBehaviorInfo,
   paramNumber: 1 | 2,
+  t: (key: string) => string,
 ): string {
   const overrideMeta = behaviorInfo.overrideMetadata;
   const overrideType =
@@ -76,10 +77,10 @@ function getParamTypeLabel(
   if (overrideType) {
     switch (overrideType) {
       case "mouse_keycode":
-        return "Mouse Button";
+        return t("paramType.mouseButton");
       case "mouse_movement":
       case "mouse_scroll":
-        return "Pointer movement";
+        return t("paramType.pointerMovement");
     }
   }
   // From firmware metadata
@@ -90,16 +91,16 @@ function getParamTypeLabel(
   // NOTE: assuming all descriptions have the same type
   if (descriptions.length > 0) {
     if (descriptions[0].constant !== undefined) {
-      return "Constant";
+      return t("paramType.constant");
     } else if (descriptions[0].range !== undefined) {
-      return "Range";
+      return t("paramType.range");
     } else if (descriptions[0].hidUsage !== undefined) {
-      return "Keycode";
+      return t("paramType.keycode");
     } else if (descriptions[0].layerId !== undefined) {
-      return "Layer";
+      return t("paramType.layer");
     }
   }
-  return "Unknown Type";
+  return t("paramType.unknownType");
 }
 
 /**
@@ -446,7 +447,7 @@ export function KeycodeSelector({
   // Run handleOpenChange on mount if open is true
   useEffect(() => {
     if (open) {
-      handleOpenChange(true);
+      queueMicrotask(() => handleOpenChange(true));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -623,7 +624,9 @@ export function KeycodeSelector({
                   onClick={handleRevert}
                 >
                   <IconRestore size={16} className="animate-pulse" />
-                  <span className="hidden tablet:inline">{t("keycodeSelector.revert")}</span>
+                  <span className="hidden tablet:inline">
+                    {t("keycodeSelector.revert")}
+                  </span>
                 </button>
               )}
               <Dialog.Close asChild>
@@ -680,7 +683,7 @@ export function KeycodeSelector({
                     <div className="font-medium text-xs">
                       param1:
                       <span className="ml-1 text-[10px] text-[var(--color-text-muted)]">
-                        {getParamTypeLabel(selectedBehaviorInfo, 1)}
+                        {getParamTypeLabel(selectedBehaviorInfo, 1, t)}
                       </span>
                     </div>
                     <div
@@ -711,7 +714,7 @@ export function KeycodeSelector({
                     <div className="font-medium text-xs">
                       param2:
                       <span className="ml-1 text-[10px] text-[var(--color-text-muted)]">
-                        {getParamTypeLabel(selectedBehaviorInfo, 2)}
+                        {getParamTypeLabel(selectedBehaviorInfo, 2, t)}
                       </span>
                     </div>
                     <div

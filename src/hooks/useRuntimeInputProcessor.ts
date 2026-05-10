@@ -304,7 +304,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, updateProcessorOptimistically],
+    [zmkApp, subsystemIndex, updateProcessorOptimistically],
   );
 
   const setRotation = useCallback(
@@ -348,7 +348,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, updateProcessorOptimistically],
+    [zmkApp, subsystemIndex, updateProcessorOptimistically],
   );
 
   const setTempLayerEnabled = useCallback(
@@ -392,7 +392,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, updateProcessorOptimistically],
+    [zmkApp, subsystemIndex, updateProcessorOptimistically],
   );
 
   const setTempLayerLayer = useCallback(
@@ -436,7 +436,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, updateProcessorOptimistically],
+    [zmkApp, subsystemIndex, updateProcessorOptimistically],
   );
 
   const setTempLayerActivationDelay = useCallback(
@@ -482,7 +482,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, updateProcessorOptimistically],
+    [zmkApp, subsystemIndex, updateProcessorOptimistically],
   );
 
   const setTempLayerDeactivationDelay = useCallback(
@@ -528,7 +528,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, updateProcessorOptimistically],
+    [zmkApp, subsystemIndex, updateProcessorOptimistically],
   );
 
   const setActiveLayers = useCallback(
@@ -572,7 +572,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, updateProcessorOptimistically],
+    [zmkApp, subsystemIndex, updateProcessorOptimistically],
   );
 
   const setAxisSnapMode = useCallback(
@@ -616,7 +616,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, updateProcessorOptimistically],
+    [zmkApp, subsystemIndex, updateProcessorOptimistically],
   );
 
   const setAxisSnapThreshold = useCallback(
@@ -660,7 +660,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, updateProcessorOptimistically],
+    [zmkApp, subsystemIndex, updateProcessorOptimistically],
   );
 
   const setAxisSnapTimeout = useCallback(
@@ -704,7 +704,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, updateProcessorOptimistically],
+    [zmkApp, subsystemIndex, updateProcessorOptimistically],
   );
 
   const setXInvert = useCallback(
@@ -748,7 +748,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, updateProcessorOptimistically],
+    [zmkApp, subsystemIndex, updateProcessorOptimistically],
   );
 
   const setYInvert = useCallback(
@@ -792,7 +792,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, updateProcessorOptimistically],
+    [zmkApp, subsystemIndex, updateProcessorOptimistically],
   );
 
   const setXyToScrollEnabled = useCallback(
@@ -836,7 +836,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, updateProcessorOptimistically],
+    [zmkApp, subsystemIndex, updateProcessorOptimistically],
   );
 
   const setXySwapEnabled = useCallback(
@@ -880,7 +880,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, updateProcessorOptimistically],
+    [zmkApp, subsystemIndex, updateProcessorOptimistically],
   );
 
   const loadLayers = useCallback(async () => {
@@ -932,12 +932,13 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
   }, [zmkApp, subsystemIndex]);
 
   // Load processors and layers when connection or subsystem changes
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     if (subsystemIndex !== undefined && zmkApp?.state.connection) {
       loadProcessors();
       loadLayers();
     }
-  }, [subsystemIndex, zmkApp?.state.connection, loadProcessors, loadLayers]);
+  }, [subsystemIndex, zmkApp, loadProcessors, loadLayers]);
 
   return {
     isAvailable: subsystemIndex !== undefined,

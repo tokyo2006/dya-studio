@@ -114,7 +114,7 @@ export function BLEConnectionsPage() {
                 className="btn-ghost flex items-center gap-2"
                 onClick={reload}
                 disabled={isLoading}
-                aria-label="Refresh profiles"
+                aria-label={t("ble.refreshProfiles")}
               >
                 <IconRefresh
                   size={16}
@@ -298,7 +298,7 @@ export function BLEConnectionsPage() {
                             className="btn-ghost p-2"
                             onClick={() => saveProfileName(profile.index)}
                             disabled={isLoading}
-                            aria-label="Save name"
+                            aria-label={t("ble.saveName")}
                           >
                             <IconCheck size={16} />
                           </button>
@@ -306,7 +306,7 @@ export function BLEConnectionsPage() {
                             className="btn-ghost p-2"
                             onClick={cancelEditing}
                             disabled={isLoading}
-                            aria-label="Cancel editing"
+                            aria-label={t("ble.cancelEditing")}
                           >
                             <IconX size={16} />
                           </button>
@@ -316,9 +316,13 @@ export function BLEConnectionsPage() {
                           <div className="flex items-center gap-2">
                             <p
                               className="text-sm font-medium text-[var(--color-text-secondary)] truncate max-w-[12rem]"
-                              title={profile.name || `Profile ${profile.index}`}
+                              title={
+                                profile.name ||
+                                t("ble.profileIndex", { index: profile.index })
+                              }
                             >
-                              {profile.name || `Profile ${profile.index}`}
+                              {profile.name ||
+                                t("ble.profileIndex", { index: profile.index })}
                             </p>
                             {!profile.isOpen && (
                               <button
@@ -327,7 +331,7 @@ export function BLEConnectionsPage() {
                                   startEditing(profile.index, profile.name)
                                 }
                                 disabled={isLoading}
-                                aria-label="Edit name"
+                                aria-label={t("ble.editName")}
                               >
                                 <IconEdit size={14} />
                               </button>
@@ -368,7 +372,9 @@ export function BLEConnectionsPage() {
                           disabled={isLoading}
                         >
                           <IconLinkOff size={16} />
-                          <span className="hidden tablet:inline">{t("ble.unpair")}</span>
+                          <span className="hidden tablet:inline">
+                            {t("ble.unpair")}
+                          </span>
                         </button>
                       )}
                       {!profile.isActive ? (
@@ -378,7 +384,9 @@ export function BLEConnectionsPage() {
                           disabled={isLoading}
                         >
                           <IconLink size={16} />
-                          <span className="hidden tablet:inline">{t("ble.switch")}</span>
+                          <span className="hidden tablet:inline">
+                            {t("ble.switch")}
+                          </span>
                         </button>
                       ) : (
                         <button

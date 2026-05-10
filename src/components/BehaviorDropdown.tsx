@@ -13,16 +13,17 @@ import {
 import type { BehaviorDefinition } from "../hooks/useKeymap";
 
 // Predefined behavior categories
-const BEHAVIOR_CATEGORIES: { id: BehaviorCategory; translationKey: string }[] = [
-  { id: "keypress", translationKey: "behaviorDropdown.keypress" },
-  { id: "layer", translationKey: "behaviorDropdown.layer" },
-  { id: "mod", translationKey: "behaviorDropdown.mod" },
-  { id: "mouse", translationKey: "behaviorDropdown.mouse" },
-  { id: "transport", translationKey: "behaviorDropdown.transport" },
-  { id: "system", translationKey: "behaviorDropdown.system" },
-  { id: "miscellaneous", translationKey: "behaviorDropdown.miscellaneous" },
-  { id: "others", translationKey: "behaviorDropdown.others" },
-];
+const BEHAVIOR_CATEGORIES: { id: BehaviorCategory; translationKey: string }[] =
+  [
+    { id: "keypress", translationKey: "behaviorDropdown.keypress" },
+    { id: "layer", translationKey: "behaviorDropdown.layer" },
+    { id: "mod", translationKey: "behaviorDropdown.mod" },
+    { id: "mouse", translationKey: "behaviorDropdown.mouse" },
+    { id: "transport", translationKey: "behaviorDropdown.transport" },
+    { id: "system", translationKey: "behaviorDropdown.system" },
+    { id: "miscellaneous", translationKey: "behaviorDropdown.miscellaneous" },
+    { id: "others", translationKey: "behaviorDropdown.others" },
+  ];
 
 // Quick-select behaviors for faster access
 const QUICK_SELECT_BEHAVIORS = ["kp", "lt", "mt", "none", "transparent"];
@@ -189,7 +190,7 @@ export function BehaviorDropdown({
       >
         <span className="text-sm text-[var(--color-text)]">
           {selectedBehaviorOverrideMeta?.displayNameVariants?.at(0) ||
-            "Select behavior"}
+            t("keymap.selectBehavior")}
           {selectedBehaviorOverrideMeta?.description && (
             <span className="mx-1 text-xs text-[var(--color-text-muted)]">
               - {selectedBehaviorOverrideMeta.description}

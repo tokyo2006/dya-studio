@@ -104,7 +104,7 @@ export function useBLEProfiles(): UseBLEProfilesReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [zmkApp?.state.connection, subsystemIndex]);
+  }, [zmkApp, subsystemIndex]);
 
   const switchProfile = useCallback(
     async (index: number) => {
@@ -145,7 +145,7 @@ export function useBLEProfiles(): UseBLEProfilesReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, loadProfiles],
+    [zmkApp, subsystemIndex, loadProfiles],
   );
 
   const unpairProfile = useCallback(
@@ -187,7 +187,7 @@ export function useBLEProfiles(): UseBLEProfilesReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, loadProfiles],
+    [zmkApp, subsystemIndex, loadProfiles],
   );
 
   const setProfileName = useCallback(
@@ -229,7 +229,7 @@ export function useBLEProfiles(): UseBLEProfilesReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, loadProfiles],
+    [zmkApp, subsystemIndex, loadProfiles],
   );
 
   const getOutputPriority = useCallback(async () => {
@@ -270,7 +270,7 @@ export function useBLEProfiles(): UseBLEProfilesReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [zmkApp?.state.connection, subsystemIndex]);
+  }, [zmkApp, subsystemIndex]);
 
   const setOutputPriority = useCallback(
     async (priority: OutputPriority) => {
@@ -311,17 +311,18 @@ export function useBLEProfiles(): UseBLEProfilesReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, getOutputPriority],
+    [zmkApp, subsystemIndex, getOutputPriority],
   );
 
   // Load profiles and output priority when connection or subsystem changes
   useEffect(() => {
     if (subsystemIndex !== undefined && zmkApp?.state.connection) {
-      loadProfiles();
-      getOutputPriority();
+      queueMicrotask(() => {
+        loadProfiles();
+        getOutputPriority();
+      });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subsystemIndex, zmkApp?.state.connection]);
+  }, [subsystemIndex, zmkApp, loadProfiles, getOutputPriority]);
 
   return {
     isAvailable: subsystemIndex !== undefined,

@@ -82,7 +82,7 @@ function ExternalLinkWarningDialog({
         <button
           className="absolute top-4 right-4 btn-ghost p-1"
           onClick={onCancel}
-          aria-label="Close dialog"
+          aria-label={t("dialog.close")}
         >
           <IconX size={16} className="text-[var(--color-text-muted)]" />
         </button>
@@ -112,7 +112,8 @@ function ExternalLinkWarningDialog({
         </div>
         <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
           <p className="text-xs text-red-400 leading-relaxed">
-            <strong>{t("customSubsystems.securityNotice")}:</strong> {t("customSubsystems.securityNoticeText")}
+            <strong>{t("customSubsystems.securityNotice")}:</strong>{" "}
+            {t("customSubsystems.securityNoticeText")}
           </p>
         </div>
 

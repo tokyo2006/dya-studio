@@ -58,7 +58,7 @@ export function KeymapPage() {
   const layersForSelector = useMemo(() => {
     if (!keymap.keymap?.layers) return [];
     return keymap.keymap.layers.map((l) => ({ id: l.id, name: l.name }));
-  }, [keymap.keymap?.layers]);
+  }, [keymap.keymap]);
 
   // Get current binding for selected key
   const currentBinding = useMemo(() => {
@@ -431,7 +431,9 @@ export function KeymapPage() {
                         sideOffset={5}
                       >
                         {keymap.removedLayerIds.length > 0
-                          ? t("keymap.restoreDeletedLayer", { count: keymap.removedLayerIds.length })
+                          ? t("keymap.restoreDeletedLayer", {
+                              count: keymap.removedLayerIds.length,
+                            })
                           : t("keymap.noDeletedLayersToRestore")}
                         <Tooltip.Arrow className="fill-[var(--color-surface-elevated)]" />
                       </Tooltip.Content>
@@ -498,27 +500,18 @@ export function KeymapPage() {
                         sideOffset={5}
                       >
                         <div className="mb-1 font-semibold text-[var(--color-electric)]">
-                          Choose OS's keyboard layout setting
+                          {t("keymap.osLayoutTooltipTitle")}
                         </div>
                         <ul className="list-disc pl-4 space-y-1">
+                          <li>{t("keymap.osLayoutTooltipItem1")}</li>
                           <li>
-                            This setting only affects the visual key labels in
-                            DYA Studio web UI.
+                            {t("keymap.osLayoutTooltipItem2Prefix")}
+                            <strong className="mx-1">
+                              {t("keymap.detectedAsUS")}
+                            </strong>
+                            {t("keymap.osLayoutTooltipItem2Suffix")}
                           </li>
-                          <li>
-                            Changing this does not update any firmware setting.
-                            The keyboard is
-                            <strong className="mx-1">{t("keymap.detectedAsUS")}</strong>
-                            regardless of this setting. <br />
-                            Please change the layout setting in your OS if
-                            needed.
-                            <br /> For MacOS, USB connection is always detected
-                            as US and cannot be changed for now.
-                          </li>
-                          <li>
-                            The selection is saved in your browser's local
-                            storage for now.
-                          </li>
+                          <li>{t("keymap.osLayoutTooltipItem3")}</li>
                         </ul>
                         <Tooltip.Arrow className="fill-[var(--color-surface-elevated)]" />
                       </Tooltip.Content>

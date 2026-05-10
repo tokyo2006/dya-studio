@@ -97,50 +97,12 @@
     "changingOutputPriorityMayDisconnect": "更改输出优先级可能会断开 DYA Studio 与键盘的连接。",
     "youWillNeedReconnect": "更改后需要手动重新连接。",
     "continue": "继续",
-    "profiles": "配置文件"
-  },
-  "keymap": {
-    "title": "键位图",
-    "description": "配置按键绑定和层",
-    "resetAll": "全部重置",
-    "save": "保存",
-    "connectKeyboardToEdit": "连接键盘以编辑键位图",
-    "loadingKeymapData": "正在加载键位图数据...",
-    "unsavedChanges": "● 未保存的更改",
-    "layerLabel": "层",
-    "sort": "排序：",
-    "moveLayerUp": "向上移动层（更高优先级）",
-    "moveLayerDown": "向下移动层（更低优先级）",
-    "addNewLayer": "添加新层",
-    "deleteCurrentLayer": "删除当前层",
-    "noDeletedLayersToRestore": "没有可删除的层来恢复",
-    "restoreDeletedLayer": "恢复已删除的层（可用：{{count}}）",
-    "physicalLayout": "物理布局：",
-    "osLayout": "操作系统布局：",
-    "selectBehavior": "选择行为",
-    "configureParameters": "配置参数",
-    "selectLayer": "选择层",
-    "layer": "层 {{index}}",
-    "selectBinding": "选择绑定",
-    "noBinding": "无绑定",
-    "binding": "绑定",
-    "clearBinding": "清除绑定",
-    "keyboardUnlockRequired": "需要解锁键盘",
-    "keyboardLockedMessage": "您的键盘的 ZMK Studio 已锁定。请解锁以继续编辑键位图。",
-    "howToUnlock": "如何解锁",
-    "pressStudioUnlock": "在键盘上按",
-    "studioUnlock": "studio unlock",
-    "keyCombination": "键组合",
-    "lookForNotification": "查找确认解锁的通知或 LED 指示",
-    "clickRetry": "点击下方的",
-    "retry": "重试",
-    "toContinue": "以继续",
-    "unlockKeyCombination": "解锁键组合通常在您的 ZMK 键位图中配置。如果您不确定，请检查固件配置。",
-    "areYouSureDiscard": "确定要放弃所有更改吗？",
-    "areYouSureDeleteLayer": "确定要删除此层吗？",
-    "runtimeSensorRotationNotAvailable": "运行时传感器旋转子系统不适用于您的键盘。",
-    "rotaryEncoderNotAvailable": "旋转编码器配置将不会显示。",
-    "youCanEnableByApplying": "您可以通过应用以下内容来启用此功能："
+    "profiles": "配置文件",
+    "editName": "编辑名称",
+    "saveName": "保存名称",
+    "cancelEditing": "取消编辑",
+    "refreshProfiles": "刷新配置文件",
+    "profileIndex": "配置文件 {{index}}"
   },
   "trackball": {
     "title": "轨迹球设置",
@@ -180,7 +142,7 @@
     "yAxis": "Y 轴",
     "bothAxes": "双轴",
     "snapThreshold": "吸附阈值",
-    "snapTimeout": "吸附超时（毫秒）",
+    "snapTimeout": "吸附超时",
     "invert": "反转",
     "xInvert": "X 反转",
     "yInvert": "Y 反转",
@@ -201,13 +163,10 @@
     "xySwapDescription": "交换 X 和 Y 轴",
     "codeMapping": "代码映射",
     "codeMappingDescription": "将轨迹球运动转换为不同的输入类型",
-    "none": "无",
     "xAxisHorizontal": "X 轴（水平）",
     "yAxisVertical": "Y 轴（垂直）",
     "snapAxis": "吸附轴",
-    "snapThreshold": "吸附阈值",
     "thresholdDescription": "从锁定轴解除吸附的阈值",
-    "snapTimeout": "吸附超时",
     "timeoutDescription": "阈值检查的时间窗口",
     "activationDelay": "激活延迟",
     "deactivationDelay": "停用延迟",
@@ -238,7 +197,6 @@
     "hour": "小时",
     "hours": "小时",
     "customValue": "自定义值...",
-    "never": "从不",
     "seconds30": "30 秒",
     "minute1": "1 分钟",
     "minutes5": "5 分钟",
@@ -248,17 +206,20 @@
     "hour1": "1 小时",
     "hours2": "2 小时",
     "hours4": "4 小时",
-    "min": "分钟"
+    "min": "分钟",
+    "languageChinese": "中文",
+    "languageEnglish": "English"
   },
   "customSubsystems": {
+    "securityNotice": "安全提醒",
+    "securityNoticeText": "请勿连接到不可靠作者提供的网页。只有在信任键盘固件作者的情况下才能继续。外部页面可能会请求敏感权限或向第三方服务器发送数据。",
+    "subsystemIndex": "子系统索引",
+    "webUI": "网页界面",
+    "noWebUIForSubsystem": "此子系统无可用网页界面",
+    "noCustomSubsystems": "没有可用的自定义子系统。自定义子系统由键盘固件提供。",
+    "additionalFeaturesDescription": "自定义子系统是键盘固件作者提供的附加功能。网页界面链接打开由固件元数据提供的外部页面。",
     "title": "自定义子系统",
-    "description": "可用的自定义固件子系统及其 Web 界面",
-    "externalLinkWarning": "外部链接警告",
-    "aboutToOpenExternalWebsite": "您即将打开由键盘固件作者提供的外部网站：",
-    "securityNotice": "安全提示：请勿连接不可靠作者的网页。只有在您信任键盘固件作者时才继续。外部页面可能会请求敏感权限或向第三方服务器发送数据。",
-    "trustThisUrl": "信任此 URL，不再警告我",
-    "cancel": "取消",
-    "open": "打开"
+    "description": "可用的自定义固件子系统及其 Web 界面"
   },
   "healthCheck": {
     "title": "健康检查",
@@ -276,7 +237,8 @@
     "bleRadio": "BLE 无线电",
     "bleRadioDescription": "蓝牙模块状态",
     "runDiagnostics": "运行诊断",
-    "connectKeyboardRunDiagnostics": "连接键盘以运行硬件诊断。这将检查与所有组件的通信并报告任何问题。"
+    "connectKeyboardRunDiagnostics": "连接键盘以运行硬件诊断。这将检查与所有组件的通信并报告任何问题。",
+    "connectInfo": "连接键盘以运行硬件诊断。这将检查与所有组件的通信并报告任何问题。"
   },
   "connectionNotice": {
     "connectViaUSB": "通过 USB 连接",
@@ -318,15 +280,6 @@
     "maintainedBy": "DYA Studio 由以下人员维护",
     "specialThanksTo": "特别感谢",
     "period": "。"
-  },
-  "customSubsystems": {
-    "securityNotice": "安全提醒",
-    "securityNoticeText": "请勿连接到不可靠作者提供的网页。只有在信任键盘固件作者的情况下才能继续。外部页面可能会请求敏感权限或向第三方服务器发送数据。",
-    "subsystemIndex": "子系统索引",
-    "webUI": "网页界面",
-    "noWebUIForSubsystem": "此子系统无可用网页界面",
-    "noCustomSubsystems": "没有可用的自定义子系统。自定义子系统由键盘固件提供。",
-    "additionalFeaturesDescription": "自定义子系统是键盘固件作者提供的附加功能。网页界面链接打开由固件元数据提供的外部页面。"
   },
   "keycodeSelector": {
     "closeOnSelect": "选中后关闭",
@@ -379,12 +332,17 @@
     "youCanEnableByApplying": "您可以通过应用以下内容来启用此功能：",
     "detectedAsUS": "检测为美式布局",
     "keymapInstructionsConnected": "点击按键以修改其绑定。修改的按键以绿色高亮显示，悬停时显示原始绑定。使用全部重置按钮放弃所有更改。",
-    "keymapInstructionsDisconnected": "连接键盘以编辑键位图。点击按键以修改其绑定。"
+    "keymapInstructionsDisconnected": "连接键盘以编辑键位图。点击按键以修改其绑定。",
+    "osLayoutTooltipTitle": "选择操作系统的键盘布局设置",
+    "osLayoutTooltipItem1": "此设置仅影响 DYA Studio 网页界面中的视觉按键标签。",
+    "osLayoutTooltipItem2Prefix": "更改此项不会更新任何固件设置。键盘",
+    "osLayoutTooltipItem2Suffix": "不受此设置影响。如需要，请在操作系统中更改布局设置。对于 macOS，USB 连接始终检测为美式布局，目前无法更改。",
+    "osLayoutTooltipItem3": "当前选择保存在浏览器的本地存储中。"
   },
   "batteryHistory": {
     "restartIndicator": "虚线与 ⟲ 表示键盘重启"
   },
-"sensorRotation": {
+  "sensorRotation": {
     "timeBetweenTriggers": "旋转触发间隔时间",
     "rotaryEncoderConfiguration": "旋转编码器配置",
     "valueSavedRealTime": "当前选择后值会实时保存。",
@@ -417,7 +375,9 @@
     "recentlyUsed": "最近使用"
   },
   "physicalKey": {
-    "resetToOriginal": "重置为原始"
+    "resetToOriginal": "重置为原始",
+    "binding": "绑定：",
+    "original": "原始："
   },
   "keycodes": {
     "letters": "字母",
@@ -440,5 +400,36 @@
     "param2": "参数2",
     "trans": "转送",
     "behavior": "行为"
+  },
+  "mouseMoveInput": {
+    "quickPresets": "快速预设（默认：±{{defaultValue}}）",
+    "customValues": "自定义值（范围：-32768 至 32767）",
+    "xAxis": "X 轴（水平）",
+    "yAxis": "Y 轴（垂直）",
+    "xDirection": "- = 左，+ = 右",
+    "yDirectionMove": "- = 上，+ = 下",
+    "yDirectionScroll": "- = 下，+ = 上",
+    "currentValue": "当前：X={{x}}，Y={{y}}（编码：0x{{encoded}}）"
+  },
+  "rangeValueSelector": {
+    "selectValue": "选择值（{{min}} 至 {{max}}）",
+    "range": "范围：{{min}} 至 {{max}}",
+    "min": "最小（{{min}}）",
+    "max": "最大（{{max}}）"
+  },
+  "paramType": {
+    "mouseButton": "鼠标按键",
+    "pointerMovement": "指针移动",
+    "constant": "常量",
+    "range": "范围",
+    "keycode": "键码",
+    "layer": "层",
+    "unknownType": "未知类型"
+  },
+  "dialog": {
+    "close": "关闭对话框"
+  },
+  "keycodeValueSelector": {
+    "clearSearch": "清除搜索"
   }
 }

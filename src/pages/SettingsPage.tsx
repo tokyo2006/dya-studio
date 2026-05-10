@@ -54,7 +54,9 @@ function TimeDropdown({ value, onChange, presets }: TimeDropdownProps) {
 
   const valueInMinutes = msToMinutes(value);
   const matchingPreset = presets.find((p) => p.value === valueInMinutes);
-  const displayText = matchingPreset ? t(`settings.${matchingPreset.label}`) : `${valueInMinutes} ${t("settings.min")}`;
+  const displayText = matchingPreset
+    ? t(`settings.${matchingPreset.label}`)
+    : `${valueInMinutes} ${t("settings.min")}`;
 
   // Update dropdown position when opened
   useEffect(() => {
@@ -276,8 +278,8 @@ export function SettingsPage() {
               value={i18n.language}
               onChange={(e) => i18n.changeLanguage(e.target.value)}
             >
-              <option value="zh">中文</option>
-              <option value="en">English</option>
+              <option value="zh">{t("settings.languageChinese")}</option>
+              <option value="en">{t("settings.languageEnglish")}</option>
             </select>
           </div>
         </div>
@@ -368,7 +370,9 @@ export function SettingsPage() {
                     onClick={handleSaveSettings}
                     disabled={isLoading}
                   >
-                    {isLoading ? t("settings.saving") : t("settings.applyToAllDevices")}
+                    {isLoading
+                      ? t("settings.saving")
+                      : t("settings.applyToAllDevices")}
                   </button>
                 </div>
               </div>
@@ -386,8 +390,14 @@ export function SettingsPage() {
                         className="text-xs text-[var(--color-text-secondary)]"
                       >
                         <span className="font-mono">{device.deviceName}:</span>{" "}
-                        Idle: {device.idleMs === 0 ? t("settings.never") : `${msToMinutes(device.idleMs)} ${t("settings.min")}`}, Sleep:{" "}
-                        {device.sleepMs === 0 ? t("settings.never") : `${msToMinutes(device.sleepMs)} ${t("settings.min")}`}
+                        Idle:{" "}
+                        {device.idleMs === 0
+                          ? t("settings.never")
+                          : `${msToMinutes(device.idleMs)} ${t("settings.min")}`}
+                        , Sleep:{" "}
+                        {device.sleepMs === 0
+                          ? t("settings.never")
+                          : `${msToMinutes(device.sleepMs)} ${t("settings.min")}`}
                       </div>
                     ))}
                   </div>
