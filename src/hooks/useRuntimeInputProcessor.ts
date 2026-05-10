@@ -932,11 +932,12 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
   }, [zmkApp, subsystemIndex]);
 
   // Load processors and layers when connection or subsystem changes
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     if (subsystemIndex !== undefined && zmkApp?.state.connection) {
+      /* eslint-disable react-hooks/set-state-in-effect */
       loadProcessors();
       loadLayers();
+      /* eslint-enable react-hooks/set-state-in-effect */
     }
   }, [subsystemIndex, zmkApp, loadProcessors, loadLayers]);
 
