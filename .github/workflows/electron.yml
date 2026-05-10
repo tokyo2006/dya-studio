@@ -17,6 +17,7 @@ jobs:
         with:
           node-version: 24
           cache: "npm"
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -45,12 +46,13 @@ jobs:
         with:
           node-version: 24
           cache: "npm"
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
       - name: Build distribution
-        run: npm run dist:${{ matrix.target }}
+        run: npm run build:app && npx electron-builder --${{ matrix.target }} --publish never
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
