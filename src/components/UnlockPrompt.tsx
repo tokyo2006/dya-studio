@@ -4,6 +4,7 @@
  * A dialog that prompts the user to unlock their keyboard
  * when ZMK Studio lock is detected.
  */
+import { useTranslation } from "react-i18next";
 import * as Dialog from "@radix-ui/react-dialog";
 import { IconLock, IconKeyboard, IconRefresh } from "@tabler/icons-react";
 
@@ -17,6 +18,7 @@ interface UnlockPromptProps {
 }
 
 export function UnlockPrompt({ open, onClose, onRetry }: UnlockPromptProps) {
+  const { t } = useTranslation();
   return (
     <Dialog.Root open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <Dialog.Portal>
@@ -31,13 +33,12 @@ export function UnlockPrompt({ open, onClose, onRetry }: UnlockPromptProps) {
 
           {/* Title */}
           <Dialog.Title className="text-lg font-medium text-[var(--color-text)] text-center mb-2">
-            Keyboard Unlock Required
+            {t("unlockPrompt.keyboardUnlockRequired")}
           </Dialog.Title>
 
           {/* Description */}
           <Dialog.Description className="text-sm text-[var(--color-text-muted)] text-center mb-6">
-            Your keyboard&apos;s ZMK Studio is locked. Please unlock it to
-            continue editing your keymap.
+            {t("unlockPrompt.keyboardLockedMessage")}
           </Dialog.Description>
 
           {/* Instructions */}
@@ -47,7 +48,7 @@ export function UnlockPrompt({ open, onClose, onRetry }: UnlockPromptProps) {
                 size={18}
                 className="text-[var(--color-text-muted)]"
               />
-              How to Unlock
+              {t("unlockPrompt.howToUnlock")}
             </h4>
             <ol className="space-y-2 text-sm text-[var(--color-text-secondary)]">
               <li className="flex gap-2">
@@ -55,8 +56,9 @@ export function UnlockPrompt({ open, onClose, onRetry }: UnlockPromptProps) {
                   1
                 </span>
                 <span>
-                  Press the <strong>studio unlock</strong> key combination on
-                  your keyboard
+                  {t("unlockPrompt.step1")}{" "}
+                  <strong>{t("unlockPrompt.studioUnlockKey")}</strong>{" "}
+                  {t("unlockPrompt.keyCombination")}
                 </span>
               </li>
               <li className="flex gap-2">
@@ -64,7 +66,7 @@ export function UnlockPrompt({ open, onClose, onRetry }: UnlockPromptProps) {
                   2
                 </span>
                 <span>
-                  Look for a notification or LED indication that confirms unlock
+                  {t("unlockPrompt.lookForNotification")}
                 </span>
               </li>
               <li className="flex gap-2">
@@ -72,7 +74,9 @@ export function UnlockPrompt({ open, onClose, onRetry }: UnlockPromptProps) {
                   3
                 </span>
                 <span>
-                  Click <strong>Retry</strong> below to continue
+                  {t("unlockPrompt.step3")}{" "}
+                  <strong>{t("unlockPrompt.retry")}</strong>{" "}
+                  {t("unlockPrompt.toContinue")}
                 </span>
               </li>
             </ol>
@@ -80,8 +84,7 @@ export function UnlockPrompt({ open, onClose, onRetry }: UnlockPromptProps) {
 
           {/* Note */}
           <p className="text-xs text-[var(--color-text-muted)] mb-6 text-center">
-            The unlock key combination is typically configured in your ZMK
-            keymap. Check your firmware configuration if you&apos;re unsure.
+            {t("unlockPrompt.unlockKeyCombinationNote")}
           </p>
 
           {/* Actions */}
@@ -90,7 +93,7 @@ export function UnlockPrompt({ open, onClose, onRetry }: UnlockPromptProps) {
               className="flex-1 btn-ghost border border-[var(--color-border)]"
               onClick={onClose}
             >
-              Cancel
+              {t("common.cancel")}
             </button>
             <button
               className="flex-1 btn-electric flex items-center justify-center gap-2"
@@ -99,7 +102,7 @@ export function UnlockPrompt({ open, onClose, onRetry }: UnlockPromptProps) {
               }}
             >
               <IconRefresh size={18} />
-              Retry
+              {t("unlockPrompt.retry")}
             </button>
           </div>
         </Dialog.Content>

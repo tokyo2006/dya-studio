@@ -10,6 +10,7 @@
  *   (setting is persisted in localStorage)
  */
 import { useState, useMemo, useCallback, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import * as Dialog from "@radix-ui/react-dialog";
 import { IconRestore, IconX } from "@tabler/icons-react";
 import { MOUSE_KEYCODES } from "../lib/keycodes";
@@ -237,6 +238,7 @@ export function KeycodeSelector({
   keyboardLayout,
   behaviorQuickSelects,
 }: KeycodeSelectorProps) {
+  const { t } = useTranslation();
   // State
   const [selectedBehavior, setSelectedBehavior] = useState<number | null>(null);
   const [param1, setParam1] = useState<number>(0);
@@ -603,7 +605,7 @@ export function KeycodeSelector({
           {/* Header with Cancel Button */}
           <div className="flex items-center justify-between p-4 border-b border-[var(--color-border)]">
             <Dialog.Title className="text-lg font-medium text-[var(--color-text)] flex items-center gap-2">
-              Select Key Binding
+              {t("keycodes.selectKeyBinding")}
             </Dialog.Title>
             <div className="flex items-center gap-2">
               <label className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)] cursor-pointer hover:text-[var(--color-text)] transition-colors">
@@ -613,7 +615,7 @@ export function KeycodeSelector({
                   onChange={(e) => setCloseOnSelect(e.target.checked)}
                   className="w-4 h-4 rounded border-[var(--color-border)] text-[var(--color-electric)] focus:ring-2 focus:ring-[var(--color-electric)]/50 cursor-pointer"
                 />
-                <span>Close on select</span>
+                <span>{t("keycodeSelector.closeOnSelect")}</span>
               </label>
               {hasChanges && (
                 <button
@@ -621,7 +623,7 @@ export function KeycodeSelector({
                   onClick={handleRevert}
                 >
                   <IconRestore size={16} className="animate-pulse" />
-                  <span className="hidden tablet:inline">Revert</span>
+                  <span className="hidden tablet:inline">{t("keycodeSelector.revert")}</span>
                 </button>
               )}
               <Dialog.Close asChild>

@@ -1,4 +1,5 @@
 import { useState, useContext, useCallback, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   IconBattery2,
@@ -28,66 +29,55 @@ import { TrackballPage } from "./pages/TrackballPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { CustomSubsystemsPage } from "./pages/CustomSubsystemsPage";
 
-const tabs: TabItem[] = [
-  {
-    id: "home",
-    label: "Home",
-    icon: <IconHome size={18} />,
-    content: <HomePage />,
-  },
-  {
-    id: "keymap",
-    label: "Keymap",
-    icon: <IconKeyboard size={18} />,
-    content: <KeymapPage />,
-  },
-  {
-    id: "trackball",
-    label: "Trackball",
-    icon: <IconPointer size={18} />,
-    content: <TrackballPage />,
-  },
-  {
-    id: "ble",
-    label: "BLE",
-    icon: <IconBluetooth size={18} />,
-    content: <BLEConnectionsPage />,
-  },
-  {
-    id: "settings",
-    label: "Settings",
-    icon: <IconSettings size={18} />,
-    content: <SettingsPage />,
-  },
-  {
-    id: "battery",
-    label: "Battery",
-    icon: <IconBattery2 size={18} />,
-    content: <BatteryPage />,
-  },
-  {
-    id: "subsystems",
-    label: "Subsystems",
-    icon: <IconPuzzle size={18} />,
-    content: <CustomSubsystemsPage />,
-  },
-];
-
-function App() {
-  return (
-    <ThemeProvider>
-      <KeyboardLayoutProvider>
-        <DeviceConnectionProvider>
-          <AppContent />
-        </DeviceConnectionProvider>
-      </KeyboardLayoutProvider>
-    </ThemeProvider>
-  );
-}
-
 function AppContent() {
+  const { t } = useTranslation();
   const connection = useContext(ConnectionContext);
   const [activeTab, setActiveTab] = useState("home");
+
+  const tabs: TabItem[] = [
+    {
+      id: "keymap",
+      label: t("app.tabKeymap"),
+      icon: <IconKeyboard size={18} />,
+      content: <KeymapPage />,
+    },
+    {
+      id: "trackball",
+      label: t("app.tabTrackball"),
+      icon: <IconPointer size={18} />,
+      content: <TrackballPage />,
+    },
+    {
+      id: "ble",
+      label: t("app.tabBLE"),
+      icon: <IconBluetooth size={18} />,
+      content: <BLEConnectionsPage />,
+    },
+    {
+      id: "settings",
+      label: t("app.tabSettings"),
+      icon: <IconSettings size={18} />,
+      content: <SettingsPage />,
+    },
+    {
+      id: "battery",
+      label: t("app.tabBattery"),
+      icon: <IconBattery2 size={18} />,
+      content: <BatteryPage />,
+    },
+    {
+      id: "subsystems",
+      label: t("app.tabSubsystems"),
+      icon: <IconPuzzle size={18} />,
+      content: <CustomSubsystemsPage />,
+    },
+    {
+      id: "home",
+      label: t("app.tabHome"),
+      icon: <IconHome size={18} />,
+      content: <HomePage />,
+    },
+  ];
 
   const setActiveTabWithTracking = useCallback(
     (tabId: string) => {
@@ -152,6 +142,18 @@ function AppContent() {
         </motion.div>
       )}
     </>
+  );
+}
+
+function App() {
+  return (
+    <ThemeProvider>
+      <KeyboardLayoutProvider>
+        <DeviceConnectionProvider>
+          <AppContent />
+        </DeviceConnectionProvider>
+      </KeyboardLayoutProvider>
+    </ThemeProvider>
   );
 }
 

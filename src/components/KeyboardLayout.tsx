@@ -6,6 +6,7 @@
  * Responsive to window size with min/max limits.
  */
 import { useMemo, useCallback, useState, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { PhysicalKey } from "./PhysicalKey";
 import type {
   PhysicalLayout,
@@ -63,6 +64,7 @@ export function KeyboardLayout({
   getOriginalBinding,
   keyboardLayout,
 }: KeyboardLayoutProps) {
+  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1.0);
 
@@ -178,13 +180,13 @@ export function KeyboardLayout({
   // Get full binding description for tooltip
   const getBindingDescription = useCallback(
     (binding: BehaviorBinding | undefined): string => {
-      if (!binding) return "No binding";
+      if (!binding) return t("keycodes.noBinding");
       const behavior = behaviors.get(binding.behaviorId) || null;
       const behaviorName =
-        behavior?.displayName || `Behavior ${binding.behaviorId}`;
-      return `${behaviorName} (param1: ${binding.param1}, param2: ${binding.param2})`;
+        behavior?.displayName || `${t("keycodes.behavior")} ${binding.behaviorId}`;
+      return `${behaviorName} (${t("keycodes.param1")}: ${binding.param1}, ${t("keycodes.param2")}: ${binding.param2})`;
     },
-    [behaviors],
+    [behaviors, t],
   );
 
   return (

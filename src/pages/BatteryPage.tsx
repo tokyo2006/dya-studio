@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import {
   IconBattery2,
   IconRefresh,
@@ -16,6 +17,7 @@ function getBatteryColor(level: number): string {
 }
 
 export function BatteryPage() {
+  const { t } = useTranslation();
   const {
     isAvailable,
     devices,
@@ -68,10 +70,10 @@ export function BatteryPage() {
             </div>
             <div>
               <h1 className="text-xl font-medium text-[var(--color-text)]">
-                Battery Status
+                {t("battery.title")}
               </h1>
               <p className="text-sm text-[var(--color-text-muted)]">
-                Monitor battery levels and history
+                {t("battery.description")}
               </p>
             </div>
           </div>
@@ -80,22 +82,22 @@ export function BatteryPage() {
               onClick={loadBatteryHistory}
               disabled={isLoading}
               className="btn-ghost flex items-center gap-2"
-              aria-label="Refresh battery history"
+              aria-label={t("battery.refresh")}
             >
               <IconRefresh
                 size={16}
                 className={isLoading ? "animate-spin" : ""}
               />
-              Refresh
+              {t("battery.refresh")}
             </button>
             <button
               onClick={() => setShowClearWarning(true)}
               disabled={isLoading || devices.length === 0}
               className="btn-ghost flex items-center gap-2 text-red-400 hover:text-red-300 disabled:opacity-50"
-              aria-label="Clear battery history"
+              aria-label={t("battery.clearHistory")}
             >
               <IconTrash size={16} />
-              Clear History
+              {t("battery.clearHistory")}
             </button>
           </div>
         </div>
@@ -104,19 +106,17 @@ export function BatteryPage() {
             <IconAlertTriangleFilled size={24} />
           </div>
           <p className="text-sm text-[var(--color-text-muted)]">
-            Battery history feature is not stable for now. Please consider
+            {t("battery.batteryHistoryFeatureWarning")}{" "}
             <a
               href="https://github.com/kot149/zmk-battery-center"
               target="_blank"
               rel="noopener noreferrer"
               className="text-[var(--color-electric)] underline mx-1"
             >
-              zmk-battery-center
+              {t("battery.batteryCenterApp")}
             </a>
-            application instead. <br />
-            If you use battery history feature, be careful about recording
-            interval, if history is recorded too frequently, flush drive might
-            reach to its hardware limit soon.
+            {t("battery.applicationInstead")} <br />
+            {t("battery.beCarefulRecordingInterval")}
           </p>
         </div>
         {!isAvailable && !isLoading && !error && (
@@ -125,9 +125,9 @@ export function BatteryPage() {
               <IconAlertTriangleFilled size={24} className="text-red-500" />
             </div>
             <p className="text-sm text-[var(--color-text-muted)]">
-              Battery history subsystem is not available for your keyboard.
+              {t("battery.batteryHistoryNotAvailable")}
               <br />
-              Make sure your firmware has the
+              {t("battery.makeSureFirmwareHas")}{" "}
               <a
                 href="https://github.com/cormoran/zmk-module-battery-history"
                 target="_blank"
@@ -136,7 +136,7 @@ export function BatteryPage() {
               >
                 cormoran/zmk-module-battery-history
               </a>
-              enabled.
+              {t("battery.enabled")}
             </p>
           </div>
         )}
@@ -167,19 +167,19 @@ export function BatteryPage() {
           ) : (
             <>
               <div className="glass-card data-card">
-                <span className="data-card-label">Central</span>
+                <span className="data-card-label">{t("battery.central")}</span>
                 <span className="data-card-value text-[var(--color-text-muted)]">
                   ---%
                 </span>
               </div>
               <div className="glass-card data-card">
-                <span className="data-card-label">Peripheral</span>
+                <span className="data-card-label">{t("battery.peripheral")}</span>
                 <span className="data-card-value text-[var(--color-text-muted)]">
                   ---%
                 </span>
               </div>
               <div className="glass-card data-card">
-                <span className="data-card-label">Last Updated</span>
+                <span className="data-card-label">{t("battery.lastUpdated")}</span>
                 <span className="data-card-value text-lg">--:--</span>
               </div>
             </>
@@ -189,9 +189,9 @@ export function BatteryPage() {
         {/* Battery History Chart */}
         <div className="glass-card p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-medium text-[var(--color-text-secondary)]">
-              Battery History
-            </h2>
+<h2 className="text-sm font-medium text-[var(--color-text-secondary)]">
+                {t("battery.batteryHistory")}
+              </h2>
 
             {
               <div className="flex flex-wrap gap-2 items-center">
@@ -224,7 +224,7 @@ export function BatteryPage() {
                               fill="none"
                             />
                           </svg>
-                          Loading
+                          {t("battery.loading")}
                         </>
                       )}
                       {dev.deviceName} ({dev.entries.length}/{dev.totalEntries})
@@ -237,14 +237,13 @@ export function BatteryPage() {
           {isLoading && devices.length === 0 ? (
             <div className="h-64 flex items-center justify-center border border-dashed border-[var(--color-border)] rounded-lg">
               <span className="text-[var(--color-text-muted)] text-sm">
-                Loading battery history...
+                {t("battery.loadingBatteryHistory")}
               </span>
             </div>
           ) : devices.length === 0 ? (
             <div className="h-64 flex items-center justify-center border border-dashed border-[var(--color-border)] rounded-lg">
               <span className="text-[var(--color-text-muted)] text-sm">
-                No battery history available. Connect keyboard to view battery
-                history.
+                {t("battery.noBatteryHistoryAvailable")}
               </span>
             </div>
           ) : (
@@ -257,10 +256,8 @@ export function BatteryPage() {
 
         {/* Info Box */}
         <div className="mt-8 p-4 rounded-lg bg-[var(--color-border)] border border-[var(--color-border-hover)]">
-          <p className="text-xs text-[var(--color-text-muted)]">
-            Battery history is recorded on the keyboard and shows data from all
-            connected devices. The timestamp resets when the keyboard restarts,
-            indicated by dashed vertical lines in the chart.
+<p className="text-xs text-[var(--color-text-muted)]">
+            {t("battery.batteryHistoryInfo")}
           </p>
         </div>
 

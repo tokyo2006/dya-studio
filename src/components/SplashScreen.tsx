@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import {
   IconBluetooth,
@@ -30,6 +31,7 @@ export function SplashScreen({
   isConnecting,
   error,
 }: SplashScreenProps) {
+  const { t } = useTranslation();
   // Dialog state
   const [showNotice, setShowNotice] = useState(false);
   const [pendingMethod, setPendingMethod] = useState<ConnectionMethod | null>(
@@ -131,7 +133,7 @@ export function SplashScreen({
         >
           {/* Connect label */}
           <p className="text-sm font-light tracking-wider text-[var(--color-text-secondary)] text-center uppercase">
-            Connect
+            {t("splash.connect")}
           </p>
 
           {/* Connection buttons */}
@@ -142,8 +144,8 @@ export function SplashScreen({
                 onClick={() => handleConnectClick("serial")}
                 disabled={isConnecting}
                 className="relative w-16 h-16 rounded-full flex items-center justify-center border-2 transition-all disabled:opacity-30 disabled:cursor-not-allowed border-[var(--color-electric)] bg-[var(--color-electric)]/10 hover:bg-[var(--color-electric)]/20 hover:border-[var(--color-electric)] hover:shadow-[0_0_20px_rgba(0,212,255,0.3)]"
-                aria-label="Connect via USB"
-                title={"Connect via USB"}
+                aria-label={t("connectionNotice.connectViaUSB")}
+                title={t("connectionNotice.connectViaUSB")}
               >
                 <IconUsb
                   size={28}
@@ -158,8 +160,8 @@ export function SplashScreen({
                 onClick={() => handleConnectClick("ble")}
                 disabled={isConnecting}
                 className="relative w-16 h-16 rounded-full flex items-center justify-center border-2 transition-all disabled:opacity-30 disabled:cursor-not-allowed border-[var(--color-neon)] bg-[var(--color-neon)]/10 hover:bg-[var(--color-neon)]/20 hover:border-[var(--color-neon)] hover:shadow-[0_0_20px_rgba(0,255,204,0.3)]"
-                aria-label="Connect via Bluetooth"
-                title={"Connect via Bluetooth"}
+                aria-label={t("connectionNotice.connectViaBluetooth")}
+                title={t("connectionNotice.connectViaBluetooth")}
               >
                 <IconBluetooth
                   size={28}
@@ -174,8 +176,8 @@ export function SplashScreen({
                 onClick={() => handleConnectClick("demo")}
                 disabled={isConnecting}
                 className="relative w-16 h-16 rounded-full flex items-center justify-center border-2 transition-all disabled:opacity-30 disabled:cursor-not-allowed border-[var(--color-cyber)] bg-[var(--color-cyber)]/10 hover:bg-[var(--color-cyber)]/20 hover:border-[var(--color-cyber)] hover:shadow-[0_0_20px_rgba(139,92,246,0.3)]"
-                aria-label="Try Demo Mode"
-                title="Try Demo Mode (no device required)"
+                aria-label={t("splash.tryDemoMode")}
+                title={t("splash.tryDemoMode")}
               >
                 <IconDeviceDesktop
                   size={28}
@@ -196,11 +198,11 @@ export function SplashScreen({
             animate={{ opacity: 1 }}
             transition={{ delay: 1.2 }}
           >
-            Try
+            {t("splash.tryDemoMode")}
             <span className="text-[var(--color-cyber)] font-bold mx-1">
-              demo mode
+              {t("splash.demoMode")}
             </span>
-            without a keyboard
+            {t("splash.withoutKeyboard")}
             <IconArrowUp size={14} className="inline-block" />
           </motion.p>
         </motion.div>
@@ -248,7 +250,7 @@ export function SplashScreen({
         animate={{ opacity: 1 }}
         transition={{ delay: 1 }}
       >
-        DYA Studio is maintained by
+        {t("splash.maintainedBy")}
         <a
           href="https://x.com/cormoran707"
           target="_blank"
@@ -258,7 +260,7 @@ export function SplashScreen({
           @cormoran707
         </a>
         <br />
-        Special thanks to
+        {t("splash.specialThanksTo")}
         <a
           href="https://zmk.dev"
           target="_blank"
@@ -267,7 +269,7 @@ export function SplashScreen({
         >
           ZMK community
         </a>
-        .
+        {t("splash.period")}
       </motion.p>
 
       {/* Connection Notice Dialog */}

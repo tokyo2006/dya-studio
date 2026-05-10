@@ -4,6 +4,7 @@
  * A dialog that shows data collection notice and connection guide
  * when user attempts to connect via USB or BLE.
  */
+import { useTranslation } from "react-i18next";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   IconAlertCircle,
@@ -34,6 +35,7 @@ export function ConnectionNoticeDialog({
   onAgree,
   onCancel,
 }: ConnectionNoticeDialogProps) {
+  const { t } = useTranslation();
   const isUSB = method === "serial";
   const isBLE = method === "ble";
   const isSerialAvailable = useMemo(() => "serial" in navigator, []);
@@ -67,7 +69,7 @@ export function ConnectionNoticeDialog({
 
           {/* Title */}
           <Dialog.Title className="text-lg font-medium text-[var(--color-text)] text-center mb-2">
-            Connect via {isUSB ? "USB" : "Bluetooth"}
+            {isUSB ? t("connectionNotice.connectViaUSB") : t("connectionNotice.connectViaBluetooth")}
           </Dialog.Title>
 
           {/* Data Collection Notice */}
@@ -78,14 +80,10 @@ export function ConnectionNoticeDialog({
                   size={18}
                   className="text-[var(--color-text-muted)]"
                 />
-                Data Collection Notice
+                {t("connectionNotice.dataCollectionNotice")}
               </h4>
               <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">
-                DYA Studio collects your <strong>keyboard name</strong> for
-                usage analysis purposes. However,{" "}
-                <strong>no other keyboard data</strong> is sent to any servers.
-                All of your keyboard configurations, keymaps, or settings are
-                handled locally.
+                {t("connectionNotice.dataCollectionDescription")}
               </p>
             </div>
           )}
@@ -98,23 +96,20 @@ export function ConnectionNoticeDialog({
                   size={18}
                   className="text-[var(--color-cyber)]"
                 />
-                BLE Not Supported on your Browser
+                {t("connectionNotice.bleNotSupported")}
               </h4>
               <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">
-                Your browser does not support Web Bluetooth API. Please use a
+                {t("connectionNotice.compatibleBrowser")}
                 <a
                   href="https://developer.mozilla.org/docs/Web/API/Web_Bluetooth_API#browser_compatibility"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="underline mx-1"
                 >
-                  compatible browser
+                  {t("connectionNotice.likeChromeEdgeOrBluefy")}
                 </a>
-                like Chrome, Edge, or Bluefy (iOS).
                 <br />
-                BLE device discovery on non-Linux system requires{" "}
-                <strong>cormoran's ZMK fork</strong> + press the{" "}
-                <strong>studio unlock</strong> key on your keyboard.
+                {t("connectionNotice.bleDiscoveryNote")}
               </p>
             </div>
           )}
@@ -125,19 +120,18 @@ export function ConnectionNoticeDialog({
                   size={18}
                   className="text-[var(--color-cyber)]"
                 />
-                Serial Not Supported on your Browser
+                {t("connectionNotice.serialNotSupported")}
               </h4>
               <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">
-                Your browser does not support Web Serial API. Please use a
                 <a
                   href="https://developer.mozilla.org/docs/Web/API/Web_Serial_API#browser_compatibility"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="underline mx-1"
                 >
-                  compatible browser
+                  {t("connectionNotice.compatibleBrowser")}
                 </a>
-                . Note that web serial is not available on mobile devices.
+                . {t("connectionNotice.noteWebSerialNotAvailable")}
               </p>
             </div>
           )}
@@ -150,15 +144,13 @@ export function ConnectionNoticeDialog({
                   size={18}
                   className="text-[var(--color-text-muted)]"
                 />
-                How to Discover your Keyboard via BLE
+                {t("connectionNotice.howToDiscoverKeyboard")}
               </h4>
               <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed mb-2">
-                Press the <strong>studio unlock</strong> key on your keyboard
-                for non-linux systems.
+                {t("connectionNotice.pressStudioUnlockKey")}
               </p>
               <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">
-                cormoran's ZMK fork is also required for BLE device discovery on
-                non-Linux systems.
+                {t("connectionNotice.cormoranZMKForkRequired")}
               </p>
             </div>
           )}
@@ -174,7 +166,7 @@ export function ConnectionNoticeDialog({
                   checked={neverShowAgain}
                   onChange={(e) => setNeverShowAgain(e.target.checked)}
                 />
-                Never show again
+                {t("connectionNotice.neverShowAgain")}
               </label>
             </div>
           )}
@@ -186,7 +178,7 @@ export function ConnectionNoticeDialog({
               onClick={onCancel}
             >
               <IconX size={18} />
-              Cancel
+              {t("common.cancel")}
             </button>
             {canContinue && (
               <button
@@ -195,7 +187,7 @@ export function ConnectionNoticeDialog({
                 onClick={handleAgree}
               >
                 <IconCheck size={18} />
-                Agree to start
+                {t("connectionNotice.agree")}
               </button>
             )}
           </div>

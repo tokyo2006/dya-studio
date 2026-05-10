@@ -1,58 +1,50 @@
+import { useTranslation } from "react-i18next";
 import { useState, useMemo, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import {
   IconSettings,
   IconChevronDown,
   IconAlertTriangleFilled,
+  IconWorld,
 } from "@tabler/icons-react";
 import { useSettings } from "../hooks/useSettings";
 
-// Helper to format milliseconds to human readable
-function formatMs(ms: number): string {
-  if (ms === 0) return "Never";
-  if (ms < 60000) return `${ms / 1000}s`;
-  if (ms < 3600000) return `${ms / 60000}m`;
-  return `${ms / 3600000}h`;
-}
-
-// Convert milliseconds to minutes
 function msToMinutes(ms: number): number {
   return ms / 60000;
 }
 
-// Convert minutes to milliseconds
 function minutesToMs(minutes: number): number {
   return minutes * 60000;
 }
 
-// Preset time options in minutes
 const IDLE_PRESETS = [
-  { value: 0, label: "Never" },
-  { value: 0.5, label: "30 seconds" },
-  { value: 1, label: "1 minute" },
-  { value: 5, label: "5 minutes" },
-  { value: 10, label: "10 minutes" },
-  { value: 30, label: "30 minutes" },
+  { value: 0, label: "never" },
+  { value: 0.5, label: "seconds30" },
+  { value: 1, label: "minute1" },
+  { value: 5, label: "minutes5" },
+  { value: 10, label: "minutes10" },
+  { value: 30, label: "minutes30" },
 ];
 
 const SLEEP_PRESETS = [
-  { value: 0, label: "Never" },
-  { value: 5, label: "5 minutes" },
-  { value: 10, label: "10 minutes" },
-  { value: 15, label: "15 minutes" },
-  { value: 30, label: "30 minutes" },
-  { value: 60, label: "1 hour" },
-  { value: 120, label: "2 hours" },
-  { value: 240, label: "4 hours" },
+  { value: 0, label: "never" },
+  { value: 5, label: "minutes5" },
+  { value: 10, label: "minutes10" },
+  { value: 15, label: "minutes15" },
+  { value: 30, label: "minutes30" },
+  { value: 60, label: "hour1" },
+  { value: 120, label: "hours2" },
+  { value: 240, label: "hours4" },
 ];
 
 interface TimeDropdownProps {
-  value: number; // in milliseconds
+  value: number;
   onChange: (ms: number) => void;
   presets: { value: number; label: string }[];
 }
 
 function TimeDropdown({ value, onChange, presets }: TimeDropdownProps) {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [customInput, setCustomInput] = useState("");
   const [showCustomInput, setShowCustomInput] = useState(false);
@@ -62,7 +54,7 @@ function TimeDropdown({ value, onChange, presets }: TimeDropdownProps) {
 
   const valueInMinutes = msToMinutes(value);
   const matchingPreset = presets.find((p) => p.value === valueInMinutes);
-  const displayText = matchingPreset?.label || `${valueInMinutes} min`;
+  const displayText = matchingPreset ? t(`settings.${matchingPreset.label}`) : `${valueInMinutes} ${t("settings.min")}`;
 
   // Update dropdown position when opened
   useEffect(() => {
@@ -165,7 +157,7 @@ function TimeDropdown({ value, onChange, presets }: TimeDropdownProps) {
                   className="w-full px-4 py-2 text-left text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-border)] transition-colors"
                   onClick={() => setShowCustomInput(true)}
                 >
-                  Custom value...
+                  {t("settings.customValue")}
                 </button>
               ) : (
                 <div className="px-4 py-2 space-y-2">
@@ -219,6 +211,7 @@ function TimeDropdown({ value, onChange, presets }: TimeDropdownProps) {
 }
 
 export function SettingsPage() {
+  const { t, i18n } = useTranslation();
   const { isAvailable, devices, isLoading, error, setActivitySettings } =
     useSettings();
   // Track if user has edited the form
@@ -267,11 +260,25 @@ export function SettingsPage() {
           </div>
           <div>
             <h1 className="text-xl font-medium text-[var(--color-text)]">
-              Settings
+              {t("settings.title")}
             </h1>
             <p className="text-sm text-[var(--color-text-muted)]">
-              Device configuration and power management
+              {t("settings.description")}
             </p>
+          </div>
+        </div>
+
+        <div className="mb-6 flex items-center justify-end">
+          <div className="flex items-center gap-2">
+            <IconWorld size={18} className="text-[var(--color-text-muted)]" />
+            <select
+              className="input-field text-sm py-1.5 pr-8"
+              value={i18n.language}
+              onChange={(e) => i18n.changeLanguage(e.target.value)}
+            >
+              <option value="zh">中文</option>
+              <option value="en">English</option>
+            </select>
           </div>
         </div>
 
@@ -281,9 +288,9 @@ export function SettingsPage() {
               <IconAlertTriangleFilled size={24} className="text-red-500" />
             </div>
             <p className="text-sm text-[var(--color-text-muted)]">
-              Settings RPC subsystem is not available for your keyboard.
+              {t("settings.settingsNotAvailable")}
               <br />
-              Make sure your firmware has the
+              {t("settings.makeSureFirmwareHas")}{" "}
               <a
                 href="https://github.com/cormoran/zmk-module-settings-rpc"
                 target="_blank"
@@ -292,7 +299,7 @@ export function SettingsPage() {
               >
                 cormoran/zmk-module-settings-rpc
               </a>
-              enabled.
+              {t("battery.enabled")}
             </p>
           </div>
         )}
@@ -308,7 +315,7 @@ export function SettingsPage() {
         {isLoading && !centralSettings && (
           <div className="glass-card p-6">
             <p className="text-sm text-[var(--color-text-muted)]">
-              Loading settings...
+              {t("settings.loadingSettings")}
             </p>
           </div>
         )}
@@ -319,17 +326,17 @@ export function SettingsPage() {
             {/* Power Management */}
             <div className="glass-card p-6">
               <h3 className="text-sm font-medium text-[var(--color-text)] mb-4">
-                Power Management
+                {t("settings.powerManagement")}
               </h3>
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-[var(--color-text-secondary)]">
-                      Idle Timeout
+                      {t("settings.idleTimeout")}
                     </p>
                     <p className="text-xs text-[var(--color-text-muted)]">
-                      Time before keyboard enters idle mode
+                      {t("settings.idleTimeoutDescription")}
                     </p>
                   </div>
                   <TimeDropdown
@@ -342,10 +349,10 @@ export function SettingsPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-[var(--color-text-secondary)]">
-                      Sleep Timeout
+                      {t("settings.sleepTimeout")}
                     </p>
                     <p className="text-xs text-[var(--color-text-muted)]">
-                      Time before entering deep sleep
+                      {t("settings.sleepTimeoutDescription")}
                     </p>
                   </div>
                   <TimeDropdown
@@ -361,7 +368,7 @@ export function SettingsPage() {
                     onClick={handleSaveSettings}
                     disabled={isLoading}
                   >
-                    {isLoading ? "Saving..." : "Apply to All Devices"}
+                    {isLoading ? t("settings.saving") : t("settings.applyToAllDevices")}
                   </button>
                 </div>
               </div>
@@ -370,7 +377,7 @@ export function SettingsPage() {
               {devices.length > 0 && (
                 <div className="mt-6 p-4 rounded-lg bg-[var(--color-border)]">
                   <p className="text-xs font-medium text-[var(--color-text-muted)] mb-2">
-                    Current Settings by Device:
+                    {t("settings.currentSettingsByDevice")}
                   </p>
                   <div className="space-y-1">
                     {devices.map((device) => (
@@ -379,8 +386,8 @@ export function SettingsPage() {
                         className="text-xs text-[var(--color-text-secondary)]"
                       >
                         <span className="font-mono">{device.deviceName}:</span>{" "}
-                        Idle: {formatMs(device.idleMs)}, Sleep:{" "}
-                        {formatMs(device.sleepMs)}
+                        Idle: {device.idleMs === 0 ? t("settings.never") : `${msToMinutes(device.idleMs)} ${t("settings.min")}`}, Sleep:{" "}
+                        {device.sleepMs === 0 ? t("settings.never") : `${msToMinutes(device.sleepMs)} ${t("settings.min")}`}
                       </div>
                     ))}
                   </div>

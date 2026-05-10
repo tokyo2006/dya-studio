@@ -4,9 +4,9 @@
  * Grid-based keycode selector with search, category filtering, and modifier support.
  */
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { IconSearch, IconX } from "@tabler/icons-react";
 import {
-  CATEGORY_DISPLAY_NAMES,
   searchKeycodes,
   getKeycodesByCategory,
   type KeycodeCategory,
@@ -53,6 +53,7 @@ export function KeycodeValueSelector({
   keyboardLayout,
   showModifiers = true,
 }: KeycodeValueSelectorProps) {
+  const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] =
     useState<KeycodeCategory>("letters");
@@ -130,7 +131,7 @@ export function KeycodeValueSelector({
         <div className="mb-3">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs text-[var(--color-text-muted)]">
-              Modifiers:
+              {t("keycodes.modifiersLabel")}:
             </span>
             {selectedModifiers !== 0 && (
               <button
@@ -138,7 +139,7 @@ export function KeycodeValueSelector({
                 onClick={handleClearModifiers}
               >
                 <IconX size={12} />
-                Clear
+                {t("keycodes.clearModifiers")}
               </button>
             )}
           </div>
@@ -170,7 +171,7 @@ export function KeycodeValueSelector({
           <input
             ref={searchInputRef}
             type="text"
-            placeholder="Search keycodes..."
+            placeholder={t("keycodes.searchPlaceholder")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-8 pr-8 py-1.5 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] tablet:text-sm text-base text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-electric)]/50"
@@ -207,7 +208,7 @@ export function KeycodeValueSelector({
                 }`}
                 onClick={() => setSelectedCategory(category)}
               >
-                {CATEGORY_DISPLAY_NAMES[category]}
+                {t(`keycodes.${category}`)}
               </button>
             ))}
           </div>

@@ -6,6 +6,7 @@
  */
 import { useState, useMemo } from "react";
 import * as Tooltip from "@radix-ui/react-tooltip";
+import { useTranslation } from "react-i18next";
 import {
   IconArrowBigUp,
   IconBrandWindows,
@@ -59,6 +60,7 @@ export function PhysicalKey({
   onReset,
   scale = 1.0,
 }: PhysicalKeyProps) {
+  const { t } = useTranslation();
   const [isHovered, setIsHovered] = useState(false);
 
   // Calculate dimensions and position with scale
@@ -143,7 +145,7 @@ export function PhysicalKey({
             e.stopPropagation();
             onReset();
           }}
-          title="Reset to original"
+          title={t("physicalKey.resetToOriginal")}
         >
           <IconRotateClockwise
             size={12}

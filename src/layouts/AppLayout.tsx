@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { IconSun, IconMoon, IconPlugConnectedX } from "@tabler/icons-react";
 import DyaLogo from "../assets/dya.svg?react";
 import { useTheme } from "../hooks/useTheme";
@@ -21,6 +22,7 @@ export function AppLayout({
   onDisconnect,
   isConnecting,
 }: AppLayoutProps) {
+  const { t } = useTranslation();
   const { theme, toggleTheme } = useTheme();
 
   return (
@@ -55,7 +57,7 @@ export function AppLayout({
                 className="btn-ghost text-sm flex items-center gap-1.5"
               >
                 <IconPlugConnectedX size={18} />
-                <span className="hidden tablet:inline">Disconnect</span>
+                <span className="hidden tablet:inline">{t("appLayout.disconnect")}</span>
               </button>
             </>
           ) : (
