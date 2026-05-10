@@ -82,7 +82,7 @@ const JIS_LAYOUT_MAPPINGS: KeycodeLayoutMapping[] = [
   },
   {
     code: 0x35,
-    displayName: "半/全", // US: `~
+    displayName: "Half/Full", // US: `~
     name: "Hankaku/Zenkaku",
     aliases: ["Hankaku", "Zenkaku", "Halfwidth/Fullwidth"],
   },
@@ -150,15 +150,15 @@ const JIS_LAYOUT_MAPPINGS: KeycodeLayoutMapping[] = [
   },
   {
     code: 0x90,
-    displayName: "英数",
+    displayName: "Alphanumeric",
   },
   {
     code: 0x91,
-    displayName: "かな",
+    displayName: "Kana",
   },
   {
     code: 0x88,
-    displayName: "かな/カナ",
+    displayName: "Kana/Katakana",
   },
   {
     code: 0x89,
@@ -166,26 +166,26 @@ const JIS_LAYOUT_MAPPINGS: KeycodeLayoutMapping[] = [
   },
   {
     code: 0x8a,
-    displayName: "無変換",
+    displayName: "Non-conversion",
   },
   {
     code: 0x8b,
-    displayName: "変換",
+    displayName: "Conversion",
   },
 ];
 
 const US_FOR_JP_LAYOUT_MAPPINGS: KeycodeLayoutMapping[] = [
   {
     code: 0x90,
-    displayName: "英数",
+    displayName: "Alphanumeric",
   },
   {
     code: 0x91,
-    displayName: "かな",
+    displayName: "Kana",
   },
   {
     code: 0x88,
-    displayName: "かな/カナ",
+    displayName: "Kana/Katakana",
   },
   {
     code: 0x89,
@@ -193,11 +193,11 @@ const US_FOR_JP_LAYOUT_MAPPINGS: KeycodeLayoutMapping[] = [
   },
   {
     code: 0x8a,
-    displayName: "無変換",
+    displayName: "Non-conversion",
   },
   {
     code: 0x8b,
-    displayName: "変換",
+    displayName: "Conversion",
   },
 ];
 

@@ -71,48 +71,47 @@ export function HomePage() {
           </div>
         </div>
         <div className="mb-4 text-xs text-[var(--color-text-muted)] flex items-center gap-1">
-          <IconInfoCircle size={14} /> DYA の読み方はダイアです
+          <IconInfoCircle size={14} /> DYA is pronounced "dia"
         </div>
         <div className="mb-4 text-xs text-[var(--color-text-muted)] flex items-center gap-1">
           <IconInfoCircle size={14} /> cormoran
-          の読み方はコーモラン[kˈɔɚm(ə)rən]です
+          is pronounced "cormoran" [kˈɔɚm(ə)rən]
         </div>
 
         {/* Guide */}
         <div className="glass-card p-6 mb-6">
           <h2 className="text-sm font-medium text-[var(--color-text-secondary)] mb-4">
-            Features - DYA Studio でできること
+            Features - What you can do with DYA Studio
           </h2>
           <div className="text-sm text-[var(--color-text-muted)] space-y-4">
             <ul className="list-disc list-outside space-y-2 pl-5">
               <li>
-                少し使いやすい UI で ZMK Studio
-                と同等のキーマッピングカスタマイズができます
-                <br />
-                You can customize keymaps with a slightly easier UI, equivalent
-                to ZMK Studio.
+                <span className="text-[var(--color-text)]">
+                  Customize keymaps with a slightly easier UI, equivalent to ZMK
+                  Studio.
+                </span>
               </li>
               <li>
-                トラックボールの感度や自動レイヤー切り替えの設定ができます
-                <br />
-                You can configure trackball sensitivity, auto layer switching
-                and various input processor settings.
+                <span className="text-[var(--color-text)]">
+                  Configure trackball sensitivity, auto layer switching and
+                  various input processor settings.
+                </span>
               </li>
               <li>
-                デバイスに保存されたバッテリー消費履歴が確認できます
-                <br />
-                You can check battery consumption history stored on the device.
+                <span className="text-[var(--color-text)]">
+                  Check battery consumption history stored on the device.
+                </span>
               </li>
               <li>
-                BLE 接続先に名前をつけたり、ペアリングを解除したりできます
-                <br />
-                You can name BLE connection targets and unpair them.
+                <span className="text-[var(--color-text)]">
+                  Name BLE connection targets and unpair them.
+                </span>
               </li>
               <li>
-                スリープに入る時間の変更など各種設定ができます
-                <br />
-                You can change various settings such as the time to enter sleep
-                mode.
+                <span className="text-[var(--color-text)]">
+                  Change various settings such as the time to enter sleep
+                  mode.
+                </span>
               </li>
             </ul>
             <p>See also below Q&amp;A section for more details.</p>

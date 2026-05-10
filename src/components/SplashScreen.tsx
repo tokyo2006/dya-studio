@@ -201,12 +201,6 @@ export function SplashScreen({
               demo mode
             </span>
             without a keyboard
-            <br />
-            キーボードがなくても
-            <span className="text-[var(--color-cyber)] font-bold mx-1">
-              デモモード
-            </span>
-            で遊べます
             <IconArrowUp size={14} className="inline-block" />
           </motion.p>
         </motion.div>
