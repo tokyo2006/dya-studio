@@ -77,7 +77,7 @@ describe("ConnectionNoticeDialog", () => {
     );
 
     await user.click(screen.getByLabelText("Never show again"));
-    await user.click(screen.getByText("Agree to start"));
+    await user.click(screen.getByText("Agree and Connect"));
 
     expect(onAgree).toHaveBeenCalledTimes(1);
     expect(hasAcceptedNotice("serial")).toBe(true);
@@ -97,7 +97,7 @@ describe("ConnectionNoticeDialog", () => {
       />,
     );
 
-    await user.click(screen.getByText("Agree to start"));
+    await user.click(screen.getByText("Agree and Connect"));
 
     expect(onAgree).toHaveBeenCalledTimes(1);
     expect(hasAcceptedNotice("serial")).toBe(false);

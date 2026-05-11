@@ -4,6 +4,7 @@
 // learn more: https://github.com/testing-library/jest-dom
 import "@testing-library/jest-dom";
 import { TextEncoder, TextDecoder } from "util";
+import i18n from "./i18n";
 
 // Polyfill TextEncoder and TextDecoder for protobuf support
 global.TextEncoder = TextEncoder;
@@ -61,4 +62,8 @@ Object.defineProperty(window, "matchMedia", {
     removeEventListener: jest.fn(),
     dispatchEvent: jest.fn(),
   })),
+});
+
+beforeEach(() => {
+  void i18n.changeLanguage("en");
 });

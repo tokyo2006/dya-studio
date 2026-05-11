@@ -146,10 +146,10 @@ describe("BatteryPage", () => {
     render(<BatteryPage />);
 
     expect(
-      screen.getByText(/Battery history is recorded on the keyboard/i),
+      screen.getByText(/Battery history is stored in keyboard firmware/i),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/timestamp resets when the keyboard restarts/i),
+      screen.getByText(/History recording interval is determined by the firmware/i),
     ).toBeInTheDocument();
   });
 
@@ -170,9 +170,7 @@ describe("BatteryPage", () => {
 
     render(<BatteryPage />);
 
-    const clearButton = screen.getByRole("button", {
-      name: /clear battery history/i,
-    });
+    const clearButton = screen.getByRole("button", { name: /clear history/i });
     expect(clearButton).toBeInTheDocument();
   });
 
@@ -187,9 +185,7 @@ describe("BatteryPage", () => {
 
     render(<BatteryPage />);
 
-    const clearButton = screen.getByRole("button", {
-      name: /clear battery history/i,
-    });
+    const clearButton = screen.getByRole("button", { name: /clear history/i });
     expect(clearButton).toBeDisabled();
   });
 
@@ -210,9 +206,7 @@ describe("BatteryPage", () => {
 
     render(<BatteryPage />);
 
-    const clearButton = screen.getByRole("button", {
-      name: /clear battery history/i,
-    });
+    const clearButton = screen.getByRole("button", { name: /clear history/i });
     expect(clearButton).toBeDisabled();
   });
 
@@ -234,9 +228,7 @@ describe("BatteryPage", () => {
 
     render(<BatteryPage />);
 
-    const clearButton = screen.getByRole("button", {
-      name: /clear battery history/i,
-    });
+    const clearButton = screen.getByRole("button", { name: /clear history/i });
     await user.click(clearButton);
 
     expect(screen.getByText("Clear Battery History?")).toBeInTheDocument();
@@ -266,9 +258,7 @@ describe("BatteryPage", () => {
 
     render(<BatteryPage />);
 
-    const clearButton = screen.getByRole("button", {
-      name: /clear battery history/i,
-    });
+    const clearButton = screen.getByRole("button", { name: /clear history/i });
     await user.click(clearButton);
 
     const cancelButton = screen.getByRole("button", { name: /cancel/i });
@@ -299,9 +289,7 @@ describe("BatteryPage", () => {
 
     render(<BatteryPage />);
 
-    const clearButton = screen.getByRole("button", {
-      name: /clear battery history/i,
-    });
+    const clearButton = screen.getByRole("button", { name: /clear history/i });
     await user.click(clearButton);
 
     // Find the confirm button in the dialog (not the initial clear button)
