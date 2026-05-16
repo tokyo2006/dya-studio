@@ -30,3 +30,4 @@ coverage
 _codeql_detected_source_root
 original_img
 *.code-workspace
+.sisyphus/

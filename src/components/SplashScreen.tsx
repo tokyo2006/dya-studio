@@ -1,11 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
-import {
-  IconBluetooth,
-  IconUsb,
-  IconDeviceDesktop,
-  IconArrowUp,
-} from "@tabler/icons-react";
+import { IconUsb, IconDeviceDesktop, IconArrowUp } from "@tabler/icons-react";
 import { useState, useCallback } from "react";
 import type { ConnectionMethod } from "./DeviceConnection";
 import { ConnectionNoticeDialog } from "./ConnectionNoticeDialog";
@@ -156,7 +151,7 @@ export function SplashScreen({
                   <DisabledSlash color="bg-[var(--color-electric)]" />
                 )}
               </button>
-              <button
+              {/* <button
                 onClick={() => handleConnectClick("ble")}
                 disabled={isConnecting}
                 className="relative w-16 h-16 rounded-full flex items-center justify-center border-2 transition-all disabled:opacity-30 disabled:cursor-not-allowed border-[var(--color-neon)] bg-[var(--color-neon)]/10 hover:bg-[var(--color-neon)]/20 hover:border-[var(--color-neon)] hover:shadow-[0_0_20px_rgba(0,255,204,0.3)]"
@@ -171,7 +166,7 @@ export function SplashScreen({
                 {isConnecting && (
                   <DisabledSlash color="bg-[var(--color-neon)]" />
                 )}
-              </button>
+              </button> */}
               <button
                 onClick={() => handleConnectClick("demo")}
                 disabled={isConnecting}
