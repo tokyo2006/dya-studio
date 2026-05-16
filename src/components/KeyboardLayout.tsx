@@ -286,10 +286,8 @@ export function KeyboardLayout({
               ...module.attrs,
               x: module.attrs.x + (rawBounds.offsetX / BASE_UNIT_SIZE) * 100,
               y: module.attrs.y + (rawBounds.offsetY / BASE_UNIT_SIZE) * 100,
-              rx:
-                module.attrs.rx + (rawBounds.offsetX / BASE_UNIT_SIZE) * 100,
-              ry:
-                module.attrs.ry + (rawBounds.offsetY / BASE_UNIT_SIZE) * 100,
+              rx: module.attrs.rx + (rawBounds.offsetX / BASE_UNIT_SIZE) * 100,
+              ry: module.attrs.ry + (rawBounds.offsetY / BASE_UNIT_SIZE) * 100,
             },
           };
 

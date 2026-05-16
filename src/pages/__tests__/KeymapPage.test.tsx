@@ -28,7 +28,9 @@ import { usePhysicalLayoutModules } from "../../hooks/usePhysicalLayoutModules";
 
 const mockUseKeymap = useKeymap as jest.MockedFunction<typeof useKeymap>;
 const mockUsePhysicalLayoutModules =
-  usePhysicalLayoutModules as jest.MockedFunction<typeof usePhysicalLayoutModules>;
+  usePhysicalLayoutModules as jest.MockedFunction<
+    typeof usePhysicalLayoutModules
+  >;
 
 describe("KeymapPage", () => {
   // Default mock context values
