@@ -22,9 +22,13 @@ global.ResizeObserver = jest.fn().mockImplementation(() => ({
 
 // Mock the useKeymap hook
 jest.mock("../../hooks/useKeymap");
+jest.mock("../../hooks/usePhysicalLayoutModules");
 import { useKeymap } from "../../hooks/useKeymap";
+import { usePhysicalLayoutModules } from "../../hooks/usePhysicalLayoutModules";
 
 const mockUseKeymap = useKeymap as jest.MockedFunction<typeof useKeymap>;
+const mockUsePhysicalLayoutModules =
+  usePhysicalLayoutModules as jest.MockedFunction<typeof usePhysicalLayoutModules>;
 
 describe("KeymapPage", () => {
   // Default mock context values
@@ -118,6 +122,14 @@ describe("KeymapPage", () => {
       getBindingDisplayName: jest.fn().mockReturnValue("Key"),
       clearUnlockRequired: jest.fn(),
     });
+
+    mockUsePhysicalLayoutModules.mockReturnValue({
+      isAvailable: false,
+      modules: [],
+      isLoading: false,
+      error: null,
+      loadModules: jest.fn(),
+    });
   });
 
   /**
@@ -140,6 +152,29 @@ describe("KeymapPage", () => {
         </ZMKAppProvider>
       </ConnectionContext.Provider>,
     );
+  };
+
+  const mockPhysicalLayoutModule = {
+    kind: "trackball" as const,
+    identifier: "trackball0",
+    displayName: "Primary Trackball",
+    label: "Trackball",
+    enabled: true,
+    attrs: {
+      width: 34,
+      height: 34,
+      x: 350,
+      y: 25,
+      r: 0,
+      rx: 0,
+      ry: 0,
+    },
+    links: [
+      {
+        deviceIdentifier: "trackball_sensor",
+        subsystemIdentifier: "zmk__trackball",
+      },
+    ],
   };
 
   describe("Disconnected State", () => {
@@ -256,6 +291,28 @@ describe("KeymapPage", () => {
 
       const saveButton = screen.getByText("Save").closest("button");
       expect(saveButton).not.toBeDisabled();
+    });
+
+    it("should render physical layout modules in the preview", () => {
+      mockUsePhysicalLayoutModules.mockReturnValue({
+        isAvailable: true,
+        modules: [mockPhysicalLayoutModule],
+        isLoading: false,
+        error: null,
+        loadModules: jest.fn(),
+      });
+
+      renderComponent(
+        { isConnected: true },
+        {
+          keymap: mockKeymap,
+          physicalLayouts: mockPhysicalLayouts,
+          behaviors: mockBehaviors,
+        },
+      );
+
+      expect(screen.getByLabelText("Primary Trackball")).toBeInTheDocument();
+      expect(screen.getByText("Trackball")).toBeInTheDocument();
     });
   });
 
