@@ -15,6 +15,9 @@ const SCALING_MAX = 10;
 const SCALING_STEPS = 100;
 const SCALING_BUTTON_STEP = 0.05;
 const SCALING_PRECISION = 1000;
+const ROTATION_MIN = -180;
+const ROTATION_MAX = 180;
+const ROTATION_STEP = 1;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -234,7 +237,8 @@ export function TrackballPage() {
 
   const handleRotationChange = (degrees: number) => {
     if (!processor) return;
-    rotationSave.setPendingValue(degrees, async (value) => {
+    const clampedDegrees = clamp(degrees, ROTATION_MIN, ROTATION_MAX);
+    rotationSave.setPendingValue(clampedDegrees, async (value) => {
       await setRotation(processor.id, value);
     });
   };
@@ -608,39 +612,66 @@ export function TrackballPage() {
               </div>
 
               {rotationEnabled && (
-                <div>
-                  {/* Slider centered at 0, ranging from -180 to +180 */}
-                  <input
-                    type="range"
-                    min={-180}
-                    max={180}
-                    step={1}
-                    value={displayRotation}
-                    onChange={(e) =>
-                      handleRotationChange(Number(e.target.value))
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    aria-label="Decrease rotation"
+                    onClick={() =>
+                      handleRotationChange(displayRotation - ROTATION_STEP)
                     }
-                    className="w-full h-2 rounded-lg appearance-none cursor-pointer
-                      bg-[var(--color-border)]
-                      [&::-webkit-slider-thumb]:appearance-none
-                      [&::-webkit-slider-thumb]:w-4
-                      [&::-webkit-slider-thumb]:h-4
-                      [&::-webkit-slider-thumb]:rounded-full
-                      [&::-webkit-slider-thumb]:bg-[var(--color-electric)]
-                      [&::-webkit-slider-thumb]:cursor-pointer
-                      [&::-webkit-slider-thumb]:shadow-[0_0_8px_var(--color-electric)]
-                      [&::-moz-range-thumb]:w-4
-                      [&::-moz-range-thumb]:h-4
-                      [&::-moz-range-thumb]:rounded-full
-                      [&::-moz-range-thumb]:bg-[var(--color-electric)]
-                      [&::-moz-range-thumb]:border-0
-                      [&::-moz-range-thumb]:cursor-pointer
-                      [&::-moz-range-thumb]:shadow-[0_0_8px_var(--color-electric)]"
-                  />
-                  <div className="flex justify-between mt-2 text-xs text-[var(--color-text-muted)]">
-                    <span>-180°</span>
-                    <span>0°</span>
-                    <span>+180°</span>
+                    disabled={displayRotation <= ROTATION_MIN}
+                    className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border)] hover:text-[var(--color-text)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <IconChevronLeft size={18} />
+                  </button>
+
+                  {/* Slider centered at 0, ranging from -180 to +180 */}
+                  <div className="min-w-0 flex-1">
+                    <input
+                      type="range"
+                      aria-label="Rotation"
+                      min={ROTATION_MIN}
+                      max={ROTATION_MAX}
+                      step={ROTATION_STEP}
+                      value={displayRotation}
+                      onChange={(e) =>
+                        handleRotationChange(Number(e.target.value))
+                      }
+                      className="w-full h-2 rounded-lg appearance-none cursor-pointer
+                        bg-[var(--color-border)]
+                        [&::-webkit-slider-thumb]:appearance-none
+                        [&::-webkit-slider-thumb]:w-4
+                        [&::-webkit-slider-thumb]:h-4
+                        [&::-webkit-slider-thumb]:rounded-full
+                        [&::-webkit-slider-thumb]:bg-[var(--color-electric)]
+                        [&::-webkit-slider-thumb]:cursor-pointer
+                        [&::-webkit-slider-thumb]:shadow-[0_0_8px_var(--color-electric)]
+                        [&::-moz-range-thumb]:w-4
+                        [&::-moz-range-thumb]:h-4
+                        [&::-moz-range-thumb]:rounded-full
+                        [&::-moz-range-thumb]:bg-[var(--color-electric)]
+                        [&::-moz-range-thumb]:border-0
+                        [&::-moz-range-thumb]:cursor-pointer
+                        [&::-moz-range-thumb]:shadow-[0_0_8px_var(--color-electric)]"
+                    />
+                    <div className="flex justify-between mt-2 text-xs text-[var(--color-text-muted)]">
+                      <span>-180°</span>
+                      <span>0°</span>
+                      <span>+180°</span>
+                    </div>
                   </div>
+
+                  <button
+                    type="button"
+                    aria-label="Increase rotation"
+                    onClick={() =>
+                      handleRotationChange(displayRotation + ROTATION_STEP)
+                    }
+                    disabled={displayRotation >= ROTATION_MAX}
+                    className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border)] hover:text-[var(--color-text)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <IconChevronRight size={18} />
+                  </button>
                 </div>
               )}
             </div>

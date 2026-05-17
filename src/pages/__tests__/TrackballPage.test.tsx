@@ -228,6 +228,35 @@ describe("TrackballPage", () => {
     jest.useRealTimers();
   });
 
+  it("should call setRotation when rotation step button is clicked", async () => {
+    jest.useFakeTimers();
+    const user = userEvent.setup({ delay: null });
+    const mockSetRotation = jest.fn();
+
+    mockUseRuntimeInputProcessor.mockReturnValue(
+      createMockHookReturn({
+        processors: [
+          createMockProcessor({
+            rotationDegrees: 90,
+          }),
+        ],
+        setRotation: mockSetRotation,
+      }),
+    );
+
+    render(<TrackballPage />);
+
+    await user.click(screen.getByLabelText("Increase rotation"));
+
+    await act(async () => {
+      jest.advanceTimersByTime(1000);
+    });
+
+    expect(mockSetRotation).toHaveBeenCalledWith(0, 91);
+
+    jest.useRealTimers();
+  });
+
   it("should display current configuration details", () => {
     mockUseRuntimeInputProcessor.mockReturnValue(
       createMockHookReturn({
