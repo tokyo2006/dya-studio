@@ -165,7 +165,7 @@ describe("TrackballPage", () => {
     expect(switches[0]).toBeInTheDocument();
   });
 
-  it("should call setScaling when speed button is clicked", async () => {
+  it("should call setScaling when scaling step button is clicked", async () => {
     jest.useFakeTimers();
     const user = userEvent.setup({ delay: null });
     const mockSetScaling = jest.fn();
@@ -179,16 +179,44 @@ describe("TrackballPage", () => {
 
     render(<TrackballPage />);
 
-    // Click on 2.0x speed preset button
-    const speedButton = screen.getByText("2.0x");
-    await user.click(speedButton);
+    await user.click(screen.getByLabelText("Increase scaling"));
 
     // Fast-forward time to trigger debounced auto-save (1000ms)
     await act(async () => {
       jest.advanceTimersByTime(1000);
     });
 
-    expect(mockSetScaling).toHaveBeenCalledWith(0, 2, 1);
+    expect(mockSetScaling).toHaveBeenCalledWith(0, 21, 20);
+
+    jest.useRealTimers();
+  });
+
+  it("should increase scaling from decimal step values", async () => {
+    jest.useFakeTimers();
+    const user = userEvent.setup({ delay: null });
+    const mockSetScaling = jest.fn();
+
+    mockUseRuntimeInputProcessor.mockReturnValue(
+      createMockHookReturn({
+        processors: [
+          createMockProcessor({
+            scaleMultiplier: 23,
+            scaleDivisor: 20,
+          }),
+        ],
+        setScaling: mockSetScaling,
+      }),
+    );
+
+    render(<TrackballPage />);
+
+    await user.click(screen.getByLabelText("Increase scaling"));
+
+    await act(async () => {
+      jest.advanceTimersByTime(1000);
+    });
+
+    expect(mockSetScaling).toHaveBeenCalledWith(0, 6, 5);
 
     jest.useRealTimers();
   });
@@ -226,6 +254,35 @@ describe("TrackballPage", () => {
 
     // Disabling rotation should set it to 0
     expect(mockSetRotation).toHaveBeenCalledWith(0, 0);
+
+    jest.useRealTimers();
+  });
+
+  it("should call setRotation when rotation step button is clicked", async () => {
+    jest.useFakeTimers();
+    const user = userEvent.setup({ delay: null });
+    const mockSetRotation = jest.fn();
+
+    mockUseRuntimeInputProcessor.mockReturnValue(
+      createMockHookReturn({
+        processors: [
+          createMockProcessor({
+            rotationDegrees: 90,
+          }),
+        ],
+        setRotation: mockSetRotation,
+      }),
+    );
+
+    render(<TrackballPage />);
+
+    await user.click(screen.getByLabelText("Increase rotation"));
+
+    await act(async () => {
+      jest.advanceTimersByTime(1000);
+    });
+
+    expect(mockSetRotation).toHaveBeenCalledWith(0, 91);
 
     jest.useRealTimers();
   });
