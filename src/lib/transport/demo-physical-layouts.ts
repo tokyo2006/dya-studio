@@ -23,9 +23,9 @@ export class PhysicalLayoutsHandler {
               ],
               trackball: {
                 attrs: {
-                  x: 425,
-                  y: 125,
-                  size: 34,
+                  x: 620,
+                  y: 760,
+                  size: 80,
                 },
               },
             },
@@ -41,10 +41,10 @@ export class PhysicalLayoutsHandler {
               ],
               touchPad: {
                 attrs: {
-                  width: 180,
-                  height: 120,
-                  x: 625,
-                  y: 180,
+                  width: 220,
+                  height: 130,
+                  x: 760,
+                  y: 735,
                   r: 0,
                   rx: 0,
                   ry: 0,
@@ -56,9 +56,9 @@ export class PhysicalLayoutsHandler {
             {
               enabled: true,
               attrs: {
-                x: 600,
-                y: 80,
-                size: 18,
+                x: 1040,
+                y: 790,
+                size: 40,
               },
             },
           ],
