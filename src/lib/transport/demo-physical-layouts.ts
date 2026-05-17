@@ -23,9 +23,9 @@ export class PhysicalLayoutsHandler {
               ],
               trackball: {
                 attrs: {
-                  x: 620,
-                  y: 760,
-                  size: 80,
+                  x: 200,
+                  y: 660,
+                  size: 150,
                 },
               },
             },
@@ -43,8 +43,8 @@ export class PhysicalLayoutsHandler {
                 attrs: {
                   width: 220,
                   height: 130,
-                  x: 760,
-                  y: 735,
+                  x: 400,
+                  y: 660,
                   r: 0,
                   rx: 0,
                   ry: 0,
@@ -56,9 +56,9 @@ export class PhysicalLayoutsHandler {
             {
               enabled: true,
               attrs: {
-                x: 1040,
-                y: 790,
-                size: 40,
+                x: 700,
+                y: 660,
+                size: 150,
               },
             },
           ],
