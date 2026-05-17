@@ -60,10 +60,7 @@ function scalingValueToFraction(value: number): {
 }
 
 function scalingValueToButtonStep(value: number, direction: -1 | 1): number {
-  const stepCount =
-    direction > 0
-      ? Math.floor(value / SCALING_BUTTON_STEP) + 1
-      : Math.ceil(value / SCALING_BUTTON_STEP) - 1;
+  const stepCount = Math.round(value / SCALING_BUTTON_STEP) + direction;
   return clamp(
     stepCount * SCALING_BUTTON_STEP,
     SCALING_MIN,
@@ -72,9 +69,7 @@ function scalingValueToButtonStep(value: number, direction: -1 | 1): number {
 }
 
 function formatScalingValue(value: number): string {
-  if (value < 1) return value.toFixed(2);
-  if (value < 10) return value.toFixed(1);
-  return Math.round(value).toString();
+  return value.toFixed(2);
 }
 
 export function TrackballPage() {

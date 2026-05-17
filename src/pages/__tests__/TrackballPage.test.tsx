@@ -142,7 +142,7 @@ describe("TrackballPage", () => {
 
     expect(screen.getByText("Scaling")).toBeInTheDocument();
     // Check for the displayed scaling value
-    expect(screen.getByText("2.0x")).toBeInTheDocument();
+    expect(screen.getByText("2.00x")).toBeInTheDocument();
   });
 
   it("should display rotation settings", () => {
@@ -187,6 +187,36 @@ describe("TrackballPage", () => {
     });
 
     expect(mockSetScaling).toHaveBeenCalledWith(0, 21, 20);
+
+    jest.useRealTimers();
+  });
+
+  it("should increase scaling from decimal step values", async () => {
+    jest.useFakeTimers();
+    const user = userEvent.setup({ delay: null });
+    const mockSetScaling = jest.fn();
+
+    mockUseRuntimeInputProcessor.mockReturnValue(
+      createMockHookReturn({
+        processors: [
+          createMockProcessor({
+            scaleMultiplier: 23,
+            scaleDivisor: 20,
+          }),
+        ],
+        setScaling: mockSetScaling,
+      }),
+    );
+
+    render(<TrackballPage />);
+
+    await user.click(screen.getByLabelText("Increase scaling"));
+
+    await act(async () => {
+      jest.advanceTimersByTime(1000);
+    });
+
+    expect(mockSetScaling).toHaveBeenCalledWith(0, 6, 5);
 
     jest.useRealTimers();
   });
@@ -275,6 +305,6 @@ describe("TrackballPage", () => {
     // Test that the scaling section shows the calculated value
     expect(screen.getByText("Scaling")).toBeInTheDocument();
     // The final scaling value should be displayed (3/2 = 1.50x)
-    expect(screen.getByText("1.5x")).toBeInTheDocument();
+    expect(screen.getByText("1.50x")).toBeInTheDocument();
   });
 });
