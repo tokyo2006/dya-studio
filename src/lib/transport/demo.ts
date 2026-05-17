@@ -26,6 +26,10 @@ import {
   RUNTIME_SENSOR_ROTATE_IDENTIFIER,
 } from "./demo-runtime-sensor-rotate";
 import {
+  PhysicalLayoutsHandler,
+  PHYSICAL_LAYOUTS_IDENTIFIER,
+} from "./demo-physical-layouts";
+import {
   Request as BLERequest,
   Response as BLEResponse,
 } from "../../proto/zmk/ble_management/ble_management";
@@ -45,6 +49,10 @@ import {
   Request as RuntimeSensorRotateRequest,
   Response as RuntimeSensorRotateResponse,
 } from "../../proto/zmk/runtime_sensor_rotate/runtime_sensor_rotate";
+import {
+  Request as PhysicalLayoutsRequest,
+  Response as PhysicalLayoutsResponse,
+} from "../../proto/zmk/physical_layouts/physical_layouts";
 import {
   ANSI60,
   ORTHO,
@@ -152,6 +160,7 @@ class Keyboard {
   private batteryHistoryHandler = new BatteryHistoryHandler();
   private runtimeInputProcessorHandler = new RuntimeInputProcessorHandler();
   private runtimeSensorRotateHandler = new RuntimeSensorRotateHandler();
+  private physicalLayoutsHandler = new PhysicalLayoutsHandler();
 
   // Custom subsystems registry
   private readonly BLE_SUBSYSTEM_INDEX = 0;
@@ -159,6 +168,7 @@ class Keyboard {
   private readonly BATTERY_HISTORY_SUBSYSTEM_INDEX = 2;
   private readonly RUNTIME_INPUT_PROCESSOR_SUBSYSTEM_INDEX = 3;
   private readonly RUNTIME_SENSOR_ROTATE_SUBSYSTEM_INDEX = 4;
+  private readonly PHYSICAL_LAYOUTS_SUBSYSTEM_INDEX = 5;
 
   private customSubsystems = [
     {
@@ -184,6 +194,11 @@ class Keyboard {
     {
       index: this.RUNTIME_SENSOR_ROTATE_SUBSYSTEM_INDEX,
       identifier: RUNTIME_SENSOR_ROTATE_IDENTIFIER,
+      uiUrl: [],
+    },
+    {
+      index: this.PHYSICAL_LAYOUTS_SUBSYSTEM_INDEX,
+      identifier: PHYSICAL_LAYOUTS_IDENTIFIER,
       uiUrl: [],
     },
   ];
@@ -386,6 +401,17 @@ class Keyboard {
             RuntimeSensorRotateResponse.encode(sensorResp).finish();
         } catch (e) {
           console.error("Runtime Sensor Rotate subsystem error:", e);
+        }
+      } else if (subsystemIndex === this.PHYSICAL_LAYOUTS_SUBSYSTEM_INDEX) {
+        // Physical Layouts
+        try {
+          const physicalLayoutsReq = PhysicalLayoutsRequest.decode(data);
+          const physicalLayoutsResp =
+            this.physicalLayoutsHandler.process(physicalLayoutsReq);
+          responseData =
+            PhysicalLayoutsResponse.encode(physicalLayoutsResp).finish();
+        } catch (e) {
+          console.error("Physical Layouts subsystem error:", e);
         }
       }
 
