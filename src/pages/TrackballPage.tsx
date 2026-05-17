@@ -13,6 +13,7 @@ import { useDebouncedSave } from "../hooks/useDebouncedSave";
 const SCALING_MIN = 0.1;
 const SCALING_MAX = 10;
 const SCALING_STEPS = 100;
+const SCALING_BUTTON_STEP = 0.05;
 const SCALING_PRECISION = 1000;
 
 function clamp(value: number, min: number, max: number): number {
@@ -53,6 +54,18 @@ function scalingValueToFraction(value: number): {
     multiplier: multiplier / divisorValue,
     divisor: divisor / divisorValue,
   };
+}
+
+function scalingValueToButtonStep(value: number, direction: -1 | 1): number {
+  const stepCount =
+    direction > 0
+      ? Math.floor(value / SCALING_BUTTON_STEP) + 1
+      : Math.ceil(value / SCALING_BUTTON_STEP) - 1;
+  return clamp(
+    stepCount * SCALING_BUTTON_STEP,
+    SCALING_MIN,
+    SCALING_MAX,
+  );
 }
 
 function formatScalingValue(value: number): string {
@@ -187,11 +200,9 @@ export function TrackballPage() {
   const scalingSliderIndex = scalingValueToIndex(finalScalingValue);
 
   // Handler functions using useDebouncedSave
-  const handleScalingSliderChange = (index: number) => {
+  const handleScalingValueChange = (value: number) => {
     if (!processor) return;
-    const { multiplier, divisor } = scalingValueToFraction(
-      scalingIndexToValue(index),
-    );
+    const { multiplier, divisor } = scalingValueToFraction(value);
     scalingMultiplierSave.cancel();
     scalingDivisorSave.cancel();
     scalingMultiplierSave.setPendingValue(multiplier, async () => {
@@ -200,6 +211,16 @@ export function TrackballPage() {
     scalingDivisorSave.setPendingValue(divisor, async () => {
       // Multiplier save writes both values together.
     });
+  };
+
+  const handleScalingSliderChange = (index: number) => {
+    handleScalingValueChange(scalingIndexToValue(index));
+  };
+
+  const handleScalingStepChange = (direction: -1 | 1) => {
+    handleScalingValueChange(
+      scalingValueToButtonStep(finalScalingValue, direction),
+    );
   };
 
   const handleRotationEnabledChange = (enabled: boolean) => {
@@ -506,10 +527,8 @@ export function TrackballPage() {
                 <button
                   type="button"
                   aria-label="Decrease scaling"
-                  onClick={() =>
-                    handleScalingSliderChange(scalingSliderIndex - 1)
-                  }
-                  disabled={scalingSliderIndex <= 0}
+                  onClick={() => handleScalingStepChange(-1)}
+                  disabled={finalScalingValue <= SCALING_MIN}
                   className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border)] hover:text-[var(--color-text)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
                   <IconChevronLeft size={18} />
@@ -552,10 +571,8 @@ export function TrackballPage() {
                 <button
                   type="button"
                   aria-label="Increase scaling"
-                  onClick={() =>
-                    handleScalingSliderChange(scalingSliderIndex + 1)
-                  }
-                  disabled={scalingSliderIndex >= SCALING_STEPS}
+                  onClick={() => handleScalingStepChange(1)}
+                  disabled={finalScalingValue >= SCALING_MAX}
                   className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border)] hover:text-[var(--color-text)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
                   <IconChevronRight size={18} />

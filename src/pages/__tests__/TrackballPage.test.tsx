@@ -186,7 +186,7 @@ describe("TrackballPage", () => {
       jest.advanceTimersByTime(1000);
     });
 
-    expect(mockSetScaling).toHaveBeenCalledWith(0, 1047, 1000);
+    expect(mockSetScaling).toHaveBeenCalledWith(0, 21, 20);
 
     jest.useRealTimers();
   });
