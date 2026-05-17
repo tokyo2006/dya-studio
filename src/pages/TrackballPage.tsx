@@ -11,7 +11,7 @@ import { AxisSnapMode } from "../proto/zmk/runtime_input_processor/runtime_input
 import { useDebouncedSave } from "../hooks/useDebouncedSave";
 
 const SCALING_MIN = 0.1;
-const SCALING_MAX = 300;
+const SCALING_MAX = 10;
 const SCALING_STEPS = 100;
 const SCALING_PRECISION = 1000;
 
@@ -494,7 +494,7 @@ export function TrackballPage() {
                     Scaling
                   </h3>
                   <p className="text-xs text-[var(--color-text-muted)]">
-                    Adjust sensitivity from 0.1x to 300x
+                    Adjust sensitivity from 0.1x to 10x
                   </p>
                 </div>
                 <span className="text-lg font-mono text-[var(--color-electric)]">
@@ -545,7 +545,7 @@ export function TrackballPage() {
                   />
                   <div className="mt-2 flex justify-between text-xs text-[var(--color-text-muted)]">
                     <span>0.1x</span>
-                    <span>300x</span>
+                    <span>10x</span>
                   </div>
                 </div>
 
