@@ -142,7 +142,7 @@ describe("TrackballPage", () => {
 
     expect(screen.getByText("Scaling")).toBeInTheDocument();
     // Check for the displayed scaling value
-    expect(screen.getByText("2.00x")).toBeInTheDocument();
+    expect(screen.getByText("2.0x")).toBeInTheDocument();
   });
 
   it("should display rotation settings", () => {
@@ -165,7 +165,7 @@ describe("TrackballPage", () => {
     expect(switches[0]).toBeInTheDocument();
   });
 
-  it("should call setScaling when speed button is clicked", async () => {
+  it("should call setScaling when scaling step button is clicked", async () => {
     jest.useFakeTimers();
     const user = userEvent.setup({ delay: null });
     const mockSetScaling = jest.fn();
@@ -179,16 +179,14 @@ describe("TrackballPage", () => {
 
     render(<TrackballPage />);
 
-    // Click on 2.0x speed preset button
-    const speedButton = screen.getByText("2.0x");
-    await user.click(speedButton);
+    await user.click(screen.getByLabelText("Increase scaling"));
 
     // Fast-forward time to trigger debounced auto-save (1000ms)
     await act(async () => {
       jest.advanceTimersByTime(1000);
     });
 
-    expect(mockSetScaling).toHaveBeenCalledWith(0, 2, 1);
+    expect(mockSetScaling).toHaveBeenCalledWith(0, 138, 125);
 
     jest.useRealTimers();
   });
@@ -248,6 +246,6 @@ describe("TrackballPage", () => {
     // Test that the scaling section shows the calculated value
     expect(screen.getByText("Scaling")).toBeInTheDocument();
     // The final scaling value should be displayed (3/2 = 1.50x)
-    expect(screen.getByText("1.50x")).toBeInTheDocument();
+    expect(screen.getByText("1.5x")).toBeInTheDocument();
   });
 });
