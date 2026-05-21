@@ -1,29 +1,77 @@
 import { useTranslation } from "react-i18next";
 import { useState, useRef } from "react";
-import { IconAlertTriangleFilled, IconPointer } from "@tabler/icons-react";
+import {
+  IconAlertTriangleFilled,
+  IconChevronLeft,
+  IconChevronRight,
+  IconPointer,
+} from "@tabler/icons-react";
 import * as Switch from "@radix-ui/react-switch";
 import { useRuntimeInputProcessor } from "../hooks/useRuntimeInputProcessor";
 import { AxisSnapMode } from "../proto/zmk/runtime_input_processor/runtime_input_processor";
 import { useDebouncedSave } from "../hooks/useDebouncedSave";
 
-// Scaling preset types
-type ScalingPresetType = "wheel" | "scroll";
+const SCALING_MIN = 0.1;
+const SCALING_MAX = 10;
+const SCALING_STEPS = 100;
+const SCALING_BUTTON_STEP = 0.05;
+const SCALING_PRECISION = 1000;
+const ROTATION_MIN = -180;
+const ROTATION_MAX = 180;
+const ROTATION_STEP = 1;
 
-// Wheel/mouse preset options (multipliers as percentage)
-const WHEEL_PRESETS = [
-  { multiplier: 50, divisor: 100, label: "0.5x" },
-  { multiplier: 75, divisor: 100, label: "0.75x" },
-  { multiplier: 1, divisor: 1, label: "1.0x" },
-  { multiplier: 3, divisor: 2, label: "1.5x" },
-  { multiplier: 2, divisor: 1, label: "2.0x" },
-];
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
 
-// Scroll preset options (shown as fractions)
-const SCROLL_PRESETS = [
-  { multiplier: 1, divisor: 30, label: "1/30" },
-  { multiplier: 1, divisor: 60, label: "1/60" },
-  { multiplier: 1, divisor: 120, label: "1/120" },
-];
+function gcd(a: number, b: number): number {
+  a = Math.abs(a);
+  b = Math.abs(b);
+  while (b !== 0) {
+    const temp = b;
+    b = a % b;
+    a = temp;
+  }
+  return a;
+}
+
+function scalingIndexToValue(index: number): number {
+  const normalized = clamp(index, 0, SCALING_STEPS) / SCALING_STEPS;
+  return SCALING_MIN * (SCALING_MAX / SCALING_MIN) ** normalized;
+}
+
+function scalingValueToIndex(value: number): number {
+  const clampedValue = clamp(value, SCALING_MIN, SCALING_MAX);
+  const normalized =
+    Math.log(clampedValue / SCALING_MIN) / Math.log(SCALING_MAX / SCALING_MIN);
+  return Math.round(normalized * SCALING_STEPS);
+}
+
+function scalingValueToFraction(value: number): {
+  multiplier: number;
+  divisor: number;
+} {
+  const multiplier = Math.round(value * SCALING_PRECISION);
+  const divisor = SCALING_PRECISION;
+  const divisorValue = gcd(multiplier, divisor);
+  return {
+    multiplier: multiplier / divisorValue,
+    divisor: divisor / divisorValue,
+  };
+}
+
+function scalingValueToButtonStep(value: number, direction: -1 | 1): number {
+  const stepCount = Math.round(value / SCALING_BUTTON_STEP) + direction;
+  return clamp(
+    stepCount * SCALING_BUTTON_STEP,
+    SCALING_MIN,
+    SCALING_MAX,
+  );
+}
+
+function formatScalingValue(value: number): string {
+  return value.toFixed(2);
+}
 
 export function TrackballPage() {
   const { t } = useTranslation();
@@ -51,10 +99,6 @@ export function TrackballPage() {
 
   // Selected processor index
   const [selectedProcessorIndex, setSelectedProcessorIndex] = useState(0);
-
-  // Scaling preset type selector
-  const [scalingPresetType, setScalingPresetType] =
-    useState<ScalingPresetType>("wheel");
 
   // Rotation enabled state
   const [rotationEnabled, setRotationEnabled] = useState(false);
@@ -153,38 +197,30 @@ export function TrackballPage() {
     displayScalingDivisor !== 0
       ? displayScalingMultiplier / displayScalingDivisor
       : 1;
+  const scalingSliderIndex = scalingValueToIndex(finalScalingValue);
 
   // Handler functions using useDebouncedSave
-  const handleScalingMultiplierChange = (multiplier: number) => {
+  const handleScalingValueChange = (value: number) => {
     if (!processor) return;
-    scalingMultiplierSave.setPendingValue(multiplier, async (value) => {
-      const divisor = scalingDivisorSave.pendingValue ?? processor.scaleDivisor;
-      await setScaling(processor.id, value, divisor);
-    });
-  };
-
-  const handleScalingDivisorChange = (divisor: number) => {
-    if (!processor) return;
-    scalingDivisorSave.setPendingValue(divisor, async (value) => {
-      const multiplier =
-        scalingMultiplierSave.pendingValue ?? processor.scaleMultiplier;
-      await setScaling(processor.id, multiplier, value);
-    });
-  };
-
-  const handleScalingPreset = (multiplier: number, divisor: number) => {
-    if (!processor) return;
-    // Cancel any pending individual saves to avoid conflicts
+    const { multiplier, divisor } = scalingValueToFraction(value);
     scalingMultiplierSave.cancel();
     scalingDivisorSave.cancel();
-    // Set both values together with a single save call
     scalingMultiplierSave.setPendingValue(multiplier, async () => {
       await setScaling(processor.id, multiplier, divisor);
     });
-    // Update the divisor display value without triggering another save
     scalingDivisorSave.setPendingValue(divisor, async () => {
-      // No-op: multiplier save already handles both values
+      // Multiplier save writes both values together.
     });
+  };
+
+  const handleScalingSliderChange = (index: number) => {
+    handleScalingValueChange(scalingIndexToValue(index));
+  };
+
+  const handleScalingStepChange = (direction: -1 | 1) => {
+    handleScalingValueChange(
+      scalingValueToButtonStep(finalScalingValue, direction),
+    );
   };
 
   const handleRotationEnabledChange = (enabled: boolean) => {
@@ -198,7 +234,8 @@ export function TrackballPage() {
 
   const handleRotationChange = (degrees: number) => {
     if (!processor) return;
-    rotationSave.setPendingValue(degrees, async (value) => {
+    const clampedDegrees = clamp(degrees, ROTATION_MIN, ROTATION_MAX);
+    rotationSave.setPendingValue(clampedDegrees, async (value) => {
       await setRotation(processor.id, value);
     });
   };
@@ -477,93 +514,68 @@ export function TrackballPage() {
                     {t("trackball.scaling")}
                   </h3>
                   <p className="text-xs text-[var(--color-text-muted)]">
-                    {t("trackball.adjustSensitivity")}
+                    {t("trackball.adjustSensitivityRange")}
                   </p>
                 </div>
                 <span className="text-lg font-mono text-[var(--color-electric)]">
-                  {finalScalingValue.toFixed(2)}x
+                  {formatScalingValue(finalScalingValue)}x
                 </span>
               </div>
 
-              {/* Multiplier and Divisor Controls */}
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div>
-                  <label className="text-sm text-[var(--color-text-secondary)] mb-2 block">
-                    {t("trackball.multiplier")}
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={1000}
-                    value={displayScalingMultiplier}
-                    onChange={(e) =>
-                      handleScalingMultiplierChange(Number(e.target.value))
-                    }
-                    className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)] text-sm focus:outline-none focus:border-[var(--color-electric)] transition-colors"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm text-[var(--color-text-secondary)] mb-2 block">
-                    {t("trackball.divisor")}
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={1000}
-                    value={displayScalingDivisor}
-                    onChange={(e) =>
-                      handleScalingDivisorChange(Number(e.target.value))
-                    }
-                    className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)] text-sm focus:outline-none focus:border-[var(--color-electric)] transition-colors"
-                  />
-                </div>
-              </div>
-
-              {/* Preset Type Tabs */}
-              <div className="flex gap-2 mb-4">
+<div className="flex items-center gap-3">
                 <button
-                  onClick={() => setScalingPresetType("wheel")}
-                  className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    scalingPresetType === "wheel"
-                      ? "bg-[var(--color-electric)] text-white"
-                      : "bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border)]"
-                  }`}
+                  type="button"
+                  aria-label={t("trackball.decreaseScaling")}
+                  onClick={() => handleScalingStepChange(-1)}
+                  disabled={finalScalingValue <= SCALING_MIN}
+                  className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border)] hover:text-[var(--color-text)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
-                  {t("trackball.wheelMouse")}
+                  <IconChevronLeft size={18} />
                 </button>
-                <button
-                  onClick={() => setScalingPresetType("scroll")}
-                  className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    scalingPresetType === "scroll"
-                      ? "bg-[var(--color-electric)] text-white"
-                      : "bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border)]"
-                  }`}
-                >
-                  {t("trackball.scroll")}
-                </button>
-              </div>
 
-              {/* Preset Buttons */}
-              <div className="grid grid-cols-5 gap-2">
-                {(scalingPresetType === "wheel"
-                  ? WHEEL_PRESETS
-                  : SCROLL_PRESETS
-                ).map((preset) => (
-                  <button
-                    key={preset.label}
-                    onClick={() =>
-                      handleScalingPreset(preset.multiplier, preset.divisor)
+                <div className="min-w-0 flex-1">
+                  <input
+                    type="range"
+                    aria-label={t("trackball.scaling")}
+                    min={0}
+                    max={SCALING_STEPS}
+                    step={1}
+                    value={scalingSliderIndex}
+                    onChange={(e) =>
+                      handleScalingSliderChange(Number(e.target.value))
                     }
-                    className={`px-2 sm:px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      displayScalingMultiplier / displayScalingDivisor ===
-                      preset.multiplier / preset.divisor
-                        ? "bg-[var(--color-electric)] text-white"
-                        : "bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border)]"
-                    }`}
-                  >
-                    {preset.label}
-                  </button>
-                ))}
+                    className="w-full h-2 rounded-lg appearance-none cursor-pointer
+                      bg-[var(--color-border)]
+                      [&::-webkit-slider-thumb]:appearance-none
+                      [&::-webkit-slider-thumb]:w-4
+                      [&::-webkit-slider-thumb]:h-4
+                      [&::-webkit-slider-thumb]:rounded-full
+                      [&::-webkit-slider-thumb]:bg-[var(--color-electric)]
+                      [&::-webkit-slider-thumb]:cursor-pointer
+                      [&::-webkit-slider-thumb]:shadow-[0_0_8px_var(--color-electric)]
+                      [&::-moz-range-thumb]:w-4
+                      [&::-moz-range-thumb]:h-4
+                      [&::-moz-range-thumb]:rounded-full
+                      [&::-moz-range-thumb]:bg-[var(--color-electric)]
+                      [&::-moz-range-thumb]:cursor-pointer
+                      [&::-moz-range-thumb]:border-0
+                      [&::-moz-range-thumb]:shadow-[0_0_8px_var(--color-electric)]"
+                  />
+                  <div className="mt-2 flex justify-between text-xs text-[var(--color-text-muted)]">
+                    <span>0.1x</span>
+                    <span>10x</span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  aria-label={t("trackball.increaseScaling")}
+                  onClick={() => handleScalingStepChange(1)}
+                  disabled={finalScalingValue >= SCALING_MAX}
+                  className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border)] hover:text-[var(--color-text)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  <IconChevronRight size={18} />
+                </button>
               </div>
             </div>
 
@@ -595,39 +607,66 @@ export function TrackballPage() {
               </div>
 
               {rotationEnabled && (
-                <div>
-                  {/* Slider centered at 0, ranging from -180 to +180 */}
-                  <input
-                    type="range"
-                    min={-180}
-                    max={180}
-                    step={1}
-                    value={displayRotation}
-                    onChange={(e) =>
-                      handleRotationChange(Number(e.target.value))
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    aria-label="Decrease rotation"
+                    onClick={() =>
+                      handleRotationChange(displayRotation - ROTATION_STEP)
                     }
-                    className="w-full h-2 rounded-lg appearance-none cursor-pointer
-                      bg-[var(--color-border)]
-                      [&::-webkit-slider-thumb]:appearance-none
-                      [&::-webkit-slider-thumb]:w-4
-                      [&::-webkit-slider-thumb]:h-4
-                      [&::-webkit-slider-thumb]:rounded-full
-                      [&::-webkit-slider-thumb]:bg-[var(--color-electric)]
-                      [&::-webkit-slider-thumb]:cursor-pointer
-                      [&::-webkit-slider-thumb]:shadow-[0_0_8px_var(--color-electric)]
-                      [&::-moz-range-thumb]:w-4
-                      [&::-moz-range-thumb]:h-4
-                      [&::-moz-range-thumb]:rounded-full
-                      [&::-moz-range-thumb]:bg-[var(--color-electric)]
-                      [&::-moz-range-thumb]:border-0
-                      [&::-moz-range-thumb]:cursor-pointer
-                      [&::-moz-range-thumb]:shadow-[0_0_8px_var(--color-electric)]"
-                  />
-                  <div className="flex justify-between mt-2 text-xs text-[var(--color-text-muted)]">
-                    <span>-180°</span>
-                    <span>0°</span>
-                    <span>+180°</span>
+                    disabled={displayRotation <= ROTATION_MIN}
+                    className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border)] hover:text-[var(--color-text)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <IconChevronLeft size={18} />
+                  </button>
+
+                  {/* Slider centered at 0, ranging from -180 to +180 */}
+                  <div className="min-w-0 flex-1">
+                    <input
+                      type="range"
+                      aria-label="Rotation"
+                      min={ROTATION_MIN}
+                      max={ROTATION_MAX}
+                      step={ROTATION_STEP}
+                      value={displayRotation}
+                      onChange={(e) =>
+                        handleRotationChange(Number(e.target.value))
+                      }
+                      className="w-full h-2 rounded-lg appearance-none cursor-pointer
+                        bg-[var(--color-border)]
+                        [&::-webkit-slider-thumb]:appearance-none
+                        [&::-webkit-slider-thumb]:w-4
+                        [&::-webkit-slider-thumb]:h-4
+                        [&::-webkit-slider-thumb]:rounded-full
+                        [&::-webkit-slider-thumb]:bg-[var(--color-electric)]
+                        [&::-webkit-slider-thumb]:cursor-pointer
+                        [&::-webkit-slider-thumb]:shadow-[0_0_8px_var(--color-electric)]
+                        [&::-moz-range-thumb]:w-4
+                        [&::-moz-range-thumb]:h-4
+                        [&::-moz-range-thumb]:rounded-full
+                        [&::-moz-range-thumb]:bg-[var(--color-electric)]
+                        [&::-moz-range-thumb]:border-0
+                        [&::-moz-range-thumb]:cursor-pointer
+                        [&::-moz-range-thumb]:shadow-[0_0_8px_var(--color-electric)]"
+                    />
+                    <div className="flex justify-between mt-2 text-xs text-[var(--color-text-muted)]">
+                      <span>-180°</span>
+                      <span>0°</span>
+                      <span>+180°</span>
+                    </div>
                   </div>
+
+                  <button
+                    type="button"
+                    aria-label="Increase rotation"
+                    onClick={() =>
+                      handleRotationChange(displayRotation + ROTATION_STEP)
+                    }
+                    disabled={displayRotation >= ROTATION_MAX}
+                    className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border)] hover:text-[var(--color-text)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <IconChevronRight size={18} />
+                  </button>
                 </div>
               )}
             </div>

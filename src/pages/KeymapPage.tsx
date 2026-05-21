@@ -21,6 +21,7 @@ import { KeycodeSelector } from "../components/KeycodeSelector";
 import { UnlockPrompt } from "../components/UnlockPrompt";
 import { SensorRotationConfig } from "../components/SensorRotationConfig";
 import { useKeymap } from "../hooks/useKeymap";
+import { usePhysicalLayoutModules } from "../hooks/usePhysicalLayoutModules";
 import { useRuntimeSensorRotate } from "../hooks/useRuntimeSensorRotate";
 import { getAvailableLayouts, getLayoutLabel } from "../lib/keyboardLayouts";
 import type { BehaviorBinding } from "../hooks/useKeymap";
@@ -30,6 +31,7 @@ export function KeymapPage() {
   const connection = useContext(ConnectionContext);
   const keyboardLayoutContext = useContext(KeyboardLayoutContext);
   const keymap = useKeymap();
+  const physicalLayoutModules = usePhysicalLayoutModules();
   const sensorRotate = useRuntimeSensorRotate();
 
   // Local UI state
@@ -535,7 +537,24 @@ export function KeymapPage() {
                   isBindingModified={keymap.isBindingModified}
                   getOriginalBinding={keymap.getOriginalBinding}
                   keyboardLayout={keyboardLayoutContext.layout}
+                  modules={
+                    physicalLayoutModules.isAvailable
+                      ? physicalLayoutModules.modules
+                      : []
+                  }
                 />
+              </div>
+            )}
+
+            {physicalLayoutModules.error && (
+              <div className="glass-card p-4 mt-4 border-yellow-500/20 bg-yellow-500/10 flex items-center gap-3">
+                <div className="p-2">
+                  <IconAlertTriangle size={24} />
+                </div>
+                <p className="text-sm">
+                  Physical layout module preview could not be loaded:{" "}
+                  {physicalLayoutModules.error}
+                </p>
               </div>
             )}
 
