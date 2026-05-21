@@ -3,10 +3,23 @@ import { readFileSync, writeFileSync } from "fs";
 
 const pkg = JSON.parse(readFileSync("package.json", "utf-8"));
 
-const tag = execSync("git describe --tags --exact-match HEAD 2>/dev/null || git describe --tags HEAD 2>/dev/null || echo '0.0.0'")
-  .toString()
-  .trim()
-  .replace(/^v/, "");
+let tag = "0.0.0";
+
+try {
+  tag = execSync("git describe --tags --exact-match HEAD", { encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] })
+    .toString()
+    .trim()
+    .replace(/^v/, "");
+} catch {
+  try {
+    tag = execSync("git describe --tags HEAD", { encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] })
+      .toString()
+      .trim()
+      .replace(/^v/, "");
+  } catch {
+    tag = "0.0.0";
+  }
+}
 
 pkg.version = tag;
 writeFileSync("package.json", JSON.stringify(pkg, null, 2) + "\n");
