@@ -1,7 +1,7 @@
 {
   "name": "dya-studio",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.13",
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -16,7 +16,7 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "build:electron": "tsc -p tsconfig.electron.json",
-    "build:app": "npm run generate && tsc -b && vite build && npm run build:electron",
+    "build:app": "node scripts/set-version.js && npm run generate && tsc -b && vite build && npm run build:electron",
     "dist": "npm run build:app && electron-builder",
     "dist:mac": "npm run build:app && electron-builder --mac",
     "dist:win": "npm run build:app && electron-builder --win",
