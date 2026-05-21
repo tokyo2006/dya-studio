@@ -185,10 +185,14 @@ export function usePhysicalLayoutModules(): UsePhysicalLayoutModulesReturn {
 
   useEffect(() => {
     if (connection && subsystemIndex !== undefined) {
-      loadModules();
+      queueMicrotask(() => {
+        loadModules();
+      });
     } else {
-      setModules([]);
-      setError(null);
+      queueMicrotask(() => {
+        setModules([]);
+        setError(null);
+      });
     }
   }, [connection, subsystemIndex, loadModules]);
 
