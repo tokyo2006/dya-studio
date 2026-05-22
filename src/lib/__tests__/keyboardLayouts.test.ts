@@ -44,8 +44,8 @@ describe("keyboardLayouts", () => {
       expect(getLayoutDisplayName(0x30, "JIS")).toBe("[{");
       // 0x34 ('): In US shows "'", in JIS shows ":"
       expect(getLayoutDisplayName(0x34, "JIS")).toBe(":*");
-      // 0x35 (`): In US shows "`", in JIS shows "半/全"
-      expect(getLayoutDisplayName(0x35, "JIS")).toBe("半/全");
+      // 0x35 (`): In US shows "`", in JIS shows "Half/Full"
+      expect(getLayoutDisplayName(0x35, "JIS")).toBe("Half/Full");
       // 0x2e (=): In US shows "=", in JIS shows "^"
       expect(getLayoutDisplayName(0x2e, "JIS")).toBe("^~");
     });

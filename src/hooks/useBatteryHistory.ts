@@ -218,12 +218,12 @@ export function useBatteryHistory(): UseBatteryHistoryReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [zmkApp?.state.connection, subsystemIndex, loadBatteryHistory]);
+  }, [zmkApp, subsystemIndex, loadBatteryHistory]);
 
   // Load battery history when connection or subsystem changes
   useEffect(() => {
     if (subsystemIndex !== undefined && zmkApp?.state.connection) {
-      loadBatteryHistory();
+      queueMicrotask(() => loadBatteryHistory());
     }
   }, [subsystemIndex, zmkApp?.state.connection, loadBatteryHistory]);
 

@@ -4,6 +4,7 @@ import {
   IconAlertCircle,
   IconCircleDashed,
 } from "@tabler/icons-react";
+import { useTranslation } from "react-i18next";
 
 interface HealthItem {
   name: string;
@@ -61,6 +62,7 @@ function StatusIcon({ status }: { status: HealthItem["status"] }) {
 }
 
 export function HealthCheckPage() {
+  const { t } = useTranslation();
   return (
     <div className="p-6 h-full overflow-auto">
       <div className="max-w-4xl mx-auto">
@@ -74,10 +76,10 @@ export function HealthCheckPage() {
           </div>
           <div>
             <h1 className="text-xl font-medium text-[var(--color-text)]">
-              Health Check
+              {t("healthCheck.title")}
             </h1>
             <p className="text-sm text-[var(--color-text-muted)]">
-              Circuit and component diagnostics
+              {t("healthCheck.description")}
             </p>
           </div>
         </div>
@@ -116,15 +118,14 @@ export function HealthCheckPage() {
         {/* Run Diagnostics Button */}
         <div className="mt-8 flex justify-center">
           <button className="btn-electric" disabled>
-            Run Diagnostics
+            {t("healthCheck.runDiagnostics")}
           </button>
         </div>
 
         {/* Info */}
         <div className="mt-8 p-4 rounded-lg bg-[var(--color-border)] border border-[var(--color-border-hover)]">
           <p className="text-xs text-[var(--color-text-muted)]">
-            Connect your keyboard to run hardware diagnostics. This will check
-            communication with all components and report any issues.
+            {t("healthCheck.connectInfo")}
           </p>
         </div>
       </div>

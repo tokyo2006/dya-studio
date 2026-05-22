@@ -203,7 +203,7 @@ export function useSettings(): UseSettingsReturn {
   // Load settings when connection or subsystem changes
   useEffect(() => {
     if (subsystemIndex !== undefined && zmkApp?.state.connection) {
-      loadAllSettings();
+      queueMicrotask(() => loadAllSettings());
     }
   }, [subsystemIndex, zmkApp?.state.connection, loadAllSettings]);
 

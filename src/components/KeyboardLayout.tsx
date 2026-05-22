@@ -6,7 +6,9 @@
  * Responsive to window size with min/max limits.
  */
 import { useMemo, useCallback, useState, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { PhysicalKey } from "./PhysicalKey";
+import { PhysicalLayoutModule } from "./PhysicalLayoutModule";
 import type {
   PhysicalLayout,
   KeyPhysicalAttrs,
@@ -14,6 +16,7 @@ import type {
   BehaviorBinding,
   BehaviorDefinition,
 } from "../hooks/useKeymap";
+import type { PhysicalLayoutModulePresentation } from "../hooks/usePhysicalLayoutModules";
 import { formatBehaviorBinding } from "../lib/behaviorMetadata";
 import type { KeyboardLayoutType } from "../lib/keyboardLayouts";
 
@@ -49,6 +52,43 @@ interface KeyboardLayoutProps {
   ) => BehaviorBinding | null;
   /** Keyboard layout for keycode display */
   keyboardLayout?: KeyboardLayoutType;
+  /** Optional non-key physical modules from custom physical layout RPC */
+  modules?: PhysicalLayoutModulePresentation[];
+}
+
+type LayoutGeometry = Pick<
+  KeyPhysicalAttrs,
+  "width" | "height" | "x" | "y" | "r" | "rx" | "ry"
+>;
+
+function rotationDegrees(centidegrees: number) {
+  return centidegrees / 100;
+}
+
+function rotatedCorners(geometry: LayoutGeometry) {
+  const corners = [
+    { x: geometry.x, y: geometry.y },
+    { x: geometry.x + geometry.width, y: geometry.y },
+    { x: geometry.x + geometry.width, y: geometry.y + geometry.height },
+    { x: geometry.x, y: geometry.y + geometry.height },
+  ];
+
+  if (!geometry.r) {
+    return corners;
+  }
+
+  const radians = rotationDegrees(geometry.r) * (Math.PI / 180);
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+
+  return corners.map((corner) => {
+    const dx = corner.x - geometry.rx;
+    const dy = corner.y - geometry.ry;
+    return {
+      x: geometry.rx + dx * cos - dy * sin,
+      y: geometry.ry + dx * sin + dy * cos,
+    };
+  });
 }
 
 export function KeyboardLayout({
@@ -62,7 +102,9 @@ export function KeyboardLayout({
   isBindingModified,
   getOriginalBinding,
   keyboardLayout,
+  modules = [],
 }: KeyboardLayoutProps) {
+  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1.0);
 
@@ -73,16 +115,28 @@ export function KeyboardLayout({
       maxX = -Infinity,
       maxY = -Infinity;
 
-    layout.keys.forEach((key) => {
-      const x = (key.x / 100) * BASE_UNIT_SIZE;
-      const y = (key.y / 100) * BASE_UNIT_SIZE;
-      const w = (key.width / 100) * BASE_UNIT_SIZE;
-      const h = (key.height / 100) * BASE_UNIT_SIZE;
+    const geometries: LayoutGeometry[] = [
+      ...layout.keys,
+      ...modules.map((module) => module.attrs),
+    ];
+
+    if (geometries.length === 0) {
+      return {
+        width: 200,
+        height: 160,
+        offsetX: 10,
+        offsetY: 30,
+      };
+    }
+
+    geometries.flatMap(rotatedCorners).forEach((point) => {
+      const x = (point.x / 100) * BASE_UNIT_SIZE;
+      const y = (point.y / 100) * BASE_UNIT_SIZE;
 
       minX = Math.min(minX, x);
       minY = Math.min(minY, y);
-      maxX = Math.max(maxX, x + w);
-      maxY = Math.max(maxY, y + h);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
     });
 
     return {
@@ -91,7 +145,7 @@ export function KeyboardLayout({
       offsetX: -minX + 10,
       offsetY: -minY + 30,
     };
-  }, [layout.keys]);
+  }, [layout.keys, modules]);
 
   // Calculate responsive scale based on container width
   useEffect(() => {
@@ -178,13 +232,14 @@ export function KeyboardLayout({
   // Get full binding description for tooltip
   const getBindingDescription = useCallback(
     (binding: BehaviorBinding | undefined): string => {
-      if (!binding) return "No binding";
+      if (!binding) return t("keycodes.noBinding");
       const behavior = behaviors.get(binding.behaviorId) || null;
       const behaviorName =
-        behavior?.displayName || `Behavior ${binding.behaviorId}`;
-      return `${behaviorName} (param1: ${binding.param1}, param2: ${binding.param2})`;
+        behavior?.displayName ||
+        `${t("keycodes.behavior")} ${binding.behaviorId}`;
+      return `${behaviorName} (${t("keycodes.param1")}: ${binding.param1}, ${t("keycodes.param2")}: ${binding.param2})`;
     },
-    [behaviors],
+    [behaviors, t],
   );
 
   return (
@@ -223,6 +278,26 @@ export function KeyboardLayout({
               isSelected={selectedKey === position}
               onClick={() => onKeyClick(position)}
               onReset={() => onKeyReset(position)}
+              scale={scale}
+            />
+          );
+        })}
+        {modules.map((module) => {
+          const adjustedModule: PhysicalLayoutModulePresentation = {
+            ...module,
+            attrs: {
+              ...module.attrs,
+              x: module.attrs.x + (rawBounds.offsetX / BASE_UNIT_SIZE) * 100,
+              y: module.attrs.y + (rawBounds.offsetY / BASE_UNIT_SIZE) * 100,
+              rx: module.attrs.rx + (rawBounds.offsetX / BASE_UNIT_SIZE) * 100,
+              ry: module.attrs.ry + (rawBounds.offsetY / BASE_UNIT_SIZE) * 100,
+            },
+          };
+
+          return (
+            <PhysicalLayoutModule
+              key={module.identifier}
+              module={adjustedModule}
               scale={scale}
             />
           );

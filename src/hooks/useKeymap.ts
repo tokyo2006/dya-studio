@@ -780,20 +780,22 @@ export function useKeymap(): UseKeymapReturn {
   // Reset state when disconnected
   useEffect(() => {
     if (!connection) {
-      setPhysicalLayouts(null);
-      setKeymap(null);
-      setBehaviors(new Map());
-      setOriginalBindings(new Map());
-      setHasUnsavedChanges(false);
-      setError(null);
-      setUnlockRequired(false);
-      setRemovedLayerIds([]);
-      dataLoadedRef.current = false;
-      // Clear error timer
-      if (errorTimerRef.current) {
-        clearTimeout(errorTimerRef.current);
-        errorTimerRef.current = null;
-      }
+      queueMicrotask(() => {
+        setPhysicalLayouts(null);
+        setKeymap(null);
+        setBehaviors(new Map());
+        setOriginalBindings(new Map());
+        setHasUnsavedChanges(false);
+        setError(null);
+        setUnlockRequired(false);
+        setRemovedLayerIds([]);
+        dataLoadedRef.current = false;
+        // Clear error timer
+        if (errorTimerRef.current) {
+          clearTimeout(errorTimerRef.current);
+          errorTimerRef.current = null;
+        }
+      });
     }
   }, [connection]);
 

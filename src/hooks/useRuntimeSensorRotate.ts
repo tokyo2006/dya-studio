@@ -287,10 +287,12 @@ export function useRuntimeSensorRotate(): UseRuntimeSensorRotateReturn {
   // Load sensors when connection or subsystem changes
   useEffect(() => {
     if (subsystemIndex !== undefined && zmkApp?.state.connection) {
-      loadSensors();
+      queueMicrotask(() => loadSensors());
     } else {
-      setSensors([]);
-      setError(null);
+      queueMicrotask(() => {
+        setSensors([]);
+        setError(null);
+      });
     }
   }, [subsystemIndex, zmkApp?.state.connection, loadSensors]);
 

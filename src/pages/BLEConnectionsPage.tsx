@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useState, useContext } from "react";
 import {
   IconBluetooth,
@@ -16,6 +17,7 @@ import { ConnectionContext } from "../components/DeviceConnection";
 import { OutputPriority } from "../proto/zmk/ble_management/ble_management";
 
 export function BLEConnectionsPage() {
+  const { t } = useTranslation();
   const connection = useContext(ConnectionContext);
   const {
     isAvailable,
@@ -55,7 +57,7 @@ export function BLEConnectionsPage() {
   };
 
   const handleUnpair = async (index: number) => {
-    if (confirm("Are you sure you want to unpair this device?")) {
+    if (confirm(t("ble.areYouSureUnpair"))) {
       await unpairProfile(index);
     }
   };
@@ -98,10 +100,10 @@ export function BLEConnectionsPage() {
             </div>
             <div className="flex-1">
               <h1 className="text-xl font-medium text-[var(--color-text)]">
-                BLE Connections
+                {t("ble.title")}
               </h1>
               <p className="text-sm text-[var(--color-text-muted)]">
-                Manage Bluetooth upstream connections
+                {t("ble.description")}
               </p>
             </div>
           </div>
@@ -112,13 +114,13 @@ export function BLEConnectionsPage() {
                 className="btn-ghost flex items-center gap-2"
                 onClick={reload}
                 disabled={isLoading}
-                aria-label="Refresh profiles"
+                aria-label={t("ble.refreshProfiles")}
               >
                 <IconRefresh
                   size={16}
                   className={isLoading ? "animate-spin" : ""}
                 />
-                Refresh
+                {t("ble.refresh")}
               </button>
             )}
           </div>
@@ -130,9 +132,9 @@ export function BLEConnectionsPage() {
               <IconAlertTriangleFilled size={24} className="text-red-500" />
             </div>
             <p className="text-sm text-[var(--color-text-muted)]">
-              BLE management subsystem is not available for your keyboard.
+              {t("ble.bleNotAvailable")}
               <br />
-              Make sure your firmware has the
+              {t("ble.makeSureFirmwareHas")}{" "}
               <a
                 href="https://github.com/cormoran/zmk-module-ble-management"
                 target="_blank"
@@ -141,7 +143,7 @@ export function BLEConnectionsPage() {
               >
                 cormoran/zmk-module-ble-management
               </a>
-              enabled.
+              {t("battery.enabled")}
             </p>
           </div>
         )}
@@ -160,11 +162,11 @@ export function BLEConnectionsPage() {
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
                   <h3 className="text-sm font-medium text-[var(--color-text)]">
-                    Output Priority
+                    {t("ble.outputPriority")}
                   </h3>
                 </div>
                 <p className="text-xs text-[var(--color-text-muted)]">
-                  Prioritized connection for keystrokes
+                  {t("ble.outputPriorityDescription")}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -196,7 +198,7 @@ export function BLEConnectionsPage() {
                         : "text-[var(--color-text-secondary)]"
                     }`}
                   >
-                    USB
+                    {t("ble.usb")}
                   </span>
                   {outputPriority === OutputPriority.OUTPUT_PRIORITY_USB && (
                     <IconCheck size={14} className="text-[var(--color-neon)]" />
@@ -230,7 +232,7 @@ export function BLEConnectionsPage() {
                         : "text-[var(--color-text-secondary)]"
                     }`}
                   >
-                    BLE
+                    {t("ble.ble")}
                   </span>
                   {outputPriority === OutputPriority.OUTPUT_PRIORITY_BLE && (
                     <IconCheck size={14} className="text-[var(--color-neon)]" />
@@ -247,7 +249,7 @@ export function BLEConnectionsPage() {
             {isLoading && profiles.length === 0 && (
               <div className="glass-card p-6 text-center">
                 <p className="text-sm text-[var(--color-text-muted)]">
-                  ⏳ Loading profiles...
+                  ⏳ {t("ble.loadingProfiles")}
                 </p>
               </div>
             )}
@@ -287,7 +289,7 @@ export function BLEConnectionsPage() {
                             type="text"
                             value={editName}
                             onChange={(e) => setEditName(e.target.value)}
-                            placeholder="Device name"
+                            placeholder={t("ble.deviceName")}
                             maxLength={31} // ZMK firmware constraint for BLE name storage
                             className="input-field flex-1 tablet:text-sm text-base"
                             disabled={isLoading}
@@ -296,7 +298,7 @@ export function BLEConnectionsPage() {
                             className="btn-ghost p-2"
                             onClick={() => saveProfileName(profile.index)}
                             disabled={isLoading}
-                            aria-label="Save name"
+                            aria-label={t("ble.saveName")}
                           >
                             <IconCheck size={16} />
                           </button>
@@ -304,7 +306,7 @@ export function BLEConnectionsPage() {
                             className="btn-ghost p-2"
                             onClick={cancelEditing}
                             disabled={isLoading}
-                            aria-label="Cancel editing"
+                            aria-label={t("ble.cancelEditing")}
                           >
                             <IconX size={16} />
                           </button>
@@ -314,9 +316,13 @@ export function BLEConnectionsPage() {
                           <div className="flex items-center gap-2">
                             <p
                               className="text-sm font-medium text-[var(--color-text-secondary)] truncate max-w-[12rem]"
-                              title={profile.name || `Profile ${profile.index}`}
+                              title={
+                                profile.name ||
+                                t("ble.profileIndex", { index: profile.index })
+                              }
                             >
-                              {profile.name || `Profile ${profile.index}`}
+                              {profile.name ||
+                                t("ble.profileIndex", { index: profile.index })}
                             </p>
                             {!profile.isOpen && (
                               <button
@@ -325,7 +331,7 @@ export function BLEConnectionsPage() {
                                   startEditing(profile.index, profile.name)
                                 }
                                 disabled={isLoading}
-                                aria-label="Edit name"
+                                aria-label={t("ble.editName")}
                               >
                                 <IconEdit size={14} />
                               </button>
@@ -334,12 +340,12 @@ export function BLEConnectionsPage() {
                           <div className="flex flex-wrap">
                             {profile.isOpen ? (
                               <p className="text-xs text-[var(--color-text-muted)] truncate">
-                                Not paired
+                                {t("ble.notPaired")}
                               </p>
                             ) : profile.isConnected ? (
                               <>
                                 <span className="text-xs text-[var(--color-text-muted)] pr-1">
-                                  Connected
+                                  {t("ble.connected")}
                                 </span>
                                 {profile.address && (
                                   <span className="text-xs text-[var(--color-text-muted)] block tablet:inline truncate">
@@ -349,7 +355,7 @@ export function BLEConnectionsPage() {
                               </>
                             ) : (
                               <p className="text-xs text-[var(--color-text-muted)] truncate">
-                                {profile.address || "No address"}
+                                {profile.address || t("ble.noAddress")}
                               </p>
                             )}
                           </div>
@@ -366,7 +372,9 @@ export function BLEConnectionsPage() {
                           disabled={isLoading}
                         >
                           <IconLinkOff size={16} />
-                          <span className="hidden tablet:inline">Unpair</span>
+                          <span className="hidden tablet:inline">
+                            {t("ble.unpair")}
+                          </span>
                         </button>
                       )}
                       {!profile.isActive ? (
@@ -376,7 +384,9 @@ export function BLEConnectionsPage() {
                           disabled={isLoading}
                         >
                           <IconLink size={16} />
-                          <span className="hidden tablet:inline">Switch</span>
+                          <span className="hidden tablet:inline">
+                            {t("ble.switch")}
+                          </span>
                         </button>
                       ) : (
                         <button
@@ -390,7 +400,7 @@ export function BLEConnectionsPage() {
                             className="text-[var(--color-cyber)]"
                           />
                           <span className="hidden tablet:inline text-[var(--color-cyber)] font-semibold">
-                            Active
+                            {t("ble.active")}
                           </span>
                         </button>
                       )}
@@ -413,14 +423,13 @@ export function BLEConnectionsPage() {
                 />
                 <div>
                   <h3 className="text-lg font-medium text-[var(--color-text)] mb-2">
-                    Change Output Priority?
+                    {t("ble.changeOutputPriority")}
                   </h3>
                   <p className="text-sm text-[var(--color-text-secondary)] mb-2">
-                    Changing the output priority may disconnect DYA Studio from
-                    your keyboard.
+                    {t("ble.changingOutputPriorityMayDisconnect")}
                   </p>
                   <p className="text-sm text-[var(--color-text-muted)]">
-                    You will need to reconnect manually after the change.
+                    {t("ble.youWillNeedReconnect")}
                   </p>
                 </div>
               </div>
@@ -430,14 +439,14 @@ export function BLEConnectionsPage() {
                   onClick={cancelOutputPriorityChange}
                   disabled={isLoading}
                 >
-                  Cancel
+                  {t("common.cancel")}
                 </button>
                 <button
                   className="btn-electric text-sm px-4 py-2"
                   onClick={confirmOutputPriorityChange}
                   disabled={isLoading}
                 >
-                  Continue
+                  {t("ble.continue")}
                 </button>
               </div>
             </div>

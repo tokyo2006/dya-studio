@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useState, useContext, useCallback, useMemo } from "react";
 import {
   IconKeyboard,
@@ -20,14 +21,17 @@ import { KeycodeSelector } from "../components/KeycodeSelector";
 import { UnlockPrompt } from "../components/UnlockPrompt";
 import { SensorRotationConfig } from "../components/SensorRotationConfig";
 import { useKeymap } from "../hooks/useKeymap";
+import { usePhysicalLayoutModules } from "../hooks/usePhysicalLayoutModules";
 import { useRuntimeSensorRotate } from "../hooks/useRuntimeSensorRotate";
 import { getAvailableLayouts, getLayoutLabel } from "../lib/keyboardLayouts";
 import type { BehaviorBinding } from "../hooks/useKeymap";
 
 export function KeymapPage() {
+  const { t } = useTranslation();
   const connection = useContext(ConnectionContext);
   const keyboardLayoutContext = useContext(KeyboardLayoutContext);
   const keymap = useKeymap();
+  const physicalLayoutModules = usePhysicalLayoutModules();
   const sensorRotate = useRuntimeSensorRotate();
 
   // Local UI state
@@ -56,7 +60,7 @@ export function KeymapPage() {
   const layersForSelector = useMemo(() => {
     if (!keymap.keymap?.layers) return [];
     return keymap.keymap.layers.map((l) => ({ id: l.id, name: l.name }));
-  }, [keymap.keymap?.layers]);
+  }, [keymap.keymap]);
 
   // Get current binding for selected key
   const currentBinding = useMemo(() => {
@@ -194,10 +198,10 @@ export function KeymapPage() {
             </div>
             <div>
               <h1 className="text-xl font-medium text-[var(--color-text)]">
-                Keymap
+                {t("keymap.title")}
               </h1>
               <p className="text-sm text-[var(--color-text-muted)]">
-                Configure key bindings and layers
+                {t("keymap.description")}
               </p>
             </div>
           </div>
@@ -207,7 +211,7 @@ export function KeymapPage() {
             <div className="flex items-center gap-2 ml-auto">
               {keymap.hasUnsavedChanges && (
                 <span className="text-xs text-[var(--color-neon)] mr-2">
-                  ● Unsaved changes
+                  {t("keymap.unsavedChanges")}
                 </span>
               )}
               <button
@@ -222,7 +226,7 @@ export function KeymapPage() {
                 ) : (
                   <IconRestore size={16} />
                 )}
-                Reset All
+                {t("keymap.resetAll")}
               </button>
               <button
                 className="btn-electric text-sm flex items-center gap-1.5"
@@ -236,7 +240,7 @@ export function KeymapPage() {
                 ) : (
                   <IconDeviceFloppy size={16} />
                 )}
-                Save
+                {t("keymap.save")}
               </button>
             </div>
           )}
@@ -246,7 +250,7 @@ export function KeymapPage() {
         {!connection.isConnected && (
           <div className="glass-card p-6 text-center">
             <p className="text-sm text-[var(--color-text-muted)]">
-              Connect your keyboard to edit keymaps
+              {t("keymap.connectKeyboardToEdit")}
             </p>
           </div>
         )}
@@ -266,7 +270,7 @@ export function KeymapPage() {
               className="animate-spin mx-auto mb-2 text-[var(--color-electric)]"
             />
             <p className="text-sm text-[var(--color-text-muted)]">
-              Loading keymap data...
+              {t("keymap.loadingKeymapData")}
             </p>
           </div>
         )}
@@ -287,7 +291,7 @@ export function KeymapPage() {
                     }`}
                     onClick={() => setSelectedLayerIndex(index)}
                   >
-                    {layer.name || `Layer ${index}`}
+                    {layer.name || t("keymap.layer", { index: index })}
                   </button>
                 ))}
               </div>
@@ -297,7 +301,7 @@ export function KeymapPage() {
                 <div className="flex items-center gap-1 border-l border-[var(--color-border)] pl-2 ml-auto">
                   {/* Layer Sorting Label */}
                   <span className="text-xs text-[var(--color-text-muted)] mr-1">
-                    Sort:
+                    {t("keymap.sort")}
                   </span>
 
                   {/* Move Up Button */}
@@ -320,7 +324,7 @@ export function KeymapPage() {
                         className="px-2 py-1 rounded bg-[var(--color-surface-elevated)] border border-[var(--color-border)] text-xs text-[var(--color-text-secondary)] shadow-lg z-50"
                         sideOffset={5}
                       >
-                        Move layer up (higher priority)
+                        {t("keymap.moveLayerUp")}
                         <Tooltip.Arrow className="fill-[var(--color-surface-elevated)]" />
                       </Tooltip.Content>
                     </Tooltip.Portal>
@@ -348,7 +352,7 @@ export function KeymapPage() {
                         className="px-2 py-1 rounded bg-[var(--color-surface-elevated)] border border-[var(--color-border)] text-xs text-[var(--color-text-secondary)] shadow-lg z-50"
                         sideOffset={5}
                       >
-                        Move layer down (lower priority)
+                        {t("keymap.moveLayerDown")}
                         <Tooltip.Arrow className="fill-[var(--color-surface-elevated)]" />
                       </Tooltip.Content>
                     </Tooltip.Portal>
@@ -379,7 +383,7 @@ export function KeymapPage() {
                         className="px-2 py-1 rounded bg-[var(--color-surface-elevated)] border border-[var(--color-border)] text-xs text-[var(--color-text-secondary)] shadow-lg z-50"
                         sideOffset={5}
                       >
-                        Add new layer
+                        {t("keymap.addNewLayer")}
                         <Tooltip.Arrow className="fill-[var(--color-surface-elevated)]" />
                       </Tooltip.Content>
                     </Tooltip.Portal>
@@ -402,7 +406,7 @@ export function KeymapPage() {
                         className="px-2 py-1 rounded bg-[var(--color-surface-elevated)] border border-[var(--color-border)] text-xs text-[var(--color-text-secondary)] shadow-lg z-50"
                         sideOffset={5}
                       >
-                        Delete current layer
+                        {t("keymap.deleteCurrentLayer")}
                         <Tooltip.Arrow className="fill-[var(--color-surface-elevated)]" />
                       </Tooltip.Content>
                     </Tooltip.Portal>
@@ -429,8 +433,10 @@ export function KeymapPage() {
                         sideOffset={5}
                       >
                         {keymap.removedLayerIds.length > 0
-                          ? `Restore deleted layer (${keymap.removedLayerIds.length} available)`
-                          : "No deleted layers to restore"}
+                          ? t("keymap.restoreDeletedLayer", {
+                              count: keymap.removedLayerIds.length,
+                            })
+                          : t("keymap.noDeletedLayersToRestore")}
                         <Tooltip.Arrow className="fill-[var(--color-surface-elevated)]" />
                       </Tooltip.Content>
                     </Tooltip.Portal>
@@ -445,7 +451,7 @@ export function KeymapPage() {
                 keymap.physicalLayouts.layouts.length > 1 && (
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-[var(--color-text-muted)]">
-                      Physical Layout:
+                      {t("keymap.physicalLayout")}
                     </span>
                     <select
                       value={keymap.physicalLayouts.activeLayoutIndex}
@@ -454,9 +460,9 @@ export function KeymapPage() {
                       }
                       className="px-2 py-1 rounded bg-[var(--color-surface)] border border-[var(--color-border)] text-sm text-[var(--color-text)]"
                     >
-                      {keymap.physicalLayouts.layouts.map((layout, index) => (
+                      {keymap.physicalLayouts.layouts.map((_layout, index) => (
                         <option key={index} value={index}>
-                          {layout.name || `Layout ${index + 1}`}
+                          {t("keymap.layer", { index: index + 1 })}
                         </option>
                       ))}
                     </select>
@@ -496,27 +502,18 @@ export function KeymapPage() {
                         sideOffset={5}
                       >
                         <div className="mb-1 font-semibold text-[var(--color-electric)]">
-                          Choose OS's keyboard layout setting
+                          {t("keymap.osLayoutTooltipTitle")}
                         </div>
                         <ul className="list-disc pl-4 space-y-1">
+                          <li>{t("keymap.osLayoutTooltipItem1")}</li>
                           <li>
-                            This setting only affects the visual key labels in
-                            DYA Studio web UI.
+                            {t("keymap.osLayoutTooltipItem2Prefix")}
+                            <strong className="mx-1">
+                              {t("keymap.detectedAsUS")}
+                            </strong>
+                            {t("keymap.osLayoutTooltipItem2Suffix")}
                           </li>
-                          <li>
-                            Changing this does not update any firmware setting.
-                            The keyboard is
-                            <strong className="mx-1">detected as US</strong>
-                            regardless of this setting. <br />
-                            Please change the layout setting in your OS if
-                            needed.
-                            <br /> For MacOS, USB connection is always detected
-                            as US and cannot be changed for now.
-                          </li>
-                          <li>
-                            The selection is saved in your browser's local
-                            storage for now.
-                          </li>
+                          <li>{t("keymap.osLayoutTooltipItem3")}</li>
                         </ul>
                         <Tooltip.Arrow className="fill-[var(--color-surface-elevated)]" />
                       </Tooltip.Content>
@@ -540,7 +537,24 @@ export function KeymapPage() {
                   isBindingModified={keymap.isBindingModified}
                   getOriginalBinding={keymap.getOriginalBinding}
                   keyboardLayout={keyboardLayoutContext.layout}
+                  modules={
+                    physicalLayoutModules.isAvailable
+                      ? physicalLayoutModules.modules
+                      : []
+                  }
                 />
+              </div>
+            )}
+
+            {physicalLayoutModules.error && (
+              <div className="glass-card p-4 mt-4 border-yellow-500/20 bg-yellow-500/10 flex items-center gap-3">
+                <div className="p-2">
+                  <IconAlertTriangle size={24} />
+                </div>
+                <p className="text-sm">
+                  Physical layout module preview could not be loaded:{" "}
+                  {physicalLayoutModules.error}
+                </p>
               </div>
             )}
 
@@ -551,10 +565,11 @@ export function KeymapPage() {
                   <IconAlertTriangle size={24} />
                 </div>
                 <p className="text-sm">
-                  Runtime sensor rotation subsystem is not available for your
-                  keyboard. Rotary encoder configuration will not be displayed.
+                  {t("keymap.runtimeSensorRotationNotAvailable")}
                   <br />
-                  You can enable the feature by applying
+                  {t("keymap.rotaryEncoderNotAvailable")}
+                  <br />
+                  {t("keymap.youCanEnableByApplying")}
                   <a
                     href="https://github.com/cormoran/zmk-behavior-runtime-sensor-rotate"
                     target="_blank"
@@ -584,8 +599,8 @@ export function KeymapPage() {
         <div className="mt-8 p-4 rounded-lg bg-[var(--color-border)] border border-[var(--color-border-hover)]">
           <p className="text-xs text-[var(--color-text-muted)]">
             {connection.isConnected
-              ? "Click on a key to modify its binding. Modified keys are highlighted in green and show the original binding on hover. Use the Reset All button to discard all changes."
-              : "Connect your keyboard to edit keymaps. Click on a key to modify its binding."}
+              ? t("keymap.keymapInstructionsConnected")
+              : t("keymap.keymapInstructionsDisconnected")}
           </p>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { useContext, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   IconPuzzle,
   IconExternalLink,
@@ -62,6 +63,7 @@ function ExternalLinkWarningDialog({
   onConfirm,
   onCancel,
 }: ExternalLinkWarningDialogProps) {
+  const { t } = useTranslation();
   const [dontShowAgain, setDontShowAgain] = useState(false);
 
   return (
@@ -80,7 +82,7 @@ function ExternalLinkWarningDialog({
         <button
           className="absolute top-4 right-4 btn-ghost p-1"
           onClick={onCancel}
-          aria-label="Close dialog"
+          aria-label={t("dialog.close")}
         >
           <IconX size={16} className="text-[var(--color-text-muted)]" />
         </button>
@@ -110,10 +112,8 @@ function ExternalLinkWarningDialog({
         </div>
         <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
           <p className="text-xs text-red-400 leading-relaxed">
-            <strong>Security Notice:</strong> Please do not connect to an
-            unreliable author&apos;s web page. Only proceed if you trust the
-            keyboard firmware author. External pages may request sensitive
-            permissions or send data to third-party servers.
+            <strong>{t("customSubsystems.securityNotice")}:</strong>{" "}
+            {t("customSubsystems.securityNoticeText")}
           </p>
         </div>
 
@@ -149,6 +149,7 @@ function ExternalLinkWarningDialog({
 }
 
 export function CustomSubsystemsPage() {
+  const { t } = useTranslation();
   const zmkApp = useContext(ZMKAppContext);
   const [pendingUrl, setPendingUrl] = useState<string | null>(null);
 
@@ -216,7 +217,7 @@ export function CustomSubsystemsPage() {
                       {subsystem.identifier}
                     </p>
                     <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-                      Subsystem index: {subsystem.index}
+                      {t("customSubsystems.subsystemIndex")}: {subsystem.index}
                     </p>
                   </div>
                 </div>
@@ -224,7 +225,7 @@ export function CustomSubsystemsPage() {
                 {subsystem.uiUrl.length > 0 ? (
                   <div className="mt-3 space-y-2">
                     <p className="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">
-                      Web UI
+                      {t("customSubsystems.webUI")}
                     </p>
                     {subsystem.uiUrl.map((url, urlIndex) => (
                       <button
@@ -242,7 +243,7 @@ export function CustomSubsystemsPage() {
                   </div>
                 ) : (
                   <p className="text-xs text-[var(--color-text-muted)] mt-2">
-                    No web UI available for this subsystem.
+                    {t("customSubsystems.noWebUIForSubsystem")}
                   </p>
                 )}
               </div>
@@ -251,8 +252,7 @@ export function CustomSubsystemsPage() {
         ) : (
           <div className="glass-card p-6">
             <p className="text-sm text-[var(--color-text-muted)]">
-              No custom subsystems available. Custom subsystems are provided by
-              the keyboard firmware.
+              {t("customSubsystems.noCustomSubsystems")}
             </p>
           </div>
         )}
@@ -260,9 +260,7 @@ export function CustomSubsystemsPage() {
         {/* Info box */}
         <div className="mt-8 p-4 rounded-lg bg-[var(--color-border)] border border-[var(--color-border-hover)]">
           <p className="text-xs text-[var(--color-text-muted)]">
-            Custom subsystems are additional features provided by your keyboard
-            firmware author. Web UI links open external pages supplied by the
-            firmware metadata.
+            {t("customSubsystems.additionalFeaturesDescription")}
           </p>
         </div>
       </div>

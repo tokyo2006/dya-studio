@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { IconRefresh } from "@tabler/icons-react";
 import {
   LineChart,
@@ -122,6 +123,7 @@ export function BatteryHistoryChart({
   devices,
   deviceColors,
 }: BatteryHistoryChartProps) {
+  const { t } = useTranslation();
   const chartData = useMemo(() => combineDeviceData(devices), [devices]);
   const restartMarkers = useMemo(() => detectRestarts(devices), [devices]);
 
@@ -223,7 +225,7 @@ export function BatteryHistoryChart({
       {restartMarkers.length > 0 && (
         <div className="flex items-center gap-2 text-xs text-[var(--color-text-muted)] mt-2">
           <IconRefresh size={14} />
-          <span>Dashed lines with ⟲ indicate keyboard restarts</span>
+          <span>{t("batteryHistory.restartIndicator")}</span>
         </div>
       )}
     </div>

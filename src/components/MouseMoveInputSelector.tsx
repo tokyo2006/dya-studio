@@ -16,6 +16,7 @@ import {
   ZMK_POINTING_DEFAULT_MOVE_VAL,
   ZMK_POINTING_DEFAULT_SCRL_VAL,
 } from "../lib/keycodes";
+import { useTranslation } from "react-i18next";
 
 interface MouseMoveInputSelectorProps {
   /** Current encoded value (32-bit packed X/Y) */
@@ -31,6 +32,7 @@ export function MouseMoveInputSelector({
   onChange,
   isScroll = false,
 }: MouseMoveInputSelectorProps) {
+  const { t } = useTranslation();
   const presets = isScroll ? MOUSE_SCROLLS : MOUSE_MOVEMENTS;
   const defaultValue = isScroll
     ? ZMK_POINTING_DEFAULT_SCRL_VAL
@@ -70,7 +72,7 @@ export function MouseMoveInputSelector({
       {/* Preset Buttons */}
       <div>
         <p className="text-xs text-[var(--color-text-muted)] mb-2">
-          Quick Presets (default: ±{defaultValue})
+          {t("mouseMoveInput.quickPresets", { defaultValue })}
         </p>
         <div className="grid grid-cols-2 gap-2">
           {presets.map((preset) => (
@@ -93,7 +95,7 @@ export function MouseMoveInputSelector({
       {/* Custom X/Y Input */}
       <div>
         <p className="text-xs text-[var(--color-text-muted)] mb-2">
-          Custom Values (range: -32768 to 32767)
+          {t("mouseMoveInput.customValues")}
         </p>
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -101,7 +103,7 @@ export function MouseMoveInputSelector({
               htmlFor="mouse-x-input"
               className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1"
             >
-              X-axis (Horizontal)
+              {t("mouseMoveInput.xAxis")}
             </label>
             <input
               id="mouse-x-input"
@@ -114,7 +116,7 @@ export function MouseMoveInputSelector({
               placeholder="0"
             />
             <p className="text-xs text-[var(--color-text-muted)] mt-1">
-              - = Left, + = Right
+              {t("mouseMoveInput.xDirection")}
             </p>
           </div>
           <div>
@@ -122,7 +124,7 @@ export function MouseMoveInputSelector({
               htmlFor="mouse-y-input"
               className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1"
             >
-              Y-axis (Vertical)
+              {t("mouseMoveInput.yAxis")}
             </label>
             <input
               id="mouse-y-input"
@@ -135,8 +137,9 @@ export function MouseMoveInputSelector({
               placeholder="0"
             />
             <p className="text-xs text-[var(--color-text-muted)] mt-1">
-              {/* Note: Scroll Y is inverted in ZMK (positive = up, negative = down) */}
-              {isScroll ? "- = Down, + = Up" : "- = Up, + = Down"}
+              {isScroll
+                ? t("mouseMoveInput.yDirectionScroll")
+                : t("mouseMoveInput.yDirectionMove")}
             </p>
           </div>
         </div>
@@ -147,8 +150,11 @@ export function MouseMoveInputSelector({
         (value !== 0 || decoded.x !== 0 || decoded.y !== 0) && (
           <div className="p-3 rounded-lg bg-[var(--color-border)]/50 border border-[var(--color-border)]">
             <p className="text-xs text-[var(--color-text-muted)]">
-              Current: X={decoded.x}, Y={decoded.y} (encoded: 0x
-              {value.toString(16).toUpperCase()})
+              {t("mouseMoveInput.currentValue", {
+                x: decoded.x,
+                y: decoded.y,
+                encoded: value.toString(16).toUpperCase(),
+              })}
             </p>
           </div>
         )}

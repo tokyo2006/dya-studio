@@ -5,6 +5,7 @@
  */
 import { useState, useMemo, useRef, useEffect } from "react";
 import { IconChevronDown } from "@tabler/icons-react";
+import { useTranslation } from "react-i18next";
 import {
   getBehaviorMetadata,
   type BehaviorCategory,
@@ -12,16 +13,17 @@ import {
 import type { BehaviorDefinition } from "../hooks/useKeymap";
 
 // Predefined behavior categories
-const BEHAVIOR_CATEGORIES: { id: BehaviorCategory; name: string }[] = [
-  { id: "keypress", name: "Key Press" },
-  { id: "layer", name: "Layers" },
-  { id: "mod", name: "Modifiers" },
-  { id: "mouse", name: "Mouse" },
-  { id: "transport", name: "Transport" },
-  { id: "system", name: "System" },
-  { id: "miscellaneous", name: "Misc" },
-  { id: "others", name: "Others" },
-];
+const BEHAVIOR_CATEGORIES: { id: BehaviorCategory; translationKey: string }[] =
+  [
+    { id: "keypress", translationKey: "behaviorDropdown.keypress" },
+    { id: "layer", translationKey: "behaviorDropdown.layer" },
+    { id: "mod", translationKey: "behaviorDropdown.mod" },
+    { id: "mouse", translationKey: "behaviorDropdown.mouse" },
+    { id: "transport", translationKey: "behaviorDropdown.transport" },
+    { id: "system", translationKey: "behaviorDropdown.system" },
+    { id: "miscellaneous", translationKey: "behaviorDropdown.miscellaneous" },
+    { id: "others", translationKey: "behaviorDropdown.others" },
+  ];
 
 // Quick-select behaviors for faster access
 const QUICK_SELECT_BEHAVIORS = ["kp", "lt", "mt", "none", "transparent"];
@@ -49,6 +51,7 @@ export function BehaviorDropdown({
   onQuickSelect,
   quickSelects,
 }: BehaviorDropdownProps) {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [filterCategory, setFilterCategory] = useState<
     BehaviorCategory | "all"
@@ -187,7 +190,7 @@ export function BehaviorDropdown({
       >
         <span className="text-sm text-[var(--color-text)]">
           {selectedBehaviorOverrideMeta?.displayNameVariants?.at(0) ||
-            "Select behavior"}
+            t("keymap.selectBehavior")}
           {selectedBehaviorOverrideMeta?.description && (
             <span className="mx-1 text-xs text-[var(--color-text-muted)]">
               - {selectedBehaviorOverrideMeta.description}
@@ -203,7 +206,7 @@ export function BehaviorDropdown({
       {/* Quick Select Buttons with label (moved to bottom) */}
       <div className="items-center gap-1 mt-2 pl-2 overflow-x-auto flex">
         <span className="text-xs text-[var(--color-text-muted)] mr-1 flex-shrink-0">
-          Quick Select:
+          {t("behaviorDropdown.quickSelect")}
         </span>
         {quickSelectBehaviors.map((qb) => (
           <button
@@ -219,7 +222,7 @@ export function BehaviorDropdown({
               updateRecentBehaviors(qb.id);
               onQuickSelect(qb.id);
             }}
-            title={qb.isRecent ? "Recently used" : undefined}
+            title={qb.isRecent ? t("behaviorDropdown.recentlyUsed") : undefined}
           >
             {qb.displayName}
           </button>
@@ -239,7 +242,7 @@ export function BehaviorDropdown({
               }`}
               onClick={() => setFilterCategory("all")}
             >
-              All
+              {t("behaviorDropdown.all")}
             </button>
             {BEHAVIOR_CATEGORIES.map((cat) => (
               <button
@@ -251,7 +254,7 @@ export function BehaviorDropdown({
                 }`}
                 onClick={() => setFilterCategory(cat.id)}
               >
-                {cat.name}
+                {t(cat.translationKey)}
               </button>
             ))}
           </div>
