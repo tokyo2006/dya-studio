@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package zmk.physical_layouts;
+package cormoran.zmk.physical_layouts;
 
 message GetPhysicalLayoutRequest {}
 

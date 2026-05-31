@@ -1,7 +1,7 @@
 /**
  * PhysicalLayoutModule Component
  *
- * Renders a non-key physical module from zmk__physical_layouts.
+ * Renders a non-key physical module from the physical layouts subsystem.
  */
 import { useMemo } from "react";
 import * as Tooltip from "@radix-ui/react-tooltip";

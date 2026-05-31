@@ -7,7 +7,7 @@
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
 
-export const protobufPackage = "zmk.physical_layouts";
+export const protobufPackage = "cormoran.zmk.physical_layouts";
 
 export interface GetPhysicalLayoutRequest {
 }

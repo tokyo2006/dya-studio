@@ -61,11 +61,7 @@ function scalingValueToFraction(value: number): {
 
 function scalingValueToButtonStep(value: number, direction: -1 | 1): number {
   const stepCount = Math.round(value / SCALING_BUTTON_STEP) + direction;
-  return clamp(
-    stepCount * SCALING_BUTTON_STEP,
-    SCALING_MIN,
-    SCALING_MAX,
-  );
+  return clamp(stepCount * SCALING_BUTTON_STEP, SCALING_MIN, SCALING_MAX);
 }
 
 function formatScalingValue(value: number): string {
