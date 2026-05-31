@@ -226,20 +226,6 @@ export function KeymapPage() {
                   ● Unsaved changes
                 </span>
               )}
-              <button
-                className="btn-ghost text-sm flex items-center gap-1.5 flex-shrink-0"
-                onClick={handleDiscard}
-                disabled={
-                  isDiscarding || !keymap.hasUnsavedChanges || keymap.isLoading
-                }
-              >
-                {isDiscarding ? (
-                  <IconLoader2 size={16} className="animate-spin" />
-                ) : (
-                  <IconRestore size={16} />
-                )}
-                Reset All
-              </button>
               {inputStream.isAvailable && (
                 <div className="flex items-center gap-2 px-2 py-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
                   <span className="text-xs text-[var(--color-text-muted)]">
@@ -256,6 +242,20 @@ export function KeymapPage() {
                   </Switch.Root>
                 </div>
               )}
+              <button
+                className="btn-ghost text-sm flex items-center gap-1.5 flex-shrink-0"
+                onClick={handleDiscard}
+                disabled={
+                  isDiscarding || !keymap.hasUnsavedChanges || keymap.isLoading
+                }
+              >
+                {isDiscarding ? (
+                  <IconLoader2 size={16} className="animate-spin" />
+                ) : (
+                  <IconRestore size={16} />
+                )}
+                Reset All
+              </button>
               <button
                 className="btn-electric text-sm flex items-center gap-1.5"
                 onClick={handleSave}
@@ -589,7 +589,7 @@ export function KeymapPage() {
                       ? physicalLayoutModules.modules
                       : []
                   }
-                  streamHighlightedKeys={inputStream.highlightedKeys}
+                  highlightedKeys={inputStream.highlightedKeys}
                 />
               </div>
             )}

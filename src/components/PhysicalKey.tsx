@@ -39,8 +39,8 @@ interface PhysicalKeyProps {
   bindingDescription?: string;
   /** Whether this key is currently selected */
   isSelected: boolean;
-  /** Whether this key is currently highlighted by input stream preview */
-  isStreamHighlighted?: boolean;
+  /** Whether this key is currently highlighted in the preview */
+  isHighlighted?: boolean;
   /** Callback when key is clicked */
   onClick: () => void;
   /** Callback to reset this key to original */
@@ -57,7 +57,7 @@ export function PhysicalKey({
   originalDisplayName,
   bindingDescription,
   isSelected,
-  isStreamHighlighted = false,
+  isHighlighted = false,
   onClick,
   onReset,
   scale = 1.0,
@@ -106,7 +106,7 @@ export function PhysicalKey({
         absolute rounded-lg border cursor-pointer transition-all duration-150
         flex flex-col items-center justify-center p-1.5 overflow-hidden
         ${
-          isStreamHighlighted
+          isHighlighted
             ? "bg-amber-400/20 border-amber-300 shadow-[0_0_14px_rgba(251,191,36,0.45)]"
             : isSelected
               ? "bg-[var(--color-electric)]/20 border-[var(--color-electric)] shadow-[0_0_10px_rgba(0,212,255,0.3)]"
@@ -126,7 +126,7 @@ export function PhysicalKey({
             flex items-center justify-center
           font-medium text-center leading-tight break-words line-clamp-2
           ${
-            isStreamHighlighted
+            isHighlighted
               ? "text-amber-100"
               : isModified
                 ? "text-[var(--color-neon)]"
@@ -144,7 +144,7 @@ export function PhysicalKey({
         <div className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[var(--color-neon)]" />
       )}
 
-      {isStreamHighlighted && (
+      {isHighlighted && (
         <div className="absolute inset-0 rounded-lg border-2 border-amber-200/70 pointer-events-none animate-pulse" />
       )}
 
