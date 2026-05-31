@@ -30,6 +30,10 @@ import {
   PHYSICAL_LAYOUTS_IDENTIFIER,
 } from "./demo-physical-layouts";
 import {
+  InputStreamHandler,
+  INPUT_STREAM_IDENTIFIER,
+} from "./demo-input-stream";
+import {
   Request as BLERequest,
   Response as BLEResponse,
 } from "../../proto/zmk/ble_management/ble_management";
@@ -53,6 +57,10 @@ import {
   Request as PhysicalLayoutsRequest,
   Response as PhysicalLayoutsResponse,
 } from "../../proto/zmk/physical_layouts/physical_layouts";
+import {
+  Request as InputStreamRequest,
+  Response as InputStreamResponse,
+} from "../../proto/zmk/input_stream/input_stream";
 import {
   ANSI60,
   ORTHO,
@@ -161,6 +169,7 @@ class Keyboard {
   private runtimeInputProcessorHandler = new RuntimeInputProcessorHandler();
   private runtimeSensorRotateHandler = new RuntimeSensorRotateHandler();
   private physicalLayoutsHandler = new PhysicalLayoutsHandler();
+  private inputStreamHandler = new InputStreamHandler();
 
   // Custom subsystems registry
   private readonly BLE_SUBSYSTEM_INDEX = 0;
@@ -169,6 +178,7 @@ class Keyboard {
   private readonly RUNTIME_INPUT_PROCESSOR_SUBSYSTEM_INDEX = 3;
   private readonly RUNTIME_SENSOR_ROTATE_SUBSYSTEM_INDEX = 4;
   private readonly PHYSICAL_LAYOUTS_SUBSYSTEM_INDEX = 5;
+  private readonly INPUT_STREAM_SUBSYSTEM_INDEX = 6;
 
   private customSubsystems = [
     {
@@ -199,6 +209,11 @@ class Keyboard {
     {
       index: this.PHYSICAL_LAYOUTS_SUBSYSTEM_INDEX,
       identifier: PHYSICAL_LAYOUTS_IDENTIFIER,
+      uiUrl: [],
+    },
+    {
+      index: this.INPUT_STREAM_SUBSYSTEM_INDEX,
+      identifier: INPUT_STREAM_IDENTIFIER,
       uiUrl: [],
     },
   ];
@@ -413,6 +428,16 @@ class Keyboard {
         } catch (e) {
           console.error("Physical Layouts subsystem error:", e);
         }
+      } else if (subsystemIndex === this.INPUT_STREAM_SUBSYSTEM_INDEX) {
+        // Input Stream
+        try {
+          const inputStreamReq = InputStreamRequest.decode(data);
+          const inputStreamResp =
+            this.inputStreamHandler.process(inputStreamReq);
+          responseData = InputStreamResponse.encode(inputStreamResp).finish();
+        } catch (e) {
+          console.error("Input Stream subsystem error:", e);
+        }
       }
 
       if (responseData) {
@@ -490,6 +515,21 @@ class Keyboard {
             custom: {
               customNotification: {
                 subsystemIndex: this.RUNTIME_SENSOR_ROTATE_SUBSYSTEM_INDEX,
+                payload: payload,
+              },
+            },
+          },
+        }).finish(),
+      );
+    });
+
+    this.inputStreamHandler.notify((payload: Uint8Array) => {
+      callback(
+        Response.encode({
+          notification: {
+            custom: {
+              customNotification: {
+                subsystemIndex: this.INPUT_STREAM_SUBSYSTEM_INDEX,
                 payload: payload,
               },
             },

@@ -10,8 +10,10 @@ import { KeymapPage } from "../KeymapPage";
 import { ConnectionContext } from "../../components/DeviceConnection";
 import {
   ZMKAppProvider,
+  createConnectedMockZMKApp,
   createMockZMKApp,
 } from "@cormoran/zmk-studio-react-hook/testing";
+import { INPUT_STREAM_IDENTIFIER } from "../../hooks/useInputStream";
 
 // Mock ResizeObserver for tests
 global.ResizeObserver = jest.fn().mockImplementation(() => ({
@@ -137,7 +139,11 @@ describe("KeymapPage", () => {
   /**
    * Helper function to render the component with custom context and hook values
    */
-  const renderComponent = (connectionOverrides = {}, keymapOverrides = {}) => {
+  const renderComponent = (
+    connectionOverrides = {},
+    keymapOverrides = {},
+    zmkApp = createMockZMKApp(),
+  ) => {
     const connectionContext = {
       ...mockConnectionContext,
       ...connectionOverrides,
@@ -145,11 +151,9 @@ describe("KeymapPage", () => {
     const keymapHookReturn = { ...mockUseKeymap(), ...keymapOverrides };
     mockUseKeymap.mockReturnValue(keymapHookReturn);
 
-    const mockZMKApp = createMockZMKApp();
-
     return render(
       <ConnectionContext.Provider value={connectionContext}>
-        <ZMKAppProvider value={mockZMKApp}>
+        <ZMKAppProvider value={zmkApp}>
           <KeymapPage />
         </ZMKAppProvider>
       </ConnectionContext.Provider>,
@@ -263,6 +267,22 @@ describe("KeymapPage", () => {
 
       expect(screen.getByText("Save")).toBeInTheDocument();
       expect(screen.getByText("Reset All")).toBeInTheDocument();
+    });
+
+    it("should show stream mode toggle when input stream subsystem is available", () => {
+      renderComponent(
+        { isConnected: true },
+        {
+          keymap: mockKeymap,
+          physicalLayouts: mockPhysicalLayouts,
+          behaviors: mockBehaviors,
+        },
+        createConnectedMockZMKApp({
+          subsystems: [INPUT_STREAM_IDENTIFIER],
+        }),
+      );
+
+      expect(screen.getByLabelText("Toggle stream mode")).toBeInTheDocument();
     });
 
     it("should disable save button when no unsaved changes", () => {

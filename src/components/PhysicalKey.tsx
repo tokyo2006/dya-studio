@@ -39,6 +39,8 @@ interface PhysicalKeyProps {
   bindingDescription?: string;
   /** Whether this key is currently selected */
   isSelected: boolean;
+  /** Whether this key is currently highlighted by input stream preview */
+  isStreamHighlighted?: boolean;
   /** Callback when key is clicked */
   onClick: () => void;
   /** Callback to reset this key to original */
@@ -55,6 +57,7 @@ export function PhysicalKey({
   originalDisplayName,
   bindingDescription,
   isSelected,
+  isStreamHighlighted = false,
   onClick,
   onReset,
   scale = 1.0,
@@ -103,11 +106,13 @@ export function PhysicalKey({
         absolute rounded-lg border cursor-pointer transition-all duration-150
         flex flex-col items-center justify-center p-1.5 overflow-hidden
         ${
-          isSelected
-            ? "bg-[var(--color-electric)]/20 border-[var(--color-electric)] shadow-[0_0_10px_rgba(0,212,255,0.3)]"
-            : isModified
-              ? "bg-[var(--color-neon)]/10 border-[var(--color-neon)]/50 hover:border-[var(--color-neon)]"
-              : "bg-[var(--color-surface)] border-[var(--color-border)] hover:border-[var(--color-electric)]/50 hover:bg-[var(--color-electric)]/5"
+          isStreamHighlighted
+            ? "bg-amber-400/20 border-amber-300 shadow-[0_0_14px_rgba(251,191,36,0.45)]"
+            : isSelected
+              ? "bg-[var(--color-electric)]/20 border-[var(--color-electric)] shadow-[0_0_10px_rgba(0,212,255,0.3)]"
+              : isModified
+                ? "bg-[var(--color-neon)]/10 border-[var(--color-neon)]/50 hover:border-[var(--color-neon)]"
+                : "bg-[var(--color-surface)] border-[var(--color-border)] hover:border-[var(--color-electric)]/50 hover:bg-[var(--color-electric)]/5"
         }
       `}
       style={style}
@@ -121,7 +126,11 @@ export function PhysicalKey({
             flex items-center justify-center
           font-medium text-center leading-tight break-words line-clamp-2
           ${
-            isModified ? "text-[var(--color-neon)]" : "text-[var(--color-text)]"
+            isStreamHighlighted
+              ? "text-amber-100"
+              : isModified
+                ? "text-[var(--color-neon)]"
+                : "text-[var(--color-text)]"
           }
         `}
         style={{ fontSize: `${fontSize}px` }}
@@ -133,6 +142,10 @@ export function PhysicalKey({
       {/* Modified indicator */}
       {isModified && (
         <div className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[var(--color-neon)]" />
+      )}
+
+      {isStreamHighlighted && (
+        <div className="absolute inset-0 rounded-lg border-2 border-amber-200/70 pointer-events-none animate-pulse" />
       )}
 
       {/* Reset button on hover when modified */}
