@@ -3,7 +3,7 @@ import type {
   Response,
 } from "../../proto/zmk/physical_layouts/physical_layouts";
 
-export const PHYSICAL_LAYOUTS_IDENTIFIER = "zmk__physical_layouts";
+export const PHYSICAL_LAYOUTS_IDENTIFIER = "cormoran__physical_layouts";
 
 export class PhysicalLayoutsHandler {
   process(request: Request): Response {
