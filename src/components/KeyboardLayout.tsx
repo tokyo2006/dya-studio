@@ -53,6 +53,8 @@ interface KeyboardLayoutProps {
   keyboardLayout?: KeyboardLayoutType;
   /** Optional non-key physical modules from custom physical layout RPC */
   modules?: PhysicalLayoutModulePresentation[];
+  /** Key positions currently highlighted in the preview */
+  highlightedKeys?: ReadonlySet<number>;
 }
 
 type LayoutGeometry = Pick<
@@ -102,6 +104,7 @@ export function KeyboardLayout({
   getOriginalBinding,
   keyboardLayout,
   modules = [],
+  highlightedKeys,
 }: KeyboardLayoutProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1.0);
@@ -273,6 +276,7 @@ export function KeyboardLayout({
               }
               bindingDescription={getBindingDescription(binding)}
               isSelected={selectedKey === position}
+              isHighlighted={highlightedKeys?.has(position)}
               onClick={() => onKeyClick(position)}
               onReset={() => onKeyReset(position)}
               scale={scale}
