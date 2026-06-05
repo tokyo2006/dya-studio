@@ -54,6 +54,8 @@ interface KeyboardLayoutProps {
   keyboardLayout?: KeyboardLayoutType;
   /** Optional non-key physical modules from custom physical layout RPC */
   modules?: PhysicalLayoutModulePresentation[];
+  /** Key positions currently highlighted in the preview */
+  highlightedKeys?: ReadonlySet<number>;
 }
 
 type LayoutGeometry = Pick<
@@ -103,6 +105,7 @@ export function KeyboardLayout({
   getOriginalBinding,
   keyboardLayout,
   modules = [],
+  highlightedKeys,
 }: KeyboardLayoutProps) {
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -235,7 +238,8 @@ export function KeyboardLayout({
       if (!binding) return t("keycodes.noBinding");
       const behavior = behaviors.get(binding.behaviorId) || null;
       const behaviorName =
-        behavior?.displayName || `${t("keycodes.behavior")} ${binding.behaviorId}`;
+        behavior?.displayName ||
+        `${t("keycodes.behavior")} ${binding.behaviorId}`;
       return `${behaviorName} (${t("keycodes.param1")}: ${binding.param1}, ${t("keycodes.param2")}: ${binding.param2})`;
     },
     [behaviors, t],
@@ -275,6 +279,7 @@ export function KeyboardLayout({
               }
               bindingDescription={getBindingDescription(binding)}
               isSelected={selectedKey === position}
+              isHighlighted={highlightedKeys?.has(position)}
               onClick={() => onKeyClick(position)}
               onReset={() => onKeyReset(position)}
               scale={scale}

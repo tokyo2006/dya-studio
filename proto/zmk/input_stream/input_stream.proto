@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package zmk.input_stream;
+
+message EnableStreamRequest {}
+
+message DisableStreamRequest {}
+
+message Request {
+    oneof request_type {
+        EnableStreamRequest enable_stream = 1;
+        DisableStreamRequest disable_stream = 2;
+    }
+}
+
+message ErrorResponse { string message = 1; }
+
+message OkResponse {}
+
+message Response {
+    oneof response_type {
+        ErrorResponse error = 1;
+        OkResponse ok = 2;
+    }
+}
+
+// Sent when a key is physically pressed or released.
+// behavior_id/param1/param2 come from the active-layer binding at that position.
+message KeyEventNotification {
+    uint32 position = 1;
+    bool pressed = 2;
+    uint32 behavior_id = 3;
+    uint32 param1 = 4;
+    uint32 param2 = 5;
+}
+
+// Sent whenever the highest-active-layer index changes.
+message LayerChangeNotification { uint32 layer_index = 1; }
+
+message Notification {
+    oneof notification_type {
+        KeyEventNotification key_event = 1;
+        LayerChangeNotification layer_change = 2;
+    }
+}

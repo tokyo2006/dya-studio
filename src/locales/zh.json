@@ -342,7 +342,10 @@
     "osLayoutTooltipItem1": "此设置仅影响 DYA Studio 网页界面中的视觉按键标签。",
     "osLayoutTooltipItem2Prefix": "更改此项不会更新任何固件设置。键盘",
     "osLayoutTooltipItem2Suffix": "不受此设置影响。如需要，请在操作系统中更改布局设置。对于 macOS，USB 连接始终检测为美式布局，目前无法更改。",
-    "osLayoutTooltipItem3": "当前选择保存在浏览器的本地存储中。"
+    "osLayoutTooltipItem3": "当前选择保存在浏览器的本地存储中。",
+    "stream": "实时输入",
+    "toggleStreamMode": "切换实时输入模式",
+    "streamDisabled": "关闭"
   },
   "batteryHistory": {
     "restartIndicator": "虚线与 ⟲ 表示键盘重启"

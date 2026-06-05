@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { useState, useContext, useCallback, useMemo } from "react";
+import { useState, useContext, useCallback, useMemo, useEffect } from "react";
 import {
   IconKeyboard,
   IconDeviceFloppy,
@@ -14,6 +14,7 @@ import {
   IconInfoCircle,
 } from "@tabler/icons-react";
 import * as Tooltip from "@radix-ui/react-tooltip";
+import * as Switch from "@radix-ui/react-switch";
 import { ConnectionContext } from "../components/DeviceConnection";
 import { KeyboardLayoutContext } from "../contexts/KeyboardLayoutContext";
 import { KeyboardLayout } from "../components/KeyboardLayout";
@@ -23,6 +24,7 @@ import { SensorRotationConfig } from "../components/SensorRotationConfig";
 import { useKeymap } from "../hooks/useKeymap";
 import { usePhysicalLayoutModules } from "../hooks/usePhysicalLayoutModules";
 import { useRuntimeSensorRotate } from "../hooks/useRuntimeSensorRotate";
+import { useInputStream } from "../hooks/useInputStream";
 import { getAvailableLayouts, getLayoutLabel } from "../lib/keyboardLayouts";
 import type { BehaviorBinding } from "../hooks/useKeymap";
 
@@ -33,6 +35,7 @@ export function KeymapPage() {
   const keymap = useKeymap();
   const physicalLayoutModules = usePhysicalLayoutModules();
   const sensorRotate = useRuntimeSensorRotate();
+  const inputStream = useInputStream();
 
   // Local UI state
   const [selectedLayerIndex, setSelectedLayerIndex] = useState(0);
@@ -184,6 +187,23 @@ export function KeymapPage() {
     keymap.loadKeymapData();
   }, [keymap]);
 
+  // Sync selected layer from input stream
+  useEffect(() => {
+    if (
+      inputStream.activeLayerIndex === null ||
+      !keymap.keymap?.layers[inputStream.activeLayerIndex]
+    ) {
+      return;
+    }
+
+    queueMicrotask(() => {
+      const layerIndex = inputStream.activeLayerIndex;
+      if (layerIndex !== null) {
+        setSelectedLayerIndex(layerIndex);
+      }
+    });
+  }, [inputStream.activeLayerIndex, keymap.keymap?.layers]);
+
   return (
     <div className="p-6 h-full overflow-auto">
       <div className="max-w-6xl mx-auto">
@@ -213,6 +233,22 @@ export function KeymapPage() {
                 <span className="text-xs text-[var(--color-neon)] mr-2">
                   {t("keymap.unsavedChanges")}
                 </span>
+              )}
+              {inputStream.isAvailable && (
+                <div className="flex items-center gap-2 px-2 py-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
+                  <span className="text-xs text-[var(--color-text-muted)]">
+                    {t("keymap.stream")}
+                  </span>
+                  <Switch.Root
+                    checked={inputStream.isEnabled}
+                    onCheckedChange={() => void inputStream.toggleStream()}
+                    disabled={inputStream.isToggling || keymap.isLoading}
+                    aria-label={t("keymap.toggleStreamMode")}
+                    className="w-10 h-5 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-border)] border border-[var(--color-border)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Switch.Thumb className="block w-4 h-4 rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform bg-white border border-[var(--color-border)]" />
+                  </Switch.Root>
+                </div>
               )}
               <button
                 className="btn-ghost text-sm flex items-center gap-1.5 flex-shrink-0"
@@ -260,6 +296,18 @@ export function KeymapPage() {
           <div className="glass-card p-4 mb-4 border-red-500/20 bg-red-500/10 flex items-center gap-3">
             <IconAlertCircle size={20} className="text-red-400" />
             <p className="text-sm text-red-400">{keymap.error}</p>
+          </div>
+        )}
+        {inputStream.error && (
+          <div className="glass-card p-4 mb-4 border-red-500/20 bg-red-500/10 flex items-center gap-3">
+            <IconAlertCircle size={20} className="text-red-400" />
+            <p className="text-sm text-red-400">{inputStream.error}</p>
+            <button
+              className="ml-auto text-xs text-red-300 hover:text-red-200"
+              onClick={inputStream.clearError}
+            >
+              {t("keymap.streamDisabled")}
+            </button>
           </div>
         )}
         {/* Loading State */}
@@ -542,6 +590,7 @@ export function KeymapPage() {
                       ? physicalLayoutModules.modules
                       : []
                   }
+                  highlightedKeys={inputStream.highlightedKeys}
                 />
               </div>
             )}

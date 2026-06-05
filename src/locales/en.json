@@ -343,7 +343,10 @@
     "osLayoutTooltipItem1": "This setting only affects the visual key labels in DYA Studio web UI.",
     "osLayoutTooltipItem2Prefix": "Changing this does not update any firmware setting. The keyboard is",
     "osLayoutTooltipItem2Suffix": "regardless of this setting. Please change the layout setting in your OS if needed. For MacOS, USB connection is always detected as US and cannot be changed for now.",
-    "osLayoutTooltipItem3": "The selection is saved in your browser's local storage for now."
+    "osLayoutTooltipItem3": "The selection is saved in your browser's local storage for now.",
+    "stream": "Stream",
+    "toggleStreamMode": "Toggle stream mode",
+    "streamDisabled": "Dismiss"
   },
   "batteryHistory": {
     "restartIndicator": "Dashed lines with ⟲ indicate keyboard restarts"

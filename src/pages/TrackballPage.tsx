@@ -1,4 +1,3 @@
-import { useTranslation } from "react-i18next";
 import { useState, useRef } from "react";
 import {
   IconAlertTriangleFilled,
@@ -62,11 +61,7 @@ function scalingValueToFraction(value: number): {
 
 function scalingValueToButtonStep(value: number, direction: -1 | 1): number {
   const stepCount = Math.round(value / SCALING_BUTTON_STEP) + direction;
-  return clamp(
-    stepCount * SCALING_BUTTON_STEP,
-    SCALING_MIN,
-    SCALING_MAX,
-  );
+  return clamp(stepCount * SCALING_BUTTON_STEP, SCALING_MIN, SCALING_MAX);
 }
 
 function formatScalingValue(value: number): string {
@@ -74,7 +69,6 @@ function formatScalingValue(value: number): string {
 }
 
 export function TrackballPage() {
-  const { t } = useTranslation();
   const {
     isAvailable,
     processors,
@@ -361,12 +355,12 @@ export function TrackballPage() {
             <IconPointer size={24} className="text-[var(--color-cyber)]" />
           </div>
           <div>
-<h1 className="text-xl font-medium text-[var(--color-text)]">
-                {t("trackball.title")}
-              </h1>
-              <p className="text-sm text-[var(--color-text-muted)]">
-                {t("trackball.description")}
-              </p>
+            <h1 className="text-xl font-medium text-[var(--color-text)]">
+              Trackball Settings
+            </h1>
+            <p className="text-sm text-[var(--color-text-muted)]">
+              Adjust sensitivity and behavior via runtime input processor
+            </p>
           </div>
         </div>
 
@@ -376,8 +370,9 @@ export function TrackballPage() {
               <IconAlertTriangleFilled size={24} className="text-red-500" />
             </div>
             <p className="text-sm text-[var(--color-text-muted)]">
-              {t("trackball.runtimeInputProcessorNotAvailable")} <br />
-              {t("trackball.makeSureFirmwareHas")}{" "}
+              Runtime input processor subsystem is not available for your
+              keyboard. <br />
+              Make sure your firmware has the
               <a
                 href="https://github.com/cormoran/zmk-module-runtime-input-processor"
                 target="_blank"
@@ -386,7 +381,7 @@ export function TrackballPage() {
               >
                 cormoran/zmk-module-runtime-input-processor
               </a>
-              {t("battery.enabled")}
+              enabled.
             </p>
           </div>
         )}
@@ -402,7 +397,7 @@ export function TrackballPage() {
         {isLoading && !processor && (
           <div className="mb-6 p-4 rounded-lg bg-[var(--color-border)] border border-[var(--color-border-hover)]">
             <p className="text-sm text-[var(--color-text-muted)]">
-              {t("trackball.loadingTrackballSettings")}
+              Loading trackball settings...
             </p>
           </div>
         )}
@@ -411,7 +406,8 @@ export function TrackballPage() {
         {!isLoading && !processor && !error && (
           <div className="mb-6 p-4 rounded-lg bg-[var(--color-border)] border border-[var(--color-border-hover)]">
             <p className="text-sm text-[var(--color-text-muted)]">
-              {t("trackball.noRuntimeInputProcessorFound")}
+              No runtime input processor found. Make sure your firmware has the
+              runtime input processor module enabled.
             </p>
           </div>
         )}
@@ -423,10 +419,10 @@ export function TrackballPage() {
             {processors.length > 1 && (
               <div className="glass-card p-6">
                 <h3 className="text-sm font-medium text-[var(--color-text)] mb-2">
-                  {t("trackball.selectProcessor")}
+                  Select Processor
                 </h3>
                 <p className="text-xs text-[var(--color-text-muted)] mb-4">
-                  {t("trackball.processorsDetected", { count: processors.length })}
+                  {processors.length} processors detected
                 </p>
                 <select
                   value={selectedProcessorIndex}
@@ -449,10 +445,10 @@ export function TrackballPage() {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-sm font-medium text-[var(--color-text)]">
-                    {t("trackball.activeOnLayers")}
+                    Active on Layers
                   </h3>
                   <p className="text-xs text-[var(--color-text-muted)]">
-                    {t("trackball.configureWhichLayersProcessorActive")}
+                    Configure which layers this processor is active on
                   </p>
                 </div>
                 <div className="flex-shrink-0">
@@ -486,14 +482,14 @@ export function TrackballPage() {
                             className="w-4 h-4 rounded border-[var(--color-border)] text-[var(--color-electric)] focus:ring-[var(--color-electric)] focus:ring-offset-0 cursor-pointer"
                           />
                           <span className="text-sm text-[var(--color-text-secondary)]">
-                            {t("trackball.layerName", { name: layer.name || `Layer ${layer.id}` })}
+                            {layer.name || `Layer ${layer.id}`}
                           </span>
                         </label>
                       );
                     })
                   ) : (
                     <p className="text-xs text-[var(--color-text-muted)]">
-                      {t("trackball.loadingLayers")}
+                      Loading layers...
                     </p>
                   )}
                 </div>
@@ -501,7 +497,7 @@ export function TrackballPage() {
 
               {activeLayersMode === "all" && (
                 <p className="text-sm text-[var(--color-text-secondary)] mt-4">
-                  {t("trackball.processorActiveAllLayers")}
+                  Processor is active on all layers
                 </p>
               )}
             </div>
@@ -511,10 +507,10 @@ export function TrackballPage() {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-sm font-medium text-[var(--color-text)]">
-                    {t("trackball.scaling")}
+                    Scaling
                   </h3>
                   <p className="text-xs text-[var(--color-text-muted)]">
-                    {t("trackball.adjustSensitivityRange")}
+                    Adjust sensitivity from 0.1x to 10x
                   </p>
                 </div>
                 <span className="text-lg font-mono text-[var(--color-electric)]">
@@ -522,10 +518,10 @@ export function TrackballPage() {
                 </span>
               </div>
 
-<div className="flex items-center gap-3">
+              <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  aria-label={t("trackball.decreaseScaling")}
+                  aria-label="Decrease scaling"
                   onClick={() => handleScalingStepChange(-1)}
                   disabled={finalScalingValue <= SCALING_MIN}
                   className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border)] hover:text-[var(--color-text)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
@@ -536,7 +532,7 @@ export function TrackballPage() {
                 <div className="min-w-0 flex-1">
                   <input
                     type="range"
-                    aria-label={t("trackball.scaling")}
+                    aria-label="Scaling"
                     min={0}
                     max={SCALING_STEPS}
                     step={1}
@@ -569,7 +565,7 @@ export function TrackballPage() {
 
                 <button
                   type="button"
-                  aria-label={t("trackball.increaseScaling")}
+                  aria-label="Increase scaling"
                   onClick={() => handleScalingStepChange(1)}
                   disabled={finalScalingValue >= SCALING_MAX}
                   className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border)] hover:text-[var(--color-text)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
@@ -584,10 +580,10 @@ export function TrackballPage() {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-sm font-medium text-[var(--color-text)]">
-                    {t("trackball.sensorRotation")}
+                    Sensor Rotation
                   </h3>
                   <p className="text-xs text-[var(--color-text-muted)]">
-                    {t("trackball.rotateInputMountingAngles")}
+                    Rotate input for different mounting angles
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -676,10 +672,10 @@ export function TrackballPage() {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-sm font-medium text-[var(--color-text)]">
-                    {t("trackball.axisSnapping")}
+                    Axis Snapping
                   </h3>
                   <p className="text-xs text-[var(--color-text-muted)]">
-                    {t("trackball.axisSnappingDescription")}
+                    Constrain movement to a single axis for precision scrolling
                   </p>
                 </div>
                 <div className="flex-shrink-0">
@@ -700,7 +696,7 @@ export function TrackballPage() {
                   {/* Axis Selection */}
                   <div>
                     <label className="text-sm text-[var(--color-text-secondary)] mb-3 block">
-                      {t("trackball.snapAxis")}
+                      Snap Axis
                     </label>
                     <div className="grid grid-cols-2 gap-2">
                       <button
@@ -715,7 +711,7 @@ export function TrackballPage() {
                             : "bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border)]"
                         }`}
                       >
-                        {t("trackball.yAxisVertical")}
+                        Y Axis (Vertical)
                       </button>
                       <button
                         onClick={() =>
@@ -729,7 +725,7 @@ export function TrackballPage() {
                             : "bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border)]"
                         }`}
                       >
-                        {t("trackball.xAxisHorizontal")}
+                        X Axis (Horizontal)
                       </button>
                     </div>
                   </div>
@@ -737,7 +733,7 @@ export function TrackballPage() {
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <label className="text-sm text-[var(--color-text-secondary)]">
-                        {t("trackball.snapThreshold")}
+                        Snap Threshold
                       </label>
                       <span className="text-sm font-mono text-[var(--color-electric)]">
                         {displayAxisSnapThreshold}
@@ -770,7 +766,7 @@ export function TrackballPage() {
                         [&::-moz-range-thumb]:shadow-[0_0_8px_var(--color-electric)]"
                     />
                     <p className="text-xs text-[var(--color-text-muted)] mt-2">
-                      {t("trackball.thresholdDescription")}
+                      Threshold for unsnapping from the locked axis
                     </p>
                   </div>
 
@@ -778,7 +774,7 @@ export function TrackballPage() {
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <label className="text-sm text-[var(--color-text-secondary)]">
-                        {t("trackball.snapTimeout")}
+                        Snap Timeout
                       </label>
                       <span className="text-sm font-mono text-[var(--color-electric)]">
                         {displayAxisSnapTimeout}ms
@@ -811,7 +807,7 @@ export function TrackballPage() {
                         [&::-moz-range-thumb]:shadow-[0_0_8px_var(--color-electric)]"
                     />
                     <p className="text-xs text-[var(--color-text-muted)] mt-2">
-                      {t("trackball.timeoutDescription")}
+                      Time window for threshold check
                     </p>
                   </div>
                 </div>
@@ -822,10 +818,10 @@ export function TrackballPage() {
             <div className="glass-card p-6">
               <div className="mb-4">
                 <h3 className="text-sm font-medium text-[var(--color-text)]">
-                  {t("trackball.axisInversion")}
+                  Axis Inversion
                 </h3>
                 <p className="text-xs text-[var(--color-text-muted)]">
-                  {t("trackball.axisInversionDescription")}
+                  Reverse the direction of X or Y axis movement
                 </p>
               </div>
 
@@ -834,10 +830,10 @@ export function TrackballPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-[var(--color-text-secondary)]">
-                      {t("trackball.invertXAxis")}
+                      Invert X Axis
                     </p>
                     <p className="text-xs text-[var(--color-text-muted)]">
-                      {t("trackball.reverseHorizontal")}
+                      Reverse horizontal movement direction
                     </p>
                   </div>
                   <div className="flex-shrink-0">
@@ -855,10 +851,10 @@ export function TrackballPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-[var(--color-text-secondary)]">
-                      {t("trackball.invertYAxis")}
+                      Invert Y Axis
                     </p>
                     <p className="text-xs text-[var(--color-text-muted)]">
-                      {t("trackball.reverseVertical")}
+                      Reverse vertical movement direction
                     </p>
                   </div>
                   <div className="flex-shrink-0">
@@ -878,10 +874,10 @@ export function TrackballPage() {
             <div className="glass-card p-6">
               <div className="mb-4">
                 <h3 className="text-sm font-medium text-[var(--color-text)]">
-                  {t("trackball.codeMapping")}
+                  Code Mapping
                 </h3>
                 <p className="text-xs text-[var(--color-text-muted)]">
-                  {t("trackball.codeMappingDescription")}
+                  Transform trackball movement into different input types
                 </p>
               </div>
 
@@ -890,10 +886,10 @@ export function TrackballPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-[var(--color-text-secondary)]">
-                      {t("trackball.xyToScroll")}
+                      XY-to-Scroll
                     </p>
                     <p className="text-xs text-[var(--color-text-muted)]">
-                      {t("trackball.xyToScrollDescription")}
+                      Map X/Y movement to horizontal/vertical scroll
                     </p>
                   </div>
                   <div className="flex-shrink-0">
@@ -911,10 +907,10 @@ export function TrackballPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-[var(--color-text-secondary)]">
-                      {t("trackball.xySwap")}
+                      XY-Swap
                     </p>
                     <p className="text-xs text-[var(--color-text-muted)]">
-                      {t("trackball.xySwapDescription")}
+                      Swap X and Y axes
                     </p>
                   </div>
                   <div className="flex-shrink-0">
@@ -935,10 +931,10 @@ export function TrackballPage() {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-sm font-medium text-[var(--color-text)]">
-                    {t("trackball.tempLayer")}
+                    Temporary Layer
                   </h3>
                   <p className="text-xs text-[var(--color-text-muted)]">
-                    {t("trackball.tempLayerDescription")}
+                    Auto-activate layer when trackball is in use
                   </p>
                 </div>
                 <div className="flex-shrink-0">
@@ -957,7 +953,7 @@ export function TrackballPage() {
                   {/* Layer Selection */}
                   <div>
                     <label className="text-sm text-[var(--color-text-secondary)] mb-3 block">
-                      {t("trackball.tempLayerLayer")}
+                      Target Layer
                     </label>
                     {layers.length > 0 ? (
                       <select
@@ -969,13 +965,13 @@ export function TrackballPage() {
                       >
                         {layers.map((layer) => (
                           <option key={layer.id} value={layer.id}>
-                            {layer.name || t("trackball.layerName", { name: `Layer ${layer.id}` })}
+                            {layer.name || `Layer ${layer.id}`}
                           </option>
                         ))}
                       </select>
                     ) : (
                       <p className="text-xs text-[var(--color-text-muted)]">
-                        {t("trackball.loadingLayers")}
+                        Loading layers...
                       </p>
                     )}
                   </div>
@@ -984,7 +980,7 @@ export function TrackballPage() {
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <label className="text-sm text-[var(--color-text-secondary)]">
-                        {t("trackball.tempLayerActivationDelay")}
+                        Activation Delay
                       </label>
                       <span className="text-sm font-mono text-[var(--color-electric)]">
                         {displayTempLayerActivationDelay}ms
@@ -1019,7 +1015,7 @@ export function TrackballPage() {
                         [&::-moz-range-thumb]:shadow-[0_0_8px_var(--color-electric)]"
                     />
                     <p className="text-xs text-[var(--color-text-muted)] mt-2">
-                      {t("trackball.activationDelayDescription")}
+                      Delay before activating layer when trackball moves
                     </p>
                   </div>
 
@@ -1027,7 +1023,7 @@ export function TrackballPage() {
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <label className="text-sm text-[var(--color-text-secondary)]">
-                        {t("trackball.deactivationDelay")}
+                        Deactivation Delay
                       </label>
                       <span className="text-sm font-mono text-[var(--color-electric)]">
                         {displayTempLayerDeactivationDelay}ms
@@ -1062,7 +1058,7 @@ export function TrackballPage() {
                         [&::-moz-range-thumb]:shadow-[0_0_8px_var(--color-electric)]"
                     />
                     <p className="text-xs text-[var(--color-text-muted)] mt-2">
-                      {t("trackball.deactivationDelayDescription")}
+                      Delay before deactivating layer when trackball stops
                     </p>
                   </div>
                 </div>

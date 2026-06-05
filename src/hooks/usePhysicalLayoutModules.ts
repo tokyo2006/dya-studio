@@ -1,7 +1,7 @@
 /**
  * usePhysicalLayoutModules Hook
  *
- * Loads non-key physical module geometry from the zmk__physical_layouts custom
+ * Loads non-key physical module geometry from the physical layouts custom
  * Studio RPC subsystem.
  */
 import { useCallback, useContext, useEffect, useMemo, useState } from "react";
@@ -18,7 +18,12 @@ import {
   type RotaryEncoder,
 } from "../proto/zmk/physical_layouts/physical_layouts";
 
-export const PHYSICAL_LAYOUTS_IDENTIFIER = "zmk__physical_layouts";
+export const PHYSICAL_LAYOUTS_IDENTIFIER = "cormoran__physical_layouts";
+export const LEGACY_PHYSICAL_LAYOUTS_IDENTIFIER = "zmk__physical_layouts";
+export const PHYSICAL_LAYOUTS_IDENTIFIERS = [
+  PHYSICAL_LAYOUTS_IDENTIFIER,
+  LEGACY_PHYSICAL_LAYOUTS_IDENTIFIER,
+] as const;
 
 export type PhysicalLayoutModuleKind =
   | "trackball"
@@ -131,11 +136,14 @@ export function usePhysicalLayoutModules(): UsePhysicalLayoutModulesReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const subsystem = useMemo(
-    () => zmkApp?.findSubsystem(PHYSICAL_LAYOUTS_IDENTIFIER),
+  const subsystem = useMemo(() => {
+    for (const identifier of PHYSICAL_LAYOUTS_IDENTIFIERS) {
+      const found = zmkApp?.findSubsystem(identifier);
+      if (found) return found;
+    }
+    return undefined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [zmkApp?.state.customSubsystems],
-  );
+  }, [zmkApp?.state.customSubsystems]);
   const subsystemIndex = subsystem?.index;
   const connection = zmkApp?.state.connection;
 
