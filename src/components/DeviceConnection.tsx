@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
 import { createContext, useCallback } from "react";
+import type { RpcTransport } from "@zmkfirmware/zmk-studio-ts-client/transport/index";
 import { useZMKApp, ZMKAppContext } from "@cormoran/zmk-studio-react-hook";
-import { connect as connectSerial } from "@zmkfirmware/zmk-studio-ts-client/transport/serial";
 import { connect as connectBLE } from "@zmkfirmware/zmk-studio-ts-client/transport/gatt";
+import { connect as connectUSB } from "../lib/transport/usb";
 import { connect as connectDemo } from "../lib/transport/demo";
 
 export type ConnectionMethod = "serial" | "ble" | "demo";
@@ -37,13 +38,13 @@ export function DeviceConnectionProvider({
 
   const handleConnect = useCallback(
     async (method: ConnectionMethod) => {
-      let connectFn;
+      let connectFn: () => Promise<RpcTransport>;
       if (method === "ble") {
         connectFn = connectBLE;
       } else if (method === "demo") {
         connectFn = connectDemo;
       } else {
-        connectFn = connectSerial;
+        connectFn = connectUSB;
       }
       await zmkApp.connect(connectFn);
     },

@@ -15,6 +15,7 @@ import {
 } from "@tabler/icons-react";
 import type { ConnectionMethod } from "./DeviceConnection";
 import { saveNoticeAcceptance } from "../lib/connectionNoticeStorage";
+import { isUsbConnectionAvailable } from "../lib/transport/usb";
 import { useCallback, useMemo, useState } from "react";
 
 interface ConnectionNoticeDialogProps {
@@ -36,9 +37,9 @@ export function ConnectionNoticeDialog({
 }: ConnectionNoticeDialogProps) {
   const isUSB = method === "serial";
   const isBLE = method === "ble";
-  const isSerialAvailable = useMemo(() => "serial" in navigator, []);
+  const isUSBAvailable = useMemo(() => isUsbConnectionAvailable(), []);
   const isBLEAvailable = useMemo(() => "bluetooth" in navigator, []);
-  const canContinue = (isUSB && isSerialAvailable) || (isBLE && isBLEAvailable);
+  const canContinue = (isUSB && isUSBAvailable) || (isBLE && isBLEAvailable);
   const [neverShowAgain, setNeverShowAgain] = useState(false);
 
   const handleAgree = useCallback(() => {
@@ -118,7 +119,7 @@ export function ConnectionNoticeDialog({
               </p>
             </div>
           )}
-          {isUSB && !isSerialAvailable && (
+          {isUSB && !isUSBAvailable && (
             <div className="glass-card p-4 mb-4 border-l-4 border-[var(--color-warning)] bg-[var(--color-warning)]/10">
               <h4 className="text-sm font-medium text-[var(--color-text)] mb-3 flex items-center gap-2">
                 <IconAlertTriangleFilled
