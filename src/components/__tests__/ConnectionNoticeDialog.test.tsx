@@ -27,6 +27,11 @@ Object.defineProperty(window, "localStorage", {
 describe("ConnectionNoticeDialog", () => {
   beforeEach(() => {
     mockLocalStorage.clear();
+    Object.defineProperty(navigator, "serial", {
+      writable: true,
+      configurable: true,
+      value: undefined,
+    });
   });
 
   test("renders USB connection dialog", () => {
@@ -138,6 +143,39 @@ describe("ConnectionNoticeDialog", () => {
     );
 
     expect(screen.queryByText("Connect via USB")).not.toBeInTheDocument();
+  });
+
+  test("allows USB connection on Android Chrome when WebUSB is available", () => {
+    const onAgree = jest.fn();
+    const onCancel = jest.fn();
+    const userAgentSpy = jest
+      .spyOn(navigator, "userAgent", "get")
+      .mockReturnValue(
+        "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+      );
+
+    Object.defineProperty(navigator, "serial", {
+      configurable: true,
+      value: undefined,
+    });
+    Object.defineProperty(navigator, "usb", {
+      configurable: true,
+      value: { requestDevice: jest.fn() },
+    });
+
+    render(
+      <ConnectionNoticeDialog
+        open={true}
+        method="serial"
+        onAgree={onAgree}
+        onCancel={onCancel}
+      />,
+    );
+
+    expect(screen.getByText("Data Collection Notice")).toBeInTheDocument();
+    expect(screen.getByText("Agree to start")).toBeInTheDocument();
+
+    userAgentSpy.mockRestore();
   });
 });
 

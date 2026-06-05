@@ -25,6 +25,11 @@ jest.mock("@zmkfirmware/zmk-studio-ts-client/transport/serial", () => ({
   connect: jest.fn(),
 }));
 
+// Mock the app-level USB transport selector
+jest.mock("../../lib/transport/usb", () => ({
+  connect: jest.fn(),
+}));
+
 // Mock the BLE transport
 jest.mock("@zmkfirmware/zmk-studio-ts-client/transport/gatt", () => ({
   connect: jest.fn(),
