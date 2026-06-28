@@ -6,6 +6,7 @@ import {
   IconAlertTriangleFilled,
 } from "@tabler/icons-react";
 import { useSettings } from "../hooks/useSettings";
+import { AdvancedSettingsSection } from "../components/AdvancedSettingsSection";
 
 // Helper to format milliseconds to human readable
 function formatMs(ms: number): string {
@@ -387,6 +388,8 @@ export function SettingsPage() {
                 </div>
               )}
             </div>
+
+            <AdvancedSettingsSection />
 
             {/* Danger Zone
             <div className="glass-card p-6 border-red-500/20">

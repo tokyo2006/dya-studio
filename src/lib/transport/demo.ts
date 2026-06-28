@@ -26,6 +26,10 @@ import {
   RUNTIME_SENSOR_ROTATE_IDENTIFIER,
 } from "./demo-runtime-sensor-rotate";
 import {
+  CustomSettingsHandler,
+  CUSTOM_SETTINGS_IDENTIFIER,
+} from "./demo-custom-settings";
+import {
   PhysicalLayoutsHandler,
   PHYSICAL_LAYOUTS_IDENTIFIER,
 } from "./demo-physical-layouts";
@@ -61,6 +65,10 @@ import {
   Request as InputStreamRequest,
   Response as InputStreamResponse,
 } from "../../proto/zmk/input_stream/input_stream";
+import {
+  Request as CustomSettingsRequest,
+  Response as CustomSettingsResponse,
+} from "../../proto/cormoran/zmk/custom_settings/custom_settings";
 import {
   ANSI60,
   ORTHO,
@@ -170,6 +178,7 @@ class Keyboard {
   private runtimeSensorRotateHandler = new RuntimeSensorRotateHandler();
   private physicalLayoutsHandler = new PhysicalLayoutsHandler();
   private inputStreamHandler = new InputStreamHandler();
+  private customSettingsHandler: CustomSettingsHandler;
 
   // Custom subsystems registry
   private readonly BLE_SUBSYSTEM_INDEX = 0;
@@ -179,6 +188,13 @@ class Keyboard {
   private readonly RUNTIME_SENSOR_ROTATE_SUBSYSTEM_INDEX = 4;
   private readonly PHYSICAL_LAYOUTS_SUBSYSTEM_INDEX = 5;
   private readonly INPUT_STREAM_SUBSYSTEM_INDEX = 6;
+  private readonly CUSTOM_SETTINGS_SUBSYSTEM_INDEX = 7;
+
+  constructor() {
+    this.customSettingsHandler = new CustomSettingsHandler(
+      this.SETTINGS_SUBSYSTEM_INDEX,
+    );
+  }
 
   private customSubsystems = [
     {
@@ -214,6 +230,11 @@ class Keyboard {
     {
       index: this.INPUT_STREAM_SUBSYSTEM_INDEX,
       identifier: INPUT_STREAM_IDENTIFIER,
+      uiUrl: [],
+    },
+    {
+      index: this.CUSTOM_SETTINGS_SUBSYSTEM_INDEX,
+      identifier: CUSTOM_SETTINGS_IDENTIFIER,
       uiUrl: [],
     },
   ];
@@ -438,6 +459,17 @@ class Keyboard {
         } catch (e) {
           console.error("Input Stream subsystem error:", e);
         }
+      } else if (subsystemIndex === this.CUSTOM_SETTINGS_SUBSYSTEM_INDEX) {
+        // Custom Settings
+        try {
+          const customSettingsReq = CustomSettingsRequest.decode(data);
+          const customSettingsResp =
+            this.customSettingsHandler.process(customSettingsReq);
+          responseData =
+            CustomSettingsResponse.encode(customSettingsResp).finish();
+        } catch (e) {
+          console.error("Custom Settings subsystem error:", e);
+        }
       }
 
       if (responseData) {
@@ -530,6 +562,21 @@ class Keyboard {
             custom: {
               customNotification: {
                 subsystemIndex: this.INPUT_STREAM_SUBSYSTEM_INDEX,
+                payload: payload,
+              },
+            },
+          },
+        }).finish(),
+      );
+    });
+
+    this.customSettingsHandler.notify((payload: Uint8Array) => {
+      callback(
+        Response.encode({
+          notification: {
+            custom: {
+              customNotification: {
+                subsystemIndex: this.CUSTOM_SETTINGS_SUBSYSTEM_INDEX,
                 payload: payload,
               },
             },
