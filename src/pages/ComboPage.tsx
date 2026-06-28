@@ -651,9 +651,12 @@ export function ComboPage() {
                   </div>
 
                   {validationError && (
-                    <div className="mb-4 p-3 rounded-lg border border-yellow-500/20 bg-yellow-500/10 text-sm text-yellow-200 flex items-center gap-2">
-                      <IconAlertTriangle size={16} />
-                      {validationError}
+                    <div className="mb-4 p-3 rounded-lg border border-amber-400/40 bg-amber-500/15 text-sm text-amber-100 flex items-center gap-2">
+                      <IconAlertTriangle
+                        size={16}
+                        className="shrink-0 text-amber-200"
+                      />
+                      <span>{validationError}</span>
                     </div>
                   )}
 
