@@ -1,0 +1,129 @@
+syntax = "proto3";
+
+package cormoran.runtime_macro;
+
+message ListMacrosRequest {}
+
+message GetMacroRequest {
+  uint32 index = 1;
+}
+
+message GetMacroGlobalSettingsRequest {}
+
+message MacroSummary {
+  uint32 index = 1;
+  string name = 2;
+  uint32 encoded_size = 3;
+}
+
+message BehaviorBinding {
+  uint32 behavior_id = 1;
+  uint32 param1 = 2;
+  uint32 param2 = 3;
+}
+
+message DelayStep {
+  uint32 delay_ms = 1;
+}
+
+message MacroStep {
+  oneof step {
+    BehaviorBinding down = 1;
+    BehaviorBinding up = 2;
+    BehaviorBinding tap = 3;
+    DelayStep delay = 4;
+  }
+}
+
+message MacroSlot {
+  uint32 index = 1;
+  string name = 2;
+  repeated MacroStep steps = 3;
+  uint32 encoded_size = 4;
+}
+
+message SetMacroNameRequest {
+  uint32 index = 1;
+  string name = 2;
+  bool persist = 3;
+}
+
+message SetMacroStepCountRequest {
+  uint32 index = 1;
+  uint32 step_count = 2;
+  bool persist = 3;
+}
+
+message SetMacroStepRequest {
+  uint32 index = 1;
+  uint32 step_index = 2;
+  MacroStep step = 3;
+  bool persist = 4;
+}
+
+message SetTapMsRequest {
+  uint32 tap_ms = 1;
+  bool persist = 2;
+}
+
+message DeleteMacroRequest {
+  uint32 index = 1;
+  bool persist = 2;
+}
+
+message SaveMacrosRequest {}
+
+message DiscardMacrosRequest {}
+
+message Request {
+  oneof request_type {
+    ListMacrosRequest list_macros = 1;
+    GetMacroRequest get_macro = 2;
+    SetMacroNameRequest set_macro_name = 3;
+    SetMacroStepCountRequest set_macro_step_count = 4;
+    GetMacroGlobalSettingsRequest get_macro_global_settings = 5;
+    SetTapMsRequest set_tap_ms = 6;
+    SetMacroStepRequest set_macro_step = 7;
+    DeleteMacroRequest delete_macro = 8;
+    SaveMacrosRequest save_macros = 9;
+    DiscardMacrosRequest discard_macros = 10;
+  }
+}
+
+message ErrorResponse {
+  string message = 1;
+}
+
+message StatusResponse {
+  uint32 affected_count = 1;
+  string message = 2;
+}
+
+message ListMacrosResponse {
+  repeated MacroSummary macros = 1;
+  uint32 max_macro_bytes = 2;
+  uint32 max_name_length = 3;
+}
+
+message GetMacroResponse {
+  MacroSlot macro = 1;
+}
+
+message MacroGlobalSettings {
+  uint32 tap_ms = 1;
+  uint32 max_macro = 2;
+}
+
+message GetMacroGlobalSettingsResponse {
+  MacroGlobalSettings settings = 1;
+}
+
+message Response {
+  oneof response_type {
+    ErrorResponse error = 1;
+    StatusResponse status = 2;
+    ListMacrosResponse list_macros = 3;
+    GetMacroResponse get_macro = 4;
+    GetMacroGlobalSettingsResponse get_macro_global_settings = 5;
+  }
+}
