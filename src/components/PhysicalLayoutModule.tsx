@@ -12,6 +12,7 @@ import {
   IconRotateRectangle,
 } from "@tabler/icons-react";
 import type { PhysicalLayoutModulePresentation } from "../hooks/usePhysicalLayoutModules";
+import { useLanguage } from "../hooks/useLanguage";
 
 const BASE_UNIT_SIZE = 54;
 
@@ -31,6 +32,7 @@ export function PhysicalLayoutModule({
   module,
   scale = 1.0,
 }: PhysicalLayoutModuleProps) {
+  const { t } = useLanguage();
   const style = useMemo(() => {
     const unitSize = BASE_UNIT_SIZE * scale;
     const width = (module.attrs.width / 100) * unitSize;
@@ -64,7 +66,7 @@ export function PhysicalLayoutModule({
     module.kind === "trackball" || module.kind === "rotary-encoder";
   const title = module.enabled
     ? module.displayName
-    : `${module.displayName} (disabled)`;
+    : `${module.displayName} (${t("disabled")})`;
 
   const content = (
     <div
@@ -105,18 +107,20 @@ export function PhysicalLayoutModule({
                 <span className="font-medium">{module.displayName}</span>
                 {!module.enabled && (
                   <span className="ml-1 text-[var(--color-text-muted)]">
-                    disabled
+                    {t("disabled")}
                   </span>
                 )}
               </div>
               <div>
-                <span className="text-[var(--color-text-muted)]">Type: </span>
+                <span className="text-[var(--color-text-muted)]">
+                  {t("Type")}:{" "}
+                </span>
                 <span>{module.label}</span>
               </div>
               {module.links.length > 0 && (
                 <div>
                   <span className="text-[var(--color-text-muted)]">
-                    Links:{" "}
+                    {t("Links")}:{" "}
                   </span>
                   <span>
                     {module.links

@@ -27,6 +27,7 @@ import { RangeValueSelector } from "./RangeValueSelector";
 import { MouseMoveInputSelector } from "./MouseMoveInputSelector";
 import { type KeyboardLayoutType } from "../lib/keyboardLayouts";
 import { BehaviorParameterValueDescription } from "@zmkfirmware/zmk-studio-ts-client/behaviors";
+import { useLanguage } from "../hooks/useLanguage";
 
 // =============================================================================
 // Types
@@ -67,6 +68,7 @@ interface KeycodeSelectorProps {
 function getParamTypeLabel(
   behaviorInfo: SelectedBehaviorInfo,
   paramNumber: 1 | 2,
+  t: (key: string) => string,
 ): string {
   const overrideMeta = behaviorInfo.overrideMetadata;
   const overrideType =
@@ -75,10 +77,10 @@ function getParamTypeLabel(
   if (overrideType) {
     switch (overrideType) {
       case "mouse_keycode":
-        return "Mouse Button";
+        return t("Mouse Button");
       case "mouse_movement":
       case "mouse_scroll":
-        return "Pointer movement";
+        return t("Pointer movement");
     }
   }
   // From firmware metadata
@@ -89,16 +91,16 @@ function getParamTypeLabel(
   // NOTE: assuming all descriptions have the same type
   if (descriptions.length > 0) {
     if (descriptions[0].constant !== undefined) {
-      return "Constant";
+      return t("Constant");
     } else if (descriptions[0].range !== undefined) {
-      return "Range";
+      return t("Range");
     } else if (descriptions[0].hidUsage !== undefined) {
-      return "Keycode";
+      return t("Keycode");
     } else if (descriptions[0].layerId !== undefined) {
-      return "Layer";
+      return t("Layer");
     }
   }
-  return "Unknown Type";
+  return t("Unknown Type");
 }
 
 /**
@@ -107,6 +109,7 @@ function getParamTypeLabel(
 function getParamTypeDescription(
   behaviorInfo: SelectedBehaviorInfo,
   paramNumber: 1 | 2,
+  t: (key: string, params?: Record<string, string | number>) => string,
 ): string {
   const overrideMeta = behaviorInfo.overrideMetadata;
   // From DYA Studio override metadata
@@ -125,9 +128,9 @@ function getParamTypeDescription(
       ? behaviorInfo.param1Descriptions
       : behaviorInfo.param2Descriptions;
   if (paramDescriptions.length == 1) {
-    return `Select ${paramDescriptions[0].name}`;
+    return t("Select {{name}}", { name: paramDescriptions[0].name });
   }
-  return `Select options`; // Contains constant from multiple options
+  return t("Select options"); // Contains constant from multiple options
 }
 
 /**
@@ -237,6 +240,7 @@ export function KeycodeSelector({
   keyboardLayout,
   behaviorQuickSelects,
 }: KeycodeSelectorProps) {
+  const { t } = useLanguage();
   // State
   const [selectedBehavior, setSelectedBehavior] = useState<number | null>(null);
   const [param1, setParam1] = useState<number>(0);
@@ -603,7 +607,7 @@ export function KeycodeSelector({
           {/* Header with Cancel Button */}
           <div className="flex items-center justify-between p-4 border-b border-[var(--color-border)]">
             <Dialog.Title className="text-lg font-medium text-[var(--color-text)] flex items-center gap-2">
-              Select Key Binding
+              {t("Select Key Binding")}
             </Dialog.Title>
             <div className="flex items-center gap-2">
               <label className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)] cursor-pointer hover:text-[var(--color-text)] transition-colors">
@@ -613,7 +617,7 @@ export function KeycodeSelector({
                   onChange={(e) => setCloseOnSelect(e.target.checked)}
                   className="w-4 h-4 rounded border-[var(--color-border)] text-[var(--color-electric)] focus:ring-2 focus:ring-[var(--color-electric)]/50 cursor-pointer"
                 />
-                <span>Close on select</span>
+                <span>{t("Close on select")}</span>
               </label>
               {hasChanges && (
                 <button
@@ -621,13 +625,13 @@ export function KeycodeSelector({
                   onClick={handleRevert}
                 >
                   <IconRestore size={16} className="animate-pulse" />
-                  <span className="hidden tablet:inline">Revert</span>
+                  <span className="hidden tablet:inline">{t("Revert")}</span>
                 </button>
               )}
               <Dialog.Close asChild>
                 <button
                   className="p-2 rounded-lg hover:bg-[var(--color-border)] transition-colors"
-                  aria-label="Close"
+                  aria-label={t("Close")}
                 >
                   <IconX size={20} className="text-[var(--color-text-muted)]" />
                 </button>
@@ -638,11 +642,11 @@ export function KeycodeSelector({
           {/* Behavior Selection */}
           <div className="p-4 border-b border-[var(--color-border)]">
             <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1">
-              Behavior
+              {t("Behavior")}
             </label>
             {behaviors.size === 0 ? (
               <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-sm text-yellow-600">
-                ⚠️ Behaviors not loaded from keyboard.
+                ⚠️ {t("Behaviors not loaded from keyboard.")}
               </div>
             ) : (
               <BehaviorDropdown
@@ -661,7 +665,7 @@ export function KeycodeSelector({
               {/* Parameters Label */}
               <div className="px-4 pt-4 pb-1 hidden tablet:block">
                 <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1">
-                  Parameters
+                  {t("Parameters")}
                 </label>
               </div>
               {/* Parameter Tabs (Horizontal) */}
@@ -676,9 +680,9 @@ export function KeycodeSelector({
                     onClick={() => setActiveParam(1)}
                   >
                     <div className="font-medium text-xs">
-                      param1:
+                      {t("param1")}:
                       <span className="ml-1 text-[10px] text-[var(--color-text-muted)]">
-                        {getParamTypeLabel(selectedBehaviorInfo, 1)}
+                        {getParamTypeLabel(selectedBehaviorInfo, 1, t)}
                       </span>
                     </div>
                     <div
@@ -707,9 +711,9 @@ export function KeycodeSelector({
                     onClick={() => setActiveParam(2)}
                   >
                     <div className="font-medium text-xs">
-                      param2:
+                      {t("param2")}:
                       <span className="ml-1 text-[10px] text-[var(--color-text-muted)]">
-                        {getParamTypeLabel(selectedBehaviorInfo, 2)}
+                        {getParamTypeLabel(selectedBehaviorInfo, 2, t)}
                       </span>
                     </div>
                     <div
@@ -734,8 +738,8 @@ export function KeycodeSelector({
               <div className="px-4 py-2 bg-[var(--color-bg)] border-b border-[var(--color-border)] hidden tablet:block">
                 <p className="text-xs text-[var(--color-text-muted)]">
                   {activeParam === 1
-                    ? getParamTypeDescription(selectedBehaviorInfo, 1)
-                    : getParamTypeDescription(selectedBehaviorInfo, 2)}
+                    ? getParamTypeDescription(selectedBehaviorInfo, 1, t)
+                    : getParamTypeDescription(selectedBehaviorInfo, 2, t)}
                 </p>
               </div>
 

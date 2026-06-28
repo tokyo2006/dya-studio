@@ -17,6 +17,7 @@ import type { ConnectionMethod } from "./DeviceConnection";
 import { saveNoticeAcceptance } from "../lib/connectionNoticeStorage";
 import { isUsbConnectionAvailable } from "../lib/transport/usb";
 import { useCallback, useMemo, useState } from "react";
+import { useLanguage } from "../hooks/useLanguage";
 
 interface ConnectionNoticeDialogProps {
   /** Whether the dialog is open */
@@ -35,6 +36,7 @@ export function ConnectionNoticeDialog({
   onAgree,
   onCancel,
 }: ConnectionNoticeDialogProps) {
+  const { t } = useLanguage();
   const isUSB = method === "serial";
   const isBLE = method === "ble";
   const isUSBAvailable = useMemo(() => isUsbConnectionAvailable(), []);
@@ -68,7 +70,9 @@ export function ConnectionNoticeDialog({
 
           {/* Title */}
           <Dialog.Title className="text-lg font-medium text-[var(--color-text)] text-center mb-2">
-            Connect via {isUSB ? "USB" : "Bluetooth"}
+            {t("Connect via {{method}}", {
+              method: isUSB ? "USB" : "Bluetooth",
+            })}
           </Dialog.Title>
 
           {/* Data Collection Notice */}
@@ -79,14 +83,12 @@ export function ConnectionNoticeDialog({
                   size={18}
                   className="text-[var(--color-text-muted)]"
                 />
-                Data Collection Notice
+                {t("Data Collection Notice")}
               </h4>
               <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">
-                DYA Studio collects your <strong>keyboard name</strong> for
-                usage analysis purposes. However,{" "}
-                <strong>no other keyboard data</strong> is sent to any servers.
-                All of your keyboard configurations, keymaps, or settings are
-                handled locally.
+                {t(
+                  "DYA Studio collects your keyboard name for usage analysis purposes. However, no other keyboard data is sent to any servers. All of your keyboard configurations, keymaps, or settings are handled locally.",
+                )}
               </p>
             </div>
           )}
@@ -99,23 +101,21 @@ export function ConnectionNoticeDialog({
                   size={18}
                   className="text-[var(--color-cyber)]"
                 />
-                BLE Not Supported on your Browser
+                {t("BLE Not Supported on your Browser")}
               </h4>
               <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">
-                Your browser does not support Web Bluetooth API. Please use a
+                {t(
+                  "Your browser does not support Web Bluetooth API. Please use a compatible browser like Chrome, Edge, or Bluefy (iOS). BLE device discovery on non-Linux system requires cormoran's ZMK fork + press the studio unlock key on your keyboard.",
+                )}
+                {/* Keep the compatibility reference discoverable. */}
                 <a
                   href="https://developer.mozilla.org/docs/Web/API/Web_Bluetooth_API#browser_compatibility"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="underline mx-1"
                 >
-                  compatible browser
+                  {t("compatible browser")}
                 </a>
-                like Chrome, Edge, or Bluefy (iOS).
-                <br />
-                BLE device discovery on non-Linux system requires{" "}
-                <strong>cormoran's ZMK fork</strong> + press the{" "}
-                <strong>studio unlock</strong> key on your keyboard.
               </p>
             </div>
           )}
@@ -126,19 +126,20 @@ export function ConnectionNoticeDialog({
                   size={18}
                   className="text-[var(--color-cyber)]"
                 />
-                Serial Not Supported on your Browser
+                {t("Serial Not Supported on your Browser")}
               </h4>
               <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">
-                Your browser does not support Web Serial API. Please use a
+                {t(
+                  "Your browser does not support Web Serial API. Please use a compatible browser. Note that web serial is not available on mobile devices.",
+                )}
                 <a
                   href="https://developer.mozilla.org/docs/Web/API/Web_Serial_API#browser_compatibility"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="underline mx-1"
                 >
-                  compatible browser
+                  {t("compatible browser")}
                 </a>
-                . Note that web serial is not available on mobile devices.
               </p>
             </div>
           )}
@@ -151,15 +152,17 @@ export function ConnectionNoticeDialog({
                   size={18}
                   className="text-[var(--color-text-muted)]"
                 />
-                How to Discover your Keyboard via BLE
+                {t("How to Discover your Keyboard via BLE")}
               </h4>
               <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed mb-2">
-                Press the <strong>studio unlock</strong> key on your keyboard
-                for non-linux systems.
+                {t(
+                  "Press the studio unlock key on your keyboard for non-linux systems.",
+                )}
               </p>
               <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">
-                cormoran's ZMK fork is also required for BLE device discovery on
-                non-Linux systems.
+                {t(
+                  "cormoran's ZMK fork is also required for BLE device discovery on non-Linux systems.",
+                )}
               </p>
             </div>
           )}
@@ -175,7 +178,7 @@ export function ConnectionNoticeDialog({
                   checked={neverShowAgain}
                   onChange={(e) => setNeverShowAgain(e.target.checked)}
                 />
-                Never show again
+                {t("Never show again")}
               </label>
             </div>
           )}
@@ -187,7 +190,7 @@ export function ConnectionNoticeDialog({
               onClick={onCancel}
             >
               <IconX size={18} />
-              Cancel
+              {t("Cancel")}
             </button>
             {canContinue && (
               <button
@@ -196,7 +199,7 @@ export function ConnectionNoticeDialog({
                 onClick={handleAgree}
               >
                 <IconCheck size={18} />
-                Agree to start
+                {t("Agree to start")}
               </button>
             )}
           </div>

@@ -24,6 +24,7 @@ import {
   getLayoutName,
   type KeyboardLayoutType,
 } from "../lib/keyboardLayouts";
+import { useLanguage } from "../hooks/useLanguage";
 
 // Keycode categories in display order
 const KEYCODE_CATEGORY_ORDER: KeycodeCategory[] = [
@@ -53,6 +54,7 @@ export function KeycodeValueSelector({
   keyboardLayout,
   showModifiers = true,
 }: KeycodeValueSelectorProps) {
+  const { t } = useLanguage();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] =
     useState<KeycodeCategory>("letters");
@@ -130,7 +132,7 @@ export function KeycodeValueSelector({
         <div className="mb-3">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs text-[var(--color-text-muted)]">
-              Modifiers:
+              {t("Modifiers")}:
             </span>
             {selectedModifiers !== 0 && (
               <button
@@ -138,7 +140,7 @@ export function KeycodeValueSelector({
                 onClick={handleClearModifiers}
               >
                 <IconX size={12} />
-                Clear
+                {t("Clear")}
               </button>
             )}
           </div>
@@ -170,7 +172,7 @@ export function KeycodeValueSelector({
           <input
             ref={searchInputRef}
             type="text"
-            placeholder="Search keycodes..."
+            placeholder={t("Search keycodes...")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-8 pr-8 py-1.5 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] tablet:text-sm text-base text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-electric)]/50"
@@ -183,7 +185,7 @@ export function KeycodeValueSelector({
                 setSearchQuery("");
                 searchInputRef.current?.focus();
               }}
-              aria-label="Clear search"
+              aria-label={t("Clear search")}
               tabIndex={0}
             >
               <IconX size={16} />
@@ -207,7 +209,7 @@ export function KeycodeValueSelector({
                 }`}
                 onClick={() => setSelectedCategory(category)}
               >
-                {CATEGORY_DISPLAY_NAMES[category]}
+                {t(CATEGORY_DISPLAY_NAMES[category])}
               </button>
             ))}
           </div>
@@ -252,7 +254,7 @@ export function KeycodeValueSelector({
           </div>
           {filteredKeycodes.length === 0 && (
             <div className="text-center py-4 text-xs text-[var(--color-text-muted)]">
-              No keycodes found
+              {t("No keycodes found")}
             </div>
           )}
         </div>

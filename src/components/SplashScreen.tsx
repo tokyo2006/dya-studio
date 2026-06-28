@@ -9,6 +9,8 @@ import { useState, useCallback } from "react";
 import type { ConnectionMethod } from "./DeviceConnection";
 import { ConnectionNoticeDialog } from "./ConnectionNoticeDialog";
 import { hasAcceptedNotice } from "../lib/connectionNoticeStorage";
+import { LanguageToggle } from "./LanguageToggle";
+import { useLanguage } from "../hooks/useLanguage";
 
 interface SplashScreenProps {
   onConnect: (method: ConnectionMethod) => void;
@@ -30,6 +32,7 @@ export function SplashScreen({
   isConnecting,
   error,
 }: SplashScreenProps) {
+  const { t } = useLanguage();
   // Dialog state
   const [showNotice, setShowNotice] = useState(false);
   const [pendingMethod, setPendingMethod] = useState<ConnectionMethod | null>(
@@ -79,6 +82,9 @@ export function SplashScreen({
     >
       {/* Background gradient */}
       <div className="absolute inset-0 bg-gradient-cyber opacity-30" />
+      <div className="absolute right-6 top-6 z-20">
+        <LanguageToggle />
+      </div>
 
       {/* Animated rings */}
       <motion.div
@@ -131,7 +137,7 @@ export function SplashScreen({
         >
           {/* Connect label */}
           <p className="text-sm font-light tracking-wider text-[var(--color-text-secondary)] text-center uppercase">
-            Connect
+            {t("Connect")}
           </p>
 
           {/* Connection buttons */}
@@ -142,8 +148,8 @@ export function SplashScreen({
                 onClick={() => handleConnectClick("serial")}
                 disabled={isConnecting}
                 className="relative w-16 h-16 rounded-full flex items-center justify-center border-2 transition-all disabled:opacity-30 disabled:cursor-not-allowed border-[var(--color-electric)] bg-[var(--color-electric)]/10 hover:bg-[var(--color-electric)]/20 hover:border-[var(--color-electric)] hover:shadow-[0_0_20px_rgba(0,212,255,0.3)]"
-                aria-label="Connect via USB"
-                title={"Connect via USB"}
+                aria-label={t("Connect via USB")}
+                title={t("Connect via USB")}
               >
                 <IconUsb
                   size={28}
@@ -158,8 +164,8 @@ export function SplashScreen({
                 onClick={() => handleConnectClick("ble")}
                 disabled={isConnecting}
                 className="relative w-16 h-16 rounded-full flex items-center justify-center border-2 transition-all disabled:opacity-30 disabled:cursor-not-allowed border-[var(--color-neon)] bg-[var(--color-neon)]/10 hover:bg-[var(--color-neon)]/20 hover:border-[var(--color-neon)] hover:shadow-[0_0_20px_rgba(0,255,204,0.3)]"
-                aria-label="Connect via Bluetooth"
-                title={"Connect via Bluetooth"}
+                aria-label={t("Connect via Bluetooth")}
+                title={t("Connect via Bluetooth")}
               >
                 <IconBluetooth
                   size={28}
@@ -174,8 +180,8 @@ export function SplashScreen({
                 onClick={() => handleConnectClick("demo")}
                 disabled={isConnecting}
                 className="relative w-16 h-16 rounded-full flex items-center justify-center border-2 transition-all disabled:opacity-30 disabled:cursor-not-allowed border-[var(--color-cyber)] bg-[var(--color-cyber)]/10 hover:bg-[var(--color-cyber)]/20 hover:border-[var(--color-cyber)] hover:shadow-[0_0_20px_rgba(139,92,246,0.3)]"
-                aria-label="Try Demo Mode"
-                title="Try Demo Mode (no device required)"
+                aria-label={t("Try Demo Mode")}
+                title={t("Try Demo Mode (no device required)")}
               >
                 <IconDeviceDesktop
                   size={28}
@@ -196,17 +202,8 @@ export function SplashScreen({
             animate={{ opacity: 1 }}
             transition={{ delay: 1.2 }}
           >
-            Try
-            <span className="text-[var(--color-cyber)] font-bold mx-1">
-              demo mode
-            </span>
-            without a keyboard
+            {t("Try demo mode without a keyboard")}
             <br />
-            キーボードがなくても
-            <span className="text-[var(--color-cyber)] font-bold mx-1">
-              デモモード
-            </span>
-            で遊べます
             <IconArrowUp size={14} className="inline-block" />
           </motion.p>
         </motion.div>
@@ -254,7 +251,7 @@ export function SplashScreen({
         animate={{ opacity: 1 }}
         transition={{ delay: 1 }}
       >
-        DYA Studio is maintained by
+        {t("DYA Studio is maintained by")}
         <a
           href="https://x.com/cormoran707"
           target="_blank"
@@ -264,14 +261,14 @@ export function SplashScreen({
           @cormoran707
         </a>
         <br />
-        Special thanks to
+        {t("Special thanks to")}
         <a
           href="https://zmk.dev"
           target="_blank"
           rel="noopener noreferrer"
           className="underline mx-1"
         >
-          ZMK community
+          {t("ZMK community")}
         </a>
         .
       </motion.p>

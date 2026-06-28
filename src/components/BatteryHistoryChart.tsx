@@ -12,6 +12,7 @@ import {
   ReferenceLine,
 } from "recharts";
 import type { DeviceBatteryHistory } from "../hooks/useBatteryHistory";
+import { useLanguage } from "../hooks/useLanguage";
 
 interface BatteryHistoryChartProps {
   devices: DeviceBatteryHistory[];
@@ -122,6 +123,7 @@ export function BatteryHistoryChart({
   devices,
   deviceColors,
 }: BatteryHistoryChartProps) {
+  const { t } = useLanguage();
   const chartData = useMemo(() => combineDeviceData(devices), [devices]);
   const restartMarkers = useMemo(() => detectRestarts(devices), [devices]);
 
@@ -129,7 +131,7 @@ export function BatteryHistoryChart({
     return (
       <div className="h-96 flex items-center justify-center border border-dashed border-[var(--color-border)] rounded-lg">
         <span className="text-[var(--color-text-muted)] text-sm">
-          No battery history available
+          {t("No battery history available")}
         </span>
       </div>
     );
@@ -139,10 +141,10 @@ export function BatteryHistoryChart({
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium text-[var(--color-text-secondary)]">
-          Battery Level Over Time
+          {t("Battery Level Over Time")}
         </h3>
         <span className="text-xs text-[var(--color-text-muted)]">
-          {chartData.length} data points
+          {t("{{count}} data points", { count: chartData.length })}
         </span>
       </div>
 
@@ -169,7 +171,7 @@ export function BatteryHistoryChart({
             tickLine={{ stroke: "var(--color-border)" }}
             domain={[0, 100]}
             label={{
-              value: "Battery %",
+              value: t("Battery %"),
               angle: -90,
               position: "insideLeft",
               style: { fill: "var(--color-text-muted)", fontSize: 12 },
@@ -223,7 +225,7 @@ export function BatteryHistoryChart({
       {restartMarkers.length > 0 && (
         <div className="flex items-center gap-2 text-xs text-[var(--color-text-muted)] mt-2">
           <IconRefresh size={14} />
-          <span>Dashed lines with ⟲ indicate keyboard restarts</span>
+          <span>{t("Dashed lines with ⟲ indicate keyboard restarts")}</span>
         </div>
       )}
     </div>

@@ -18,6 +18,7 @@ import type { BehaviorBinding } from "../hooks/useKeymap";
 import { KeycodeSelector } from "./KeycodeSelector";
 import { formatBehaviorBinding } from "../lib/behaviorMetadata";
 import type { KeyboardLayoutType } from "../lib/keyboardLayouts";
+import { useLanguage } from "../hooks/useLanguage";
 
 interface SensorRotationConfigProps {
   selectedLayerId: number;
@@ -32,6 +33,7 @@ export function SensorRotationConfig({
   layers,
   keyboardLayout,
 }: SensorRotationConfigProps) {
+  const { t } = useLanguage();
   const sensorRotate = useRuntimeSensorRotate();
 
   // Local state for sensor bindings per sensor
@@ -257,11 +259,11 @@ export function SensorRotationConfig({
   const getBindingDisplayName = useCallback(
     (binding: Binding | null | undefined): string => {
       if (!binding || binding.behaviorId === 0) {
-        return "Trans";
+        return t("Trans");
       }
       const behavior = behaviors.get(binding.behaviorId);
       if (!behavior) {
-        return `Behavior ${binding.behaviorId}`;
+        return t("Behavior {{id}}", { id: binding.behaviorId });
       }
       return formatBehaviorBinding(binding, behavior, {
         // Skip passing layers to displayShortName
@@ -269,7 +271,7 @@ export function SensorRotationConfig({
         keyboardLayout: keyboardLayout,
       });
     },
-    [behaviors, layers, keyboardLayout],
+    [behaviors, layers, keyboardLayout, t],
   );
 
   // Convert Binding to BehaviorBinding for KeycodeSelector
@@ -291,12 +293,12 @@ export function SensorRotationConfig({
     <>
       <div className="glass-card p-6">
         <h3 className="text-sm font-medium text-[var(--color-text)] mb-2">
-          Rotary Encoder Configuration
+          {t("Rotary Encoder Configuration")}
         </h3>
 
         <div className="mb-2">
           <span className="text-xs text-[var(--color-text-muted)]">
-            The value is saved in real-time upon selection for now.
+            {t("The value is saved in real-time upon selection for now.")}
           </span>
         </div>
 
@@ -327,7 +329,7 @@ export function SensorRotationConfig({
                       {sensor.name}
                     </p>
                     <p className="text-xs text-[var(--color-text-muted)]">
-                      Rotary Encoder
+                      {t("Rotary Encoder")}
                     </p>
                   </div>
                 </div>
@@ -344,7 +346,7 @@ export function SensorRotationConfig({
                           style={{ transform: "scaleX(-1)" }}
                         />
                         <span className="text-xs text-[var(--color-text-muted)]">
-                          Counter-clockwise
+                          {t("Counter-clockwise")}
                         </span>
                       </div>
                       <button
@@ -364,7 +366,7 @@ export function SensorRotationConfig({
                           className="text-[var(--color-neon)]"
                         />
                         <span className="text-xs text-[var(--color-text-muted)]">
-                          Clockwise
+                          {t("Clockwise")}
                         </span>
                       </div>
                       <button
@@ -382,7 +384,7 @@ export function SensorRotationConfig({
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-xs text-[var(--color-text-muted)] flex-1">
-                        Tap Time
+                        {t("Tap Time")}
                       </span>
                       {/* mobile: standard text size, tablet: small text size */}
                       <input
@@ -406,10 +408,10 @@ export function SensorRotationConfig({
                       </span>
                     </div>
                     <div className="text-xs text-[var(--color-text-muted)] opacity-70 flex items-center gap-1 justify-between my-2">
-                      <span>Time between rotation triggers</span>
+                      <span>{t("Time between rotation triggers")}</span>
                       {pendingTapTimes.has(sensor.index) && (
                         <span className="text-[var(--color-electric)] ml-1">
-                          pending to save...
+                          {t("pending to save...")}
                         </span>
                       )}
                     </div>
@@ -420,9 +422,9 @@ export function SensorRotationConfig({
                     5) < 20 && (
                     <div className="text-xs text-[var(--color-text-muted)] opacity-70">
                       <IconInfoTriangle size={14} className="inline mr-1" />
-                      For scroll or mouse move, tap time need to be &gt;
-                      behavior-input-two-axis's trigger-period-ms (default
-                      16ms).
+                      {t(
+                        "For scroll or mouse move, tap time need to be > behavior-input-two-axis's trigger-period-ms (default 16ms).",
+                      )}
                     </div>
                   )}
                 </div>
@@ -439,7 +441,7 @@ export function SensorRotationConfig({
               className="animate-spin text-[var(--color-electric)]"
             />
             <span className="text-sm text-[var(--color-text-muted)]">
-              Loading sensors...
+              {t("Loading sensors...")}
             </span>
           </div>
         )}
@@ -450,7 +452,7 @@ export function SensorRotationConfig({
           sensorRotate.isAvailable && (
             <div className="text-center py-4">
               <p className="text-sm text-[var(--color-text-muted)]">
-                No rotary encoders detected
+                {t("No rotary encoders detected")}
               </p>
             </div>
           )}
