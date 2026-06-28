@@ -6,6 +6,7 @@ import {
   IconPlus,
   IconRefresh,
   IconRestore,
+  IconSettings,
   IconTrash,
   IconWand,
 } from "@tabler/icons-react";
@@ -25,12 +26,119 @@ import type {
   MacroStep,
 } from "../proto/cormoran/runtime_macro/runtime_macro";
 
-type StepAction = "tap" | "down" | "up" | "delay";
+type StepAction = "tap" | "down" | "up" | "delay" | "string";
+
+interface MacroStepRow {
+  action: StepAction;
+  startIndex: number;
+  length: number;
+  step?: MacroStep;
+  value?: string;
+}
+
+interface StringDraftRow {
+  startIndex: number;
+  length: number;
+  value: string;
+}
 
 const DEFAULT_BINDING = { behaviorId: 0, param1: 0, param2: 0 };
 const DEFAULT_STEP: MacroStep = { tap: DEFAULT_BINDING };
+const LEFT_SHIFT_MODIFIER = 0x02 << 24;
+const STRING_MIN_GROUP_LENGTH = 2;
 
-function getStepAction(step: MacroStep): StepAction {
+const CHAR_TO_HID_USAGE = new Map<string, number>([
+  ["a", 0x04],
+  ["b", 0x05],
+  ["c", 0x06],
+  ["d", 0x07],
+  ["e", 0x08],
+  ["f", 0x09],
+  ["g", 0x0a],
+  ["h", 0x0b],
+  ["i", 0x0c],
+  ["j", 0x0d],
+  ["k", 0x0e],
+  ["l", 0x0f],
+  ["m", 0x10],
+  ["n", 0x11],
+  ["o", 0x12],
+  ["p", 0x13],
+  ["q", 0x14],
+  ["r", 0x15],
+  ["s", 0x16],
+  ["t", 0x17],
+  ["u", 0x18],
+  ["v", 0x19],
+  ["w", 0x1a],
+  ["x", 0x1b],
+  ["y", 0x1c],
+  ["z", 0x1d],
+  ["1", 0x1e],
+  ["2", 0x1f],
+  ["3", 0x20],
+  ["4", 0x21],
+  ["5", 0x22],
+  ["6", 0x23],
+  ["7", 0x24],
+  ["8", 0x25],
+  ["9", 0x26],
+  ["0", 0x27],
+  ["\n", 0x28],
+  ["\t", 0x2b],
+  [" ", 0x2c],
+  ["-", 0x2d],
+  ["=", 0x2e],
+  ["[", 0x2f],
+  ["]", 0x30],
+  ["\\", 0x31],
+  [";", 0x33],
+  ["'", 0x34],
+  ["`", 0x35],
+  [",", 0x36],
+  [".", 0x37],
+  ["/", 0x38],
+]);
+
+const SHIFTED_CHAR_TO_HID_USAGE = new Map<string, number>([
+  ["!", 0x1e],
+  ["@", 0x1f],
+  ["#", 0x20],
+  ["$", 0x21],
+  ["%", 0x22],
+  ["^", 0x23],
+  ["&", 0x24],
+  ["*", 0x25],
+  ["(", 0x26],
+  [")", 0x27],
+  ["_", 0x2d],
+  ["+", 0x2e],
+  ["{", 0x2f],
+  ["}", 0x30],
+  ["|", 0x31],
+  [":", 0x33],
+  ['"', 0x34],
+  ["~", 0x35],
+  ["<", 0x36],
+  [">", 0x37],
+  ["?", 0x38],
+]);
+
+const HID_USAGE_TO_CHAR = new Map<number, string>();
+for (const [char, usage] of CHAR_TO_HID_USAGE) {
+  HID_USAGE_TO_CHAR.set(usage, char);
+}
+for (const [char, usage] of SHIFTED_CHAR_TO_HID_USAGE) {
+  HID_USAGE_TO_CHAR.set(LEFT_SHIFT_MODIFIER | usage, char);
+}
+for (let code = 0x04; code <= 0x1d; code++) {
+  const lower = HID_USAGE_TO_CHAR.get(code);
+  if (lower) {
+    HID_USAGE_TO_CHAR.set(LEFT_SHIFT_MODIFIER | code, lower.toUpperCase());
+  }
+}
+
+function getStepAction(step: MacroStep): Exclude<StepAction, "string"> {
   if (step.down) return "down";
   if (step.up) return "up";
   if (step.delay) return "delay";
@@ -43,7 +151,7 @@ function getStepBinding(step: MacroStep): KeymapBehaviorBinding | null {
 }
 
 function createStep(
-  action: StepAction,
+  action: Exclude<StepAction, "string">,
   binding: KeymapBehaviorBinding | null,
   delayMs = 0,
 ): MacroStep {
@@ -65,6 +173,132 @@ function clampUInt32(value: number): number {
   return Math.max(0, Math.min(0xffffffff, Math.round(value)));
 }
 
+function getKeyPressBehaviorId(
+  behaviors: Map<number, { id: number; displayName: string }>,
+): number | null {
+  for (const behavior of behaviors.values()) {
+    if (["kp", "Key Press", "key_press"].includes(behavior.displayName)) {
+      return behavior.id;
+    }
+  }
+  return null;
+}
+
+function charToHidUsage(char: string): number | null {
+  if (char.length !== 1) return null;
+  const lower = char.toLowerCase();
+  if (char >= "A" && char <= "Z") {
+    const usage = CHAR_TO_HID_USAGE.get(lower);
+    return usage === undefined ? null : LEFT_SHIFT_MODIFIER | usage;
+  }
+  const direct = CHAR_TO_HID_USAGE.get(char);
+  if (direct !== undefined) return direct;
+  const shifted = SHIFTED_CHAR_TO_HID_USAGE.get(char);
+  return shifted === undefined ? null : LEFT_SHIFT_MODIFIER | shifted;
+}
+
+function stringToTapSteps(
+  value: string,
+  behaviorId: number | null,
+): MacroStep[] | null {
+  if (behaviorId === null) return null;
+  const steps: MacroStep[] = [];
+  for (const char of value) {
+    const usage = charToHidUsage(char);
+    if (usage === null) return null;
+    steps.push({
+      tap: {
+        behaviorId,
+        param1: usage,
+        param2: 0,
+      },
+    });
+  }
+  return steps;
+}
+
+function getTapCharacter(step: MacroStep, keyPressBehaviorId: number | null) {
+  if (!step.tap || keyPressBehaviorId === null) return null;
+  if (step.tap.behaviorId !== keyPressBehaviorId || step.tap.param2 !== 0) {
+    return null;
+  }
+  return HID_USAGE_TO_CHAR.get(step.tap.param1) ?? null;
+}
+
+function buildMacroStepRows(
+  steps: MacroStep[],
+  keyPressBehaviorId: number | null,
+  stringDraft: StringDraftRow | null,
+): MacroStepRow[] {
+  const rows: MacroStepRow[] = [];
+  let index = 0;
+  let insertedDraft = false;
+
+  while (
+    index < steps.length ||
+    (!insertedDraft &&
+      stringDraft !== null &&
+      stringDraft.startIndex <= steps.length)
+  ) {
+    if (
+      stringDraft !== null &&
+      !insertedDraft &&
+      index === stringDraft.startIndex
+    ) {
+      rows.push({
+        action: "string",
+        startIndex: stringDraft.startIndex,
+        length: stringDraft.length,
+        value: stringDraft.value,
+      });
+      insertedDraft = true;
+      if (stringDraft.length > 0) {
+        index += stringDraft.length;
+        continue;
+      }
+    }
+
+    if (index >= steps.length) break;
+
+    const chars: string[] = [];
+    let endIndex = index;
+    while (endIndex < steps.length) {
+      if (
+        stringDraft !== null &&
+        !insertedDraft &&
+        endIndex === stringDraft.startIndex
+      ) {
+        break;
+      }
+      const char = getTapCharacter(steps[endIndex], keyPressBehaviorId);
+      if (char === null) break;
+      chars.push(char);
+      endIndex++;
+    }
+
+    if (chars.length >= STRING_MIN_GROUP_LENGTH) {
+      rows.push({
+        action: "string",
+        startIndex: index,
+        length: chars.length,
+        value: chars.join(""),
+      });
+      index = endIndex;
+      continue;
+    }
+
+    rows.push({
+      action: getStepAction(steps[index]),
+      startIndex: index,
+      length: 1,
+      step: steps[index],
+    });
+    index++;
+  }
+
+  return rows;
+}
+
 export function MacroPage() {
   const runtimeMacro = useRuntimeMacro();
   const keymap = useKeymap();
@@ -74,6 +308,10 @@ export function MacroPage() {
   const [editingStepIndex, setEditingStepIndex] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isDiscarding, setIsDiscarding] = useState(false);
+  const [stringConversionError, setStringConversionError] = useState<
+    string | null
+  >(null);
+  const [stringDraft, setStringDraft] = useState<StringDraftRow | null>(null);
 
   const layersForSelector = useMemo(() => {
     if (!keymap.keymap?.layers) return [];
@@ -97,6 +335,19 @@ export function MacroPage() {
       ? `Encoded macro is ${encodedSize} bytes; limit is ${runtimeMacro.maxMacroBytes}.`
       : null;
 
+  const keyPressBehaviorId = useMemo(
+    () => getKeyPressBehaviorId(keymap.behaviors),
+    [keymap.behaviors],
+  );
+
+  const stepRows = useMemo(
+    () =>
+      loadedMacro
+        ? buildMacroStepRows(loadedMacro.steps, keyPressBehaviorId, stringDraft)
+        : [],
+    [keyPressBehaviorId, loadedMacro, stringDraft],
+  );
+
   const selectedStep =
     editingStepIndex !== null ? loadedMacro?.steps[editingStepIndex] : null;
 
@@ -106,6 +357,8 @@ export function MacroPage() {
       if (macro) {
         setSelectedIndex(index);
         setLoadedMacro(macro);
+        setStringDraft(null);
+        setStringConversionError(null);
       }
     },
     [runtimeMacro],
@@ -203,6 +456,35 @@ export function MacroPage() {
       if (!loadedMacro) return;
       const currentStep = loadedMacro.steps[stepIndex];
       const currentAction = getStepAction(currentStep);
+      if (action === "string") {
+        const binding = getStepBinding(currentStep);
+        const initialString =
+          binding && binding.behaviorId === keyPressBehaviorId
+            ? (HID_USAGE_TO_CHAR.get(binding.param1) ?? "")
+            : "";
+        const value =
+          initialString.length >= STRING_MIN_GROUP_LENGTH
+            ? initialString
+            : `${initialString || "a"}a`;
+        const steps = stringToTapSteps(value, keyPressBehaviorId);
+        if (!steps) {
+          setStringConversionError("Key Press behavior is not available.");
+          return;
+        }
+        setStringConversionError(null);
+        setStringDraft({
+          startIndex: stepIndex,
+          length: steps.length,
+          value,
+        });
+        await commitSteps([
+          ...loadedMacro.steps.slice(0, stepIndex),
+          ...steps,
+          ...loadedMacro.steps.slice(stepIndex + 1),
+        ]);
+        return;
+      }
+      setStringDraft(null);
       const nextStep = createStep(
         action,
         getStepBinding(currentStep),
@@ -210,8 +492,44 @@ export function MacroPage() {
       );
       await updateStep(stepIndex, nextStep);
     },
-    [loadedMacro, updateStep],
+    [commitSteps, keyPressBehaviorId, loadedMacro, updateStep],
   );
+
+  const handleStringChange = useCallback(
+    (row: MacroStepRow, value: string) => {
+      if (!loadedMacro) return;
+      const replacementSteps = stringToTapSteps(value, keyPressBehaviorId);
+      if (!replacementSteps) {
+        setStringConversionError(
+          "Only HID keyboard-page printable characters are supported.",
+        );
+        return;
+      }
+      setStringConversionError(null);
+      setStringDraft({
+        startIndex: row.startIndex,
+        length: replacementSteps.length,
+        value,
+      });
+      const steps = [
+        ...loadedMacro.steps.slice(0, row.startIndex),
+        ...replacementSteps,
+        ...loadedMacro.steps.slice(row.startIndex + row.length),
+      ];
+      setLoadedMacro({
+        ...loadedMacro,
+        steps,
+        encodedSize: getRuntimeMacroEncodedSize(steps),
+      });
+    },
+    [keyPressBehaviorId, loadedMacro],
+  );
+
+  const commitStringChange = useCallback(async () => {
+    if (!loadedMacro || stringConversionError) return;
+    const ok = await commitSteps(loadedMacro.steps);
+    if (ok) setStringDraft(null);
+  }, [commitSteps, loadedMacro, stringConversionError]);
 
   const handleDelayChange = useCallback(
     (stepIndex: number, delayMs: number) => {
@@ -250,15 +568,6 @@ export function MacroPage() {
     const steps = [...loadedMacro.steps, DEFAULT_STEP];
     await commitSteps(steps);
   }, [commitSteps, loadedMacro]);
-
-  const handleRemoveStep = useCallback(
-    async (stepIndex: number) => {
-      if (!loadedMacro) return;
-      const steps = loadedMacro.steps.filter((_, index) => index !== stepIndex);
-      await commitSteps(steps);
-    },
-    [commitSteps, loadedMacro],
-  );
 
   const handleDeleteMacro = useCallback(async () => {
     if (!loadedMacro) return;
@@ -404,48 +713,83 @@ export function MacroPage() {
           </div>
         )}
 
-        {(runtimeMacro.error || encodedSizeError || keymap.error) && (
+        {(runtimeMacro.error ||
+          encodedSizeError ||
+          stringConversionError ||
+          keymap.error) && (
           <div className="glass-card p-4 mb-4 border-red-500/20 bg-red-500/10 flex items-center gap-3">
             <IconAlertCircle size={20} className="text-red-400" />
             <p className="text-sm text-red-400">
-              {runtimeMacro.error || encodedSizeError || keymap.error}
+              {runtimeMacro.error ||
+                encodedSizeError ||
+                stringConversionError ||
+                keymap.error}
             </p>
           </div>
         )}
 
         {runtimeMacro.isAvailable && (
           <div className="grid grid-cols-1 tablet:grid-cols-[240px_1fr] gap-4">
-            <div className="glass-card p-3 h-fit">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-medium text-[var(--color-text)]">
-                  Slots
-                </h2>
-                {runtimeMacro.isLoading && (
-                  <IconLoader2
-                    size={16}
-                    className="animate-spin text-[var(--color-electric)]"
-                  />
-                )}
+            <div className="space-y-4">
+              <div className="glass-card p-3">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-sm font-medium text-[var(--color-text)]">
+                    Slots
+                  </h2>
+                  {runtimeMacro.isLoading && (
+                    <IconLoader2
+                      size={16}
+                      className="animate-spin text-[var(--color-electric)]"
+                    />
+                  )}
+                </div>
+                <div className="space-y-1">
+                  {runtimeMacro.macros.map((macro) => (
+                    <button
+                      key={macro.index}
+                      className={`w-full px-3 py-2 rounded-lg text-left transition-colors ${
+                        selectedIndex === macro.index
+                          ? "bg-[var(--color-electric)]/20 text-[var(--color-electric)] border border-[var(--color-electric)]/30"
+                          : "text-[var(--color-text-secondary)] hover:bg-[var(--color-border)]"
+                      }`}
+                      onClick={() => void loadMacro(macro.index)}
+                    >
+                      <span className="block text-sm font-medium truncate">
+                        {macro.name || `Macro ${macro.index}`}
+                      </span>
+                      <span className="block text-xs text-[var(--color-text-muted)]">
+                        {macro.encodedSize}/{runtimeMacro.maxMacroBytes} bytes
+                      </span>
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="space-y-1">
-                {runtimeMacro.macros.map((macro) => (
-                  <button
-                    key={macro.index}
-                    className={`w-full px-3 py-2 rounded-lg text-left transition-colors ${
-                      selectedIndex === macro.index
-                        ? "bg-[var(--color-electric)]/20 text-[var(--color-electric)] border border-[var(--color-electric)]/30"
-                        : "text-[var(--color-text-secondary)] hover:bg-[var(--color-border)]"
-                    }`}
-                    onClick={() => void loadMacro(macro.index)}
-                  >
-                    <span className="block text-sm font-medium truncate">
-                      {macro.name || `Macro ${macro.index}`}
-                    </span>
-                    <span className="block text-xs text-[var(--color-text-muted)]">
-                      {macro.encodedSize}/{runtimeMacro.maxMacroBytes} bytes
-                    </span>
-                  </button>
-                ))}
+
+              <div className="glass-card p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <IconSettings
+                    size={18}
+                    className="text-[var(--color-electric)]"
+                  />
+                  <h2 className="text-sm font-medium text-[var(--color-text)]">
+                    Global Settings
+                  </h2>
+                </div>
+                <label className="block">
+                  <span className="text-xs text-[var(--color-text-muted)]">
+                    Tap ms
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={10000}
+                    className="mt-1 w-full px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text)] focus:outline-none focus:border-[var(--color-electric)]/50"
+                    value={runtimeMacro.globalSettings?.tapMs ?? 0}
+                    onChange={(event) =>
+                      void handleTapMsChange(Number(event.target.value))
+                    }
+                  />
+                </label>
               </div>
             </div>
 
@@ -476,35 +820,18 @@ export function MacroPage() {
                         }
                       />
                     </div>
-                    <div className="grid grid-cols-2 gap-2 tablet:w-64">
-                      <div>
-                        <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1">
-                          Global Tap
-                        </label>
-                        <input
-                          type="number"
-                          min={0}
-                          max={10000}
-                          className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text)] focus:outline-none focus:border-[var(--color-electric)]/50"
-                          value={runtimeMacro.globalSettings?.tapMs ?? 0}
-                          onChange={(event) =>
-                            void handleTapMsChange(Number(event.target.value))
-                          }
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1">
-                          Size
-                        </label>
-                        <div
-                          className={`px-3 py-2 rounded-lg border text-sm ${
-                            encodedSizeError
-                              ? "border-red-500/40 text-red-400 bg-red-500/10"
-                              : "border-[var(--color-border)] text-[var(--color-text-secondary)] bg-[var(--color-bg)]"
-                          }`}
-                        >
-                          {encodedSize}/{runtimeMacro.maxMacroBytes}
-                        </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1">
+                        Size
+                      </label>
+                      <div
+                        className={`px-3 py-2 rounded-lg border text-sm ${
+                          encodedSizeError
+                            ? "border-red-500/40 text-red-400 bg-red-500/10"
+                            : "border-[var(--color-border)] text-[var(--color-text-secondary)] bg-[var(--color-bg)]"
+                        }`}
+                      >
+                        {encodedSize}/{runtimeMacro.maxMacroBytes}
                       </div>
                     </div>
                   </div>
@@ -533,7 +860,7 @@ export function MacroPage() {
                     </div>
                   </div>
 
-                  {loadedMacro.steps.length === 0 ? (
+                  {stepRows.length === 0 ? (
                     <div className="p-6 text-center rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)]">
                       <p className="text-sm text-[var(--color-text-muted)]">
                         No steps in this macro
@@ -541,22 +868,23 @@ export function MacroPage() {
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {loadedMacro.steps.map((step, index) => {
-                        const action = getStepAction(step);
+                      {stepRows.map((row, rowIndex) => {
+                        const step = row.step;
+                        const action = row.action;
                         return (
                           <div
-                            key={index}
+                            key={`${row.startIndex}-${row.length}-${rowIndex}`}
                             className="grid grid-cols-1 tablet:grid-cols-[64px_128px_1fr_40px] gap-2 items-center p-3 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)]"
                           >
                             <div className="text-xs font-mono text-[var(--color-text-muted)]">
-                              #{index + 1}
+                              #{row.startIndex + 1}
                             </div>
                             <select
                               className="px-3 py-2 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-sm text-[var(--color-text)] focus:outline-none focus:border-[var(--color-electric)]/50"
                               value={action}
                               onChange={(event) =>
                                 void handleActionChange(
-                                  index,
+                                  row.startIndex,
                                   event.target.value as StepAction,
                                 )
                               }
@@ -565,6 +893,7 @@ export function MacroPage() {
                               <option value="down">Down</option>
                               <option value="up">Up</option>
                               <option value="delay">Delay</option>
+                              <option value="string">String</option>
                             </select>
 
                             {action === "delay" ? (
@@ -573,33 +902,53 @@ export function MacroPage() {
                                   type="number"
                                   min={0}
                                   className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-sm text-[var(--color-text)] focus:outline-none focus:border-[var(--color-electric)]/50"
-                                  value={step.delay?.delayMs ?? 0}
+                                  value={step?.delay?.delayMs ?? 0}
                                   onChange={(event) =>
                                     handleDelayChange(
-                                      index,
+                                      row.startIndex,
                                       Number(event.target.value),
                                     )
                                   }
-                                  onBlur={() => void commitDelay(index)}
+                                  onBlur={() =>
+                                    void commitDelay(row.startIndex)
+                                  }
                                 />
                                 <span className="text-xs text-[var(--color-text-muted)]">
                                   ms
                                 </span>
                               </div>
+                            ) : action === "string" ? (
+                              <input
+                                className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-sm text-[var(--color-text)] focus:outline-none focus:border-[var(--color-electric)]/50"
+                                value={row.value ?? ""}
+                                onChange={(event) =>
+                                  handleStringChange(row, event.target.value)
+                                }
+                                onBlur={() => void commitStringChange()}
+                              />
                             ) : (
                               <button
                                 className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface)] hover:bg-[var(--color-border)] border border-[var(--color-border)] text-left text-sm text-[var(--color-text-secondary)] transition-colors"
-                                onClick={() => setEditingStepIndex(index)}
+                                onClick={() =>
+                                  setEditingStepIndex(row.startIndex)
+                                }
                               >
-                                {getStepDisplayName(step)}
+                                {step ? getStepDisplayName(step) : ""}
                               </button>
                             )}
 
                             <button
                               className="p-2 rounded-lg hover:bg-[var(--color-border)] disabled:opacity-40"
-                              onClick={() => void handleRemoveStep(index)}
+                              onClick={() =>
+                                void commitSteps([
+                                  ...loadedMacro.steps.slice(0, row.startIndex),
+                                  ...loadedMacro.steps.slice(
+                                    row.startIndex + row.length,
+                                  ),
+                                ])
+                              }
                               disabled={runtimeMacro.isLoading}
-                              aria-label={`Remove step ${index + 1}`}
+                              aria-label={`Remove step ${row.startIndex + 1}`}
                             >
                               <IconTrash
                                 size={16}
