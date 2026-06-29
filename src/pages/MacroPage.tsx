@@ -44,7 +44,7 @@ interface StringDraftRow {
 }
 
 const DEFAULT_BINDING = { behaviorId: 0, param1: 0, param2: 0 };
-const DEFAULT_STEP: MacroStep = { tap: DEFAULT_BINDING };
+const DEFAULT_STEP: MacroStep = { delay: { delayMs: 0 } };
 const LEFT_SHIFT_MODIFIER = 0x02 << 24;
 const STRING_MIN_GROUP_LENGTH = 2;
 
@@ -593,13 +593,14 @@ export function MacroPage() {
   const handleAddStep = useCallback(async () => {
     if (!loadedMacro) return;
     const steps = [...loadedMacro.steps, DEFAULT_STEP];
+    setStringDraft(null);
     setLoadedMacro({
       ...loadedMacro,
       steps,
       encodedSize: getRuntimeMacroEncodedSize(steps),
     });
-    setEditingStepIndex(steps.length - 1);
-  }, [loadedMacro]);
+    await commitSteps(steps);
+  }, [commitSteps, loadedMacro]);
 
   const handleDeleteMacro = useCallback(async () => {
     if (!loadedMacro) return;
@@ -911,7 +912,7 @@ export function MacroPage() {
                         const action = row.action;
                         return (
                           <div
-                            key={`${row.startIndex}-${row.length}-${rowIndex}`}
+                            key={`${row.action}-${row.startIndex}-${rowIndex}`}
                             className="grid grid-cols-1 tablet:grid-cols-[64px_128px_1fr_40px] gap-2 items-center p-3 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)]"
                           >
                             <div className="text-xs font-mono text-[var(--color-text-muted)]">
