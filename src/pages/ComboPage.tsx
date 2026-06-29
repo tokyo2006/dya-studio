@@ -19,6 +19,7 @@ import { UnlockPrompt } from "../components/UnlockPrompt";
 import { useKeymap } from "../hooks/useKeymap";
 import type { BehaviorBinding, BehaviorDefinition } from "../hooks/useKeymap";
 import { useRuntimeCombo } from "../hooks/useRuntimeCombo";
+import { useRuntimeMacro } from "../hooks/useRuntimeMacro";
 import type { Combo } from "../hooks/useRuntimeCombo";
 import { formatBehaviorBinding } from "../lib/behaviorMetadata";
 import type { KeyboardLayoutType } from "../lib/keyboardLayouts";
@@ -136,6 +137,7 @@ function formatComboBehavior(
   behaviors: Map<number, BehaviorDefinition>,
   layers: Array<{ id: number; name: string }>,
   keyboardLayout: KeyboardLayoutType,
+  runtimeMacros: Array<{ index: number; name?: string }>,
 ): string {
   const behavior = behaviors.get(binding.behaviorId);
   if (!behavior) {
@@ -144,6 +146,7 @@ function formatComboBehavior(
   return formatBehaviorBinding(binding, behavior, {
     layers,
     keyboardLayout,
+    runtimeMacros,
   });
 }
 
@@ -152,6 +155,7 @@ export function ComboPage() {
   const keyboardLayoutContext = useContext(KeyboardLayoutContext);
   const keymap = useKeymap();
   const runtimeCombo = useRuntimeCombo();
+  const runtimeMacro = useRuntimeMacro();
 
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [draft, setDraft] = useState<ComboDraft>(() =>
@@ -513,6 +517,7 @@ export function ComboPage() {
                               keymap.behaviors,
                               layersForSelector,
                               keyboardLayoutContext.layout,
+                              runtimeMacro.macros,
                             )}
                           </div>
                         </button>
@@ -711,6 +716,7 @@ export function ComboPage() {
                           keymap.behaviors,
                           layersForSelector,
                           keyboardLayoutContext.layout,
+                          runtimeMacro.macros,
                         )}
                       </span>
                     </button>
@@ -799,6 +805,7 @@ export function ComboPage() {
                         isBindingModified={() => false}
                         getOriginalBinding={() => null}
                         keyboardLayout={keyboardLayoutContext.layout}
+                        runtimeMacros={runtimeMacro.macros}
                         highlightedKeys={highlightedKeys}
                       />
                     </div>
@@ -820,6 +827,7 @@ export function ComboPage() {
         layers={layersForSelector}
         keyboardLayout={keyboardLayoutContext.layout}
         behaviorQuickSelects={["kp", "lt", "mt", "none", "transparent"]}
+        runtimeMacros={runtimeMacro.macros}
       />
 
       <UnlockPrompt

@@ -46,6 +46,7 @@ export type BehaviorCategory =
 export type ParamType =
   | "keycode" // HID usage code
   | "layer" // Layer ID
+  | "macro" // Runtime macro ID
   | "number" // Generic number
   | "bt_command" // BT command (0=CLR, 1=NXT, etc)
   | "out_command" // Output command (0=TOG, 1=USB, 2=BLE)
@@ -71,6 +72,8 @@ export interface FormatContext {
   layers?: (Omit<Layer, "bindings"> & Partial<Pick<Layer, "bindings">>)[];
   /** Keyboard layout for localized keycode display */
   keyboardLayout?: import("./keyboardLayouts").KeyboardLayoutType;
+  /** Runtime macro summaries for resolving macro behavior param1 */
+  runtimeMacros?: Array<{ index: number; name?: string }>;
 }
 
 /**
@@ -306,10 +309,24 @@ const BEHAVIOR_METADATA_BASE: BehaviorMetadata[] = [
   // ============================================================================
   {
     category: "miscellaneous",
-    displayNameVariants: ["macro"],
+    displayNameVariants: ["Runtime Macro", "rmacro", "macro", "runtime_macro"],
     shortCode: "Macro",
-    getDisplayText: () => "Macro",
+    param1Type: "macro",
+    getDisplayText: (binding, context) => {
+      const macro = context.runtimeMacros?.find(
+        (item) => item.index === binding.param1,
+      );
+      return `Macro ${macro?.name || binding.param1}`;
+    },
+    formatParam: (param1, _param2, paramNumber, context) => {
+      if (paramNumber !== 1) return "";
+      const macro = context.runtimeMacros?.find(
+        (item) => item.index === param1,
+      );
+      return macro?.name || param1.toString();
+    },
     description: "Execute macro",
+    param1Description: "Select runtime macro",
   },
 
   // TODO: key toggle

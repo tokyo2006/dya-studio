@@ -653,9 +653,15 @@ export function MacroPage() {
       return formatBehaviorBinding(binding, behavior, {
         layers: layersForSelector,
         keyboardLayout: keyboardLayoutContext.layout,
+        runtimeMacros: runtimeMacro.macros,
       });
     },
-    [keymap.behaviors, keyboardLayoutContext.layout, layersForSelector],
+    [
+      keymap.behaviors,
+      keyboardLayoutContext.layout,
+      layersForSelector,
+      runtimeMacro.macros,
+    ],
   );
 
   return (
@@ -1014,6 +1020,7 @@ export function MacroPage() {
         layers={layersForSelector}
         keyboardLayout={keyboardLayoutContext.layout}
         behaviorQuickSelects={["kp", "rmacro", "none", "transparent"]}
+        runtimeMacros={runtimeMacro.macros}
       />
 
       <UnlockPrompt
