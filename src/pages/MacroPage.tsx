@@ -20,6 +20,7 @@ import {
   RUNTIME_MACRO_FORMAT_VERSION,
 } from "../lib/runtimeMacroCodec";
 import { formatBehaviorBinding } from "../lib/behaviorMetadata";
+import { createHidUsage, HID_USAGE_PAGE_KEYBOARD } from "../lib/keycodes";
 import type { BehaviorBinding as KeymapBehaviorBinding } from "../hooks/useKeymap";
 import type {
   MacroSlot,
@@ -127,14 +128,23 @@ const SHIFTED_CHAR_TO_HID_USAGE = new Map<string, number>([
 const HID_USAGE_TO_CHAR = new Map<number, string>();
 for (const [char, usage] of CHAR_TO_HID_USAGE) {
   HID_USAGE_TO_CHAR.set(usage, char);
+  HID_USAGE_TO_CHAR.set(createHidUsage(HID_USAGE_PAGE_KEYBOARD, usage), char);
 }
 for (const [char, usage] of SHIFTED_CHAR_TO_HID_USAGE) {
   HID_USAGE_TO_CHAR.set(LEFT_SHIFT_MODIFIER | usage, char);
+  HID_USAGE_TO_CHAR.set(
+    LEFT_SHIFT_MODIFIER | createHidUsage(HID_USAGE_PAGE_KEYBOARD, usage),
+    char,
+  );
 }
 for (let code = 0x04; code <= 0x1d; code++) {
   const lower = HID_USAGE_TO_CHAR.get(code);
   if (lower) {
     HID_USAGE_TO_CHAR.set(LEFT_SHIFT_MODIFIER | code, lower.toUpperCase());
+    HID_USAGE_TO_CHAR.set(
+      LEFT_SHIFT_MODIFIER | createHidUsage(HID_USAGE_PAGE_KEYBOARD, code),
+      lower.toUpperCase(),
+    );
   }
 }
 
@@ -189,12 +199,18 @@ function charToHidUsage(char: string): number | null {
   const lower = char.toLowerCase();
   if (char >= "A" && char <= "Z") {
     const usage = CHAR_TO_HID_USAGE.get(lower);
-    return usage === undefined ? null : LEFT_SHIFT_MODIFIER | usage;
+    return usage === undefined
+      ? null
+      : LEFT_SHIFT_MODIFIER | createHidUsage(HID_USAGE_PAGE_KEYBOARD, usage);
   }
   const direct = CHAR_TO_HID_USAGE.get(char);
-  if (direct !== undefined) return direct;
+  if (direct !== undefined) {
+    return createHidUsage(HID_USAGE_PAGE_KEYBOARD, direct);
+  }
   const shifted = SHIFTED_CHAR_TO_HID_USAGE.get(char);
-  return shifted === undefined ? null : LEFT_SHIFT_MODIFIER | shifted;
+  return shifted === undefined
+    ? null
+    : LEFT_SHIFT_MODIFIER | createHidUsage(HID_USAGE_PAGE_KEYBOARD, shifted);
 }
 
 function stringToTapSteps(
@@ -223,6 +239,15 @@ function getTapCharacter(step: MacroStep, keyPressBehaviorId: number | null) {
     return null;
   }
   return HID_USAGE_TO_CHAR.get(step.tap.param1) ?? null;
+}
+
+function hasValidBinding(step: MacroStep): boolean {
+  const binding = getStepBinding(step);
+  return !binding || binding.behaviorId !== 0;
+}
+
+function canCommitSteps(steps: MacroStep[]): boolean {
+  return steps.every(hasValidBinding);
 }
 
 function buildMacroStepRows(
@@ -403,6 +428,9 @@ export function MacroPage() {
   const commitSteps = useCallback(
     async (steps: MacroStep[]) => {
       if (!loadedMacro) return false;
+      if (!canCommitSteps(steps)) {
+        return false;
+      }
       try {
         const size = getRuntimeMacroEncodedSize(steps);
         if (size > runtimeMacro.maxMacroBytes) {
@@ -443,12 +471,11 @@ export function MacroPage() {
       );
       const size = getRuntimeMacroEncodedSize(steps);
       setLoadedMacro({ ...loadedMacro, steps, encodedSize: size });
-      if (size <= runtimeMacro.maxMacroBytes) {
-        await runtimeMacro.setMacroStep(loadedMacro.index, stepIndex, step);
-        await runtimeMacro.loadMacros();
+      if (size <= runtimeMacro.maxMacroBytes && canCommitSteps(steps)) {
+        await commitSteps(steps);
       }
     },
-    [loadedMacro, runtimeMacro],
+    [commitSteps, loadedMacro, runtimeMacro.maxMacroBytes],
   );
 
   const handleActionChange = useCallback(
@@ -566,8 +593,13 @@ export function MacroPage() {
   const handleAddStep = useCallback(async () => {
     if (!loadedMacro) return;
     const steps = [...loadedMacro.steps, DEFAULT_STEP];
-    await commitSteps(steps);
-  }, [commitSteps, loadedMacro]);
+    setLoadedMacro({
+      ...loadedMacro,
+      steps,
+      encodedSize: getRuntimeMacroEncodedSize(steps),
+    });
+    setEditingStepIndex(steps.length - 1);
+  }, [loadedMacro]);
 
   const handleDeleteMacro = useCallback(async () => {
     if (!loadedMacro) return;
