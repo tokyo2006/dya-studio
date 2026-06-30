@@ -5,6 +5,8 @@ import {
   IconBluetooth,
   IconHome,
   IconKeyboard,
+  IconKeyboardShow,
+  IconListDetails,
   IconPointer,
   IconPuzzle,
   IconSettings,
@@ -24,7 +26,9 @@ import { HomePage } from "./pages/HomePage";
 import { BatteryPage } from "./pages/BatteryPage";
 import { BLEConnectionsPage } from "./pages/BLEConnectionsPage";
 import { KeymapPage } from "./pages/KeymapPage";
+import { ComboPage } from "./pages/ComboPage";
 import { TrackballPage } from "./pages/TrackballPage";
+import { MacroPage } from "./pages/MacroPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { CustomSubsystemsPage } from "./pages/CustomSubsystemsPage";
 
@@ -40,6 +44,18 @@ const tabs: TabItem[] = [
     label: "Keymap",
     icon: <IconKeyboard size={18} />,
     content: <KeymapPage />,
+  },
+  {
+    id: "macro",
+    label: "Macro",
+    icon: <IconListDetails size={18} />,
+    content: <MacroPage />,
+  },
+  {
+    id: "combo",
+    label: "Combo",
+    icon: <IconKeyboardShow size={18} />,
+    content: <ComboPage />,
   },
   {
     id: "trackball",
