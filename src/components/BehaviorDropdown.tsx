@@ -10,6 +10,7 @@ import {
   type BehaviorCategory,
 } from "../lib/behaviorMetadata";
 import type { BehaviorDefinition } from "../hooks/useKeymap";
+import { useLanguage } from "../hooks/useLanguage";
 
 // Predefined behavior categories
 const BEHAVIOR_CATEGORIES: { id: BehaviorCategory; name: string }[] = [
@@ -49,6 +50,7 @@ export function BehaviorDropdown({
   onQuickSelect,
   quickSelects,
 }: BehaviorDropdownProps) {
+  const { t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const [filterCategory, setFilterCategory] = useState<
     BehaviorCategory | "all"
@@ -187,10 +189,10 @@ export function BehaviorDropdown({
       >
         <span className="text-sm text-[var(--color-text)]">
           {selectedBehaviorOverrideMeta?.displayNameVariants?.at(0) ||
-            "Select behavior"}
+            t("Select behavior")}
           {selectedBehaviorOverrideMeta?.description && (
             <span className="mx-1 text-xs text-[var(--color-text-muted)]">
-              - {selectedBehaviorOverrideMeta.description}
+              - {t(selectedBehaviorOverrideMeta.description)}
             </span>
           )}
         </span>
@@ -203,7 +205,7 @@ export function BehaviorDropdown({
       {/* Quick Select Buttons with label (moved to bottom) */}
       <div className="items-center gap-1 mt-2 pl-2 overflow-x-auto flex">
         <span className="text-xs text-[var(--color-text-muted)] mr-1 flex-shrink-0">
-          Quick Select:
+          {t("Quick Select")}:
         </span>
         {quickSelectBehaviors.map((qb) => (
           <button
@@ -219,7 +221,7 @@ export function BehaviorDropdown({
               updateRecentBehaviors(qb.id);
               onQuickSelect(qb.id);
             }}
-            title={qb.isRecent ? "Recently used" : undefined}
+            title={qb.isRecent ? t("Recently used") : undefined}
           >
             {qb.displayName}
           </button>
@@ -239,7 +241,7 @@ export function BehaviorDropdown({
               }`}
               onClick={() => setFilterCategory("all")}
             >
-              All
+              {t("All")}
             </button>
             {BEHAVIOR_CATEGORIES.map((cat) => (
               <button
@@ -251,7 +253,7 @@ export function BehaviorDropdown({
                 }`}
                 onClick={() => setFilterCategory(cat.id)}
               >
-                {cat.name}
+                {t(cat.name)}
               </button>
             ))}
           </div>
@@ -277,7 +279,7 @@ export function BehaviorDropdown({
                 </span>
                 {option.description && (
                   <span className="block text-xs text-[var(--color-text-muted)]">
-                    {option.description}
+                    {t(option.description)}
                   </span>
                 )}
               </button>

@@ -5,15 +5,19 @@ import {
   IconChevronDown,
   IconAlertTriangleFilled,
 } from "@tabler/icons-react";
-import { useSettings } from "../hooks/useSettings";
 import { AdvancedSettingsSection } from "../components/AdvancedSettingsSection";
+import { useSettings } from "../hooks/useSettings";
+import { useLanguage } from "../hooks/useLanguage";
 
 // Helper to format milliseconds to human readable
-function formatMs(ms: number): string {
-  if (ms === 0) return "Never";
-  if (ms < 60000) return `${ms / 1000}s`;
-  if (ms < 3600000) return `${ms / 60000}m`;
-  return `${ms / 3600000}h`;
+function formatMs(
+  ms: number,
+  t: (key: string, params?: Record<string, number | string>) => string,
+): string {
+  if (ms === 0) return t("Never");
+  if (ms < 60000) return t("{{count}}s", { count: ms / 1000 });
+  if (ms < 3600000) return t("{{count}}m", { count: ms / 60000 });
+  return t("{{count}}h", { count: ms / 3600000 });
 }
 
 // Convert milliseconds to minutes
@@ -54,6 +58,7 @@ interface TimeDropdownProps {
 }
 
 function TimeDropdown({ value, onChange, presets }: TimeDropdownProps) {
+  const { t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const [customInput, setCustomInput] = useState("");
   const [showCustomInput, setShowCustomInput] = useState(false);
@@ -63,7 +68,9 @@ function TimeDropdown({ value, onChange, presets }: TimeDropdownProps) {
 
   const valueInMinutes = msToMinutes(value);
   const matchingPreset = presets.find((p) => p.value === valueInMinutes);
-  const displayText = matchingPreset?.label || `${valueInMinutes} min`;
+  const displayText =
+    (matchingPreset && t(matchingPreset.label)) ||
+    t("{{value}} min", { value: valueInMinutes });
 
   // Update dropdown position when opened
   useEffect(() => {
@@ -156,7 +163,7 @@ function TimeDropdown({ value, onChange, presets }: TimeDropdownProps) {
                 }`}
                 onClick={() => handlePresetSelect(preset.value)}
               >
-                {preset.label}
+                {t(preset.label)}
               </button>
             ))}
             <div className="border-t border-[var(--color-border)] mt-1 pt-1">
@@ -166,7 +173,7 @@ function TimeDropdown({ value, onChange, presets }: TimeDropdownProps) {
                   className="w-full px-4 py-2 text-left text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-border)] transition-colors"
                   onClick={() => setShowCustomInput(true)}
                 >
-                  Custom value...
+                  {t("Custom value...")}
                 </button>
               ) : (
                 <div className="px-4 py-2 space-y-2">
@@ -187,7 +194,7 @@ function TimeDropdown({ value, onChange, presets }: TimeDropdownProps) {
                       autoFocus
                     />
                     <span className="text-xs text-[var(--color-text-muted)]">
-                      min
+                      {t("min")}
                     </span>
                   </div>
                   <div className="flex gap-2">
@@ -196,7 +203,7 @@ function TimeDropdown({ value, onChange, presets }: TimeDropdownProps) {
                       className="flex-1 px-2 py-1 text-xs rounded bg-[var(--color-electric)] text-[var(--color-bg)] hover:bg-[var(--color-electric)]/80"
                       onClick={handleCustomSubmit}
                     >
-                      Set
+                      {t("Set")}
                     </button>
                     <button
                       type="button"
@@ -206,7 +213,7 @@ function TimeDropdown({ value, onChange, presets }: TimeDropdownProps) {
                         setCustomInput("");
                       }}
                     >
-                      Cancel
+                      {t("Cancel")}
                     </button>
                   </div>
                 </div>
@@ -220,6 +227,7 @@ function TimeDropdown({ value, onChange, presets }: TimeDropdownProps) {
 }
 
 export function SettingsPage() {
+  const { t } = useLanguage();
   const { isAvailable, devices, isLoading, error, setActivitySettings } =
     useSettings();
   // Track if user has edited the form
@@ -268,10 +276,10 @@ export function SettingsPage() {
           </div>
           <div>
             <h1 className="text-xl font-medium text-[var(--color-text)]">
-              Settings
+              {t("Settings")}
             </h1>
             <p className="text-sm text-[var(--color-text-muted)]">
-              Device configuration and power management
+              {t("Device configuration and power management")}
             </p>
           </div>
         </div>
@@ -282,9 +290,11 @@ export function SettingsPage() {
               <IconAlertTriangleFilled size={24} className="text-red-500" />
             </div>
             <p className="text-sm text-[var(--color-text-muted)]">
-              Settings RPC subsystem is not available for your keyboard.
+              {t("Settings RPC subsystem is not available for your keyboard.")}
               <br />
-              Make sure your firmware has the
+              {t("Make sure your firmware has the {{module}} enabled.", {
+                module: "cormoran/zmk-module-settings-rpc",
+              })}
               <a
                 href="https://github.com/cormoran/zmk-module-settings-rpc"
                 target="_blank"
@@ -293,7 +303,6 @@ export function SettingsPage() {
               >
                 cormoran/zmk-module-settings-rpc
               </a>
-              enabled.
             </p>
           </div>
         )}
@@ -309,7 +318,7 @@ export function SettingsPage() {
         {isLoading && !centralSettings && (
           <div className="glass-card p-6">
             <p className="text-sm text-[var(--color-text-muted)]">
-              Loading settings...
+              {t("Loading settings...")}
             </p>
           </div>
         )}
@@ -320,17 +329,17 @@ export function SettingsPage() {
             {/* Power Management */}
             <div className="glass-card p-6">
               <h3 className="text-sm font-medium text-[var(--color-text)] mb-4">
-                Power Management
+                {t("Power Management")}
               </h3>
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-[var(--color-text-secondary)]">
-                      Idle Timeout
+                      {t("Idle Timeout")}
                     </p>
                     <p className="text-xs text-[var(--color-text-muted)]">
-                      Time before keyboard enters idle mode
+                      {t("Time before keyboard enters idle mode")}
                     </p>
                   </div>
                   <TimeDropdown
@@ -343,10 +352,10 @@ export function SettingsPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-[var(--color-text-secondary)]">
-                      Sleep Timeout
+                      {t("Sleep Timeout")}
                     </p>
                     <p className="text-xs text-[var(--color-text-muted)]">
-                      Time before entering deep sleep
+                      {t("Time before entering deep sleep")}
                     </p>
                   </div>
                   <TimeDropdown
@@ -362,7 +371,7 @@ export function SettingsPage() {
                     onClick={handleSaveSettings}
                     disabled={isLoading}
                   >
-                    {isLoading ? "Saving..." : "Apply to All Devices"}
+                    {isLoading ? t("Saving...") : t("Apply to All Devices")}
                   </button>
                 </div>
               </div>
@@ -371,7 +380,7 @@ export function SettingsPage() {
               {devices.length > 0 && (
                 <div className="mt-6 p-4 rounded-lg bg-[var(--color-border)]">
                   <p className="text-xs font-medium text-[var(--color-text-muted)] mb-2">
-                    Current Settings by Device:
+                    {t("Current Settings by Device")}:
                   </p>
                   <div className="space-y-1">
                     {devices.map((device) => (
@@ -380,8 +389,10 @@ export function SettingsPage() {
                         className="text-xs text-[var(--color-text-secondary)]"
                       >
                         <span className="font-mono">{device.deviceName}:</span>{" "}
-                        Idle: {formatMs(device.idleMs)}, Sleep:{" "}
-                        {formatMs(device.sleepMs)}
+                        {t("Idle: {{idle}}, Sleep: {{sleep}}", {
+                          idle: formatMs(device.idleMs, t),
+                          sleep: formatMs(device.sleepMs, t),
+                        })}
                       </div>
                     ))}
                   </div>
@@ -441,7 +452,7 @@ export function SettingsPage() {
           !isLoading && (
             <div className="glass-card p-6">
               <p className="text-sm text-[var(--color-text-muted)]">
-                Waiting for device connection...
+                {t("Waiting for device connection...")}
               </p>
             </div>
           )

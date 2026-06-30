@@ -13,6 +13,7 @@ import {
   useCustomSettings,
 } from "../hooks/useCustomSettings";
 import { useKeymap, type BehaviorDefinition } from "../hooks/useKeymap";
+import { useLanguage } from "../hooks/useLanguage";
 import {
   type Setting,
   type SettingConstraint,
@@ -62,18 +63,24 @@ function scalarToInputValue(setting: Setting): string {
   return "";
 }
 
-function formatValue(setting: Setting): string {
-  if (!setting.value) return "(hidden)";
+function formatValue(
+  setting: Setting,
+  t: (key: string, params?: Record<string, number | string>) => string,
+): string {
+  if (!setting.value) return t("(hidden)");
   const arrayPrefix = setting.value.arrayValue
     ? `[${setting.value.arrayValue.index + 1}/${setting.value.arrayValue.size}] `
     : "";
   return `${arrayPrefix}${scalarToInputValue(setting)}`;
 }
 
-function sourceLabel(source: number): string {
-  if (source === 0) return "Local";
-  if (source === CUSTOM_SETTINGS_SOURCE_ALL) return "All";
-  return `Source ${source}`;
+function sourceLabel(
+  source: number,
+  t: (key: string, params?: Record<string, number | string>) => string,
+): string {
+  if (source === 0) return t("Local");
+  if (source === CUSTOM_SETTINGS_SOURCE_ALL) return t("All");
+  return t("Source {{source}}", { source });
 }
 
 function settingLabel(setting: Setting): string {
@@ -130,14 +137,14 @@ function bytesToHex(value: Uint8Array): string {
     .join(" ");
 }
 
-function parseHexBytes(value: string): Uint8Array {
+function parseHexBytes(value: string, errorMessage: string): Uint8Array {
   const trimmed = value.trim();
   if (!trimmed) return new Uint8Array();
 
   const normalized = trimmed.replace(/0x/gi, "");
   const tokens = normalized.split(/[\s,]+/).filter(Boolean);
   if (tokens.some((token) => !/^[0-9a-fA-F]{1,2}$/.test(token))) {
-    throw new Error("Use hexadecimal bytes such as 00 ff 2a.");
+    throw new Error(errorMessage);
   }
 
   return Uint8Array.from(tokens.map((token) => Number.parseInt(token, 16)));
@@ -178,17 +185,21 @@ function ByteEditorModal({
   onApply,
   onClose,
 }: ByteEditorModalProps) {
+  const { t } = useLanguage();
   const [hexText, setHexText] = useState(bytesToHex(bytes));
   const [asciiText, setAsciiText] = useState(bytesToPrintableAscii(bytes));
   const [error, setError] = useState<string | null>(null);
 
   const parsedBytes = useMemo(() => {
     try {
-      return parseHexBytes(hexText);
+      return parseHexBytes(
+        hexText,
+        t("Use hexadecimal bytes such as 00 ff 2a."),
+      );
     } catch {
       return null;
     }
-  }, [hexText]);
+  }, [hexText, t]);
 
   return createPortal(
     <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 p-4">
@@ -196,7 +207,7 @@ function ByteEditorModal({
         <div className="flex items-center justify-between border-b border-[var(--color-border)] px-5 py-4">
           <div>
             <h3 className="text-sm font-medium text-[var(--color-text)]">
-              Bytecode Editor
+              {t("Bytecode Editor")}
             </h3>
             <p className="text-xs text-[var(--color-text-muted)]">{title}</p>
           </div>
@@ -204,7 +215,7 @@ function ByteEditorModal({
             type="button"
             className="theme-toggle h-9 w-9"
             onClick={onClose}
-            title="Close"
+            title={t("Close")}
           >
             <IconX size={18} />
           </button>
@@ -213,7 +224,7 @@ function ByteEditorModal({
         <div className="space-y-4 p-5">
           <label className="block">
             <span className="mb-2 block text-xs font-medium text-[var(--color-text-muted)]">
-              Hex bytes
+              {t("Hex bytes")}
             </span>
             <textarea
               className="input-field min-h-32 font-mono text-sm"
@@ -228,7 +239,7 @@ function ByteEditorModal({
 
           <label className="block">
             <span className="mb-2 block text-xs font-medium text-[var(--color-text-muted)]">
-              ASCII helper
+              {t("ASCII helper")}
             </span>
             <div className="flex gap-2">
               <input
@@ -245,17 +256,21 @@ function ByteEditorModal({
                   setError(null);
                 }}
               >
-                Encode
+                {t("Encode")}
               </button>
             </div>
           </label>
 
           <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-3">
             <p className="text-xs text-[var(--color-text-muted)]">
-              Length: {parsedBytes?.length ?? 0} bytes
+              {t("Length: {{count}} bytes", {
+                count: parsedBytes?.length ?? 0,
+              })}
             </p>
             <p className="mt-2 break-all font-mono text-xs text-[var(--color-text-secondary)]">
-              {parsedBytes ? bytesToPrintableAscii(parsedBytes) : "Invalid hex"}
+              {parsedBytes
+                ? bytesToPrintableAscii(parsedBytes)
+                : t("Invalid hex")}
             </p>
           </div>
 
@@ -264,21 +279,28 @@ function ByteEditorModal({
 
         <div className="flex justify-end gap-2 border-t border-[var(--color-border)] px-5 py-4">
           <button type="button" className="btn-ghost" onClick={onClose}>
-            Cancel
+            {t("Cancel")}
           </button>
           <button
             type="button"
             className="btn-electric text-sm"
             onClick={() => {
               try {
-                onApply(parseHexBytes(hexText));
+                onApply(
+                  parseHexBytes(
+                    hexText,
+                    t("Use hexadecimal bytes such as 00 ff 2a."),
+                  ),
+                );
                 onClose();
               } catch (err) {
-                setError(err instanceof Error ? err.message : "Invalid bytes");
+                setError(
+                  err instanceof Error ? err.message : t("Invalid bytes"),
+                );
               }
             }}
           >
-            Apply
+            {t("Apply")}
           </button>
         </div>
       </div>
@@ -300,6 +322,7 @@ function SettingEditor({
   behaviors,
   onChange,
 }: SettingEditorProps) {
+  const { t } = useLanguage();
   const kind = valueKind(setting);
   const currentValue = scalarToInputValue(setting);
   const [isBytesOpen, setIsBytesOpen] = useState(false);
@@ -309,7 +332,7 @@ function SettingEditor({
   if (!setting.value) {
     return (
       <span className="text-sm text-[var(--color-text-muted)]">
-        Value is hidden by firmware permissions
+        {t("Value is hidden by firmware permissions")}
       </span>
     );
   }
@@ -325,7 +348,7 @@ function SettingEditor({
       >
         {layers.map((layer) => (
           <option key={layer.id} value={layer.id}>
-            {layer.name || `Layer ${layer.id}`} ({layer.id})
+            {layer.name || t("Layer {{id}}", { id: layer.id })} ({layer.id})
           </option>
         ))}
         {layers.length === 0 && (
@@ -393,7 +416,7 @@ function SettingEditor({
           checked={currentValue === "true"}
           onChange={(event) => onChange({ boolValue: event.target.checked })}
         />
-        Enabled
+        {t("Enabled")}
       </label>
     );
   }
@@ -403,13 +426,13 @@ function SettingEditor({
     return (
       <div className="flex min-w-0 items-center gap-2">
         <code className="min-w-0 max-w-sm truncate rounded bg-[var(--color-bg)] px-3 py-2 font-mono text-xs text-[var(--color-text-secondary)]">
-          {bytesToHex(bytes) || "(empty)"}
+          {bytesToHex(bytes) || t("(empty)")}
         </code>
         <button
           type="button"
           className="theme-toggle h-10 w-10"
           onClick={() => setIsBytesOpen(true)}
-          title="Edit bytecode"
+          title={t("Edit bytecode")}
         >
           <IconCode size={18} />
         </button>
@@ -475,6 +498,7 @@ function SettingRow({
   onDiscard,
   onReset,
 }: SettingRowProps) {
+  const { t } = useLanguage();
   const [saveState, setSaveState] = useState<"idle" | "queued" | "saving">(
     "idle",
   );
@@ -508,17 +532,17 @@ function SettingRow({
           </p>
           {setting.hasUnsavedValue && (
             <span className="rounded border border-[var(--color-neon)]/30 bg-[var(--color-neon)]/10 px-2 py-0.5 text-[10px] font-medium text-[var(--color-neon)]">
-              Unsaved
+              {t("Unsaved")}
             </span>
           )}
         </div>
         <p className="mt-1 truncate font-mono text-xs text-[var(--color-text-muted)]">
-          {formatValue(setting)}
+          {formatValue(setting, t)}
         </p>
       </div>
 
       <span className="text-xs text-[var(--color-text-muted)]">
-        {sourceLabel(setting.source)}
+        {sourceLabel(setting.source, t)}
       </span>
 
       <SettingEditor
@@ -530,12 +554,12 @@ function SettingRow({
 
       <span className="text-xs text-[var(--color-text-muted)]">
         {saveState === "queued"
-          ? "Queued"
+          ? t("Queued")
           : saveState === "saving"
-            ? "Memory..."
+            ? t("Memory...")
             : setting.hasUnsavedValue
-              ? "In memory"
-              : "Current"}
+              ? t("In memory")
+              : t("Current")}
       </span>
 
       <div className="flex justify-end gap-2">
@@ -544,7 +568,7 @@ function SettingRow({
           className="theme-toggle h-9 w-9"
           disabled={isLoading}
           onClick={() => onDiscard(setting)}
-          title="Discard item changes"
+          title={t("Discard item changes")}
         >
           <IconRefresh size={17} />
         </button>
@@ -553,7 +577,7 @@ function SettingRow({
           className="theme-toggle h-9 w-9"
           disabled={isLoading}
           onClick={() => onReset(setting)}
-          title="Reset item to default"
+          title={t("Reset item to default")}
         >
           <IconRotateClockwise size={17} />
         </button>
@@ -563,16 +587,17 @@ function SettingRow({
 }
 
 export function AdvancedSettingsSection() {
+  const { t } = useLanguage();
   const customSettings = useCustomSettings();
   const { keymap, behaviors, isLoading: keymapLoading } = useKeymap();
 
   const layers = useMemo(
     () =>
-      keymap?.layers.map((layer, index) => ({
+      keymap?.layers.map((layer) => ({
         id: layer.id,
-        name: layer.name || `Layer ${index}`,
+        name: layer.name || t("Layer {{id}}", { id: layer.id }),
       })) ?? [],
-    [keymap?.layers],
+    [keymap?.layers, t],
   );
 
   return (
@@ -580,11 +605,12 @@ export function AdvancedSettingsSection() {
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
           <h3 className="text-sm font-medium text-[var(--color-text)]">
-            Advanced Settings
+            {t("Advanced Settings")}
           </h3>
           <p className="mt-1 text-xs text-[var(--color-text-muted)]">
-            Changes are written to keyboard memory after a short delay. Save a
-            section to persist them.
+            {t(
+              "Changes are written to keyboard memory after a short delay. Save a section to persist them.",
+            )}
           </p>
         </div>
         <button
@@ -594,7 +620,7 @@ export function AdvancedSettingsSection() {
           disabled={customSettings.isLoading}
         >
           <IconRefresh size={16} />
-          Reload
+          {t("Reload")}
         </button>
       </div>
 
@@ -604,23 +630,23 @@ export function AdvancedSettingsSection() {
           className="mt-0.5 flex-shrink-0 text-amber-400"
         />
         <p className="text-xs leading-relaxed text-[var(--color-text-secondary)]">
-          Advanced settings can change firmware behavior immediately. Incorrect
-          values may make the keyboard hard to use; discard or reset a section
-          if the device starts behaving unexpectedly.
+          {t(
+            "Advanced settings can change firmware behavior immediately. Incorrect values may make the keyboard hard to use; discard or reset a section if the device starts behaving unexpectedly.",
+          )}
         </p>
       </div>
 
       {!customSettings.isAvailable ? (
         <p className="text-sm text-[var(--color-text-muted)]">
-          Custom settings subsystem is not available for this keyboard.
+          {t("Custom settings subsystem is not available for this keyboard.")}
         </p>
       ) : customSettings.isLoading && customSettings.sections.length === 0 ? (
         <p className="text-sm text-[var(--color-text-muted)]">
-          Loading advanced settings...
+          {t("Loading advanced settings...")}
         </p>
       ) : customSettings.sections.length === 0 ? (
         <p className="text-sm text-[var(--color-text-muted)]">
-          No advanced settings were reported by the keyboard.
+          {t("No advanced settings were reported by the keyboard.")}
         </p>
       ) : (
         <div className="space-y-6">
@@ -643,9 +669,11 @@ export function AdvancedSettingsSection() {
                       {section.identifier}
                     </h4>
                     <p className="text-xs text-[var(--color-text-muted)]">
-                      {section.settings.length} settings
+                      {t("{{count}} settings", {
+                        count: section.settings.length,
+                      })}
                       {keymapLoading
-                        ? " - loading layer and behavior names"
+                        ? t(" - loading layer and behavior names")
                         : ""}
                     </p>
                   </div>
@@ -659,7 +687,7 @@ export function AdvancedSettingsSection() {
                       }
                     >
                       <IconDeviceFloppy size={16} />
-                      Save
+                      {t("Save")}
                     </button>
                     <button
                       type="button"
@@ -672,7 +700,7 @@ export function AdvancedSettingsSection() {
                       }
                     >
                       <IconRefresh size={16} />
-                      Discard
+                      {t("Discard")}
                     </button>
                     <button
                       type="button"
@@ -681,7 +709,9 @@ export function AdvancedSettingsSection() {
                       onClick={() => {
                         if (
                           window.confirm(
-                            `Reset all settings in ${section.identifier}?`,
+                            t("Reset all settings in {{identifier}}?", {
+                              identifier: section.identifier,
+                            }),
                           )
                         ) {
                           void customSettings.resetSection(
@@ -691,18 +721,18 @@ export function AdvancedSettingsSection() {
                       }}
                     >
                       <IconRotateClockwise size={16} />
-                      Reset
+                      {t("Reset")}
                     </button>
                   </div>
                 </div>
 
                 <div className="px-4">
                   <div className="hidden grid-cols-[minmax(0,1fr)_7rem_minmax(14rem,22rem)_8rem_7rem] gap-3 py-3 text-xs font-medium uppercase text-[var(--color-text-muted)] md:grid">
-                    <span>Setting</span>
-                    <span>Source</span>
-                    <span>Editor</span>
-                    <span>Status</span>
-                    <span className="text-right">Item</span>
+                    <span>{t("Setting")}</span>
+                    <span>{t("Source")}</span>
+                    <span>{t("Editor")}</span>
+                    <span>{t("Status")}</span>
+                    <span className="text-right">{t("Item")}</span>
                   </div>
                   {sortedSettings.map((setting) => (
                     <SettingRow

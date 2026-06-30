@@ -14,6 +14,7 @@ import { KeycodeSelector } from "../components/KeycodeSelector";
 import { UnlockPrompt } from "../components/UnlockPrompt";
 import { KeyboardLayoutContext } from "../contexts/KeyboardLayoutContext";
 import { useKeymap } from "../hooks/useKeymap";
+import { useLanguage } from "../hooks/useLanguage";
 import { useRuntimeMacro } from "../hooks/useRuntimeMacro";
 import {
   getRuntimeMacroEncodedSize,
@@ -351,6 +352,7 @@ function buildMacroStepRows(
 }
 
 export function MacroPage() {
+  const { t } = useLanguage();
   const runtimeMacro = useRuntimeMacro();
   const keymap = useKeymap();
   const keyboardLayoutContext = useContext(KeyboardLayoutContext);
@@ -383,7 +385,13 @@ export function MacroPage() {
 
   const encodedSizeError =
     loadedMacro && encodedSize > runtimeMacro.maxMacroBytes
-      ? `Encoded macro is ${encodedSize} bytes; limit is ${runtimeMacro.maxMacroBytes}.`
+      ? t(
+          "Encoded macro is {{encodedSize}} bytes; limit is {{maxMacroBytes}}.",
+          {
+            encodedSize,
+            maxMacroBytes: runtimeMacro.maxMacroBytes,
+          },
+        )
       : null;
 
   const keyPressBehaviorId = useMemo(
@@ -525,7 +533,7 @@ export function MacroPage() {
         const step = stringToKeyTapSequenceStep(value);
         if (!step) {
           setStringConversionError(
-            "Only HID keyboard-page printable characters are supported.",
+            t("Only HID keyboard-page printable characters are supported."),
           );
           return;
         }
@@ -550,7 +558,7 @@ export function MacroPage() {
       );
       await updateStep(stepIndex, nextStep);
     },
-    [commitSteps, keyPressBehaviorId, loadedMacro, updateStep],
+    [commitSteps, keyPressBehaviorId, loadedMacro, t, updateStep],
   );
 
   const handleStringChange = useCallback(
@@ -559,7 +567,7 @@ export function MacroPage() {
       const replacementStep = stringToKeyTapSequenceStep(value);
       if (!replacementStep) {
         setStringConversionError(
-          "Only HID keyboard-page printable characters are supported.",
+          t("Only HID keyboard-page printable characters are supported."),
         );
         return;
       }
@@ -580,7 +588,7 @@ export function MacroPage() {
         encodedSize: getRuntimeMacroEncodedSize(steps),
       });
     },
-    [loadedMacro],
+    [loadedMacro, t],
   );
 
   const commitStringChange = useCallback(async () => {
@@ -679,9 +687,9 @@ export function MacroPage() {
   const getStepDisplayName = useCallback(
     (step: MacroStep) => {
       const binding = getStepBinding(step);
-      if (!binding || binding.behaviorId === 0) return "Select behavior";
+      if (!binding || binding.behaviorId === 0) return t("Select behavior");
       const behavior = keymap.behaviors.get(binding.behaviorId);
-      if (!behavior) return `Behavior ${binding.behaviorId}`;
+      if (!behavior) return t("Behavior {{id}}", { id: binding.behaviorId });
       return formatBehaviorBinding(binding, behavior, {
         layers: layersForSelector,
         keyboardLayout: keyboardLayoutContext.layout,
@@ -693,6 +701,7 @@ export function MacroPage() {
       keyboardLayoutContext.layout,
       layersForSelector,
       runtimeMacro.macros,
+      t,
     ],
   );
 
@@ -706,10 +715,10 @@ export function MacroPage() {
             </div>
             <div>
               <h1 className="text-xl font-medium text-[var(--color-text)]">
-                Macro
+                {t("Macro")}
               </h1>
               <p className="text-sm text-[var(--color-text-muted)]">
-                Edit runtime macro slots
+                {t("Edit runtime macro slots")}
               </p>
             </div>
           </div>
@@ -718,7 +727,7 @@ export function MacroPage() {
             <div className="flex items-center gap-2 ml-auto">
               {runtimeMacro.hasUnsavedChanges && (
                 <span className="text-xs text-[var(--color-neon)] mr-2">
-                  ● Unsaved changes
+                  {t("● Unsaved changes")}
                 </span>
               )}
               <button
@@ -727,7 +736,7 @@ export function MacroPage() {
                 disabled={runtimeMacro.isLoading}
               >
                 <IconRefresh size={16} />
-                Refresh
+                {t("Refresh")}
               </button>
               <button
                 className="btn-ghost text-sm flex items-center gap-1.5"
@@ -743,7 +752,7 @@ export function MacroPage() {
                 ) : (
                   <IconRestore size={16} />
                 )}
-                Reset
+                {t("Reset")}
               </button>
               <button
                 className="btn-electric text-sm flex items-center gap-1.5"
@@ -760,7 +769,7 @@ export function MacroPage() {
                 ) : (
                   <IconDeviceFloppy size={16} />
                 )}
-                Save
+                {t("Save")}
               </button>
             </div>
           )}
@@ -769,7 +778,7 @@ export function MacroPage() {
         {!runtimeMacro.isAvailable && (
           <div className="glass-card p-6 text-center">
             <p className="text-sm text-[var(--color-text-muted)]">
-              Runtime macro subsystem not found. Build firmware with{" "}
+              {t("Runtime macro subsystem not found. Build firmware with")}{" "}
               <a
                 href="https://github.com/cormoran/zmk-feature-runtime-macro"
                 target="_blank"
@@ -804,7 +813,7 @@ export function MacroPage() {
               <div className="glass-card p-3">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-sm font-medium text-[var(--color-text)]">
-                    Slots
+                    {t("Slots")}
                   </h2>
                   {runtimeMacro.isLoading && (
                     <IconLoader2
@@ -825,10 +834,14 @@ export function MacroPage() {
                       onClick={() => void loadMacro(macro.index)}
                     >
                       <span className="block text-sm font-medium truncate">
-                        {macro.name || `Macro ${macro.index}`}
+                        {macro.name ||
+                          t("Macro {{index}}", { index: macro.index })}
                       </span>
                       <span className="block text-xs text-[var(--color-text-muted)]">
-                        {macro.encodedSize}/{runtimeMacro.maxMacroBytes} bytes
+                        {t("{{encodedSize}}/{{maxMacroBytes}} bytes", {
+                          encodedSize: macro.encodedSize,
+                          maxMacroBytes: runtimeMacro.maxMacroBytes,
+                        })}
                       </span>
                     </button>
                   ))}
@@ -842,12 +855,12 @@ export function MacroPage() {
                     className="text-[var(--color-electric)]"
                   />
                   <h2 className="text-sm font-medium text-[var(--color-text)]">
-                    Global Settings
+                    {t("Global Settings")}
                   </h2>
                 </div>
                 <label className="block">
                   <span className="text-xs text-[var(--color-text-muted)]">
-                    Tap ms
+                    {t("Tap ms")}
                   </span>
                   <input
                     type="number"
@@ -869,7 +882,7 @@ export function MacroPage() {
                   <div className="flex flex-col tablet:flex-row tablet:items-end gap-3 mb-4">
                     <div className="flex-1 min-w-0">
                       <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1">
-                        Name
+                        {t("Name")}
                       </label>
                       <input
                         className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text)] focus:outline-none focus:border-[var(--color-electric)]/50"
@@ -878,6 +891,9 @@ export function MacroPage() {
                         placeholder={formatMacroName(
                           loadedMacro,
                           loadedMacro.index,
+                        ).replace(
+                          `Macro ${loadedMacro.index}`,
+                          t("Macro {{index}}", { index: loadedMacro.index }),
                         )}
                         onChange={(event) =>
                           setLoadedMacro({
@@ -892,7 +908,7 @@ export function MacroPage() {
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1">
-                        Size
+                        {t("Size")}
                       </label>
                       <div
                         className={`px-3 py-2 rounded-lg border text-sm ${
@@ -908,7 +924,7 @@ export function MacroPage() {
 
                   <div className="flex items-center justify-between mb-3">
                     <h2 className="text-sm font-medium text-[var(--color-text)]">
-                      Steps
+                      {t("Steps")}
                     </h2>
                     <div className="flex items-center gap-2">
                       <button
@@ -917,7 +933,7 @@ export function MacroPage() {
                         disabled={runtimeMacro.isLoading}
                       >
                         <IconTrash size={16} />
-                        Clear
+                        {t("Clear")}
                       </button>
                       <button
                         className="btn-electric text-sm flex items-center gap-1.5"
@@ -925,7 +941,7 @@ export function MacroPage() {
                         disabled={runtimeMacro.isLoading}
                       >
                         <IconPlus size={16} />
-                        Step
+                        {t("Step")}
                       </button>
                     </div>
                   </div>
@@ -933,7 +949,7 @@ export function MacroPage() {
                   {stepRows.length === 0 ? (
                     <div className="p-6 text-center rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)]">
                       <p className="text-sm text-[var(--color-text-muted)]">
-                        No steps in this macro
+                        {t("No steps in this macro")}
                       </p>
                     </div>
                   ) : (
@@ -959,11 +975,11 @@ export function MacroPage() {
                                 )
                               }
                             >
-                              <option value="tap">Tap</option>
-                              <option value="down">Down</option>
-                              <option value="up">Up</option>
-                              <option value="delay">Delay</option>
-                              <option value="string">String</option>
+                              <option value="tap">{t("Tap")}</option>
+                              <option value="down">{t("Down")}</option>
+                              <option value="up">{t("Up")}</option>
+                              <option value="delay">{t("Delay")}</option>
+                              <option value="string">{t("String")}</option>
                             </select>
 
                             {action === "delay" ? (
@@ -984,7 +1000,7 @@ export function MacroPage() {
                                   }
                                 />
                                 <span className="text-xs text-[var(--color-text-muted)]">
-                                  ms
+                                  {t("ms")}
                                 </span>
                               </div>
                             ) : action === "string" ? (
@@ -1018,7 +1034,9 @@ export function MacroPage() {
                                 ])
                               }
                               disabled={runtimeMacro.isLoading}
-                              aria-label={`Remove step ${row.startIndex + 1}`}
+                              aria-label={t("Remove step {{n}}", {
+                                n: row.startIndex + 1,
+                              })}
                             >
                               <IconTrash
                                 size={16}
@@ -1034,7 +1052,7 @@ export function MacroPage() {
               ) : (
                 <div className="p-6 text-center">
                   <p className="text-sm text-[var(--color-text-muted)]">
-                    Select a macro slot
+                    {t("Select a macro slot")}
                   </p>
                 </div>
               )}

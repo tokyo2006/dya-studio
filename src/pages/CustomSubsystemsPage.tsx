@@ -7,6 +7,7 @@ import {
 } from "@tabler/icons-react";
 import { ZMKAppContext } from "@cormoran/zmk-studio-react-hook";
 import { navigateTo } from "../lib/navigate";
+import { useLanguage } from "../hooks/useLanguage";
 
 // LocalStorage key for trusted subsystem UI URLs
 const TRUSTED_URLS_KEY = "dya-studio-trusted-subsystem-urls";
@@ -62,6 +63,7 @@ function ExternalLinkWarningDialog({
   onConfirm,
   onCancel,
 }: ExternalLinkWarningDialogProps) {
+  const { t } = useLanguage();
   const [dontShowAgain, setDontShowAgain] = useState(false);
 
   return (
@@ -80,7 +82,7 @@ function ExternalLinkWarningDialog({
         <button
           className="absolute top-4 right-4 btn-ghost p-1"
           onClick={onCancel}
-          aria-label="Close dialog"
+          aria-label={t("Close dialog")}
         >
           <IconX size={16} className="text-[var(--color-text-muted)]" />
         </button>
@@ -94,14 +96,15 @@ function ExternalLinkWarningDialog({
             id="external-link-dialog-title"
             className="text-base font-medium text-[var(--color-text)]"
           >
-            External Link Warning
+            {t("External Link Warning")}
           </h2>
         </div>
 
         {/* Warning message */}
         <p className="text-sm text-[var(--color-text-secondary)] mb-3">
-          You are about to open an external website provided by the keyboard
-          firmware author:
+          {t(
+            "You are about to open an external website provided by the keyboard firmware author:",
+          )}
         </p>
         <div className="mb-4 px-3 py-2 rounded-lg bg-[var(--color-border)] border border-[var(--color-border-hover)] break-all">
           <span className="text-xs font-mono text-[var(--color-electric)]">
@@ -110,10 +113,10 @@ function ExternalLinkWarningDialog({
         </div>
         <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
           <p className="text-xs text-red-400 leading-relaxed">
-            <strong>Security Notice:</strong> Please do not connect to an
-            unreliable author&apos;s web page. Only proceed if you trust the
-            keyboard firmware author. External pages may request sensitive
-            permissions or send data to third-party servers.
+            <strong>{t("Security Notice")}:</strong>{" "}
+            {t(
+              "Please do not connect to an unreliable author's web page. Only proceed if you trust the keyboard firmware author. External pages may request sensitive permissions or send data to third-party servers.",
+            )}
           </p>
         </div>
 
@@ -126,21 +129,21 @@ function ExternalLinkWarningDialog({
             className="w-4 h-4 rounded accent-[var(--color-electric)]"
           />
           <span className="text-xs text-[var(--color-text-muted)]">
-            Trust this URL and don&apos;t warn me again
+            {t("Trust this URL and don't warn me again")}
           </span>
         </label>
 
         {/* Actions */}
         <div className="flex gap-3 justify-end">
           <button className="btn-ghost text-sm" onClick={onCancel}>
-            Cancel
+            {t("Cancel")}
           </button>
           <button
             className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-red-500 hover:bg-red-600 transition-colors flex items-center gap-2"
             onClick={() => onConfirm(dontShowAgain)}
           >
             <IconExternalLink size={16} />
-            Open
+            {t("Open")}
           </button>
         </div>
       </div>
@@ -149,6 +152,7 @@ function ExternalLinkWarningDialog({
 }
 
 export function CustomSubsystemsPage() {
+  const { t } = useLanguage();
   const zmkApp = useContext(ZMKAppContext);
   const [pendingUrl, setPendingUrl] = useState<string | null>(null);
 
@@ -192,10 +196,12 @@ export function CustomSubsystemsPage() {
           </div>
           <div>
             <h1 className="text-xl font-medium text-[var(--color-text)]">
-              Custom Subsystems
+              {t("Custom Subsystems")}
             </h1>
             <p className="text-sm text-[var(--color-text-muted)]">
-              Available custom firmware subsystems and their web interfaces
+              {t(
+                "Available custom firmware subsystems and their web interfaces",
+              )}
             </p>
           </div>
         </div>
@@ -216,7 +222,9 @@ export function CustomSubsystemsPage() {
                       {subsystem.identifier}
                     </p>
                     <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-                      Subsystem index: {subsystem.index}
+                      {t("Subsystem index: {{index}}", {
+                        index: subsystem.index,
+                      })}
                     </p>
                   </div>
                 </div>
@@ -224,7 +232,7 @@ export function CustomSubsystemsPage() {
                 {subsystem.uiUrl.length > 0 ? (
                   <div className="mt-3 space-y-2">
                     <p className="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">
-                      Web UI
+                      {t("Web UI")}
                     </p>
                     {subsystem.uiUrl.map((url, urlIndex) => (
                       <button
@@ -242,7 +250,7 @@ export function CustomSubsystemsPage() {
                   </div>
                 ) : (
                   <p className="text-xs text-[var(--color-text-muted)] mt-2">
-                    No web UI available for this subsystem.
+                    {t("No web UI available for this subsystem.")}
                   </p>
                 )}
               </div>
@@ -251,8 +259,9 @@ export function CustomSubsystemsPage() {
         ) : (
           <div className="glass-card p-6">
             <p className="text-sm text-[var(--color-text-muted)]">
-              No custom subsystems available. Custom subsystems are provided by
-              the keyboard firmware.
+              {t(
+                "No custom subsystems available. Custom subsystems are provided by the keyboard firmware.",
+              )}
             </p>
           </div>
         )}
@@ -260,9 +269,9 @@ export function CustomSubsystemsPage() {
         {/* Info box */}
         <div className="mt-8 p-4 rounded-lg bg-[var(--color-border)] border border-[var(--color-border-hover)]">
           <p className="text-xs text-[var(--color-text-muted)]">
-            Custom subsystems are additional features provided by your keyboard
-            firmware author. Web UI links open external pages supplied by the
-            firmware metadata.
+            {t(
+              "Custom subsystems are additional features provided by your keyboard firmware author. Web UI links open external pages supplied by the firmware metadata.",
+            )}
           </p>
         </div>
       </div>

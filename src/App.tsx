@@ -18,6 +18,7 @@ import {
   ConnectionContext,
 } from "./components/DeviceConnection";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { LanguageProvider } from "./contexts/LanguageContext";
 import { KeyboardLayoutProvider } from "./contexts/KeyboardLayoutProvider";
 import { TabNavigation } from "./components/TabNavigation";
 import type { TabItem } from "./components/TabNavigation";
@@ -31,79 +32,86 @@ import { TrackballPage } from "./pages/TrackballPage";
 import { MacroPage } from "./pages/MacroPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { CustomSubsystemsPage } from "./pages/CustomSubsystemsPage";
+import { useLanguage } from "./hooks/useLanguage";
 
-const tabs: TabItem[] = [
-  {
-    id: "home",
-    label: "Home",
-    icon: <IconHome size={18} />,
-    content: <HomePage />,
-  },
-  {
-    id: "keymap",
-    label: "Keymap",
-    icon: <IconKeyboard size={18} />,
-    content: <KeymapPage />,
-  },
-  {
-    id: "macro",
-    label: "Macro",
-    icon: <IconListDetails size={18} />,
-    content: <MacroPage />,
-  },
-  {
-    id: "combo",
-    label: "Combo",
-    icon: <IconKeyboardShow size={18} />,
-    content: <ComboPage />,
-  },
-  {
-    id: "trackball",
-    label: "Trackball",
-    icon: <IconPointer size={18} />,
-    content: <TrackballPage />,
-  },
-  {
-    id: "ble",
-    label: "BLE",
-    icon: <IconBluetooth size={18} />,
-    content: <BLEConnectionsPage />,
-  },
-  {
-    id: "settings",
-    label: "Settings",
-    icon: <IconSettings size={18} />,
-    content: <SettingsPage />,
-  },
-  {
-    id: "battery",
-    label: "Battery",
-    icon: <IconBattery2 size={18} />,
-    content: <BatteryPage />,
-  },
-  {
-    id: "subsystems",
-    label: "Subsystems",
-    icon: <IconPuzzle size={18} />,
-    content: <CustomSubsystemsPage />,
-  },
-];
+function getTabs(t: (key: string) => string): TabItem[] {
+  return [
+    {
+      id: "home",
+      label: t("Home"),
+      icon: <IconHome size={18} />,
+      content: <HomePage />,
+    },
+    {
+      id: "keymap",
+      label: t("Keymap"),
+      icon: <IconKeyboard size={18} />,
+      content: <KeymapPage />,
+    },
+    {
+      id: "macro",
+      label: t("Macro"),
+      icon: <IconListDetails size={18} />,
+      content: <MacroPage />,
+    },
+    {
+      id: "combo",
+      label: t("Combo"),
+      icon: <IconKeyboardShow size={18} />,
+      content: <ComboPage />,
+    },
+    {
+      id: "trackball",
+      label: t("Trackball"),
+      icon: <IconPointer size={18} />,
+      content: <TrackballPage />,
+    },
+    {
+      id: "ble",
+      label: t("BLE"),
+      icon: <IconBluetooth size={18} />,
+      content: <BLEConnectionsPage />,
+    },
+    {
+      id: "settings",
+      label: t("Settings"),
+      icon: <IconSettings size={18} />,
+      content: <SettingsPage />,
+    },
+    {
+      id: "battery",
+      label: t("Battery"),
+      icon: <IconBattery2 size={18} />,
+      content: <BatteryPage />,
+    },
+    {
+      id: "subsystems",
+      label: t("Subsystems"),
+      icon: <IconPuzzle size={18} />,
+      content: <CustomSubsystemsPage />,
+    },
+  ];
+}
 
 function App() {
   return (
     <ThemeProvider>
-      <KeyboardLayoutProvider>
-        <DeviceConnectionProvider>
-          <AppContent />
-        </DeviceConnectionProvider>
-      </KeyboardLayoutProvider>
+      <LanguageProvider>
+        <KeyboardLayoutProvider>
+          <DeviceConnectionProvider>
+            <AppContent />
+          </DeviceConnectionProvider>
+        </KeyboardLayoutProvider>
+      </LanguageProvider>
     </ThemeProvider>
   );
 }
 
 function AppContent() {
   const connection = useContext(ConnectionContext);
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState("home");
+  const tabs = getTabs(t);
 
   const setActiveTabWithTracking = useCallback(
     (tabId: string) => {
@@ -116,7 +124,7 @@ function AppContent() {
       }
       setActiveTab(tabId);
     },
-    [setActiveTab],
+    [setActiveTab, tabs],
   );
   useEffect(() => {
     if (connection.deviceName && window.gtag) {

@@ -16,6 +16,7 @@ import {
   IconSpace,
 } from "@tabler/icons-react";
 import type { KeyPhysicalAttrs, BehaviorBinding } from "../hooks/useKeymap";
+import { useLanguage } from "../hooks/useLanguage";
 
 // Base unit size for 1U key in pixels at scale 1.0
 const BASE_UNIT_SIZE = 54;
@@ -62,6 +63,7 @@ export function PhysicalKey({
   onReset,
   scale = 1.0,
 }: PhysicalKeyProps) {
+  const { t } = useLanguage();
   const [isHovered, setIsHovered] = useState(false);
 
   // Calculate dimensions and position with scale
@@ -156,7 +158,7 @@ export function PhysicalKey({
             e.stopPropagation();
             onReset();
           }}
-          title="Reset to original"
+          title={t("Reset to original")}
         >
           <IconRotateClockwise
             size={12}
@@ -190,7 +192,7 @@ export function PhysicalKey({
                 longDisplayName !== bindingDescription && (
                   <div>
                     <span className="text-[var(--color-text-muted)]">
-                      Binding:{" "}
+                      {t("Binding")}:{" "}
                     </span>
                     <span>{bindingDescription}</span>
                   </div>
@@ -199,7 +201,7 @@ export function PhysicalKey({
               {isModified && originalDisplayName && (
                 <div>
                   <span className="text-[var(--color-text-muted)]">
-                    Original:{" "}
+                    {t("Original")}:{" "}
                   </span>
                   <span>{originalDisplayName}</span>
                 </div>

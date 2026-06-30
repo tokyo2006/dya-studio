@@ -4,6 +4,7 @@ import {
   IconAlertCircle,
   IconCircleDashed,
 } from "@tabler/icons-react";
+import { useLanguage } from "../hooks/useLanguage";
 
 interface HealthItem {
   name: string;
@@ -61,6 +62,8 @@ function StatusIcon({ status }: { status: HealthItem["status"] }) {
 }
 
 export function HealthCheckPage() {
+  const { t } = useLanguage();
+
   return (
     <div className="p-6 h-full overflow-auto">
       <div className="max-w-4xl mx-auto">
@@ -74,10 +77,10 @@ export function HealthCheckPage() {
           </div>
           <div>
             <h1 className="text-xl font-medium text-[var(--color-text)]">
-              Health Check
+              {t("Health Check")}
             </h1>
             <p className="text-sm text-[var(--color-text-muted)]">
-              Circuit and component diagnostics
+              {t("Circuit and component diagnostics")}
             </p>
           </div>
         </div>
@@ -92,10 +95,10 @@ export function HealthCheckPage() {
               <StatusIcon status={item.status} />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-[var(--color-text)]">
-                  {item.name}
+                  {t(item.name)}
                 </p>
                 <p className="text-xs text-[var(--color-text-muted)] truncate">
-                  {item.description}
+                  {t(item.description)}
                 </p>
               </div>
               <span
@@ -107,7 +110,7 @@ export function HealthCheckPage() {
                       : "text-[var(--color-text-muted)]"
                 }`}
               >
-                {item.status}
+                {t(item.status)}
               </span>
             </div>
           ))}
@@ -116,15 +119,16 @@ export function HealthCheckPage() {
         {/* Run Diagnostics Button */}
         <div className="mt-8 flex justify-center">
           <button className="btn-electric" disabled>
-            Run Diagnostics
+            {t("Run Diagnostics")}
           </button>
         </div>
 
         {/* Info */}
         <div className="mt-8 p-4 rounded-lg bg-[var(--color-border)] border border-[var(--color-border-hover)]">
           <p className="text-xs text-[var(--color-text-muted)]">
-            Connect your keyboard to run hardware diagnostics. This will check
-            communication with all components and report any issues.
+            {t(
+              "Connect your keyboard to run hardware diagnostics. This will check communication with all components and report any issues.",
+            )}
           </p>
         </div>
       </div>

@@ -17,6 +17,7 @@ import { KeyboardLayout } from "../components/KeyboardLayout";
 import { KeycodeSelector } from "../components/KeycodeSelector";
 import { UnlockPrompt } from "../components/UnlockPrompt";
 import { useKeymap } from "../hooks/useKeymap";
+import { useLanguage } from "../hooks/useLanguage";
 import type { BehaviorBinding, BehaviorDefinition } from "../hooks/useKeymap";
 import { useRuntimeCombo } from "../hooks/useRuntimeCombo";
 import { useRuntimeMacro } from "../hooks/useRuntimeMacro";
@@ -128,8 +129,11 @@ function toggleLayer(mask: number, layerId: number): number {
   return hasLayer(mask, layerId) ? mask - bit : mask + bit;
 }
 
-function formatLayerScope(mask: number): string {
-  return mask === 0 ? "All layers" : `0x${mask.toString(16)}`;
+function formatLayerScope(
+  mask: number,
+  t: (key: string, params?: Record<string, number | string>) => string,
+): string {
+  return mask === 0 ? t("All layers") : `0x${mask.toString(16)}`;
 }
 
 function formatComboBehavior(
@@ -138,10 +142,11 @@ function formatComboBehavior(
   layers: Array<{ id: number; name: string }>,
   keyboardLayout: KeyboardLayoutType,
   runtimeMacros: Array<{ index: number; name?: string }>,
+  t: (key: string, params?: Record<string, number | string>) => string,
 ): string {
   const behavior = behaviors.get(binding.behaviorId);
   if (!behavior) {
-    return `Behavior ${binding.behaviorId}`;
+    return t("Behavior {{id}}", { id: binding.behaviorId });
   }
   return formatBehaviorBinding(binding, behavior, {
     layers,
@@ -151,6 +156,7 @@ function formatComboBehavior(
 }
 
 export function ComboPage() {
+  const { t } = useLanguage();
   const connection = useContext(ConnectionContext);
   const keyboardLayoutContext = useContext(KeyboardLayoutContext);
   const keymap = useKeymap();
@@ -233,31 +239,35 @@ export function ComboPage() {
 
   const validationError = useMemo(() => {
     if (draft.index < 0 || !Number.isInteger(draft.index)) {
-      return "Choose a valid slot.";
+      return t("Choose a valid slot.");
     }
     if (maxCombo && maxCombo > 0 && draft.index >= maxCombo) {
-      return `Slot must be below ${maxCombo}.`;
+      return t("Slot must be below {{maxCombo}}.", { maxCombo });
     }
     if (draft.name.length > MAX_NAME_LENGTH) {
-      return `Name must be ${MAX_NAME_LENGTH} characters or fewer.`;
+      return t("Name must be {{maxLength}} characters or fewer.", {
+        maxLength: MAX_NAME_LENGTH,
+      });
     }
     if (draft.keyPositions.length < 2) {
-      return "Select at least two key positions.";
+      return t("Select at least two key positions.");
     }
     if (draft.keyPositions.length > MAX_POSITIONS_PER_COMBO) {
-      return `Select ${MAX_POSITIONS_PER_COMBO} positions or fewer.`;
+      return t("Select {{maxPositions}} positions or fewer.", {
+        maxPositions: MAX_POSITIONS_PER_COMBO,
+      });
     }
     if (draft.keyPositions.some((position) => position > 65535)) {
-      return "Key positions must be below 65536.";
+      return t("Key positions must be below 65536.");
     }
     if (!draft.behavior || draft.behavior.behaviorId === 0) {
-      return "Choose a behavior.";
+      return t("Choose a behavior.");
     }
     if (draft.layerMask < 0 || draft.layerMask > 0xffffffff) {
-      return "Layer mask is out of range.";
+      return t("Layer mask is out of range.");
     }
     return null;
-  }, [draft, maxCombo]);
+  }, [draft, maxCombo, t]);
 
   const handleSaveCombo = useCallback(async () => {
     if (validationError) return;
@@ -274,9 +284,9 @@ export function ComboPage() {
     const nameSaved = await runtimeCombo.setComboName(draft.index, draft.name);
     if (nameSaved) {
       setSelectedIndex(draft.index);
-      setStatusMessage("Combo changes are pending.");
+      setStatusMessage(t("Combo changes are pending."));
     }
-  }, [draft, runtimeCombo, validationError]);
+  }, [draft, runtimeCombo, t, validationError]);
 
   const handleDeleteCombo = useCallback(async () => {
     const deleted = await runtimeCombo.deleteCombo(draft.index);
@@ -288,9 +298,9 @@ export function ComboPage() {
         ? comboToDraft(remaining[0], keymap.behaviors)
         : createDraft(remaining, maxCombo, keymap.behaviors);
       selectDraft(nextDraft);
-      setStatusMessage("Combo deletion is pending.");
+      setStatusMessage(t("Combo deletion is pending."));
     }
-  }, [draft.index, keymap.behaviors, maxCombo, runtimeCombo, selectDraft]);
+  }, [draft.index, keymap.behaviors, maxCombo, runtimeCombo, selectDraft, t]);
 
   const handleApplyGlobalSettings = useCallback(async () => {
     setStatusMessage(null);
@@ -304,26 +314,32 @@ export function ComboPage() {
     }
     if (ok) {
       setGlobalDraft({ timeoutMs: null, slowRelease: null });
-      setStatusMessage("Global settings are pending.");
+      setStatusMessage(t("Global settings are pending."));
     }
-  }, [displaySlowRelease, displayTimeoutMs, runtimeCombo]);
+  }, [displaySlowRelease, displayTimeoutMs, runtimeCombo, t]);
 
   const handleSavePending = useCallback(async () => {
     const status = await runtimeCombo.saveChanges();
     if (status) {
-      setStatusMessage(`Saved ${status.affectedCount} runtime combo changes.`);
+      setStatusMessage(
+        t("Saved {{count}} runtime combo changes.", {
+          count: status.affectedCount,
+        }),
+      );
     }
-  }, [runtimeCombo]);
+  }, [runtimeCombo, t]);
 
   const handleDiscardPending = useCallback(async () => {
     const status = await runtimeCombo.discardChanges();
     if (status) {
       setStatusMessage(
-        `Discarded ${status.affectedCount} runtime combo changes.`,
+        t("Discarded {{count}} runtime combo changes.", {
+          count: status.affectedCount,
+        }),
       );
       setSelectedIndex(null);
     }
-  }, [runtimeCombo]);
+  }, [runtimeCombo, t]);
 
   const selectedComboExists = runtimeCombo.combos.some(
     (combo) => combo.index === draft.index,
@@ -339,10 +355,10 @@ export function ComboPage() {
             </div>
             <div>
               <h1 className="text-xl font-medium text-[var(--color-text)]">
-                Combo
+                {t("Combo")}
               </h1>
               <p className="text-sm text-[var(--color-text-muted)]">
-                Configure runtime combo slots
+                {t("Configure runtime combo slots")}
               </p>
             </div>
           </div>
@@ -351,7 +367,7 @@ export function ComboPage() {
             <div className="flex items-center gap-2 ml-auto flex-wrap">
               {runtimeCombo.hasPendingChanges && (
                 <span className="text-xs text-[var(--color-neon)] mr-2">
-                  ● Pending changes
+                  {t("● Pending changes")}
                 </span>
               )}
               <button
@@ -360,7 +376,7 @@ export function ComboPage() {
                 disabled={runtimeCombo.isLoading}
               >
                 <IconRefresh size={16} />
-                Refresh
+                {t("Refresh")}
               </button>
               <button
                 className="btn-ghost text-sm flex items-center gap-1.5"
@@ -370,7 +386,7 @@ export function ComboPage() {
                 }
               >
                 <IconRestore size={16} />
-                Discard
+                {t("Discard")}
               </button>
               <button
                 className="btn-electric text-sm flex items-center gap-1.5"
@@ -380,7 +396,7 @@ export function ComboPage() {
                 }
               >
                 <IconDeviceFloppy size={16} />
-                Save
+                {t("Save")}
               </button>
             </div>
           )}
@@ -389,7 +405,7 @@ export function ComboPage() {
         {!connection.isConnected && (
           <div className="glass-card p-6 text-center">
             <p className="text-sm text-[var(--color-text-muted)]">
-              Connect your keyboard to edit runtime combos
+              {t("Connect your keyboard to edit runtime combos")}
             </p>
           </div>
         )}
@@ -398,7 +414,7 @@ export function ComboPage() {
           <div className="glass-card p-4 border-yellow-500/20 bg-yellow-500/10 flex items-center gap-3">
             <IconAlertTriangle size={24} />
             <p className="text-sm">
-              Runtime combo subsystem is not available for your keyboard.
+              {t("Runtime combo subsystem is not available for your keyboard.")}
               <a
                 href="https://github.com/cormoran/zmk-feature-runtime-combo"
                 target="_blank"
@@ -407,7 +423,7 @@ export function ComboPage() {
               >
                 cormoran/zmk-feature-runtime-combo
               </a>
-              is required in firmware.
+              {t("is required in firmware.")}
             </p>
           </div>
         )}
@@ -423,7 +439,7 @@ export function ComboPage() {
                 className="ml-auto text-xs text-red-300 hover:text-red-200"
                 onClick={runtimeCombo.clearError}
               >
-                Dismiss
+                {t("Dismiss")}
               </button>
             )}
           </div>
@@ -447,7 +463,7 @@ export function ComboPage() {
                 className="animate-spin mx-auto mb-2 text-[var(--color-electric)]"
               />
               <p className="text-sm text-[var(--color-text-muted)]">
-                Loading combo data...
+                {t("Loading combo data...")}
               </p>
             </div>
           )}
@@ -461,11 +477,11 @@ export function ComboPage() {
                   <div className="flex items-center justify-between mb-3">
                     <div>
                       <h2 className="text-sm font-medium text-[var(--color-text)]">
-                        Slots
+                        {t("Slots")}
                       </h2>
                       <p className="text-xs text-[var(--color-text-muted)]">
                         {runtimeCombo.combos.length}
-                        {maxCombo ? ` / ${maxCombo}` : ""} configured
+                        {maxCombo ? ` / ${maxCombo}` : ""} {t("configured")}
                       </p>
                     </div>
                     <button
@@ -473,14 +489,14 @@ export function ComboPage() {
                       onClick={handleNewCombo}
                     >
                       <IconPlus size={16} />
-                      New
+                      {t("New")}
                     </button>
                   </div>
 
                   <div className="space-y-2">
                     {runtimeCombo.combos.length === 0 && (
                       <p className="text-sm text-[var(--color-text-muted)] py-4 text-center">
-                        No runtime combos configured
+                        {t("No runtime combos configured")}
                       </p>
                     )}
                     {runtimeCombo.combos.map((combo) => {
@@ -501,7 +517,10 @@ export function ComboPage() {
                         >
                           <div className="flex items-center justify-between gap-3">
                             <span className="text-sm font-medium text-[var(--color-text)] truncate">
-                              {combo.name || `Combo ${combo.index}`}
+                              {combo.name ||
+                                t("Combo {{index}}", {
+                                  index: combo.index,
+                                })}
                             </span>
                             <span className="text-xs font-mono text-[var(--color-text-muted)]">
                               #{combo.index}
@@ -509,7 +528,7 @@ export function ComboPage() {
                           </div>
                           <div className="mt-1 text-xs text-[var(--color-text-muted)] truncate">
                             {combo.keyPositions.join(" + ")} ·{" "}
-                            {formatLayerScope(combo.layerMask)}
+                            {formatLayerScope(combo.layerMask, t)}
                           </div>
                           <div className="mt-1 text-xs text-[var(--color-text-secondary)] truncate">
                             {formatComboBehavior(
@@ -518,6 +537,7 @@ export function ComboPage() {
                               layersForSelector,
                               keyboardLayoutContext.layout,
                               runtimeMacro.macros,
+                              t,
                             )}
                           </div>
                         </button>
@@ -533,14 +553,14 @@ export function ComboPage() {
                       className="text-[var(--color-electric)]"
                     />
                     <h2 className="text-sm font-medium text-[var(--color-text)]">
-                      Global Settings
+                      {t("Global Settings")}
                     </h2>
                   </div>
 
                   <div className="space-y-3">
                     <label className="block">
                       <span className="text-xs text-[var(--color-text-muted)]">
-                        Max slots
+                        {t("Max slots")}
                       </span>
                       <input
                         className="mt-1 w-full px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text)]"
@@ -550,7 +570,7 @@ export function ComboPage() {
                     </label>
                     <label className="block">
                       <span className="text-xs text-[var(--color-text-muted)]">
-                        Timeout ms
+                        {t("Timeout ms")}
                       </span>
                       <input
                         type="number"
@@ -568,7 +588,7 @@ export function ComboPage() {
                     </label>
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-sm text-[var(--color-text)]">
-                        Slow release
+                        {t("Slow release")}
                       </span>
                       <Switch.Root
                         checked={displaySlowRelease}
@@ -589,7 +609,7 @@ export function ComboPage() {
                         displayTimeoutMs > 65535
                       }
                     >
-                      Apply Global Settings
+                      {t("Apply Global Settings")}
                     </button>
                   </div>
                 </section>
@@ -603,17 +623,17 @@ export function ComboPage() {
                       className="mx-auto mb-3 text-[var(--color-electric)]"
                     />
                     <h2 className="text-sm font-medium text-[var(--color-text)]">
-                      Select a combo slot
+                      {t("Select a combo slot")}
                     </h2>
                     <p className="text-sm text-[var(--color-text-muted)] mt-1">
-                      Choose an existing slot or create a new combo.
+                      {t("Choose an existing slot or create a new combo.")}
                     </p>
                     <button
                       className="btn-electric text-sm mt-4 flex items-center gap-1.5 mx-auto"
                       onClick={handleNewCombo}
                     >
                       <IconPlus size={16} />
-                      New Combo
+                      {t("New Combo")}
                     </button>
                   </div>
                 </section>
@@ -622,10 +642,12 @@ export function ComboPage() {
                   <div className="flex items-center justify-between gap-3 mb-4">
                     <div>
                       <h2 className="text-sm font-medium text-[var(--color-text)]">
-                        Combo Editor
+                        {t("Combo Editor")}
                       </h2>
                       <p className="text-xs text-[var(--color-text-muted)]">
-                        {selectedComboExists ? "Existing slot" : "New slot"}
+                        {selectedComboExists
+                          ? t("Existing slot")
+                          : t("New slot")}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -637,7 +659,7 @@ export function ComboPage() {
                         }
                       >
                         <IconTrash size={16} />
-                        Delete
+                        {t("Delete")}
                       </button>
                       <button
                         className="btn-electric text-sm flex items-center gap-1.5"
@@ -650,7 +672,7 @@ export function ComboPage() {
                         ) : (
                           <IconDeviceFloppy size={16} />
                         )}
-                        Save Combo
+                        {t("Save Combo")}
                       </button>
                     </div>
                   </div>
@@ -668,7 +690,7 @@ export function ComboPage() {
                   <div className="grid grid-cols-1 tablet:grid-cols-2 gap-3 mb-4">
                     <label>
                       <span className="text-xs text-[var(--color-text-muted)]">
-                        Slot
+                        {t("Slot")}
                       </span>
                       <input
                         type="number"
@@ -686,7 +708,7 @@ export function ComboPage() {
                     </label>
                     <label>
                       <span className="text-xs text-[var(--color-text-muted)]">
-                        Name
+                        {t("Name")}
                       </span>
                       <input
                         maxLength={MAX_NAME_LENGTH}
@@ -708,7 +730,7 @@ export function ComboPage() {
                       onClick={() => setShowBehaviorSelector(true)}
                     >
                       <span className="block text-xs text-[var(--color-text-muted)]">
-                        Behavior
+                        {t("Behavior")}
                       </span>
                       <span className="block text-sm text-[var(--color-text)] truncate mt-1">
                         {formatComboBehavior(
@@ -717,12 +739,13 @@ export function ComboPage() {
                           layersForSelector,
                           keyboardLayoutContext.layout,
                           runtimeMacro.macros,
+                          t,
                         )}
                       </span>
                     </button>
                     <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)]">
                       <span className="text-sm text-[var(--color-text)]">
-                        Enabled
+                        {t("Enabled")}
                       </span>
                       <Switch.Root
                         checked={draft.enabled}
@@ -739,7 +762,7 @@ export function ComboPage() {
                   <div className="mb-4">
                     <div className="flex items-center gap-2 flex-wrap mb-2">
                       <span className="text-xs text-[var(--color-text-muted)]">
-                        Layers
+                        {t("Layers")}
                       </span>
                       <button
                         className={`px-3 py-1.5 rounded-lg text-xs border transition-colors ${
@@ -751,7 +774,7 @@ export function ComboPage() {
                           setDraft((prev) => ({ ...prev, layerMask: 0 }))
                         }
                       >
-                        All
+                        {t("All")}
                       </button>
                       {layersForSelector.map((layer) => (
                         <button
@@ -770,18 +793,18 @@ export function ComboPage() {
                           }
                           disabled={layer.id >= 32}
                         >
-                          {layer.name || `Layer ${layer.id}`}
+                          {layer.name || t("Layer {{id}}", { id: layer.id })}
                         </button>
                       ))}
                     </div>
                     <p className="text-xs text-[var(--color-text-muted)]">
-                      {formatLayerScope(draft.layerMask)}
+                      {formatLayerScope(draft.layerMask, t)}
                     </p>
                   </div>
 
                   <label className="block mb-4">
                     <span className="text-xs text-[var(--color-text-muted)]">
-                      Positions
+                      {t("Positions")}
                     </span>
                     <input
                       className="mt-1 w-full px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text)]"

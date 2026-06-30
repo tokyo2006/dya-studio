@@ -2,7 +2,9 @@ import type { ReactNode } from "react";
 import { IconSun, IconMoon, IconPlugConnectedX } from "@tabler/icons-react";
 import DyaLogo from "../assets/dya.svg?react";
 import { useTheme } from "../hooks/useTheme";
+import { useLanguage } from "../hooks/useLanguage";
 import type { ConnectionMethod } from "../components/DeviceConnection";
+import { LanguageToggle } from "../components/LanguageToggle";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -22,6 +24,7 @@ export function AppLayout({
   isConnecting,
 }: AppLayoutProps) {
   const { theme, toggleTheme } = useTheme();
+  const { t } = useLanguage();
 
   return (
     <div className="flex flex-col h-screen bg-gradient-dark">
@@ -47,7 +50,7 @@ export function AppLayout({
               <div className="flex items-center gap-3">
                 <div className="status-indicator connected flex-shrink-0" />
                 <span className="text-sm text-[var(--color-text-secondary)]">
-                  {deviceName || "Connected"}
+                  {deviceName || t("Connected")}
                 </span>
               </div>
               <button
@@ -55,7 +58,7 @@ export function AppLayout({
                 className="btn-ghost text-sm flex items-center gap-1.5"
               >
                 <IconPlugConnectedX size={18} />
-                <span className="hidden tablet:inline">Disconnect</span>
+                <span className="hidden tablet:inline">{t("Disconnect")}</span>
               </button>
             </>
           ) : (
@@ -67,19 +70,22 @@ export function AppLayout({
               {isConnecting ? (
                 <span className="flex items-center gap-2">
                   <span className="w-4 h-4 border-2 border-[var(--color-text-muted)] border-t-[var(--color-text)] rounded-full animate-spin" />
-                  Connecting...
+                  {t("Connecting...")}
                 </span>
               ) : (
-                "Connect Keyboard"
+                t("Connect Keyboard")
               )}
             </button>
           )}
+          <LanguageToggle />
           {/* Theme Toggle */}
           <button
             onClick={toggleTheme}
             className="theme-toggle"
             aria-label={
-              theme === "dark" ? "Switch to light mode" : "Switch to dark mode"
+              theme === "dark"
+                ? t("Switch to light mode")
+                : t("Switch to dark mode")
             }
           >
             {theme === "dark" ? <IconSun size={18} /> : <IconMoon size={18} />}

@@ -13,6 +13,7 @@ import {
   type SettingScope,
   type SettingValue,
 } from "../proto/cormoran/zmk/custom_settings/custom_settings";
+import { useLanguage } from "./useLanguage";
 
 export const CUSTOM_SETTINGS_IDENTIFIER = "cormoran_custom_settings";
 export const CUSTOM_SETTINGS_SOURCE_ALL = 0xffffffff;
@@ -108,6 +109,7 @@ async function withTimeout<T>(
 }
 
 export function useCustomSettings(): UseCustomSettingsReturn {
+  const { t } = useLanguage();
   const zmkApp = useContext(ZMKAppContext);
   const [settings, setSettings] = useState<Setting[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -123,14 +125,14 @@ export function useCustomSettings(): UseCustomSettingsReturn {
   const subsystemIdentifierForIndex = useCallback(
     (index: number) =>
       zmkApp?.state.customSubsystems?.subsystems[index]?.identifier ??
-      `Subsystem ${index}`,
-    [zmkApp?.state.customSubsystems?.subsystems],
+      t("Subsystem {{index}}", { index }),
+    [t, zmkApp?.state.customSubsystems?.subsystems],
   );
 
   const callCustomRequest = useCallback(
     async (request: Request): Promise<Response> => {
       if (!zmkApp?.state.connection || subsystemIndex === undefined) {
-        throw new Error("Custom settings subsystem is not available");
+        throw new Error(t("Custom settings subsystem is not available"));
       }
 
       const service = new ZMKCustomSubsystem(
@@ -141,16 +143,16 @@ export function useCustomSettings(): UseCustomSettingsReturn {
         Request.encode(request).finish(),
       );
       if (!responsePayload) {
-        throw new Error("Empty custom settings response");
+        throw new Error(t("Empty custom settings response"));
       }
 
       const response = Response.decode(responsePayload);
       if (response.error) {
-        throw new Error(response.error.message || "Custom settings failed");
+        throw new Error(response.error.message || t("Custom settings failed"));
       }
       return response;
     },
-    [zmkApp?.state.connection, subsystemIndex],
+    [t, zmkApp?.state.connection, subsystemIndex],
   );
 
   const collectListSettings = useCallback(async (): Promise<Setting[]> => {
@@ -217,7 +219,7 @@ export function useCustomSettings(): UseCustomSettingsReturn {
           }),
         ),
         LIST_REQUEST_TIMEOUT_MS,
-        "Custom settings list timed out",
+        t("Custom settings list timed out"),
       );
       expectedCount = response.status?.affectedCount;
       if (expectedCount === 0) {
@@ -233,7 +235,7 @@ export function useCustomSettings(): UseCustomSettingsReturn {
         clearTimeout(quietTimeout);
       }
     }
-  }, [callCustomRequest, subsystemIndex, zmkApp]);
+  }, [callCustomRequest, subsystemIndex, t, zmkApp]);
 
   const loadSettings = useCallback(async () => {
     if (subsystemIndex === undefined || !zmkApp?.state.connection) {
@@ -262,12 +264,14 @@ export function useCustomSettings(): UseCustomSettingsReturn {
     } catch (err) {
       console.error("Failed to load custom settings:", err);
       setError(
-        err instanceof Error ? err.message : "Failed to load custom settings",
+        err instanceof Error
+          ? err.message
+          : t("Failed to load custom settings"),
       );
     } finally {
       setIsLoading(false);
     }
-  }, [collectListSettings, subsystemIndex, zmkApp?.state.connection]);
+  }, [collectListSettings, subsystemIndex, t, zmkApp?.state.connection]);
 
   const writeSettingToMemory = useCallback(
     async (setting: Setting, value: SettingValue) => {
@@ -300,12 +304,14 @@ export function useCustomSettings(): UseCustomSettingsReturn {
       } catch (err) {
         console.error("Failed to write custom setting:", err);
         setError(
-          err instanceof Error ? err.message : "Failed to write custom setting",
+          err instanceof Error
+            ? err.message
+            : t("Failed to write custom setting"),
         );
         await loadSettings();
       }
     },
-    [callCustomRequest, loadSettings],
+    [callCustomRequest, loadSettings, t],
   );
 
   const mutateScope = useCallback(
@@ -326,12 +332,18 @@ export function useCustomSettings(): UseCustomSettingsReturn {
         await loadSettings();
       } catch (err) {
         console.error(`Failed to ${type}:`, err);
-        setError(err instanceof Error ? err.message : `Failed to ${type}`);
+        const fallback =
+          type === "saveSettings"
+            ? t("Failed to save settings")
+            : type === "discardSettings"
+              ? t("Failed to discard settings")
+              : t("Failed to reset settings");
+        setError(err instanceof Error ? err.message : fallback);
       } finally {
         setIsLoading(false);
       }
     },
-    [callCustomRequest, loadSettings],
+    [callCustomRequest, loadSettings, t],
   );
 
   const sections = useMemo(() => {
