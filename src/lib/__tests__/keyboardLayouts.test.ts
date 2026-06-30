@@ -48,6 +48,13 @@ describe("keyboardLayouts", () => {
       expect(getLayoutDisplayName(0x35, "JIS")).toBe("半/全");
       // 0x2e (=): In US shows "=", in JIS shows "^"
       expect(getLayoutDisplayName(0x2e, "JIS")).toBe("^~");
+      expect(getLayoutDisplayName(0x90, "JIS")).toBe("かな");
+      expect(getLayoutDisplayName(0x91, "JIS")).toBe("英数");
+    });
+
+    it("should return US_JP display names for Japanese language keycodes", () => {
+      expect(getLayoutDisplayName(0x90, "US_JP")).toBe("かな");
+      expect(getLayoutDisplayName(0x91, "US_JP")).toBe("英数");
     });
 
     it("should return undefined for unmapped keycodes", () => {
