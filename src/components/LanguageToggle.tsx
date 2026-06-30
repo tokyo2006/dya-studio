@@ -13,12 +13,14 @@ export function LanguageToggle({ className = "" }: LanguageToggleProps) {
     <button
       type="button"
       onClick={toggleLanguage}
-      className={`theme-toggle gap-1.5 px-2 ${className}`}
+      className={`theme-toggle language-toggle ${className}`}
       aria-label={t("Switch language")}
       title={t("Language")}
     >
       <IconLanguage size={18} />
-      <span className="text-xs font-medium uppercase">{nextLanguage}</span>
+      <span className="text-xs font-medium uppercase leading-none">
+        {nextLanguage}
+      </span>
     </button>
   );
 }
