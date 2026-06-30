@@ -55,6 +55,8 @@ interface KeyboardLayoutProps {
   modules?: PhysicalLayoutModulePresentation[];
   /** Key positions currently highlighted in the preview */
   highlightedKeys?: ReadonlySet<number>;
+  /** Runtime macro summaries for macro behavior display */
+  runtimeMacros?: Array<{ index: number; name?: string }>;
 }
 
 type LayoutGeometry = Pick<
@@ -105,6 +107,7 @@ export function KeyboardLayout({
   keyboardLayout,
   modules = [],
   highlightedKeys,
+  runtimeMacros = [],
 }: KeyboardLayoutProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1.0);
@@ -199,9 +202,10 @@ export function KeyboardLayout({
         shortFormat: true,
         layers: layers,
         keyboardLayout,
+        runtimeMacros,
       });
     },
-    [behaviors, layers, keyboardLayout],
+    [behaviors, layers, keyboardLayout, runtimeMacros],
   );
 
   const getKeyLongDisplayName = useCallback(
@@ -211,9 +215,10 @@ export function KeyboardLayout({
       return formatBehaviorBinding(binding, behavior, {
         layers: layers,
         keyboardLayout,
+        runtimeMacros,
       });
     },
-    [behaviors, layers, keyboardLayout],
+    [behaviors, layers, keyboardLayout, runtimeMacros],
   );
 
   // Get original display name for tooltip
@@ -225,9 +230,17 @@ export function KeyboardLayout({
       return formatBehaviorBinding(original, behavior, {
         layers: layers,
         keyboardLayout,
+        runtimeMacros,
       });
     },
-    [getOriginalBinding, layer, behaviors, layers, keyboardLayout],
+    [
+      getOriginalBinding,
+      layer,
+      behaviors,
+      layers,
+      keyboardLayout,
+      runtimeMacros,
+    ],
   );
 
   // Get full binding description for tooltip
