@@ -6,6 +6,7 @@ const OPCODE_DOWN = 1;
 const OPCODE_UP = 2;
 const OPCODE_TAP = 3;
 const OPCODE_DELAY = 4;
+const OPCODE_KEY_TAP_SEQUENCE = 5;
 
 function assertUint32(value: number, label: string): number {
   if (!Number.isInteger(value) || value < 0 || value > 0xffffffff) {
@@ -31,6 +32,14 @@ export function encodeRuntimeMacroSteps(steps: MacroStep[]): Uint8Array {
     if (step.delay) {
       bytes.push(OPCODE_DELAY);
       writeUvar(bytes, step.delay.delayMs, `steps[${index}].delayMs`);
+      continue;
+    }
+
+    if (step.keyTapSequence) {
+      bytes.push(OPCODE_KEY_TAP_SEQUENCE);
+      const packedKeys = step.keyTapSequence.packedKeys;
+      writeUvar(bytes, packedKeys.length, `steps[${index}].packedKeys.length`);
+      bytes.push(...packedKeys);
       continue;
     }
 

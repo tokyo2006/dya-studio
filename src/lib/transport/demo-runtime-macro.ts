@@ -24,6 +24,7 @@ const MAX_NAME_LENGTH = 64;
 const MOCK_GLOBAL_SETTINGS: MacroGlobalSettings = {
   tapMs: 30,
   maxMacro: MAX_MACRO,
+  keyPressBehaviorId: BEHAVIOR_KEY_PRESS,
 };
 
 function createTapStep(param1: number): MacroStep {
@@ -44,6 +45,13 @@ function cloneStep(step: MacroStep): MacroStep {
   if (step.down) return { down: { ...step.down } };
   if (step.up) return { up: { ...step.up } };
   if (step.delay) return { delay: { ...step.delay } };
+  if (step.keyTapSequence) {
+    return {
+      keyTapSequence: {
+        packedKeys: new Uint8Array(step.keyTapSequence.packedKeys),
+      },
+    };
+  }
   return { tap: { ...(step.tap ?? { behaviorId: 0, param1: 0, param2: 0 }) } };
 }
 

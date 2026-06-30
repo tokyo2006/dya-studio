@@ -26,12 +26,17 @@ message DelayStep {
   uint32 delay_ms = 1;
 }
 
+message KeyTapSequenceStep {
+  bytes packed_keys = 1;
+}
+
 message MacroStep {
   oneof step {
     BehaviorBinding down = 1;
     BehaviorBinding up = 2;
     BehaviorBinding tap = 3;
     DelayStep delay = 4;
+    KeyTapSequenceStep key_tap_sequence = 5;
   }
 }
 
@@ -112,6 +117,7 @@ message GetMacroResponse {
 message MacroGlobalSettings {
   uint32 tap_ms = 1;
   uint32 max_macro = 2;
+  uint32 key_press_behavior_id = 3;
 }
 
 message GetMacroGlobalSettingsResponse {

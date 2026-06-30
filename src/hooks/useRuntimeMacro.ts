@@ -248,6 +248,7 @@ export function useRuntimeMacro(): UseRuntimeMacroReturn {
         setGlobalSettings((prev) => ({
           tapMs,
           maxMacro: prev?.maxMacro ?? 0,
+          keyPressBehaviorId: prev?.keyPressBehaviorId ?? 0,
         }));
       }
       return status !== null;

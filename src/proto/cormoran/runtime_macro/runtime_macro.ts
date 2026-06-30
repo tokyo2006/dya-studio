@@ -35,11 +35,16 @@ export interface DelayStep {
   delayMs: number;
 }
 
+export interface KeyTapSequenceStep {
+  packedKeys: Uint8Array;
+}
+
 export interface MacroStep {
   down?: BehaviorBinding | undefined;
   up?: BehaviorBinding | undefined;
   tap?: BehaviorBinding | undefined;
   delay?: DelayStep | undefined;
+  keyTapSequence?: KeyTapSequenceStep | undefined;
 }
 
 export interface MacroSlot {
@@ -119,6 +124,7 @@ export interface GetMacroResponse {
 export interface MacroGlobalSettings {
   tapMs: number;
   maxMacro: number;
+  keyPressBehaviorId: number;
 }
 
 export interface GetMacroGlobalSettingsResponse {
@@ -433,8 +439,54 @@ export const DelayStep: MessageFns<DelayStep> = {
   },
 };
 
+function createBaseKeyTapSequenceStep(): KeyTapSequenceStep {
+  return { packedKeys: new Uint8Array(0) };
+}
+
+export const KeyTapSequenceStep: MessageFns<KeyTapSequenceStep> = {
+  encode(message: KeyTapSequenceStep, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.packedKeys.length !== 0) {
+      writer.uint32(10).bytes(message.packedKeys);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): KeyTapSequenceStep {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseKeyTapSequenceStep();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.packedKeys = reader.bytes();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<KeyTapSequenceStep>): KeyTapSequenceStep {
+    return KeyTapSequenceStep.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<KeyTapSequenceStep>): KeyTapSequenceStep {
+    const message = createBaseKeyTapSequenceStep();
+    message.packedKeys = object.packedKeys ?? new Uint8Array(0);
+    return message;
+  },
+};
+
 function createBaseMacroStep(): MacroStep {
-  return { down: undefined, up: undefined, tap: undefined, delay: undefined };
+  return { down: undefined, up: undefined, tap: undefined, delay: undefined, keyTapSequence: undefined };
 }
 
 export const MacroStep: MessageFns<MacroStep> = {
@@ -450,6 +502,9 @@ export const MacroStep: MessageFns<MacroStep> = {
     }
     if (message.delay !== undefined) {
       DelayStep.encode(message.delay, writer.uint32(34).fork()).join();
+    }
+    if (message.keyTapSequence !== undefined) {
+      KeyTapSequenceStep.encode(message.keyTapSequence, writer.uint32(42).fork()).join();
     }
     return writer;
   },
@@ -493,6 +548,14 @@ export const MacroStep: MessageFns<MacroStep> = {
           message.delay = DelayStep.decode(reader, reader.uint32());
           continue;
         }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.keyTapSequence = KeyTapSequenceStep.decode(reader, reader.uint32());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -516,6 +579,9 @@ export const MacroStep: MessageFns<MacroStep> = {
       : undefined;
     message.delay = (object.delay !== undefined && object.delay !== null)
       ? DelayStep.fromPartial(object.delay)
+      : undefined;
+    message.keyTapSequence = (object.keyTapSequence !== undefined && object.keyTapSequence !== null)
+      ? KeyTapSequenceStep.fromPartial(object.keyTapSequence)
       : undefined;
     return message;
   },
@@ -1418,7 +1484,7 @@ export const GetMacroResponse: MessageFns<GetMacroResponse> = {
 };
 
 function createBaseMacroGlobalSettings(): MacroGlobalSettings {
-  return { tapMs: 0, maxMacro: 0 };
+  return { tapMs: 0, maxMacro: 0, keyPressBehaviorId: 0 };
 }
 
 export const MacroGlobalSettings: MessageFns<MacroGlobalSettings> = {
@@ -1428,6 +1494,9 @@ export const MacroGlobalSettings: MessageFns<MacroGlobalSettings> = {
     }
     if (message.maxMacro !== 0) {
       writer.uint32(16).uint32(message.maxMacro);
+    }
+    if (message.keyPressBehaviorId !== 0) {
+      writer.uint32(24).uint32(message.keyPressBehaviorId);
     }
     return writer;
   },
@@ -1455,6 +1524,14 @@ export const MacroGlobalSettings: MessageFns<MacroGlobalSettings> = {
           message.maxMacro = reader.uint32();
           continue;
         }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.keyPressBehaviorId = reader.uint32();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1471,6 +1548,7 @@ export const MacroGlobalSettings: MessageFns<MacroGlobalSettings> = {
     const message = createBaseMacroGlobalSettings();
     message.tapMs = object.tapMs ?? 0;
     message.maxMacro = object.maxMacro ?? 0;
+    message.keyPressBehaviorId = object.keyPressBehaviorId ?? 0;
     return message;
   },
 };

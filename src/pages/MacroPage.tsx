@@ -46,6 +46,8 @@ interface StringDraftRow {
 const DEFAULT_BINDING = { behaviorId: 0, param1: 0, param2: 0 };
 const DEFAULT_STEP: MacroStep = { delay: { delayMs: 0 } };
 const LEFT_SHIFT_MODIFIER = 0x02 << 24;
+const PACKED_LEFT_SHIFT = 0x80;
+const PACKED_USAGE_MASK = 0x7f;
 const STRING_MIN_GROUP_LENGTH = 2;
 
 const CHAR_TO_HID_USAGE = new Map<string, number>([
@@ -194,43 +196,55 @@ function getKeyPressBehaviorId(
   return null;
 }
 
-function charToHidUsage(char: string): number | null {
+function charToPackedKey(char: string): number | null {
   if (char.length !== 1) return null;
   const lower = char.toLowerCase();
   if (char >= "A" && char <= "Z") {
     const usage = CHAR_TO_HID_USAGE.get(lower);
-    return usage === undefined
-      ? null
-      : LEFT_SHIFT_MODIFIER | createHidUsage(HID_USAGE_PAGE_KEYBOARD, usage);
+    return usage === undefined ? null : PACKED_LEFT_SHIFT | usage;
   }
   const direct = CHAR_TO_HID_USAGE.get(char);
-  if (direct !== undefined) {
-    return createHidUsage(HID_USAGE_PAGE_KEYBOARD, direct);
-  }
+  if (direct !== undefined) return direct;
   const shifted = SHIFTED_CHAR_TO_HID_USAGE.get(char);
-  return shifted === undefined
-    ? null
-    : LEFT_SHIFT_MODIFIER | createHidUsage(HID_USAGE_PAGE_KEYBOARD, shifted);
+  return shifted === undefined ? null : PACKED_LEFT_SHIFT | shifted;
 }
 
-function stringToTapSteps(
-  value: string,
-  behaviorId: number | null,
-): MacroStep[] | null {
-  if (behaviorId === null) return null;
-  const steps: MacroStep[] = [];
-  for (const char of value) {
-    const usage = charToHidUsage(char);
-    if (usage === null) return null;
-    steps.push({
-      tap: {
-        behaviorId,
-        param1: usage,
-        param2: 0,
-      },
-    });
+function packedKeyToChar(packedKey: number): string | null {
+  if (!Number.isInteger(packedKey) || packedKey < 0 || packedKey > 0xff) {
+    return null;
   }
-  return steps;
+  const usage = packedKey & PACKED_USAGE_MASK;
+  const hidUsage = createHidUsage(HID_USAGE_PAGE_KEYBOARD, usage);
+  return (
+    HID_USAGE_TO_CHAR.get(
+      packedKey & PACKED_LEFT_SHIFT ? LEFT_SHIFT_MODIFIER | hidUsage : hidUsage,
+    ) ?? null
+  );
+}
+
+function stringToKeyTapSequenceStep(value: string): MacroStep | null {
+  const packedKeys: number[] = [];
+  for (const char of value) {
+    const packedKey = charToPackedKey(char);
+    if (packedKey === null) return null;
+    packedKeys.push(packedKey);
+  }
+  return {
+    keyTapSequence: {
+      packedKeys: Uint8Array.from(packedKeys),
+    },
+  };
+}
+
+function getKeyTapSequenceString(step: MacroStep): string | null {
+  if (!step.keyTapSequence) return null;
+  const chars: string[] = [];
+  for (const packedKey of step.keyTapSequence.packedKeys) {
+    const char = packedKeyToChar(packedKey);
+    if (char === null) return null;
+    chars.push(char);
+  }
+  return chars.join("");
 }
 
 function getTapCharacter(step: MacroStep, keyPressBehaviorId: number | null) {
@@ -284,6 +298,18 @@ function buildMacroStepRows(
     }
 
     if (index >= steps.length) break;
+
+    const keyTapSequenceString = getKeyTapSequenceString(steps[index]);
+    if (keyTapSequenceString !== null) {
+      rows.push({
+        action: "string",
+        startIndex: index,
+        length: 1,
+        value: keyTapSequenceString,
+      });
+      index++;
+      continue;
+    }
 
     const chars: string[] = [];
     let endIndex = index;
@@ -361,8 +387,10 @@ export function MacroPage() {
       : null;
 
   const keyPressBehaviorId = useMemo(
-    () => getKeyPressBehaviorId(keymap.behaviors),
-    [keymap.behaviors],
+    () =>
+      runtimeMacro.globalSettings?.keyPressBehaviorId ||
+      getKeyPressBehaviorId(keymap.behaviors),
+    [keymap.behaviors, runtimeMacro.globalSettings?.keyPressBehaviorId],
   );
 
   const stepRows = useMemo(
@@ -486,27 +514,30 @@ export function MacroPage() {
       if (action === "string") {
         const binding = getStepBinding(currentStep);
         const initialString =
-          binding && binding.behaviorId === keyPressBehaviorId
+          getKeyTapSequenceString(currentStep) ??
+          (binding && binding.behaviorId === keyPressBehaviorId
             ? (HID_USAGE_TO_CHAR.get(binding.param1) ?? "")
-            : "";
+            : "");
         const value =
           initialString.length >= STRING_MIN_GROUP_LENGTH
             ? initialString
             : `${initialString || "a"}a`;
-        const steps = stringToTapSteps(value, keyPressBehaviorId);
-        if (!steps) {
-          setStringConversionError("Key Press behavior is not available.");
+        const step = stringToKeyTapSequenceStep(value);
+        if (!step) {
+          setStringConversionError(
+            "Only HID keyboard-page printable characters are supported.",
+          );
           return;
         }
         setStringConversionError(null);
         setStringDraft({
           startIndex: stepIndex,
-          length: steps.length,
+          length: 1,
           value,
         });
         await commitSteps([
           ...loadedMacro.steps.slice(0, stepIndex),
-          ...steps,
+          step,
           ...loadedMacro.steps.slice(stepIndex + 1),
         ]);
         return;
@@ -525,8 +556,8 @@ export function MacroPage() {
   const handleStringChange = useCallback(
     (row: MacroStepRow, value: string) => {
       if (!loadedMacro) return;
-      const replacementSteps = stringToTapSteps(value, keyPressBehaviorId);
-      if (!replacementSteps) {
+      const replacementStep = stringToKeyTapSequenceStep(value);
+      if (!replacementStep) {
         setStringConversionError(
           "Only HID keyboard-page printable characters are supported.",
         );
@@ -535,12 +566,12 @@ export function MacroPage() {
       setStringConversionError(null);
       setStringDraft({
         startIndex: row.startIndex,
-        length: replacementSteps.length,
+        length: 1,
         value,
       });
       const steps = [
         ...loadedMacro.steps.slice(0, row.startIndex),
-        ...replacementSteps,
+        replacementStep,
         ...loadedMacro.steps.slice(row.startIndex + row.length),
       ];
       setLoadedMacro({
@@ -549,7 +580,7 @@ export function MacroPage() {
         encodedSize: getRuntimeMacroEncodedSize(steps),
       });
     },
-    [keyPressBehaviorId, loadedMacro],
+    [loadedMacro],
   );
 
   const commitStringChange = useCallback(async () => {

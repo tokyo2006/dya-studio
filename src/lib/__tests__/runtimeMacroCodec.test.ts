@@ -1,4 +1,7 @@
-import { getRuntimeMacroEncodedSize } from "../runtimeMacroCodec";
+import {
+  encodeRuntimeMacroSteps,
+  getRuntimeMacroEncodedSize,
+} from "../runtimeMacroCodec";
 import type { MacroStep } from "../../proto/cormoran/runtime_macro/runtime_macro";
 
 describe("runtimeMacroCodec", () => {
@@ -23,6 +26,21 @@ describe("runtimeMacroCodec", () => {
     ];
 
     expect(getRuntimeMacroEncodedSize(steps)).toBe(8);
+  });
+
+  it("encodes key tap sequence steps using packed HID keys", () => {
+    const steps: MacroStep[] = [
+      {
+        keyTapSequence: {
+          packedKeys: Uint8Array.from([0x04, 0x80 | 0x05]),
+        },
+      },
+    ];
+
+    expect(Array.from(encodeRuntimeMacroSteps(steps))).toEqual([
+      1, 5, 2, 0x04, 0x85,
+    ]);
+    expect(getRuntimeMacroEncodedSize(steps)).toBe(5);
   });
 
   it("rejects malformed empty steps", () => {
