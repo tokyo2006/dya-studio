@@ -26,6 +26,18 @@ import {
   RUNTIME_SENSOR_ROTATE_IDENTIFIER,
 } from "./demo-runtime-sensor-rotate";
 import {
+  CustomSettingsHandler,
+  CUSTOM_SETTINGS_IDENTIFIER,
+} from "./demo-custom-settings";
+import {
+  RuntimeComboHandler,
+  RUNTIME_COMBO_IDENTIFIER,
+} from "./demo-runtime-combo";
+import {
+  RuntimeMacroHandler,
+  RUNTIME_MACRO_IDENTIFIER,
+} from "./demo-runtime-macro";
+import {
   PhysicalLayoutsHandler,
   PHYSICAL_LAYOUTS_IDENTIFIER,
 } from "./demo-physical-layouts";
@@ -54,6 +66,14 @@ import {
   Response as RuntimeSensorRotateResponse,
 } from "../../proto/zmk/runtime_sensor_rotate/runtime_sensor_rotate";
 import {
+  Request as RuntimeComboRequest,
+  Response as RuntimeComboResponse,
+} from "../../proto/cormoran/runtime_combo/runtime_combo";
+import {
+  Request as RuntimeMacroRequest,
+  Response as RuntimeMacroResponse,
+} from "../../proto/cormoran/runtime_macro/runtime_macro";
+import {
   Request as PhysicalLayoutsRequest,
   Response as PhysicalLayoutsResponse,
 } from "../../proto/zmk/physical_layouts/physical_layouts";
@@ -61,6 +81,10 @@ import {
   Request as InputStreamRequest,
   Response as InputStreamResponse,
 } from "../../proto/zmk/input_stream/input_stream";
+import {
+  Request as CustomSettingsRequest,
+  Response as CustomSettingsResponse,
+} from "../../proto/cormoran/zmk/custom_settings/custom_settings";
 import {
   ANSI60,
   ORTHO,
@@ -168,8 +192,11 @@ class Keyboard {
   private batteryHistoryHandler = new BatteryHistoryHandler();
   private runtimeInputProcessorHandler = new RuntimeInputProcessorHandler();
   private runtimeSensorRotateHandler = new RuntimeSensorRotateHandler();
+  private runtimeComboHandler = new RuntimeComboHandler();
+  private runtimeMacroHandler = new RuntimeMacroHandler();
   private physicalLayoutsHandler = new PhysicalLayoutsHandler();
   private inputStreamHandler = new InputStreamHandler();
+  private customSettingsHandler: CustomSettingsHandler;
 
   // Custom subsystems registry
   private readonly BLE_SUBSYSTEM_INDEX = 0;
@@ -177,8 +204,17 @@ class Keyboard {
   private readonly BATTERY_HISTORY_SUBSYSTEM_INDEX = 2;
   private readonly RUNTIME_INPUT_PROCESSOR_SUBSYSTEM_INDEX = 3;
   private readonly RUNTIME_SENSOR_ROTATE_SUBSYSTEM_INDEX = 4;
-  private readonly PHYSICAL_LAYOUTS_SUBSYSTEM_INDEX = 5;
-  private readonly INPUT_STREAM_SUBSYSTEM_INDEX = 6;
+  private readonly RUNTIME_COMBO_SUBSYSTEM_INDEX = 5;
+  private readonly RUNTIME_MACRO_SUBSYSTEM_INDEX = 6;
+  private readonly PHYSICAL_LAYOUTS_SUBSYSTEM_INDEX = 7;
+  private readonly INPUT_STREAM_SUBSYSTEM_INDEX = 8;
+  private readonly CUSTOM_SETTINGS_SUBSYSTEM_INDEX = 9;
+
+  constructor() {
+    this.customSettingsHandler = new CustomSettingsHandler(
+      this.SETTINGS_SUBSYSTEM_INDEX,
+    );
+  }
 
   private customSubsystems = [
     {
@@ -207,6 +243,16 @@ class Keyboard {
       uiUrl: [],
     },
     {
+      index: this.RUNTIME_COMBO_SUBSYSTEM_INDEX,
+      identifier: RUNTIME_COMBO_IDENTIFIER,
+      uiUrl: [],
+    },
+    {
+      index: this.RUNTIME_MACRO_SUBSYSTEM_INDEX,
+      identifier: RUNTIME_MACRO_IDENTIFIER,
+      uiUrl: [],
+    },
+    {
       index: this.PHYSICAL_LAYOUTS_SUBSYSTEM_INDEX,
       identifier: PHYSICAL_LAYOUTS_IDENTIFIER,
       uiUrl: [],
@@ -214,6 +260,11 @@ class Keyboard {
     {
       index: this.INPUT_STREAM_SUBSYSTEM_INDEX,
       identifier: INPUT_STREAM_IDENTIFIER,
+      uiUrl: [],
+    },
+    {
+      index: this.CUSTOM_SETTINGS_SUBSYSTEM_INDEX,
+      identifier: CUSTOM_SETTINGS_IDENTIFIER,
       uiUrl: [],
     },
   ];
@@ -417,6 +468,24 @@ class Keyboard {
         } catch (e) {
           console.error("Runtime Sensor Rotate subsystem error:", e);
         }
+      } else if (subsystemIndex === this.RUNTIME_COMBO_SUBSYSTEM_INDEX) {
+        // Runtime Combo
+        try {
+          const comboReq = RuntimeComboRequest.decode(data);
+          const comboResp = this.runtimeComboHandler.process(comboReq);
+          responseData = RuntimeComboResponse.encode(comboResp).finish();
+        } catch (e) {
+          console.error("Runtime Combo subsystem error:", e);
+        }
+      } else if (subsystemIndex === this.RUNTIME_MACRO_SUBSYSTEM_INDEX) {
+        // Runtime Macro
+        try {
+          const macroReq = RuntimeMacroRequest.decode(data);
+          const macroResp = this.runtimeMacroHandler.process(macroReq);
+          responseData = RuntimeMacroResponse.encode(macroResp).finish();
+        } catch (e) {
+          console.error("Runtime Macro subsystem error:", e);
+        }
       } else if (subsystemIndex === this.PHYSICAL_LAYOUTS_SUBSYSTEM_INDEX) {
         // Physical Layouts
         try {
@@ -437,6 +506,17 @@ class Keyboard {
           responseData = InputStreamResponse.encode(inputStreamResp).finish();
         } catch (e) {
           console.error("Input Stream subsystem error:", e);
+        }
+      } else if (subsystemIndex === this.CUSTOM_SETTINGS_SUBSYSTEM_INDEX) {
+        // Custom Settings
+        try {
+          const customSettingsReq = CustomSettingsRequest.decode(data);
+          const customSettingsResp =
+            this.customSettingsHandler.process(customSettingsReq);
+          responseData =
+            CustomSettingsResponse.encode(customSettingsResp).finish();
+        } catch (e) {
+          console.error("Custom Settings subsystem error:", e);
         }
       }
 
@@ -530,6 +610,21 @@ class Keyboard {
             custom: {
               customNotification: {
                 subsystemIndex: this.INPUT_STREAM_SUBSYSTEM_INDEX,
+                payload: payload,
+              },
+            },
+          },
+        }).finish(),
+      );
+    });
+
+    this.customSettingsHandler.notify((payload: Uint8Array) => {
+      callback(
+        Response.encode({
+          notification: {
+            custom: {
+              customNotification: {
+                subsystemIndex: this.CUSTOM_SETTINGS_SUBSYSTEM_INDEX,
                 payload: payload,
               },
             },

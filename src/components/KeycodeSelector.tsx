@@ -56,6 +56,7 @@ interface KeycodeSelectorProps {
   layers: Array<{ id: number; name: string }>;
   keyboardLayout?: KeyboardLayoutType;
   behaviorQuickSelects?: string[]; // Optional list of behavior displayNameVariants for quick select
+  runtimeMacros?: Array<{ index: number; name?: string }>;
 }
 
 // =============================================================================
@@ -76,6 +77,8 @@ function getParamTypeLabel(
   // From DYA Studio override metadata
   if (overrideType) {
     switch (overrideType) {
+      case "macro":
+        return "Macro";
       case "mouse_keycode":
         return t("Mouse Button");
       case "mouse_movement":
@@ -143,6 +146,7 @@ function formatParamValue(
   paramNumber: 1 | 2,
   layers: Array<{ id: number; name: string }>,
   keyboardLayout?: KeyboardLayoutType,
+  runtimeMacros?: Array<{ index: number; name?: string }>,
 ): string {
   const behavior = behaviorInfo.behavior;
   // From DYA Studio override metadata
@@ -151,12 +155,14 @@ function formatParamValue(
     return overrideMeta.formatParam(param1, param2, paramNumber, {
       layers,
       keyboardLayout,
+      runtimeMacros,
     });
   }
   // From firmware metadata
   return formatBehaviorParam(behavior, param1, param2, paramNumber, {
     layers,
     keyboardLayout,
+    runtimeMacros,
   });
 }
 
@@ -239,6 +245,7 @@ export function KeycodeSelector({
   layers,
   keyboardLayout,
   behaviorQuickSelects,
+  runtimeMacros = [],
 }: KeycodeSelectorProps) {
   const { t } = useLanguage();
   // State
@@ -469,6 +476,27 @@ export function KeycodeSelector({
       // From DYA Studio override metadata
       if (overrideType) {
         switch (overrideType) {
+          case "macro":
+            return runtimeMacros.length > 0 ? (
+              <ButtonListSelector
+                options={runtimeMacros.map((macro) => ({
+                  value: macro.index,
+                  label: macro.name || `Macro ${macro.index}`,
+                }))}
+                value={value}
+                onChange={onChange}
+                columns={Math.min(runtimeMacros.length, 4)}
+              />
+            ) : (
+              <input
+                type="number"
+                min={0}
+                value={value}
+                onChange={(e) => onChange(Number(e.target.value))}
+                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text)] focus:outline-none focus:border-[var(--color-electric)]/50"
+              />
+            );
+
           case "mouse_keycode":
             return (
               <ButtonListSelector
@@ -596,7 +624,7 @@ export function KeycodeSelector({
       }
       return null;
     },
-    [layers, selectedBehaviorInfo, keyboardLayout],
+    [layers, selectedBehaviorInfo, keyboardLayout, runtimeMacros],
   );
 
   return (
@@ -697,6 +725,7 @@ export function KeycodeSelector({
                         1,
                         layers,
                         keyboardLayout,
+                        runtimeMacros,
                       )}
                     </div>
                   </button>
@@ -728,6 +757,7 @@ export function KeycodeSelector({
                         2,
                         layers,
                         keyboardLayout,
+                        runtimeMacros,
                       )}
                     </div>
                   </button>

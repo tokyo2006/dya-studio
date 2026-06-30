@@ -23,6 +23,7 @@ import { SensorRotationConfig } from "../components/SensorRotationConfig";
 import { useKeymap } from "../hooks/useKeymap";
 import { usePhysicalLayoutModules } from "../hooks/usePhysicalLayoutModules";
 import { useRuntimeSensorRotate } from "../hooks/useRuntimeSensorRotate";
+import { useRuntimeMacro } from "../hooks/useRuntimeMacro";
 import { useInputStream } from "../hooks/useInputStream";
 import { getAvailableLayouts, getLayoutLabel } from "../lib/keyboardLayouts";
 import type { BehaviorBinding } from "../hooks/useKeymap";
@@ -35,6 +36,7 @@ export function KeymapPage() {
   const keymap = useKeymap();
   const physicalLayoutModules = usePhysicalLayoutModules();
   const sensorRotate = useRuntimeSensorRotate();
+  const runtimeMacro = useRuntimeMacro();
   const inputStream = useInputStream();
 
   // Local UI state
@@ -585,6 +587,7 @@ export function KeymapPage() {
                   isBindingModified={keymap.isBindingModified}
                   getOriginalBinding={keymap.getOriginalBinding}
                   keyboardLayout={keyboardLayoutContext.layout}
+                  runtimeMacros={runtimeMacro.macros}
                   modules={
                     physicalLayoutModules.isAvailable
                       ? physicalLayoutModules.modules
@@ -670,6 +673,7 @@ export function KeymapPage() {
         behaviors={keymap.behaviors}
         layers={layersForSelector}
         keyboardLayout={keyboardLayoutContext.layout}
+        runtimeMacros={runtimeMacro.macros}
       />
 
       {/* Unlock Prompt */}

@@ -1,0 +1,204 @@
+syntax = "proto3";
+
+package cormoran.zmk.custom_settings;
+
+enum SettingWriteMode {
+    // Update RAM only. The value can later be saved or discarded.
+    SETTING_WRITE_MODE_MEMORY = 0;
+    // Update RAM and save the value to persistent storage.
+    SETTING_WRITE_MODE_PERSIST = 1;
+}
+
+enum SettingConfidentiality {
+    // Do not expose the setting value over RPC.
+    SETTING_CONFIDENTIALITY_DEVICE_PRIVATE = 0;
+    // RPC may expose the value, but the web UI should treat it as personal data.
+    SETTING_CONFIDENTIALITY_RPC_PERSONAL = 1;
+    // RPC may expose the value and the web UI may publish it.
+    SETTING_CONFIDENTIALITY_RPC_PUBLIC = 2;
+}
+
+enum SettingPermission {
+    SETTING_PERMISSION_UNSECURE = 0;
+    SETTING_PERMISSION_SECURE = 1;
+}
+
+enum SettingNotificationKind {
+    SETTING_NOTIFICATION_KIND_LIST_ITEM = 0;
+    SETTING_NOTIFICATION_KIND_VALUE_UPDATED = 1;
+    SETTING_NOTIFICATION_KIND_SAVED = 2;
+    SETTING_NOTIFICATION_KIND_DISCARDED = 3;
+    SETTING_NOTIFICATION_KIND_RESET = 4;
+}
+
+message SettingScalarValue {
+    oneof value_type {
+        bytes bytes_value = 1;
+        int32 int32_value = 2;
+        bool bool_value = 3;
+        string string_value = 4;
+    }
+}
+
+// Array values encode one active element plus the active array length.
+message SettingArrayValue {
+    uint32 index = 1;
+    uint32 size = 2;
+    SettingScalarValue value = 3;
+    reserved 4;
+}
+
+// One setting value. Array elements wrap a scalar with array metadata.
+message SettingValue {
+    oneof value_type {
+        bytes bytes_value = 1;
+        int32 int32_value = 2;
+        bool bool_value = 3;
+        string string_value = 4;
+        SettingArrayValue array_value = 5;
+    }
+}
+
+message SettingConstraintRange {
+    SettingScalarValue min = 1;
+    SettingScalarValue max = 2;
+}
+
+message SettingConstraintOptions {
+    repeated SettingScalarValue values = 1;
+    repeated string labels = 2;
+}
+
+message SettingConstraintHidUsage {
+    uint32 usage_page = 1;
+    uint32 usage_min = 2;
+    uint32 usage_max = 3;
+}
+
+message SettingConstraintLayerId {}
+
+message SettingConstraintBehaviorId {}
+
+message SettingConstraint {
+    oneof constraint_type {
+        SettingConstraintRange range = 1;
+        SettingConstraintOptions options = 2;
+        SettingConstraintHidUsage hid_usage = 3;
+        SettingConstraintLayerId layer_id = 4;
+        SettingConstraintBehaviorId behavior_id = 5;
+    }
+}
+
+// References one setting. custom_subsystem_index is the Studio custom subsystem index.
+message SettingRef {
+    optional uint32 custom_subsystem_index = 1;
+    optional string key = 2;
+    // Omitted source means local side only. UINT32_MAX means all split sides.
+    optional uint32 source = 3;
+    // Optional index for array settings when value.array_value is not used.
+    optional uint32 array_index = 4;
+}
+
+// Selects a group of settings for list/save/discard/reset.
+message SettingScope {
+    optional uint32 custom_subsystem_index = 1;
+    optional string key = 2;
+    optional string key_prefix = 3;
+    // Omitted source means local side only. UINT32_MAX means all split sides.
+    optional uint32 source = 4;
+}
+
+// Static setting metadata included only when requests set require_meta.
+message SettingMeta {
+    SettingConfidentiality confidentiality = 1;
+    SettingPermission read_permission = 2;
+    SettingPermission write_permission = 3;
+    repeated SettingConstraint constraints = 4;
+}
+
+message Setting {
+    uint32 custom_subsystem_index = 1;
+    string key = 2;
+    // Present only when the request asked for metadata.
+    optional SettingMeta meta = 3;
+    bool has_unsaved_value = 8;
+    // Omitted for DEVICE_PRIVATE settings and secure settings while locked.
+    SettingValue value = 9;
+    uint32 source = 10;
+}
+
+message ListSettingsRequest {
+    SettingScope scope = 1;
+    // Include static metadata in each list item notification.
+    bool require_meta = 2;
+}
+
+message GetSettingRequest {
+    SettingRef setting = 1;
+    // Include static metadata in the get response.
+    bool require_meta = 2;
+}
+
+message WriteSettingRequest {
+    SettingRef setting = 1;
+    SettingValue value = 2;
+    SettingWriteMode mode = 3;
+}
+
+// Append one scalar value to the end of an array setting.
+message PushBackArrayRequest {
+    SettingRef setting = 1;
+    SettingScalarValue value = 2;
+    SettingWriteMode mode = 3;
+}
+
+// Remove the last active value from an array setting.
+message PopBackArrayRequest {
+    SettingRef setting = 1;
+    SettingWriteMode mode = 2;
+}
+
+message SaveSettingsRequest { SettingScope scope = 1; }
+
+message DiscardSettingsRequest { SettingScope scope = 1; }
+
+message ResetSettingsRequest { SettingScope scope = 1; }
+
+message Request {
+    oneof request_type {
+        ListSettingsRequest list_settings = 1;
+        GetSettingRequest get_setting = 2;
+        WriteSettingRequest write_setting = 3;
+        SaveSettingsRequest save_settings = 4;
+        DiscardSettingsRequest discard_settings = 5;
+        ResetSettingsRequest reset_settings = 6;
+        PushBackArrayRequest push_back_array = 7;
+        PopBackArrayRequest pop_back_array = 8;
+    }
+}
+
+message ErrorResponse { string message = 1; }
+
+message StatusResponse {
+    uint32 affected_count = 1;
+    string message = 2;
+}
+
+message GetSettingResponse { Setting setting = 1; }
+
+message Response {
+    oneof response_type {
+        ErrorResponse error = 1;
+        StatusResponse status = 2;
+        GetSettingResponse get_setting = 3;
+    }
+}
+
+message SettingNotification {
+    SettingNotificationKind kind = 1;
+    Setting setting = 2;
+}
+
+message Notification {
+    oneof notification_type { SettingNotification setting = 1; }
+}

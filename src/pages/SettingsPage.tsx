@@ -5,6 +5,7 @@ import {
   IconChevronDown,
   IconAlertTriangleFilled,
 } from "@tabler/icons-react";
+import { AdvancedSettingsSection } from "../components/AdvancedSettingsSection";
 import { useSettings } from "../hooks/useSettings";
 import { useLanguage } from "../hooks/useLanguage";
 
@@ -398,6 +399,8 @@ export function SettingsPage() {
                 </div>
               )}
             </div>
+
+            <AdvancedSettingsSection />
 
             {/* Danger Zone
             <div className="glass-card p-6 border-red-500/20">
