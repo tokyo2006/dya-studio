@@ -150,11 +150,11 @@ const JIS_LAYOUT_MAPPINGS: KeycodeLayoutMapping[] = [
   },
   {
     code: 0x90,
-    displayName: "英数",
+    displayName: "かな",
   },
   {
     code: 0x91,
-    displayName: "かな",
+    displayName: "英数",
   },
   {
     code: 0x88,
@@ -177,11 +177,11 @@ const JIS_LAYOUT_MAPPINGS: KeycodeLayoutMapping[] = [
 const US_FOR_JP_LAYOUT_MAPPINGS: KeycodeLayoutMapping[] = [
   {
     code: 0x90,
-    displayName: "英数",
+    displayName: "かな",
   },
   {
     code: 0x91,
-    displayName: "かな",
+    displayName: "英数",
   },
   {
     code: 0x88,

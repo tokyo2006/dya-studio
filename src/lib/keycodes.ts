@@ -674,14 +674,14 @@ export const KEYBOARD_KEYCODES: KeycodeDefinition[] = [
     displayName: "Lang1",
     name: "Language1",
     category: "international",
-    aliases: ["LANG1", "HAEN", "EN", "EISU"],
+    aliases: ["LANG1", "HAEJ", "JA", "KANA"],
   },
   {
     code: 0x91,
     displayName: "Lang2",
     name: "Language2",
     category: "international",
-    aliases: ["LANG2", "HAEJ", "JA", "KANA"],
+    aliases: ["LANG2", "HAEN", "EN", "EISU"],
   },
 ];
 
