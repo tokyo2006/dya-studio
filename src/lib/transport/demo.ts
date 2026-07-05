@@ -13,10 +13,13 @@ import {
 } from "@zmkfirmware/zmk-studio-ts-client";
 import { BLEManagementHandler, BLE_MANAGEMENT_IDENTIFIER } from "./demo-ble";
 import { SettingsHandler, SETTINGS_IDENTIFIER } from "./demo-settings";
+import { DeviceInfoHandler, DEVICE_INFO_IDENTIFIER } from "./demo-device-info";
+import { WatchdogHandler, WATCHDOG_IDENTIFIER } from "./demo-watchdog";
 import {
-  BatteryHistoryHandler,
-  BATTERY_HISTORY_IDENTIFIER,
-} from "./demo-battery";
+  KscanDiagnosticsHandler,
+  KSCAN_DIAGNOSTICS_IDENTIFIER,
+} from "./demo-kscan-diagnostics";
+import { Pmw3610Handler, PMW3610_IDENTIFIER } from "./demo-pmw3610";
 import {
   RuntimeInputProcessorHandler,
   RUNTIME_INPUT_PROCESSOR_IDENTIFIER,
@@ -54,9 +57,21 @@ import {
   Response as SettingsResponse,
 } from "../../proto/zmk/settings/core";
 import {
-  Request as BatteryHistoryRequest,
-  Response as BatteryHistoryResponse,
-} from "../../proto/zmk/battery_history/battery_history";
+  Request as DeviceInfoRequest,
+  Response as DeviceInfoResponse,
+} from "../../proto/zmk/device_info/device_info";
+import {
+  Request as WatchdogRequest,
+  Response as WatchdogResponse,
+} from "../../proto/cormoran/watchdog/watchdog";
+import {
+  Request as KscanDiagnosticsRequest,
+  Response as KscanDiagnosticsResponse,
+} from "../../proto/cormoran/kscan_diagnostics/kscan_diagnostics";
+import {
+  Request as Pmw3610Request,
+  Response as Pmw3610Response,
+} from "../../proto/cormoran/pmw3610/pmw3610";
 import {
   Request as RuntimeInputProcessorRequest,
   Response as RuntimeInputProcessorResponse,
@@ -189,7 +204,10 @@ class Keyboard {
   // Custom subsystem handlers
   private bleHandler = new BLEManagementHandler();
   private settingsHandler = new SettingsHandler();
-  private batteryHistoryHandler = new BatteryHistoryHandler();
+  private deviceInfoHandler = new DeviceInfoHandler();
+  private watchdogHandler = new WatchdogHandler();
+  private kscanDiagnosticsHandler = new KscanDiagnosticsHandler();
+  private pmw3610Handler = new Pmw3610Handler();
   private runtimeInputProcessorHandler = new RuntimeInputProcessorHandler();
   private runtimeSensorRotateHandler = new RuntimeSensorRotateHandler();
   private runtimeComboHandler = new RuntimeComboHandler();
@@ -201,7 +219,7 @@ class Keyboard {
   // Custom subsystems registry
   private readonly BLE_SUBSYSTEM_INDEX = 0;
   private readonly SETTINGS_SUBSYSTEM_INDEX = 1;
-  private readonly BATTERY_HISTORY_SUBSYSTEM_INDEX = 2;
+  private readonly DEVICE_INFO_SUBSYSTEM_INDEX = 2;
   private readonly RUNTIME_INPUT_PROCESSOR_SUBSYSTEM_INDEX = 3;
   private readonly RUNTIME_SENSOR_ROTATE_SUBSYSTEM_INDEX = 4;
   private readonly RUNTIME_COMBO_SUBSYSTEM_INDEX = 5;
@@ -209,6 +227,9 @@ class Keyboard {
   private readonly PHYSICAL_LAYOUTS_SUBSYSTEM_INDEX = 7;
   private readonly INPUT_STREAM_SUBSYSTEM_INDEX = 8;
   private readonly CUSTOM_SETTINGS_SUBSYSTEM_INDEX = 9;
+  private readonly WATCHDOG_SUBSYSTEM_INDEX = 10;
+  private readonly KSCAN_DIAGNOSTICS_SUBSYSTEM_INDEX = 11;
+  private readonly PMW3610_SUBSYSTEM_INDEX = 12;
 
   constructor() {
     this.customSettingsHandler = new CustomSettingsHandler(
@@ -228,8 +249,8 @@ class Keyboard {
       uiUrl: [],
     },
     {
-      index: this.BATTERY_HISTORY_SUBSYSTEM_INDEX,
-      identifier: BATTERY_HISTORY_IDENTIFIER,
+      index: this.DEVICE_INFO_SUBSYSTEM_INDEX,
+      identifier: DEVICE_INFO_IDENTIFIER,
       uiUrl: [],
     },
     {
@@ -265,6 +286,21 @@ class Keyboard {
     {
       index: this.CUSTOM_SETTINGS_SUBSYSTEM_INDEX,
       identifier: CUSTOM_SETTINGS_IDENTIFIER,
+      uiUrl: [],
+    },
+    {
+      index: this.WATCHDOG_SUBSYSTEM_INDEX,
+      identifier: WATCHDOG_IDENTIFIER,
+      uiUrl: [],
+    },
+    {
+      index: this.KSCAN_DIAGNOSTICS_SUBSYSTEM_INDEX,
+      identifier: KSCAN_DIAGNOSTICS_IDENTIFIER,
+      uiUrl: [],
+    },
+    {
+      index: this.PMW3610_SUBSYSTEM_INDEX,
+      identifier: PMW3610_IDENTIFIER,
       uiUrl: [],
     },
   ];
@@ -434,14 +470,41 @@ class Keyboard {
         } catch (e) {
           console.error("Settings subsystem error:", e);
         }
-      } else if (subsystemIndex === this.BATTERY_HISTORY_SUBSYSTEM_INDEX) {
-        // Battery History
+      } else if (subsystemIndex === this.DEVICE_INFO_SUBSYSTEM_INDEX) {
+        // Device Info
         try {
-          const batteryReq = BatteryHistoryRequest.decode(data);
-          const batteryResp = this.batteryHistoryHandler.process(batteryReq);
-          responseData = BatteryHistoryResponse.encode(batteryResp).finish();
+          const deviceInfoReq = DeviceInfoRequest.decode(data);
+          const deviceInfoResp = this.deviceInfoHandler.process(deviceInfoReq);
+          responseData = DeviceInfoResponse.encode(deviceInfoResp).finish();
         } catch (e) {
-          console.error("Battery History subsystem error:", e);
+          console.error("Device Info subsystem error:", e);
+        }
+      } else if (subsystemIndex === this.WATCHDOG_SUBSYSTEM_INDEX) {
+        // Watchdog
+        try {
+          const watchdogReq = WatchdogRequest.decode(data);
+          const watchdogResp = this.watchdogHandler.process(watchdogReq);
+          responseData = WatchdogResponse.encode(watchdogResp).finish();
+        } catch (e) {
+          console.error("Watchdog subsystem error:", e);
+        }
+      } else if (subsystemIndex === this.KSCAN_DIAGNOSTICS_SUBSYSTEM_INDEX) {
+        // KScan Diagnostics
+        try {
+          const kscanReq = KscanDiagnosticsRequest.decode(data);
+          const kscanResp = this.kscanDiagnosticsHandler.process(kscanReq);
+          responseData = KscanDiagnosticsResponse.encode(kscanResp).finish();
+        } catch (e) {
+          console.error("KScan Diagnostics subsystem error:", e);
+        }
+      } else if (subsystemIndex === this.PMW3610_SUBSYSTEM_INDEX) {
+        // PMW3610
+        try {
+          const pmw3610Req = Pmw3610Request.decode(data);
+          const pmw3610Resp = this.pmw3610Handler.process(pmw3610Req);
+          responseData = Pmw3610Response.encode(pmw3610Resp).finish();
+        } catch (e) {
+          console.error("PMW3610 subsystem error:", e);
         }
       } else if (
         subsystemIndex === this.RUNTIME_INPUT_PROCESSOR_SUBSYSTEM_INDEX
@@ -550,21 +613,6 @@ class Keyboard {
             custom: {
               customNotification: {
                 subsystemIndex: this.SETTINGS_SUBSYSTEM_INDEX,
-                payload: payload,
-              },
-            },
-          },
-        }).finish(),
-      );
-    });
-
-    this.batteryHistoryHandler.notify((payload: Uint8Array) => {
-      callback(
-        Response.encode({
-          notification: {
-            custom: {
-              customNotification: {
-                subsystemIndex: this.BATTERY_HISTORY_SUBSYSTEM_INDEX,
                 payload: payload,
               },
             },

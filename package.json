@@ -27,8 +27,7 @@
     "clsx": "^2.1.1",
     "framer-motion": "^12.29.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "recharts": "^3.7.0"
+    "react-dom": "^19.2.0"
   },
   "devDependencies": {
     "@bufbuild/buf": "^1.64.0",
@@ -44,7 +43,6 @@
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
-    "@types/recharts": "^1.8.29",
     "@vitejs/plugin-react": "^5.1.1",
     "autoprefixer": "^10.4.23",
     "babel-plugin-react-compiler": "^1.0.0",

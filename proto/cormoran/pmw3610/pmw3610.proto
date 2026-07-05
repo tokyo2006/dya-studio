@@ -1,0 +1,190 @@
+syntax = "proto3";
+
+package cormoran.pmw3610;
+
+message GetInfoRequest {}
+
+message RuntimeConfig {
+    uint32 cpi = 1;
+    bool swap_xy = 2;
+    bool invert_x = 3;
+    bool invert_y = 4;
+    bool force_awake = 5;
+    bool smart_algorithm = 6;
+    uint32 run_downshift_ms = 7;
+    uint32 rest1_downshift_ms = 8;
+    uint32 rest2_downshift_ms = 9;
+    uint32 rest1_sample_ms = 10;
+    uint32 rest2_sample_ms = 11;
+    uint32 rest3_sample_ms = 12;
+    uint32 report_interval_min_ms = 13;
+}
+
+message DeviceInfo {
+    bool ready = 1;
+    uint32 product_id = 2;
+    uint32 revision_id = 3;
+    int32 init_error = 4;
+    RuntimeConfig runtime_config = 5;
+}
+
+message GetInfoResponse { repeated DeviceInfo devices = 1; }
+
+message ReadDiagnosticsRequest { uint32 device_index = 1; }
+
+message ReadDiagnosticsResponse {
+    uint32 squal = 1;
+    uint32 shutter = 2;
+    uint32 pix_max = 3;
+    uint32 pix_avg = 4;
+    uint32 pix_min = 5;
+}
+
+message ReadRegisterRequest {
+    uint32 device_index = 1;
+    uint32 address = 2;
+}
+
+message ReadRegisterResponse { uint32 value = 1; }
+
+// Debug/tuning facility: writes an arbitrary sensor register with no
+// validation beyond fitting in a byte. This is the main reason the whole
+// cormoran__pmw3610 subsystem is SECURED (ZMK Studio must be unlocked) --
+// see README.md's "Security" section for caveats before using this over an
+// untrusted transport.
+message WriteRegisterRequest {
+    uint32 device_index = 1;
+    uint32 address = 2;
+    uint32 value = 3;
+}
+
+message WriteRegisterResponse {}
+
+// Captures a still frame (pixel array) from the sensor into a firmware-side
+// static buffer, following the official PMW3610 datasheet (R2.4) Pixel_Grab
+// procedure: an arm sequence (SPI clock request + page-1 magic enable + test
+// clock on + PIXEL_GRAB arm), then per pixel: wait for OBSERVATION1 (0x2D)
+// bit2, read PIXEL_GRAB (0x35), write OBSERVATION1 = 0x01 to advance.
+// PRBS_TEST_CTL (0x47) bit0 at the end indicates a complete 484-pixel frame.
+// Rejects with an ErrorResponse if a SetFrameStream stream is currently
+// active (they share the same firmware-side buffer/frame_id counter) --
+// call SetFrameStream{enable: false} first.
+message CaptureFrameRequest {
+    uint32 device_index = 1;
+    // Number of pixels to read. 0 means the driver default (484 = 22x22,
+    // the full array per the datasheet's pixel address map). Clamped to
+    // the firmware's static frame buffer size
+    // (CONFIG_ZMK_PMW3610_STUDIO_RPC_FRAME_BUF_SIZE).
+    uint32 pixel_count = 2;
+    // Max 10ms-wait retries per pixel while waiting for OBSERVATION1 bit2
+    // (pixel-ready) before the capture aborts, returning whatever was
+    // collected so far. 0 means the driver default (3); clamped to 1..100.
+    uint32 max_invalid_retries = 3;
+    // Former procedure-tuning knobs (write_frame_grab, frame_grab_value,
+    // skip_pixel_grab_reset) were removed when the official datasheet
+    // procedure replaced the guessed convention.
+    reserved 4, 5, 6;
+}
+
+message CaptureFrameResponse {
+    uint32 frame_id = 1;
+    // Number of pixel bytes actually collected (<= requested pixel_count;
+    // may be less if the capture aborted early on repeated not-ready
+    // waits).
+    uint32 pixel_count = 2;
+    // Chunk size used by GetFrameChunk for this frame (fixed, currently
+    // 128; see pmw3610.options for the actual bound).
+    uint32 chunk_size = 3;
+    // PRBS_TEST_CTL (0x47) bit0 as read after the pixel loop: set when the
+    // sensor reports all 484 pixels were read successfully.
+    bool complete = 4;
+    // Wall-clock duration of the capture procedure (arm sequence through
+    // the completion check), in milliseconds.
+    uint32 duration_ms = 5;
+}
+
+// Fetch a chunk of a previously captured frame's pixel bytes.
+message GetFrameChunkRequest {
+    uint32 frame_id = 1;
+    uint32 offset = 2;
+}
+
+message GetFrameChunkResponse {
+    uint32 frame_id = 1;
+    uint32 offset = 2;
+    // Raw pixel bytes (bit7 = PG_VALID, bits[6:0] = pixel value). The host
+    // is responsible for masking/scaling; invalid (bit7==0) bytes are kept
+    // as-is so the host can detect/report capture quality.
+    bytes data = 3;
+}
+
+// Starts/stops a background capture loop that raises one `FrameStreamChunk`
+// Notification per 128-byte chunk of every captured frame (see
+// `Notification` below), instead of the client having to poll
+// CaptureFrame+GetFrameChunk in a loop. Shares the same static frame
+// buffer/frame_id counter as CaptureFrame/GetFrameChunk, so only one of
+// "streaming" or a one-shot CaptureFrame can be active at a time --
+// CaptureFrame rejects with an ErrorResponse while streaming is enabled.
+message SetFrameStreamRequest {
+    uint32 device_index = 1;
+    bool enable = 2;
+    uint32 pixel_count = 3;         // 0 = driver default, same as CaptureFrameRequest.
+    uint32 max_invalid_retries = 4; // 0 = driver default, same as CaptureFrameRequest.
+}
+
+message SetFrameStreamResponse {
+    // Streaming state after applying this request.
+    bool streaming = 1;
+}
+
+message Request {
+    oneof request_type {
+        GetInfoRequest get_info = 1;
+        ReadDiagnosticsRequest read_diagnostics = 2;
+        ReadRegisterRequest read_register = 3;
+        WriteRegisterRequest write_register = 4;
+        CaptureFrameRequest capture_frame = 5;
+        GetFrameChunkRequest get_frame_chunk = 6;
+        SetFrameStreamRequest set_frame_stream = 7;
+    }
+}
+
+message ErrorResponse { string message = 1; }
+
+message Response {
+    oneof response_type {
+        ErrorResponse error = 1;
+        GetInfoResponse get_info = 2;
+        ReadDiagnosticsResponse read_diagnostics = 3;
+        ReadRegisterResponse read_register = 4;
+        WriteRegisterResponse write_register = 5;
+        CaptureFrameResponse capture_frame = 6;
+        GetFrameChunkResponse get_frame_chunk = 7;
+        SetFrameStreamResponse set_frame_stream = 8;
+    }
+}
+
+// One 128-byte-or-less chunk of a frame captured while streaming
+// (SetFrameStream{enable: true}) is active. Raised as a custom Studio
+// notification (not a Request/Response) via the `cormoran__pmw3610`
+// subsystem, mirroring zmk-feature-custom-settings' own Notification
+// pattern.
+message FrameStreamChunk {
+    uint32 frame_id = 1;
+    uint32 offset = 2;
+    // <=128 bytes, same bound as GetFrameChunkResponse.data (see
+    // pmw3610.options).
+    bytes data = 3;
+    // Total frame length in bytes; repeated on every chunk of the same
+    // frame so the client can detect the last chunk without a separate
+    // "done" message.
+    uint32 total_size = 4;
+    // PRBS_TEST_CTL (0x47) bit0 as read after this frame's capture (same
+    // meaning as CaptureFrameResponse.complete); repeated on every chunk of
+    // the same frame.
+    bool complete = 5;
+}
+
+message Notification {
+    oneof notification_type { FrameStreamChunk frame_stream_chunk = 1; }
+}

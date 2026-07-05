@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+package zmk.device_info;
+
+message GetDeviceInfoRequest {}
+
+message BuildInfo {
+    string zmk_version = 1;
+    bool zmk_dirty = 2;
+    string zmk_config_version = 3;
+    bool zmk_config_dirty = 4;
+    string module_version = 5;
+    bool module_dirty = 6;
+    string zephyr_version = 7;
+    string build_timestamp = 8;
+    string board = 9;
+}
+
+message HardwareInfo {
+    string device_id = 1;
+    uint32 reset_cause = 2;
+    uint32 flash_size_kb = 3;
+    uint32 sram_size_kb = 4;
+}
+
+message ZephyrDevice {
+    string name = 1;
+    bool ready = 2;
+}
+
+message ZmkConfig {
+    string kscan_compatible = 1;
+    bool ble_enabled = 2;
+    uint32 ble_profile_count = 3;
+    bool usb_enabled = 4;
+    bool split_enabled = 5;
+    string split_role = 6;
+    bool display_enabled = 7;
+    bool rgb_underglow_enabled = 8;
+    bool backlight_enabled = 9;
+    bool battery_level_enabled = 10;
+}
+
+message RuntimeStatus { uint32 uptime_ms = 1; }
+
+message DeviceInfoResponse {
+    BuildInfo build = 1;
+    HardwareInfo hardware = 2;
+    repeated ZephyrDevice zephyr_devices = 3;
+    ZmkConfig zmk_config = 4;
+    RuntimeStatus runtime = 5;
+}
+
+message ErrorResponse { string message = 1; }
+
+message Request {
+    oneof request_type { GetDeviceInfoRequest get_device_info = 1; }
+}
+
+message Response {
+    oneof response_type {
+        ErrorResponse error = 1;
+        DeviceInfoResponse device_info = 2;
+    }
+}
