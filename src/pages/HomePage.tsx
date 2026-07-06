@@ -126,7 +126,7 @@ export function HomePage() {
               </li>
               <li>
                 {t(
-                  "You can check battery consumption history stored on the device.",
+                  "You can inspect device diagnostics and generate a troubleshooting report to share when asking for support.",
                 )}
               </li>
               <li>

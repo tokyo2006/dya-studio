@@ -1,0 +1,154 @@
+syntax = "proto3";
+
+package cormoran.watchdog;
+
+// Incident kind discriminator, mirrors enum zmk_watchdog_incident_type in
+// include/cormoran/zmk/watchdog.h.
+enum IncidentType {
+    FREEZE = 0;
+    FATAL = 1;
+    RESET_CAUSE = 2;
+}
+
+// Mirrors struct zmk_watchdog_incident_freeze_detail.
+message FreezeDetail {
+    uint32 channel_id = 1;
+    string queue_name = 2;
+}
+
+// Mirrors struct zmk_watchdog_incident_fatal_detail.
+message FatalDetail {
+    uint32 reason = 1;
+    uint32 pc = 2;
+    uint32 lr = 3;
+    string thread_name = 4;
+}
+
+// Mirrors struct zmk_watchdog_incident_reset_detail.
+message ResetDetail { uint32 cause_bits = 1; }
+
+// A single incident, sourced either locally (source == 0, this device) or
+// relayed from a split peripheral (source == peripheral slot + 1, see
+// DESIGN.md SS7).
+message Incident {
+    uint32 id = 1;
+    uint32 source = 2;
+    IncidentType type = 3;
+    uint32 boot_ordinal = 4;
+    uint32 uptime_s = 5;
+    oneof detail {
+        FreezeDetail freeze = 6;
+        FatalDetail fatal = 7;
+        ResetDetail reset = 8;
+    }
+}
+
+// Request current status (capacity/stored/dropped/recording_stopped).
+// `source` selects which half answers: 0 = local/central (answered
+// synchronously); N>0 = split peripheral slot N, relayed over
+// CONFIG_ZMK_SPLIT_RELAY_EVENT (see DESIGN.md SS7) -- the reply arrives as a
+// PeripheralResponse Notification instead of a synchronous Response.
+message GetStatusRequest { uint32 source = 1; }
+
+// Paginated incident listing. start_index is 0-based over the store's
+// dense enumeration order (see zmk_watchdog_store_get()). `source`: see
+// GetStatusRequest.source.
+message ListIncidentsRequest {
+    uint32 start_index = 1;
+    uint32 source = 2;
+}
+
+// Delete specific incidents by id, or every incident when all=true (ids is
+// ignored in that case). `source`: see GetStatusRequest.source.
+message DeleteIncidentsRequest {
+    repeated uint32 ids = 1;
+    bool all = 2;
+    uint32 source = 3;
+}
+
+message Request {
+    oneof request_type {
+        GetStatusRequest get_status = 1;
+        ListIncidentsRequest list_incidents = 2;
+        DeleteIncidentsRequest delete_incidents = 3;
+    }
+}
+
+message ErrorResponse { string message = 1; }
+
+// Mirrors the store's capacity/count/dropped/recording_stopped accessors
+// (include/cormoran/zmk/watchdog.h).
+message StatusResponse {
+    uint32 capacity = 1;
+    uint32 stored = 2;
+    uint32 dropped_since_boot = 3;
+    bool recording_stopped = 4;
+}
+
+// At most 4 incidents per page -- see the BUILD_ASSERT in
+// src/studio/watchdog_handler.c for the size arithmetic against
+// CONFIG_ZMK_STUDIO_RPC_TX_BUF_SIZE.
+message IncidentPageResponse {
+    repeated Incident incidents = 1;
+    uint32 total = 2;
+    uint32 start_index = 3;
+}
+
+message DeleteResultResponse { uint32 deleted = 1; }
+
+// Returned immediately in place of the real response when a request's
+// `source` targets a split peripheral (relaying over
+// CONFIG_ZMK_SPLIT_RELAY_EVENT is inherently asynchronous -- it cannot fit
+// the Studio RPC call/response model). The real Response for this
+// `request_id` arrives later as a PeripheralResponse Notification. See
+// DESIGN.md SS7.
+message DeferredResponse { uint32 request_id = 1; }
+
+message Response {
+    oneof response_type {
+        ErrorResponse error = 1;
+        StatusResponse status = 2;
+        IncidentPageResponse incident_page = 3;
+        DeleteResultResponse delete_result = 4;
+        DeferredResponse deferred = 5;
+    }
+}
+
+// Pushed unsolicited (raise_zmk_studio_custom_notification) when a new
+// incident is persisted, so the web UI can show it live without polling.
+// See DESIGN.md SS8.
+message IncidentRecordedNotification { Incident incident = 1; }
+
+// The real response to a request that returned a DeferredResponse, once the
+// targeted peripheral's answer has relayed back to the central. Matches
+// pmw3610's PeripheralResponse pattern (src/split/watchdog_relay.c).
+message PeripheralResponse {
+    // Matches the source given in the original request (1 = first
+    // peripheral, etc; never 0 -- local requests are answered synchronously
+    // and never produce a DeferredResponse/PeripheralResponse).
+    uint32 source = 1;
+    uint32 request_id = 2;
+    Response response = 3;
+}
+
+message Notification {
+    oneof notification_type {
+        IncidentRecordedNotification incident_recorded = 1;
+        PeripheralResponse peripheral_response = 2;
+    }
+}
+
+// Wire format for relaying a Request to a split peripheral and its Response
+// back, carried as the opaque payload of this module's own
+// zmk_watchdog_relay_request/zmk_watchdog_relay_response ZMK split relay
+// events (see src/split/watchdog_relay.c) -- NOT part of the Request/Response
+// oneofs above, and never sent directly over the Studio RPC transport.
+message RelayRequest {
+    uint32 request_id = 1;
+    Request request = 2;
+}
+
+message RelayResponse {
+    uint32 request_id = 1;
+    Response response = 2;
+}

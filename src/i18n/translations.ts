@@ -17,7 +17,7 @@ const ja: Record<string, string> = {
   Trackball: "トラックボール",
   BLE: "BLE",
   Settings: "設定",
-  Battery: "バッテリー",
+  Troubleshooting: "トラブルシューティング",
   Subsystems: "サブシステム",
   Connected: "接続中",
   Disconnect: "切断",
@@ -58,8 +58,8 @@ const ja: Record<string, string> = {
     "少し使いやすい UI で ZMK Studio と同等のキーマッピングカスタマイズができます。",
   "You can configure trackball sensitivity, auto layer switching and various input processor settings.":
     "トラックボールの感度、自動レイヤー切り替え、各種入力プロセッサー設定を変更できます。",
-  "You can check battery consumption history stored on the device.":
-    "デバイスに保存されたバッテリー消費履歴を確認できます。",
+  "You can inspect device diagnostics and generate a troubleshooting report to share when asking for support.":
+    "デバイスの診断情報を確認し、サポートに問い合わせる際に共有できるトラブルシューティングレポートを作成できます。",
   "You can name BLE connection targets and unpair them.":
     "BLE 接続先に名前を付けたり、ペアリングを解除したりできます。",
   "You can change various settings such as the time to enter sleep mode.":
@@ -278,37 +278,6 @@ const ja: Record<string, string> = {
   "BLE OS detection is heuristic and may flap right after connecting. If detection is wrong, set a per-profile override above.":
     "BLE の OS 検出はヒューリスティックなため、接続直後は不安定になることがあります。検出結果が誤っている場合は、上のプロファイルごとの上書き設定を使用してください。",
   "Related modules:": "関連モジュール:",
-
-  "Battery Status": "バッテリー状態",
-  "Monitor battery levels and history": "バッテリー残量と履歴を確認します",
-  "Refresh battery history": "バッテリー履歴を更新",
-  "Clear battery history": "バッテリー履歴を消去",
-  "Clear History": "履歴を消去",
-  "Battery history feature is not stable for now. Please consider zmk-battery-center application instead.":
-    "バッテリー履歴機能は現在安定していません。代わりに zmk-battery-center アプリケーションの利用を検討してください。",
-  "If you use battery history feature, be careful about recording interval, if history is recorded too frequently, flush drive might reach to its hardware limit soon.":
-    "バッテリー履歴機能を使用する場合は記録間隔に注意してください。頻繁に記録しすぎると、フラッシュドライブが早期にハードウェア上の限界に達する可能性があります。",
-  "Battery history subsystem is not available for your keyboard.":
-    "このキーボードではバッテリー履歴サブシステムを利用できません。",
-  Central: "中央側",
-  Peripheral: "周辺側",
-  "Last Updated": "最終更新",
-  "Battery History": "バッテリー履歴",
-  "Loading battery history...": "バッテリー履歴を読み込み中...",
-  "No battery history available. Connect keyboard to view battery history.":
-    "バッテリー履歴はありません。キーボードに接続すると履歴を表示できます。",
-  "Battery history is recorded on the keyboard and shows data from all connected devices. The timestamp resets when the keyboard restarts, indicated by dashed vertical lines in the chart.":
-    "バッテリー履歴はキーボード上に記録され、接続されたすべてのデバイスのデータを表示します。キーボードが再起動するとタイムスタンプはリセットされ、グラフ上では破線の縦線で示されます。",
-  "Clear Battery History?": "バッテリー履歴を消去しますか？",
-  "This will permanently delete all battery history data from your keyboard.":
-    "キーボード上のすべてのバッテリー履歴データが完全に削除されます。",
-  "This action cannot be undone.": "この操作は元に戻せません。",
-  "No battery history available": "バッテリー履歴はありません",
-  "Battery Level Over Time": "バッテリー残量の推移",
-  "{{count}} data points": "{{count}} 件のデータポイント",
-  "Battery %": "バッテリー %",
-  "Dashed lines with ⟲ indicate keyboard restarts":
-    "⟲ 付きの破線はキーボードの再起動を示します",
 
   "Device configuration and power management": "デバイス設定と電源管理",
   "Settings RPC subsystem is not available for your keyboard.":
@@ -654,25 +623,156 @@ const ja: Record<string, string> = {
   disabled: "無効",
   Type: "種類",
   Links: "リンク",
-  "Health Check": "ヘルスチェック",
-  "Circuit and component diagnostics": "回路とコンポーネントの診断",
-  "Left MCU": "左 MCU",
-  "Right MCU": "右 MCU",
-  "Trackball IC": "トラックボール IC",
-  "Left Battery": "左バッテリー",
-  "Right Battery": "右バッテリー",
-  "BLE Radio": "BLE 無線",
-  "Main controller communication": "メインコントローラー通信",
-  "Split keyboard communication": "分割キーボード通信",
-  "PMW3360 sensor connection": "PMW3360 センサー接続",
-  "Battery fuel gauge": "バッテリー残量ゲージ",
-  "Bluetooth module status": "Bluetooth モジュール状態",
-  ok: "正常",
-  error: "エラー",
-  unknown: "不明",
-  "Run Diagnostics": "診断を実行",
-  "Connect your keyboard to run hardware diagnostics. This will check communication with all components and report any issues.":
-    "ハードウェア診断を実行するにはキーボードを接続してください。すべてのコンポーネントとの通信を確認し、問題があれば報告します。",
+
+  "Diagnose keyboard problems and create a support report":
+    "キーボードの問題を診断し、サポートレポートを作成します",
+  "Copy Support Report": "サポートレポートをコピー",
+  "Refresh All": "すべて更新",
+  "Refresh all sections": "すべてのセクションを更新",
+  "Copied!": "コピーしました！",
+  "If your keyboard misbehaves, review the sections below. Use 'Copy Support Report' and paste the result when contacting your keyboard's seller.":
+    "キーボードの動作がおかしい場合は、以下のセクションを確認してください。「サポートレポートをコピー」を使用し、キーボードの販売元に問い合わせる際にその内容を貼り付けてください。",
+  "If a section is not available, it shows which firmware module enables it.":
+    "セクションが利用できない場合は、それを有効にするファームウェアモジュールが表示されます。",
+  "Not available on this keyboard.": "このキーボードでは利用できません。",
+  "No data loaded yet.": "まだデータが読み込まれていません。",
+
+  "Device Info": "デバイス情報",
+  "Build, hardware and runtime details reported by firmware":
+    "ファームウェアが報告するビルド、ハードウェア、ランタイムの詳細",
+  "Refresh device info": "デバイス情報を更新",
+  Build: "ビルド",
+  "ZMK Version": "ZMK バージョン",
+  "ZMK Config Version": "ZMK Config バージョン",
+  "Module Version": "モジュールバージョン",
+  "Zephyr Version": "Zephyr バージョン",
+  "Build Timestamp": "ビルド日時",
+  Board: "ボード",
+  dirty: "変更あり",
+  Hardware: "ハードウェア",
+  "Device ID": "デバイス ID",
+  "Reset Cause": "リセット原因",
+  Flash: "フラッシュ",
+  SRAM: "SRAM",
+  "ZMK Configuration": "ZMK 設定",
+  KScan: "KScan",
+  Split: "分割",
+  "enabled ({{count}} profiles)": "有効（{{count}} プロファイル）",
+  enabled: "有効",
+  USB: "USB",
+  Display: "ディスプレイ",
+  "RGB Underglow": "RGB アンダーグロー",
+  Backlight: "バックライト",
+  "Battery Level": "バッテリー残量",
+  Runtime: "ランタイム",
+  Uptime: "稼働時間",
+  "Zephyr Devices": "Zephyr デバイス",
+  "{{count}} not ready": "{{count}} 件未準備",
+  "all ready": "すべて準備完了",
+  OK: "OK",
+  "{{count}} devices not ready": "{{count}} 台のデバイスが未準備",
+
+  "Stability (Watchdog)": "安定性（ウォッチドッグ）",
+  "Freeze, crash and unexpected reset incidents":
+    "フリーズ、クラッシュ、予期しないリセットの発生履歴",
+  "Refresh incidents": "発生履歴を更新",
+  Central: "中央側",
+  "Peripheral {{n}}": "周辺側 {{n}}",
+  Capacity: "容量",
+  Stored: "保存件数",
+  "Dropped since boot": "起動後の破棄件数",
+  "Incident storage is full — recording is paused. Delete incidents to resume.":
+    "発生履歴の保存領域が満杯です。記録が一時停止しています。再開するには履歴を削除してください。",
+  "No incidents recorded — your keyboard looks stable.":
+    "発生履歴はありません。キーボードは安定しているようです。",
+  "{{count}} incidents": "発生件数 {{count}} 件",
+  "No incidents": "発生なし",
+  "recording paused": "記録一時停止中",
+  "Boot / Uptime": "起動 / 稼働時間",
+  Detail: "詳細",
+  "Delete incident {{id}}": "発生履歴 {{id}} を削除",
+  "Delete all": "すべて削除",
+  "Delete all incidents?": "すべての発生履歴を削除しますか？",
+  "This will permanently delete all recorded incidents from your keyboard.":
+    "キーボード上のすべての発生履歴データが完全に削除されます。",
+  "This action cannot be undone.": "この操作は元に戻せません。",
+
+  "Key Switches": "キースイッチ",
+  "Key press statistics and chatter detection":
+    "キー押下統計とチャタリング検出",
+  "Refresh key switch statistics": "キースイッチ統計を更新",
+  Devices: "デバイス数",
+  Statistics: "統計",
+  Disabled: "無効",
+  "Total presses": "総押下回数",
+  "debounce {{press}}/{{release}}ms": "デバウンス {{press}}/{{release}}ms",
+  "poll {{ms}}ms": "ポーリング {{ms}}ms",
+  "No chatter or anomalies detected.":
+    "チャタリングや異常は検出されませんでした。",
+  "Suspect keys (possible chatter or stuck switch) — position numbers follow the keymap order.":
+    "疑わしいキー（チャタリングまたはスイッチの固着の可能性）— 位置番号はキーマップの順序に従います。",
+  Position: "位置",
+  Presses: "押下回数",
+  Releases: "離した回数",
+  "Min gap (ms)": "最小間隔 (ms)",
+  "Reset statistics": "統計をリセット",
+  "Reset key statistics?": "キー統計をリセットしますか？",
+  "This will reset all key press statistics recorded on your keyboard.":
+    "キーボード上に記録されたすべてのキー押下統計がリセットされます。",
+  "Driver details & statistics": "ドライバー詳細と統計",
+  "Untested keys (0 presses)": "未検証キー（押下回数 0）",
+  "Loading keyboard wiring…": "キーボードの配線情報を読み込み中…",
+  "Unlock your keyboard to show the interactive key map.":
+    "インタラクティブなキーマップを表示するにはキーボードのロックを解除してください。",
+  "{{count}} suspect keys": "疑わしいキー {{count}} 件",
+
+  Untested: "未検証",
+  "No record (0 presses)": "記録なし（押下回数 0）",
+  "Suspect (chatter or mismatch)": "疑わしい（チャタリングまたは不一致）",
+  "No wiring info (split peripheral half)":
+    "配線情報なし（分割キーボードの周辺側）",
+  "Wiring info unavailable (split peripheral half)":
+    "配線情報が利用できません（分割キーボードの周辺側）",
+  "Position {{position}}": "位置 {{position}}",
+  "Row {{row}} / Col {{col}}": "行 {{row}} / 列 {{col}}",
+  "Row line": "行ライン",
+  "Col line": "列ライン",
+  Debounce: "デバウンス",
+  "Min repress gap": "最小再押下間隔",
+  Chatter: "チャタリング",
+
+  "Trackball Sensor (PMW3610)": "トラックボールセンサー (PMW3610)",
+  "Optical sensor health and surface diagnostics":
+    "光学センサーの状態と表面診断",
+  "Refresh sensor info": "センサー情報を更新",
+  "Unlock your keyboard to read sensor diagnostics.":
+    "センサー診断を読み取るにはキーボードのロックを解除してください。",
+  "Press the studio unlock key combination on your keyboard, then refresh.":
+    "キーボードで Studio のロック解除キーの組み合わせを押してから、更新してください。",
+  "No sensors reported.": "センサーが報告されていません。",
+  Ready: "準備完了",
+  "Product ID": "プロダクト ID",
+  Revision: "リビジョン",
+  "Init error": "初期化エラー",
+  "Force awake": "強制起動状態",
+  yes: "はい",
+  no: "いいえ",
+  "Read surface diagnostics": "表面診断を読み取る",
+  "Sensor sees no surface — check the ball and lens.":
+    "センサーが表面を検出できません。ボールとレンズを確認してください。",
+  "Poor tracking surface.": "トラッキング表面の状態が良くありません。",
+  "Surface tracking OK.": "表面トラッキングは正常です。",
+  "init error": "初期化エラー",
+
+  "Live sensor view": "センサーのライブビュー",
+  "Capture Once": "1回キャプチャ",
+  "Capturing…": "キャプチャ中…",
+  "Start Streaming": "ストリーミング開始",
+  "Stop Streaming": "ストリーミング停止",
+  "Pixels captured": "キャプチャ済みピクセル数",
+  Complete: "完了",
+  "Capture time": "キャプチャ時間",
+  "FPS (streaming)": "FPS（ストリーミング中）",
 };
 
 const dictionaries: Record<Language, Record<string, string>> = {

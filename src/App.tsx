@@ -1,7 +1,6 @@
 import { useState, useContext, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  IconBattery2,
   IconHome,
   IconKeyboard,
   IconKeyboardShow,
@@ -10,6 +9,7 @@ import {
   IconPointer,
   IconPuzzle,
   IconSettings,
+  IconStethoscope,
 } from "@tabler/icons-react";
 
 import { SplashScreen } from "./components/SplashScreen";
@@ -24,7 +24,6 @@ import { TabNavigation } from "./components/TabNavigation";
 import type { TabItem } from "./components/TabNavigation";
 import { AppLayout } from "./layouts/AppLayout";
 import { HomePage } from "./pages/HomePage";
-import { BatteryPage } from "./pages/BatteryPage";
 import { ConnectionPage } from "./pages/ConnectionPage";
 import { KeymapPage } from "./pages/KeymapPage";
 import { ComboPage } from "./pages/ComboPage";
@@ -32,6 +31,7 @@ import { TrackballPage } from "./pages/TrackballPage";
 import { MacroPage } from "./pages/MacroPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { CustomSubsystemsPage } from "./pages/CustomSubsystemsPage";
+import { TroubleshootingPage } from "./pages/TroubleshootingPage";
 import { useLanguage } from "./hooks/useLanguage";
 
 function getTabs(t: (key: string) => string): TabItem[] {
@@ -79,10 +79,10 @@ function getTabs(t: (key: string) => string): TabItem[] {
       content: <SettingsPage />,
     },
     {
-      id: "battery",
-      label: t("Battery"),
-      icon: <IconBattery2 size={18} />,
-      content: <BatteryPage />,
+      id: "troubleshooting",
+      label: t("Troubleshooting"),
+      icon: <IconStethoscope size={18} />,
+      content: <TroubleshootingPage />,
     },
     {
       id: "subsystems",

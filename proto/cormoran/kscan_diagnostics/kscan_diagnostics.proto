@@ -1,0 +1,152 @@
+syntax = "proto3";
+
+package cormoran.kscan_diagnostics;
+
+enum KscanDriverType {
+    UNKNOWN = 0;
+    MATRIX = 1;
+    DIRECT = 2;
+    CHARLIEPLEX = 3;
+    DEMUX = 4;
+    MOCK = 5;
+}
+
+enum GpioLineKind {
+    KIND_UNKNOWN = 0;
+    ROW = 1;
+    COL = 2;
+    INPUT = 3;
+    OUTPUT = 4;
+    CHARLIE = 5;
+}
+
+message GetInfo {}
+
+message Info {
+    uint32 proto_version = 1;
+    uint32 layout_count = 2;
+    uint32 selected_layout = 3;
+    uint32 device_count = 4;
+    bool stats_enabled = 5;
+    uint32 max_positions = 6;
+    uint32 uptime_ms = 7;
+}
+
+message GetLayout { uint32 layout_index = 1; }
+
+message LayoutDevice {
+    uint32 leaf_index = 1;
+    int32 row_offset = 2;
+    int32 col_offset = 3;
+}
+
+message Layout {
+    uint32 layout_index = 1;
+    string display_name = 2;
+    uint32 rows = 3;
+    uint32 columns = 4;
+    uint32 key_count = 5;
+    repeated LayoutDevice device_indices = 6;
+}
+
+message GetDevice { uint32 device_index = 1; }
+
+message Device {
+    uint32 device_index = 1;
+    string node_name = 2;
+    KscanDriverType type = 3;
+    uint32 rows = 4;
+    uint32 columns = 5;
+    uint32 inputs = 6;
+    uint32 debounce_press_ms = 7;
+    uint32 debounce_release_ms = 8;
+    uint32 debounce_scan_period_ms = 9;
+    uint32 poll_period_ms = 10;
+    bool diode_row2col = 11;
+    bool toggle_mode = 12;
+}
+
+message GetGpioPins {
+    uint32 device_index = 1;
+    // KIND_UNKNOWN means unfiltered: return every GPIO line regardless of
+    // kind. Any other value filters to lines of exactly that kind.
+    GpioLineKind kind = 2;
+    uint32 offset = 3;
+}
+
+message GpioPin {
+    uint32 index = 1;
+    string port = 2;
+    uint32 pin = 3;
+    bool active_low = 4;
+    uint32 dt_flags = 5;
+}
+
+message GpioPins {
+    uint32 total = 1;
+    uint32 offset = 2;
+    repeated GpioPin pins = 3;
+}
+
+message GetPositionMap {
+    uint32 layout_index = 1;
+    uint32 offset = 2;
+}
+
+message PositionMap {
+    uint32 total = 1;
+    uint32 offset = 2;
+    repeated uint32 cells = 3;
+}
+
+message Error { string message = 1; }
+
+message GetStats { uint32 offset = 1; }
+
+message PositionStats {
+    uint32 position = 1;
+    uint32 presses = 2;
+    uint32 releases = 3;
+    uint32 min_press_duration_ms = 4;
+    uint32 min_repress_gap_ms = 5;
+    uint32 repress_lt5 = 6;
+    uint32 repress_lt10 = 7;
+    uint32 repress_lt20 = 8;
+    uint32 repress_lt50 = 9;
+    uint32 last_source = 10;
+}
+
+message Stats {
+    uint32 total = 1;
+    uint32 offset = 2;
+    repeated PositionStats entries = 3;
+}
+
+message ResetStats {}
+
+message Ok {}
+
+message Request {
+    oneof request_type {
+        GetInfo get_info = 1;
+        GetLayout get_layout = 2;
+        GetDevice get_device = 3;
+        GetGpioPins get_gpio_pins = 4;
+        GetPositionMap get_position_map = 5;
+        GetStats get_stats = 6;
+        ResetStats reset_stats = 7;
+    }
+}
+
+message Response {
+    oneof response_type {
+        Error error = 1;
+        Info info = 2;
+        Layout layout = 3;
+        Device device = 4;
+        GpioPins gpio_pins = 5;
+        PositionMap position_map = 6;
+        Stats stats = 7;
+        Ok ok = 8;
+    }
+}
