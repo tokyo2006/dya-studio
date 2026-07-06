@@ -9,7 +9,58 @@ import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
 
 export const protobufPackage = "cormoran.pmw3610";
 
+/**
+ * Discriminates the byte format of raw pixel data returned by
+ * CaptureFrame/GetFrameChunk/FrameStreamChunk. Default (0) is PG7, the
+ * original per-pixel Pixel_Grab byte format, so old clients/firmware that
+ * never set this field stay wire-compatible.
+ */
+export const PixelFormat = {
+  /**
+   * PIXEL_FORMAT_PG7 - Per-pixel Pixel_Grab byte: bit7 = PG_VALID, bits[6:0] = pixel value
+   * (see CaptureFrameRequest doc). Produced by the 3-wire fallback path
+   * (disable-burst-read) and by any firmware built before this field
+   * existed (default value).
+   */
+  PIXEL_FORMAT_PG7: 0,
+  /**
+   * PIXEL_FORMAT_RAW8 - Full 8-bit pixel value with no per-pixel validity bit, as returned by
+   * the FRAME_GRAB burst read (register 0x36/0x12; see docs/pmw3610.md
+   * "Frame Capture burst"). Produced by the 4-wire burst path.
+   */
+  PIXEL_FORMAT_RAW8: 1,
+  UNRECOGNIZED: -1,
+} as const;
+
+export type PixelFormat = typeof PixelFormat[keyof typeof PixelFormat];
+
+export namespace PixelFormat {
+  export type PIXEL_FORMAT_PG7 = typeof PixelFormat.PIXEL_FORMAT_PG7;
+  export type PIXEL_FORMAT_RAW8 = typeof PixelFormat.PIXEL_FORMAT_RAW8;
+  export type UNRECOGNIZED = typeof PixelFormat.UNRECOGNIZED;
+}
+
+/**
+ * `source` addresses which firmware image's local devices a request targets:
+ * 0 (the default, omitted) means this device (the Studio RPC central
+ * itself); a nonzero value relays the request to a split peripheral (see
+ * DESIGN.md Phase F) -- requires CONFIG_ZMK_PMW3610_SPLIT_RPC_RELAY on both
+ * halves.
+ *
+ * GetInfo additionally accepts the sentinel `source = 0xFFFFFFFF` ("list
+ * every PMW3610 across the whole keyboard"): the response reports this
+ * device's own local devices synchronously (exactly like `source = 0`,
+ * since there is no other way to enumerate which split peripherals are
+ * currently connected -- ZMK's split transport doesn't expose that to
+ * modules), and -- if CONFIG_ZMK_PMW3610_SPLIT_RPC_RELAY is enabled -- the
+ * same GetInfo request is *also* broadcast to every connected peripheral,
+ * each answering independently, asynchronously, as its own
+ * PeripheralResponse notification (source = that peripheral's slot,
+ * request_id = GetInfoResponse.relay_request_id). No other request kind
+ * supports this sentinel.
+ */
 export interface GetInfoRequest {
+  source: number;
 }
 
 export interface RuntimeConfig {
@@ -33,15 +84,42 @@ export interface DeviceInfo {
   productId: number;
   revisionId: number;
   initError: number;
-  runtimeConfig: RuntimeConfig | undefined;
+  runtimeConfig:
+    | RuntimeConfig
+    | undefined;
+  /**
+   * Index of this device within its source (see GetInfoRequest.source),
+   * usable as ReadDiagnostics/ReadRegister/WriteRegister/CaptureFrame's
+   * device_index against the same source.
+   */
+  deviceIndex: number;
+  /**
+   * Stable per-device id (devicetree `settings-id` property, or a 4-hex
+   * hash of the devicetree node path if absent) -- see
+   * pmw3610_settings_id.h. Used to build this device's per-device custom
+   * setting keys ("<param>@<id>") in the cormoran__pmw3610 custom-settings
+   * subsystem, and lets the web UI group settings by device.
+   */
+  settingsId: string;
 }
 
 export interface GetInfoResponse {
   devices: DeviceInfo[];
+  /**
+   * Nonzero only when the request's `source` was the 0xFFFFFFFF
+   * broadcast sentinel and relaying is enabled: the request_id that any
+   * further peripheral answers (as PeripheralResponse notifications)
+   * will carry, so the caller can correlate them to this call. 0 means
+   * no broadcast was made (a plain local/single-peripheral GetInfo, or
+   * relaying is unavailable) -- devices above is the complete answer.
+   */
+  relayRequestId: number;
 }
 
 export interface ReadDiagnosticsRequest {
   deviceIndex: number;
+  /** See GetInfoRequest.source. */
+  source: number;
 }
 
 export interface ReadDiagnosticsResponse {
@@ -55,6 +133,8 @@ export interface ReadDiagnosticsResponse {
 export interface ReadRegisterRequest {
   deviceIndex: number;
   address: number;
+  /** See GetInfoRequest.source. */
+  source: number;
 }
 
 export interface ReadRegisterResponse {
@@ -72,6 +152,8 @@ export interface WriteRegisterRequest {
   deviceIndex: number;
   address: number;
   value: number;
+  /** See GetInfoRequest.source. */
+  source: number;
 }
 
 export interface WriteRegisterResponse {
@@ -98,11 +180,22 @@ export interface CaptureFrameRequest {
    */
   pixelCount: number;
   /**
-   * Max 10ms-wait retries per pixel while waiting for OBSERVATION1 bit2
-   * (pixel-ready) before the capture aborts, returning whatever was
-   * collected so far. 0 means the driver default (3); clamped to 1..100.
+   * Dual-purpose, depending on the sensor's read path (see
+   * CaptureFrameResponse.format):
+   *   PG7 (3-wire per-pixel PIXEL_GRAB): max 10ms-wait retries per pixel
+   *   while waiting for OBSERVATION1 bit2 (pixel-ready) before the capture
+   *   aborts, returning whatever was collected so far. Default 3.
+   *   RAW8 (4-wire burst FRAME_GRAB): reinterpreted as the post-arm wait in
+   *   milliseconds -- how long to wait after FG_EN for a fresh frame to
+   *   latch before the burst read. This is the primary fps/reliability knob
+   *   for streaming: smaller = higher fps, but below ~4ms frames may stream
+   *   stale/garbled (still reported complete). Default 5ms (~72fps); the
+   *   hardware-measured coherent floor is ~4ms (~78fps). See DESIGN.md G.6.
+   * 0 = the driver default for whichever path applies; clamped to 1..100.
    */
   maxInvalidRetries: number;
+  /** See GetInfoRequest.source. */
+  source: number;
 }
 
 export interface CaptureFrameResponse {
@@ -128,12 +221,19 @@ export interface CaptureFrameResponse {
    * the completion check), in milliseconds.
    */
   durationMs: number;
+  /**
+   * Byte format of `data`/GetFrameChunk's bytes for this frame. Default
+   * (0 = PIXEL_FORMAT_PG7) keeps old clients working unmodified.
+   */
+  format: PixelFormat;
 }
 
 /** Fetch a chunk of a previously captured frame's pixel bytes. */
 export interface GetFrameChunkRequest {
   frameId: number;
   offset: number;
+  /** See GetInfoRequest.source. */
+  source: number;
 }
 
 export interface GetFrameChunkResponse {
@@ -161,8 +261,15 @@ export interface SetFrameStreamRequest {
   enable: boolean;
   /** 0 = driver default, same as CaptureFrameRequest. */
   pixelCount: number;
-  /** 0 = driver default, same as CaptureFrameRequest. */
+  /**
+   * 0 = driver default, same dual-purpose meaning as
+   * CaptureFrameRequest.max_invalid_retries: per-pixel wait retries on the
+   * 3-wire PG7 path, or the post-arm wait in ms (the streaming fps knob) on
+   * the 4-wire RAW8 burst path (default 5ms/~72fps; ~4ms/~78fps floor).
+   */
   maxInvalidRetries: number;
+  /** See GetInfoRequest.source. */
+  source: number;
 }
 
 export interface SetFrameStreamResponse {
@@ -184,6 +291,16 @@ export interface ErrorResponse {
   message: string;
 }
 
+/**
+ * Returned immediately in place of the real response when a request's
+ * `source` targets a split peripheral (relaying is inherently
+ * asynchronous -- see DESIGN.md Phase F): the real Response for
+ * `request_id` arrives later as a `PeripheralResponse` Notification.
+ */
+export interface DeferredResponse {
+  requestId: number;
+}
+
 export interface Response {
   error?: ErrorResponse | undefined;
   getInfo?: GetInfoResponse | undefined;
@@ -193,6 +310,41 @@ export interface Response {
   captureFrame?: CaptureFrameResponse | undefined;
   getFrameChunk?: GetFrameChunkResponse | undefined;
   setFrameStream?: SetFrameStreamResponse | undefined;
+  deferred?: DeferredResponse | undefined;
+}
+
+/**
+ * The real response to a request that returned a DeferredResponse, once the
+ * targeted peripheral's answer has relayed back to the central. Raised as a
+ * custom Studio notification (not a Request/Response), matching
+ * FrameStreamChunk's pattern.
+ */
+export interface PeripheralResponse {
+  /**
+   * Matches the source given in the original request (1 = first
+   * peripheral, etc; never 0 -- local requests are answered synchronously
+   * and never produce a DeferredResponse/PeripheralResponse).
+   */
+  source: number;
+  requestId: number;
+  response: Response | undefined;
+}
+
+/**
+ * Wire format for relaying a Request to a split peripheral and its Response
+ * back, carried as the opaque payload of this module's own
+ * zmk_pmw3610_relay_request/zmk_pmw3610_relay_response ZMK split relay
+ * events (see src/split/pmw3610_relay.c) -- NOT part of the Request/Response
+ * oneofs above, and never sent directly over the Studio RPC transport.
+ */
+export interface RelayRequest {
+  requestId: number;
+  request: Request | undefined;
+}
+
+export interface RelayResponse {
+  requestId: number;
+  response: Response | undefined;
 }
 
 /**
@@ -222,18 +374,31 @@ export interface FrameStreamChunk {
    * the same frame.
    */
   complete: boolean;
+  /**
+   * Which source (0 = local/central, N = peripheral N) streamed this
+   * frame -- set by the central when re-raising a stream chunk relayed up
+   * from a peripheral (see DESIGN.md Phase F); always 0 for a locally
+   * streamed frame.
+   */
+  source: number;
+  /** Byte format of `data` for this frame (see CaptureFrameResponse.format). */
+  format: PixelFormat;
 }
 
 export interface Notification {
   frameStreamChunk?: FrameStreamChunk | undefined;
+  peripheralResponse?: PeripheralResponse | undefined;
 }
 
 function createBaseGetInfoRequest(): GetInfoRequest {
-  return {};
+  return { source: 0 };
 }
 
 export const GetInfoRequest: MessageFns<GetInfoRequest> = {
-  encode(_: GetInfoRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+  encode(message: GetInfoRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.source !== 0) {
+      writer.uint32(8).uint32(message.source);
+    }
     return writer;
   },
 
@@ -244,6 +409,14 @@ export const GetInfoRequest: MessageFns<GetInfoRequest> = {
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.source = reader.uint32();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -256,8 +429,9 @@ export const GetInfoRequest: MessageFns<GetInfoRequest> = {
   create(base?: DeepPartial<GetInfoRequest>): GetInfoRequest {
     return GetInfoRequest.fromPartial(base ?? {});
   },
-  fromPartial(_: DeepPartial<GetInfoRequest>): GetInfoRequest {
+  fromPartial(object: DeepPartial<GetInfoRequest>): GetInfoRequest {
     const message = createBaseGetInfoRequest();
+    message.source = object.source ?? 0;
     return message;
   },
 };
@@ -467,7 +641,15 @@ export const RuntimeConfig: MessageFns<RuntimeConfig> = {
 };
 
 function createBaseDeviceInfo(): DeviceInfo {
-  return { ready: false, productId: 0, revisionId: 0, initError: 0, runtimeConfig: undefined };
+  return {
+    ready: false,
+    productId: 0,
+    revisionId: 0,
+    initError: 0,
+    runtimeConfig: undefined,
+    deviceIndex: 0,
+    settingsId: "",
+  };
 }
 
 export const DeviceInfo: MessageFns<DeviceInfo> = {
@@ -486,6 +668,12 @@ export const DeviceInfo: MessageFns<DeviceInfo> = {
     }
     if (message.runtimeConfig !== undefined) {
       RuntimeConfig.encode(message.runtimeConfig, writer.uint32(42).fork()).join();
+    }
+    if (message.deviceIndex !== 0) {
+      writer.uint32(48).uint32(message.deviceIndex);
+    }
+    if (message.settingsId !== "") {
+      writer.uint32(58).string(message.settingsId);
     }
     return writer;
   },
@@ -537,6 +725,22 @@ export const DeviceInfo: MessageFns<DeviceInfo> = {
           message.runtimeConfig = RuntimeConfig.decode(reader, reader.uint32());
           continue;
         }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.deviceIndex = reader.uint32();
+          continue;
+        }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.settingsId = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -558,18 +762,23 @@ export const DeviceInfo: MessageFns<DeviceInfo> = {
     message.runtimeConfig = (object.runtimeConfig !== undefined && object.runtimeConfig !== null)
       ? RuntimeConfig.fromPartial(object.runtimeConfig)
       : undefined;
+    message.deviceIndex = object.deviceIndex ?? 0;
+    message.settingsId = object.settingsId ?? "";
     return message;
   },
 };
 
 function createBaseGetInfoResponse(): GetInfoResponse {
-  return { devices: [] };
+  return { devices: [], relayRequestId: 0 };
 }
 
 export const GetInfoResponse: MessageFns<GetInfoResponse> = {
   encode(message: GetInfoResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     for (const v of message.devices) {
       DeviceInfo.encode(v!, writer.uint32(10).fork()).join();
+    }
+    if (message.relayRequestId !== 0) {
+      writer.uint32(16).uint32(message.relayRequestId);
     }
     return writer;
   },
@@ -589,6 +798,14 @@ export const GetInfoResponse: MessageFns<GetInfoResponse> = {
           message.devices.push(DeviceInfo.decode(reader, reader.uint32()));
           continue;
         }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.relayRequestId = reader.uint32();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -604,18 +821,22 @@ export const GetInfoResponse: MessageFns<GetInfoResponse> = {
   fromPartial(object: DeepPartial<GetInfoResponse>): GetInfoResponse {
     const message = createBaseGetInfoResponse();
     message.devices = object.devices?.map((e) => DeviceInfo.fromPartial(e)) || [];
+    message.relayRequestId = object.relayRequestId ?? 0;
     return message;
   },
 };
 
 function createBaseReadDiagnosticsRequest(): ReadDiagnosticsRequest {
-  return { deviceIndex: 0 };
+  return { deviceIndex: 0, source: 0 };
 }
 
 export const ReadDiagnosticsRequest: MessageFns<ReadDiagnosticsRequest> = {
   encode(message: ReadDiagnosticsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.deviceIndex !== 0) {
       writer.uint32(8).uint32(message.deviceIndex);
+    }
+    if (message.source !== 0) {
+      writer.uint32(16).uint32(message.source);
     }
     return writer;
   },
@@ -635,6 +856,14 @@ export const ReadDiagnosticsRequest: MessageFns<ReadDiagnosticsRequest> = {
           message.deviceIndex = reader.uint32();
           continue;
         }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.source = reader.uint32();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -650,6 +879,7 @@ export const ReadDiagnosticsRequest: MessageFns<ReadDiagnosticsRequest> = {
   fromPartial(object: DeepPartial<ReadDiagnosticsRequest>): ReadDiagnosticsRequest {
     const message = createBaseReadDiagnosticsRequest();
     message.deviceIndex = object.deviceIndex ?? 0;
+    message.source = object.source ?? 0;
     return message;
   },
 };
@@ -749,7 +979,7 @@ export const ReadDiagnosticsResponse: MessageFns<ReadDiagnosticsResponse> = {
 };
 
 function createBaseReadRegisterRequest(): ReadRegisterRequest {
-  return { deviceIndex: 0, address: 0 };
+  return { deviceIndex: 0, address: 0, source: 0 };
 }
 
 export const ReadRegisterRequest: MessageFns<ReadRegisterRequest> = {
@@ -759,6 +989,9 @@ export const ReadRegisterRequest: MessageFns<ReadRegisterRequest> = {
     }
     if (message.address !== 0) {
       writer.uint32(16).uint32(message.address);
+    }
+    if (message.source !== 0) {
+      writer.uint32(24).uint32(message.source);
     }
     return writer;
   },
@@ -786,6 +1019,14 @@ export const ReadRegisterRequest: MessageFns<ReadRegisterRequest> = {
           message.address = reader.uint32();
           continue;
         }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.source = reader.uint32();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -802,6 +1043,7 @@ export const ReadRegisterRequest: MessageFns<ReadRegisterRequest> = {
     const message = createBaseReadRegisterRequest();
     message.deviceIndex = object.deviceIndex ?? 0;
     message.address = object.address ?? 0;
+    message.source = object.source ?? 0;
     return message;
   },
 };
@@ -853,7 +1095,7 @@ export const ReadRegisterResponse: MessageFns<ReadRegisterResponse> = {
 };
 
 function createBaseWriteRegisterRequest(): WriteRegisterRequest {
-  return { deviceIndex: 0, address: 0, value: 0 };
+  return { deviceIndex: 0, address: 0, value: 0, source: 0 };
 }
 
 export const WriteRegisterRequest: MessageFns<WriteRegisterRequest> = {
@@ -866,6 +1108,9 @@ export const WriteRegisterRequest: MessageFns<WriteRegisterRequest> = {
     }
     if (message.value !== 0) {
       writer.uint32(24).uint32(message.value);
+    }
+    if (message.source !== 0) {
+      writer.uint32(32).uint32(message.source);
     }
     return writer;
   },
@@ -901,6 +1146,14 @@ export const WriteRegisterRequest: MessageFns<WriteRegisterRequest> = {
           message.value = reader.uint32();
           continue;
         }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.source = reader.uint32();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -918,6 +1171,7 @@ export const WriteRegisterRequest: MessageFns<WriteRegisterRequest> = {
     message.deviceIndex = object.deviceIndex ?? 0;
     message.address = object.address ?? 0;
     message.value = object.value ?? 0;
+    message.source = object.source ?? 0;
     return message;
   },
 };
@@ -957,7 +1211,7 @@ export const WriteRegisterResponse: MessageFns<WriteRegisterResponse> = {
 };
 
 function createBaseCaptureFrameRequest(): CaptureFrameRequest {
-  return { deviceIndex: 0, pixelCount: 0, maxInvalidRetries: 0 };
+  return { deviceIndex: 0, pixelCount: 0, maxInvalidRetries: 0, source: 0 };
 }
 
 export const CaptureFrameRequest: MessageFns<CaptureFrameRequest> = {
@@ -970,6 +1224,9 @@ export const CaptureFrameRequest: MessageFns<CaptureFrameRequest> = {
     }
     if (message.maxInvalidRetries !== 0) {
       writer.uint32(24).uint32(message.maxInvalidRetries);
+    }
+    if (message.source !== 0) {
+      writer.uint32(56).uint32(message.source);
     }
     return writer;
   },
@@ -1005,6 +1262,14 @@ export const CaptureFrameRequest: MessageFns<CaptureFrameRequest> = {
           message.maxInvalidRetries = reader.uint32();
           continue;
         }
+        case 7: {
+          if (tag !== 56) {
+            break;
+          }
+
+          message.source = reader.uint32();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1022,12 +1287,13 @@ export const CaptureFrameRequest: MessageFns<CaptureFrameRequest> = {
     message.deviceIndex = object.deviceIndex ?? 0;
     message.pixelCount = object.pixelCount ?? 0;
     message.maxInvalidRetries = object.maxInvalidRetries ?? 0;
+    message.source = object.source ?? 0;
     return message;
   },
 };
 
 function createBaseCaptureFrameResponse(): CaptureFrameResponse {
-  return { frameId: 0, pixelCount: 0, chunkSize: 0, complete: false, durationMs: 0 };
+  return { frameId: 0, pixelCount: 0, chunkSize: 0, complete: false, durationMs: 0, format: 0 };
 }
 
 export const CaptureFrameResponse: MessageFns<CaptureFrameResponse> = {
@@ -1046,6 +1312,9 @@ export const CaptureFrameResponse: MessageFns<CaptureFrameResponse> = {
     }
     if (message.durationMs !== 0) {
       writer.uint32(40).uint32(message.durationMs);
+    }
+    if (message.format !== 0) {
+      writer.uint32(48).int32(message.format);
     }
     return writer;
   },
@@ -1097,6 +1366,14 @@ export const CaptureFrameResponse: MessageFns<CaptureFrameResponse> = {
           message.durationMs = reader.uint32();
           continue;
         }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.format = reader.int32() as any;
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1116,12 +1393,13 @@ export const CaptureFrameResponse: MessageFns<CaptureFrameResponse> = {
     message.chunkSize = object.chunkSize ?? 0;
     message.complete = object.complete ?? false;
     message.durationMs = object.durationMs ?? 0;
+    message.format = object.format ?? 0;
     return message;
   },
 };
 
 function createBaseGetFrameChunkRequest(): GetFrameChunkRequest {
-  return { frameId: 0, offset: 0 };
+  return { frameId: 0, offset: 0, source: 0 };
 }
 
 export const GetFrameChunkRequest: MessageFns<GetFrameChunkRequest> = {
@@ -1131,6 +1409,9 @@ export const GetFrameChunkRequest: MessageFns<GetFrameChunkRequest> = {
     }
     if (message.offset !== 0) {
       writer.uint32(16).uint32(message.offset);
+    }
+    if (message.source !== 0) {
+      writer.uint32(24).uint32(message.source);
     }
     return writer;
   },
@@ -1158,6 +1439,14 @@ export const GetFrameChunkRequest: MessageFns<GetFrameChunkRequest> = {
           message.offset = reader.uint32();
           continue;
         }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.source = reader.uint32();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1174,6 +1463,7 @@ export const GetFrameChunkRequest: MessageFns<GetFrameChunkRequest> = {
     const message = createBaseGetFrameChunkRequest();
     message.frameId = object.frameId ?? 0;
     message.offset = object.offset ?? 0;
+    message.source = object.source ?? 0;
     return message;
   },
 };
@@ -1249,7 +1539,7 @@ export const GetFrameChunkResponse: MessageFns<GetFrameChunkResponse> = {
 };
 
 function createBaseSetFrameStreamRequest(): SetFrameStreamRequest {
-  return { deviceIndex: 0, enable: false, pixelCount: 0, maxInvalidRetries: 0 };
+  return { deviceIndex: 0, enable: false, pixelCount: 0, maxInvalidRetries: 0, source: 0 };
 }
 
 export const SetFrameStreamRequest: MessageFns<SetFrameStreamRequest> = {
@@ -1265,6 +1555,9 @@ export const SetFrameStreamRequest: MessageFns<SetFrameStreamRequest> = {
     }
     if (message.maxInvalidRetries !== 0) {
       writer.uint32(32).uint32(message.maxInvalidRetries);
+    }
+    if (message.source !== 0) {
+      writer.uint32(40).uint32(message.source);
     }
     return writer;
   },
@@ -1308,6 +1601,14 @@ export const SetFrameStreamRequest: MessageFns<SetFrameStreamRequest> = {
           message.maxInvalidRetries = reader.uint32();
           continue;
         }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.source = reader.uint32();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1326,6 +1627,7 @@ export const SetFrameStreamRequest: MessageFns<SetFrameStreamRequest> = {
     message.enable = object.enable ?? false;
     message.pixelCount = object.pixelCount ?? 0;
     message.maxInvalidRetries = object.maxInvalidRetries ?? 0;
+    message.source = object.source ?? 0;
     return message;
   },
 };
@@ -1562,6 +1864,52 @@ export const ErrorResponse: MessageFns<ErrorResponse> = {
   },
 };
 
+function createBaseDeferredResponse(): DeferredResponse {
+  return { requestId: 0 };
+}
+
+export const DeferredResponse: MessageFns<DeferredResponse> = {
+  encode(message: DeferredResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.requestId !== 0) {
+      writer.uint32(8).uint32(message.requestId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DeferredResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDeferredResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.requestId = reader.uint32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<DeferredResponse>): DeferredResponse {
+    return DeferredResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<DeferredResponse>): DeferredResponse {
+    const message = createBaseDeferredResponse();
+    message.requestId = object.requestId ?? 0;
+    return message;
+  },
+};
+
 function createBaseResponse(): Response {
   return {
     error: undefined,
@@ -1572,6 +1920,7 @@ function createBaseResponse(): Response {
     captureFrame: undefined,
     getFrameChunk: undefined,
     setFrameStream: undefined,
+    deferred: undefined,
   };
 }
 
@@ -1600,6 +1949,9 @@ export const Response: MessageFns<Response> = {
     }
     if (message.setFrameStream !== undefined) {
       SetFrameStreamResponse.encode(message.setFrameStream, writer.uint32(66).fork()).join();
+    }
+    if (message.deferred !== undefined) {
+      DeferredResponse.encode(message.deferred, writer.uint32(74).fork()).join();
     }
     return writer;
   },
@@ -1675,6 +2027,14 @@ export const Response: MessageFns<Response> = {
           message.setFrameStream = SetFrameStreamResponse.decode(reader, reader.uint32());
           continue;
         }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.deferred = DeferredResponse.decode(reader, reader.uint32());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1713,12 +2073,207 @@ export const Response: MessageFns<Response> = {
     message.setFrameStream = (object.setFrameStream !== undefined && object.setFrameStream !== null)
       ? SetFrameStreamResponse.fromPartial(object.setFrameStream)
       : undefined;
+    message.deferred = (object.deferred !== undefined && object.deferred !== null)
+      ? DeferredResponse.fromPartial(object.deferred)
+      : undefined;
+    return message;
+  },
+};
+
+function createBasePeripheralResponse(): PeripheralResponse {
+  return { source: 0, requestId: 0, response: undefined };
+}
+
+export const PeripheralResponse: MessageFns<PeripheralResponse> = {
+  encode(message: PeripheralResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.source !== 0) {
+      writer.uint32(8).uint32(message.source);
+    }
+    if (message.requestId !== 0) {
+      writer.uint32(16).uint32(message.requestId);
+    }
+    if (message.response !== undefined) {
+      Response.encode(message.response, writer.uint32(26).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): PeripheralResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBasePeripheralResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.source = reader.uint32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.requestId = reader.uint32();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.response = Response.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<PeripheralResponse>): PeripheralResponse {
+    return PeripheralResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<PeripheralResponse>): PeripheralResponse {
+    const message = createBasePeripheralResponse();
+    message.source = object.source ?? 0;
+    message.requestId = object.requestId ?? 0;
+    message.response = (object.response !== undefined && object.response !== null)
+      ? Response.fromPartial(object.response)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseRelayRequest(): RelayRequest {
+  return { requestId: 0, request: undefined };
+}
+
+export const RelayRequest: MessageFns<RelayRequest> = {
+  encode(message: RelayRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.requestId !== 0) {
+      writer.uint32(8).uint32(message.requestId);
+    }
+    if (message.request !== undefined) {
+      Request.encode(message.request, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): RelayRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseRelayRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.requestId = reader.uint32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.request = Request.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<RelayRequest>): RelayRequest {
+    return RelayRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<RelayRequest>): RelayRequest {
+    const message = createBaseRelayRequest();
+    message.requestId = object.requestId ?? 0;
+    message.request = (object.request !== undefined && object.request !== null)
+      ? Request.fromPartial(object.request)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseRelayResponse(): RelayResponse {
+  return { requestId: 0, response: undefined };
+}
+
+export const RelayResponse: MessageFns<RelayResponse> = {
+  encode(message: RelayResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.requestId !== 0) {
+      writer.uint32(8).uint32(message.requestId);
+    }
+    if (message.response !== undefined) {
+      Response.encode(message.response, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): RelayResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseRelayResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.requestId = reader.uint32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.response = Response.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<RelayResponse>): RelayResponse {
+    return RelayResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<RelayResponse>): RelayResponse {
+    const message = createBaseRelayResponse();
+    message.requestId = object.requestId ?? 0;
+    message.response = (object.response !== undefined && object.response !== null)
+      ? Response.fromPartial(object.response)
+      : undefined;
     return message;
   },
 };
 
 function createBaseFrameStreamChunk(): FrameStreamChunk {
-  return { frameId: 0, offset: 0, data: new Uint8Array(0), totalSize: 0, complete: false };
+  return { frameId: 0, offset: 0, data: new Uint8Array(0), totalSize: 0, complete: false, source: 0, format: 0 };
 }
 
 export const FrameStreamChunk: MessageFns<FrameStreamChunk> = {
@@ -1737,6 +2292,12 @@ export const FrameStreamChunk: MessageFns<FrameStreamChunk> = {
     }
     if (message.complete !== false) {
       writer.uint32(40).bool(message.complete);
+    }
+    if (message.source !== 0) {
+      writer.uint32(48).uint32(message.source);
+    }
+    if (message.format !== 0) {
+      writer.uint32(56).int32(message.format);
     }
     return writer;
   },
@@ -1788,6 +2349,22 @@ export const FrameStreamChunk: MessageFns<FrameStreamChunk> = {
           message.complete = reader.bool();
           continue;
         }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.source = reader.uint32();
+          continue;
+        }
+        case 7: {
+          if (tag !== 56) {
+            break;
+          }
+
+          message.format = reader.int32() as any;
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1807,18 +2384,23 @@ export const FrameStreamChunk: MessageFns<FrameStreamChunk> = {
     message.data = object.data ?? new Uint8Array(0);
     message.totalSize = object.totalSize ?? 0;
     message.complete = object.complete ?? false;
+    message.source = object.source ?? 0;
+    message.format = object.format ?? 0;
     return message;
   },
 };
 
 function createBaseNotification(): Notification {
-  return { frameStreamChunk: undefined };
+  return { frameStreamChunk: undefined, peripheralResponse: undefined };
 }
 
 export const Notification: MessageFns<Notification> = {
   encode(message: Notification, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.frameStreamChunk !== undefined) {
       FrameStreamChunk.encode(message.frameStreamChunk, writer.uint32(10).fork()).join();
+    }
+    if (message.peripheralResponse !== undefined) {
+      PeripheralResponse.encode(message.peripheralResponse, writer.uint32(18).fork()).join();
     }
     return writer;
   },
@@ -1838,6 +2420,14 @@ export const Notification: MessageFns<Notification> = {
           message.frameStreamChunk = FrameStreamChunk.decode(reader, reader.uint32());
           continue;
         }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.peripheralResponse = PeripheralResponse.decode(reader, reader.uint32());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1854,6 +2444,9 @@ export const Notification: MessageFns<Notification> = {
     const message = createBaseNotification();
     message.frameStreamChunk = (object.frameStreamChunk !== undefined && object.frameStreamChunk !== null)
       ? FrameStreamChunk.fromPartial(object.frameStreamChunk)
+      : undefined;
+    message.peripheralResponse = (object.peripheralResponse !== undefined && object.peripheralResponse !== null)
+      ? PeripheralResponse.fromPartial(object.peripheralResponse)
       : undefined;
     return message;
   },

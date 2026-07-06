@@ -2,7 +2,40 @@ syntax = "proto3";
 
 package cormoran.pmw3610;
 
-message GetInfoRequest {}
+// `source` addresses which firmware image's local devices a request targets:
+// 0 (the default, omitted) means this device (the Studio RPC central
+// itself); a nonzero value relays the request to a split peripheral (see
+// DESIGN.md Phase F) -- requires CONFIG_ZMK_PMW3610_SPLIT_RPC_RELAY on both
+// halves.
+//
+// GetInfo additionally accepts the sentinel `source = 0xFFFFFFFF` ("list
+// every PMW3610 across the whole keyboard"): the response reports this
+// device's own local devices synchronously (exactly like `source = 0`,
+// since there is no other way to enumerate which split peripherals are
+// currently connected -- ZMK's split transport doesn't expose that to
+// modules), and -- if CONFIG_ZMK_PMW3610_SPLIT_RPC_RELAY is enabled -- the
+// same GetInfo request is *also* broadcast to every connected peripheral,
+// each answering independently, asynchronously, as its own
+// PeripheralResponse notification (source = that peripheral's slot,
+// request_id = GetInfoResponse.relay_request_id). No other request kind
+// supports this sentinel.
+message GetInfoRequest { uint32 source = 1; }
+
+// Discriminates the byte format of raw pixel data returned by
+// CaptureFrame/GetFrameChunk/FrameStreamChunk. Default (0) is PG7, the
+// original per-pixel Pixel_Grab byte format, so old clients/firmware that
+// never set this field stay wire-compatible.
+enum PixelFormat {
+    // Per-pixel Pixel_Grab byte: bit7 = PG_VALID, bits[6:0] = pixel value
+    // (see CaptureFrameRequest doc). Produced by the 3-wire fallback path
+    // (disable-burst-read) and by any firmware built before this field
+    // existed (default value).
+    PIXEL_FORMAT_PG7 = 0;
+    // Full 8-bit pixel value with no per-pixel validity bit, as returned by
+    // the FRAME_GRAB burst read (register 0x36/0x12; see docs/pmw3610.md
+    // "Frame Capture burst"). Produced by the 4-wire burst path.
+    PIXEL_FORMAT_RAW8 = 1;
+}
 
 message RuntimeConfig {
     uint32 cpi = 1;
@@ -26,11 +59,34 @@ message DeviceInfo {
     uint32 revision_id = 3;
     int32 init_error = 4;
     RuntimeConfig runtime_config = 5;
+    // Index of this device within its source (see GetInfoRequest.source),
+    // usable as ReadDiagnostics/ReadRegister/WriteRegister/CaptureFrame's
+    // device_index against the same source.
+    uint32 device_index = 6;
+    // Stable per-device id (devicetree `settings-id` property, or a 4-hex
+    // hash of the devicetree node path if absent) -- see
+    // pmw3610_settings_id.h. Used to build this device's per-device custom
+    // setting keys ("<param>@<id>") in the cormoran__pmw3610 custom-settings
+    // subsystem, and lets the web UI group settings by device.
+    string settings_id = 7;
 }
 
-message GetInfoResponse { repeated DeviceInfo devices = 1; }
+message GetInfoResponse {
+    repeated DeviceInfo devices = 1;
+    // Nonzero only when the request's `source` was the 0xFFFFFFFF
+    // broadcast sentinel and relaying is enabled: the request_id that any
+    // further peripheral answers (as PeripheralResponse notifications)
+    // will carry, so the caller can correlate them to this call. 0 means
+    // no broadcast was made (a plain local/single-peripheral GetInfo, or
+    // relaying is unavailable) -- devices above is the complete answer.
+    uint32 relay_request_id = 2;
+}
 
-message ReadDiagnosticsRequest { uint32 device_index = 1; }
+message ReadDiagnosticsRequest {
+    uint32 device_index = 1;
+    // See GetInfoRequest.source.
+    uint32 source = 2;
+}
 
 message ReadDiagnosticsResponse {
     uint32 squal = 1;
@@ -43,6 +99,8 @@ message ReadDiagnosticsResponse {
 message ReadRegisterRequest {
     uint32 device_index = 1;
     uint32 address = 2;
+    // See GetInfoRequest.source.
+    uint32 source = 3;
 }
 
 message ReadRegisterResponse { uint32 value = 1; }
@@ -56,6 +114,8 @@ message WriteRegisterRequest {
     uint32 device_index = 1;
     uint32 address = 2;
     uint32 value = 3;
+    // See GetInfoRequest.source.
+    uint32 source = 4;
 }
 
 message WriteRegisterResponse {}
@@ -76,14 +136,25 @@ message CaptureFrameRequest {
     // the firmware's static frame buffer size
     // (CONFIG_ZMK_PMW3610_STUDIO_RPC_FRAME_BUF_SIZE).
     uint32 pixel_count = 2;
-    // Max 10ms-wait retries per pixel while waiting for OBSERVATION1 bit2
-    // (pixel-ready) before the capture aborts, returning whatever was
-    // collected so far. 0 means the driver default (3); clamped to 1..100.
+    // Dual-purpose, depending on the sensor's read path (see
+    // CaptureFrameResponse.format):
+    //   PG7 (3-wire per-pixel PIXEL_GRAB): max 10ms-wait retries per pixel
+    //   while waiting for OBSERVATION1 bit2 (pixel-ready) before the capture
+    //   aborts, returning whatever was collected so far. Default 3.
+    //   RAW8 (4-wire burst FRAME_GRAB): reinterpreted as the post-arm wait in
+    //   milliseconds -- how long to wait after FG_EN for a fresh frame to
+    //   latch before the burst read. This is the primary fps/reliability knob
+    //   for streaming: smaller = higher fps, but below ~4ms frames may stream
+    //   stale/garbled (still reported complete). Default 5ms (~72fps); the
+    //   hardware-measured coherent floor is ~4ms (~78fps). See DESIGN.md G.6.
+    // 0 = the driver default for whichever path applies; clamped to 1..100.
     uint32 max_invalid_retries = 3;
     // Former procedure-tuning knobs (write_frame_grab, frame_grab_value,
     // skip_pixel_grab_reset) were removed when the official datasheet
     // procedure replaced the guessed convention.
     reserved 4, 5, 6;
+    // See GetInfoRequest.source.
+    uint32 source = 7;
 }
 
 message CaptureFrameResponse {
@@ -101,12 +172,17 @@ message CaptureFrameResponse {
     // Wall-clock duration of the capture procedure (arm sequence through
     // the completion check), in milliseconds.
     uint32 duration_ms = 5;
+    // Byte format of `data`/GetFrameChunk's bytes for this frame. Default
+    // (0 = PIXEL_FORMAT_PG7) keeps old clients working unmodified.
+    PixelFormat format = 6;
 }
 
 // Fetch a chunk of a previously captured frame's pixel bytes.
 message GetFrameChunkRequest {
     uint32 frame_id = 1;
     uint32 offset = 2;
+    // See GetInfoRequest.source.
+    uint32 source = 3;
 }
 
 message GetFrameChunkResponse {
@@ -128,8 +204,14 @@ message GetFrameChunkResponse {
 message SetFrameStreamRequest {
     uint32 device_index = 1;
     bool enable = 2;
-    uint32 pixel_count = 3;         // 0 = driver default, same as CaptureFrameRequest.
-    uint32 max_invalid_retries = 4; // 0 = driver default, same as CaptureFrameRequest.
+    uint32 pixel_count = 3; // 0 = driver default, same as CaptureFrameRequest.
+    // 0 = driver default, same dual-purpose meaning as
+    // CaptureFrameRequest.max_invalid_retries: per-pixel wait retries on the
+    // 3-wire PG7 path, or the post-arm wait in ms (the streaming fps knob) on
+    // the 4-wire RAW8 burst path (default 5ms/~72fps; ~4ms/~78fps floor).
+    uint32 max_invalid_retries = 4;
+    // See GetInfoRequest.source.
+    uint32 source = 5;
 }
 
 message SetFrameStreamResponse {
@@ -151,6 +233,12 @@ message Request {
 
 message ErrorResponse { string message = 1; }
 
+// Returned immediately in place of the real response when a request's
+// `source` targets a split peripheral (relaying is inherently
+// asynchronous -- see DESIGN.md Phase F): the real Response for
+// `request_id` arrives later as a `PeripheralResponse` Notification.
+message DeferredResponse { uint32 request_id = 1; }
+
 message Response {
     oneof response_type {
         ErrorResponse error = 1;
@@ -161,7 +249,36 @@ message Response {
         CaptureFrameResponse capture_frame = 6;
         GetFrameChunkResponse get_frame_chunk = 7;
         SetFrameStreamResponse set_frame_stream = 8;
+        DeferredResponse deferred = 9;
     }
+}
+
+// The real response to a request that returned a DeferredResponse, once the
+// targeted peripheral's answer has relayed back to the central. Raised as a
+// custom Studio notification (not a Request/Response), matching
+// FrameStreamChunk's pattern.
+message PeripheralResponse {
+    // Matches the source given in the original request (1 = first
+    // peripheral, etc; never 0 -- local requests are answered synchronously
+    // and never produce a DeferredResponse/PeripheralResponse).
+    uint32 source = 1;
+    uint32 request_id = 2;
+    Response response = 3;
+}
+
+// Wire format for relaying a Request to a split peripheral and its Response
+// back, carried as the opaque payload of this module's own
+// zmk_pmw3610_relay_request/zmk_pmw3610_relay_response ZMK split relay
+// events (see src/split/pmw3610_relay.c) -- NOT part of the Request/Response
+// oneofs above, and never sent directly over the Studio RPC transport.
+message RelayRequest {
+    uint32 request_id = 1;
+    Request request = 2;
+}
+
+message RelayResponse {
+    uint32 request_id = 1;
+    Response response = 2;
 }
 
 // One 128-byte-or-less chunk of a frame captured while streaming
@@ -183,8 +300,18 @@ message FrameStreamChunk {
     // meaning as CaptureFrameResponse.complete); repeated on every chunk of
     // the same frame.
     bool complete = 5;
+    // Which source (0 = local/central, N = peripheral N) streamed this
+    // frame -- set by the central when re-raising a stream chunk relayed up
+    // from a peripheral (see DESIGN.md Phase F); always 0 for a locally
+    // streamed frame.
+    uint32 source = 6;
+    // Byte format of `data` for this frame (see CaptureFrameResponse.format).
+    PixelFormat format = 7;
 }
 
 message Notification {
-    oneof notification_type { FrameStreamChunk frame_stream_chunk = 1; }
+    oneof notification_type {
+        FrameStreamChunk frame_stream_chunk = 1;
+        PeripheralResponse peripheral_response = 2;
+    }
 }

@@ -4,6 +4,7 @@ import {
   createFrameAssembler,
   frameToRgba,
   isValidPixelByte,
+  PixelFormat,
   pixelByteToGray,
 } from "../pmw3610Frame";
 
@@ -30,19 +31,38 @@ describe("chunkOffsets", () => {
 });
 
 describe("isValidPixelByte / pixelByteToGray", () => {
-  it("treats bit7 as the validity flag", () => {
+  it("treats bit7 as the validity flag (default/PG7)", () => {
     expect(isValidPixelByte(0x80)).toBe(true);
     expect(isValidPixelByte(0xff)).toBe(true);
     expect(isValidPixelByte(0x7f)).toBe(false);
     expect(isValidPixelByte(0x00)).toBe(false);
   });
 
-  it("masks bit7 and shifts left by 1 for grayscale", () => {
+  it("treats bit7 as the validity flag when explicitly PG7", () => {
+    expect(isValidPixelByte(0x80, PixelFormat.PIXEL_FORMAT_PG7)).toBe(true);
+    expect(isValidPixelByte(0x7f, PixelFormat.PIXEL_FORMAT_PG7)).toBe(false);
+  });
+
+  it("masks bit7 and shifts left by 1 for grayscale (default/PG7)", () => {
     expect(pixelByteToGray(0x00)).toBe(0);
     expect(pixelByteToGray(0x7f)).toBe(0xfe);
     expect(pixelByteToGray(0xff)).toBe(0xfe); // bit7 masked off first
     expect(pixelByteToGray(0x80)).toBe(0);
     expect(pixelByteToGray(0x01)).toBe(2);
+  });
+
+  it("RAW8: every byte is valid, no bit7 special-casing", () => {
+    expect(isValidPixelByte(0x00, PixelFormat.PIXEL_FORMAT_RAW8)).toBe(true);
+    expect(isValidPixelByte(0x7f, PixelFormat.PIXEL_FORMAT_RAW8)).toBe(true);
+    expect(isValidPixelByte(0x80, PixelFormat.PIXEL_FORMAT_RAW8)).toBe(true);
+    expect(isValidPixelByte(0xff, PixelFormat.PIXEL_FORMAT_RAW8)).toBe(true);
+  });
+
+  it("RAW8: the byte is used as-is for grayscale, no masking/shifting", () => {
+    expect(pixelByteToGray(0x00, PixelFormat.PIXEL_FORMAT_RAW8)).toBe(0x00);
+    expect(pixelByteToGray(0x7f, PixelFormat.PIXEL_FORMAT_RAW8)).toBe(0x7f);
+    expect(pixelByteToGray(0x80, PixelFormat.PIXEL_FORMAT_RAW8)).toBe(0x80);
+    expect(pixelByteToGray(0xff, PixelFormat.PIXEL_FORMAT_RAW8)).toBe(0xff);
   });
 });
 
@@ -87,10 +107,25 @@ describe("assembleFrame", () => {
     expect(Array.from(result.bytes)).toEqual([0x81, 0, 0]);
     expect(result.invalidCount).toBe(2);
   });
+
+  it("RAW8: every byte is valid regardless of bit7, including all-zero bytes", () => {
+    const chunks = [
+      { offset: 0, data: Uint8Array.from([0x81, 0x02, 0x83, 0x00]) },
+    ];
+    const result = assembleFrame(chunks, 4, PixelFormat.PIXEL_FORMAT_RAW8);
+    expect(Array.from(result.bytes)).toEqual([0x81, 0x02, 0x83, 0x00]);
+    expect(result.invalidCount).toBe(0);
+  });
+
+  it("RAW8: unwritten bytes are still counted valid (no validity bit)", () => {
+    const chunks = [{ offset: 0, data: Uint8Array.from([0x81]) }];
+    const result = assembleFrame(chunks, 3, PixelFormat.PIXEL_FORMAT_RAW8);
+    expect(result.invalidCount).toBe(0);
+  });
 });
 
 describe("frameToRgba", () => {
-  it("produces 4 bytes per pixel with equal R/G/B and full alpha", () => {
+  it("produces 4 bytes per pixel with equal R/G/B and full alpha (default/PG7)", () => {
     const bytes = Uint8Array.from([0x80, 0xff]);
     const rgba = frameToRgba(bytes);
     expect(rgba.length).toBe(8);
@@ -98,6 +133,14 @@ describe("frameToRgba", () => {
     expect(Array.from(rgba.slice(0, 4))).toEqual([0, 0, 0, 255]);
     // pixel 1: masked value 0x7f -> gray 0xfe
     expect(Array.from(rgba.slice(4, 8))).toEqual([0xfe, 0xfe, 0xfe, 255]);
+  });
+
+  it("RAW8: renders the full 8-bit value with no masking", () => {
+    const bytes = Uint8Array.from([0x80, 0xff]);
+    const rgba = frameToRgba(bytes, PixelFormat.PIXEL_FORMAT_RAW8);
+    expect(rgba.length).toBe(8);
+    expect(Array.from(rgba.slice(0, 4))).toEqual([0x80, 0x80, 0x80, 255]);
+    expect(Array.from(rgba.slice(4, 8))).toEqual([0xff, 0xff, 0xff, 255]);
   });
 });
 

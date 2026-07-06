@@ -6,10 +6,19 @@
  * proto/cormoran/pmw3610/pmw3610.proto's CaptureFrame/GetFrameChunk/
  * SetFrameStream protocol so the Troubleshooting page's "Live sensor view"
  * has something to render without real hardware.
+ *
+ * Exercises both pixel formats real firmware can report (see
+ * PixelFormat/CaptureFrameResponse.format in the proto): the one-shot
+ * CaptureFrame path emits legacy PIXEL_FORMAT_PG7 bytes (bit7 = PG_VALID),
+ * matching the 3-wire Pixel_Grab procedure every firmware supports, while
+ * SetFrameStream streaming emits PIXEL_FORMAT_RAW8 bytes (full 8-bit value,
+ * no validity bit), matching the newer 4-wire FRAME_GRAB burst path that
+ * makes high-fps streaming possible.
  */
 
 import {
   Notification,
+  PixelFormat,
   type Request,
   type Response,
 } from "../../proto/cormoran/pmw3610/pmw3610";
@@ -20,13 +29,23 @@ const DEFAULT_SIDE = 22;
 const CHUNK_SIZE = 128;
 const STREAM_INTERVAL_MS = 200; // ~5 fps
 
-/** Synthesize a frame: a radial gradient (bright center, dark edges) with
- * bit7 (PG_VALID) set on every byte, animated by `counter` so streamed
- * frames visibly move. */
-function synthesizeFrame(side: number, counter: number): Uint8Array {
+/** Synthesize a frame: a radial gradient (bright center, dark edges),
+ * animated by `counter` so streamed frames visibly move.
+ *
+ * @param format PIXEL_FORMAT_PG7 (default): 7-bit brightness with bit7
+ *   (PG_VALID) set on every byte, matching the legacy per-pixel Pixel_Grab
+ *   byte. PIXEL_FORMAT_RAW8: full 8-bit brightness, no validity bit,
+ *   matching the 4-wire FRAME_GRAB burst path.
+ */
+function synthesizeFrame(
+  side: number,
+  counter: number,
+  format: PixelFormat = PixelFormat.PIXEL_FORMAT_PG7,
+): Uint8Array {
   const bytes = new Uint8Array(side * side);
   const center = (side - 1) / 2;
   const maxDist = Math.sqrt(center * center * 2) || 1;
+  const maxBrightness = format === PixelFormat.PIXEL_FORMAT_RAW8 ? 255 : 127;
   for (let y = 0; y < side; y++) {
     for (let x = 0; x < side; x++) {
       const dx = x - center;
@@ -35,10 +54,11 @@ function synthesizeFrame(side: number, counter: number): Uint8Array {
       // Animate by shifting the gradient's phase with `counter`.
       const wave = (Math.sin(dist - counter * 0.5) + 1) / 2;
       const brightness = Math.round(
-        (1 - dist / maxDist) * 0.7 * 127 + wave * 0.3 * 127,
+        (1 - dist / maxDist) * 0.7 * maxBrightness + wave * 0.3 * maxBrightness,
       );
-      const clamped = Math.max(0, Math.min(127, brightness));
-      bytes[y * side + x] = 0x80 | clamped; // bit7 set = valid
+      const clamped = Math.max(0, Math.min(maxBrightness, brightness));
+      bytes[y * side + x] =
+        format === PixelFormat.PIXEL_FORMAT_RAW8 ? clamped : 0x80 | clamped;
     }
   }
   return bytes;
@@ -85,8 +105,11 @@ export class Pmw3610Handler {
                 rest3SampleMs: 100,
                 reportIntervalMinMs: 0,
               },
+              deviceIndex: 0,
+              settingsId: "demo",
             },
           ],
+          relayRequestId: 0,
         },
       };
     }
@@ -123,7 +146,9 @@ export class Pmw3610Handler {
         pixelCount > 0 ? Math.round(Math.sqrt(pixelCount)) : DEFAULT_SIDE;
       const totalLength = side * side;
       const frameId = this.nextFrameId++;
-      const bytes = synthesizeFrame(side, 0);
+      // One-shot capture exercises the legacy 3-wire Pixel_Grab path
+      // (PIXEL_FORMAT_PG7): every byte has bit7 (PG_VALID) set.
+      const bytes = synthesizeFrame(side, 0, PixelFormat.PIXEL_FORMAT_PG7);
       this.frames.set(frameId, bytes);
       return {
         captureFrame: {
@@ -132,6 +157,7 @@ export class Pmw3610Handler {
           chunkSize: CHUNK_SIZE,
           complete: true,
           durationMs: 8,
+          format: PixelFormat.PIXEL_FORMAT_PG7,
         },
       };
     }
@@ -183,20 +209,30 @@ export class Pmw3610Handler {
 
   private emitStreamedFrame(side: number) {
     const frameId = this.nextFrameId++;
-    const bytes = synthesizeFrame(side, this.streamCounter++);
+    // Streaming exercises the newer 4-wire FRAME_GRAB burst path
+    // (PIXEL_FORMAT_RAW8): full 8-bit pixel values, no per-pixel validity
+    // bit -- this is the path that makes high-fps streaming possible.
+    const bytes = synthesizeFrame(
+      side,
+      this.streamCounter++,
+      PixelFormat.PIXEL_FORMAT_RAW8,
+    );
     const totalSize = bytes.length;
     const offsets = chunkOffsets(totalSize, CHUNK_SIZE);
     for (const offset of offsets) {
       const data = bytes.slice(offset, offset + CHUNK_SIZE);
-      const payload = Notification.encode({
-        frameStreamChunk: {
-          frameId,
-          offset,
-          data,
-          totalSize,
-          complete: true,
-        },
-      }).finish();
+      const payload = Notification.encode(
+        Notification.create({
+          frameStreamChunk: {
+            frameId,
+            offset,
+            data,
+            totalSize,
+            complete: true,
+            format: PixelFormat.PIXEL_FORMAT_RAW8,
+          },
+        }),
+      ).finish();
       for (const callback of this.callbacks) {
         callback(payload);
       }

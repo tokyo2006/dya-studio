@@ -8,6 +8,10 @@
  * web/src/frame.ts.
  */
 
+import { PixelFormat } from "../proto/cormoran/pmw3610/pmw3610";
+
+export { PixelFormat };
+
 /** One chunk of frame bytes as returned by GetFrameChunkResponse. */
 export interface FrameChunk {
   offset: number;
@@ -15,23 +19,30 @@ export interface FrameChunk {
 }
 
 export interface AssembledFrame {
-  /** Raw sensor bytes (bit7 = PG_VALID, bits[6:0] = pixel value). */
+  /** Raw sensor bytes -- format-dependent, see the `format` passed to
+   * assembleFrame() (PG7: bit7 = PG_VALID, bits[6:0] = pixel value; RAW8:
+   * full 8-bit pixel, no validity bit). */
   bytes: Uint8Array;
-  /** Number of bytes with bit7 (PG_VALID) clear. */
+  /** Number of invalid bytes (PG7: bit7 clear; always 0 for RAW8, which has
+   * no per-pixel validity concept). */
   invalidCount: number;
 }
 
 /**
  * Reassemble a full frame's raw byte buffer from a set of (possibly
  * out-of-order, but assumed non-overlapping and gapless when complete)
- * chunks, and count invalid (bit7 clear) bytes.
+ * chunks, and count invalid bytes (format-dependent, see isValidPixelByte()).
  *
  * @param chunks Chunks collected via GetFrameChunk.
  * @param totalLength Total frame length in bytes (from CaptureFrameResponse.pixelCount).
+ * @param format Byte format of `chunks`' data (default PIXEL_FORMAT_PG7, matching
+ *   a CaptureFrameResponse/FrameStreamChunk with no `format` field set, e.g. from
+ *   older firmware).
  */
 export function assembleFrame(
   chunks: FrameChunk[],
   totalLength: number,
+  format: PixelFormat = PixelFormat.PIXEL_FORMAT_PG7,
 ): AssembledFrame {
   const bytes = new Uint8Array(totalLength);
 
@@ -47,7 +58,7 @@ export function assembleFrame(
 
   let invalidCount = 0;
   for (let i = 0; i < totalLength; i++) {
-    if (!isValidPixelByte(bytes[i])) {
+    if (!isValidPixelByte(bytes[i], format)) {
       invalidCount++;
     }
   }
@@ -67,27 +78,50 @@ export function chunkOffsets(totalLength: number, chunkSize: number): number[] {
   return offsets;
 }
 
-/** bit7 = PG_VALID. */
-export function isValidPixelByte(byte: number): boolean {
+/** Whether `byte` is a valid pixel sample under `format` (default
+ * PIXEL_FORMAT_PG7): PG7 uses bit7 as PG_VALID; RAW8 has no per-pixel
+ * validity bit -- the burst read is all-or-nothing (see
+ * CaptureFrameResponse.complete for whether the transaction itself
+ * succeeded), so every byte is considered valid. */
+export function isValidPixelByte(
+  byte: number,
+  format: PixelFormat = PixelFormat.PIXEL_FORMAT_PG7,
+): boolean {
+  if (format === PixelFormat.PIXEL_FORMAT_RAW8) {
+    return true;
+  }
   return (byte & 0x80) !== 0;
 }
 
-/** Convert a raw sensor byte to an 8-bit grayscale value: bits[6:0] << 1. */
-export function pixelByteToGray(byte: number): number {
+/** Convert a raw sensor byte to an 8-bit grayscale value under `format`
+ * (default PIXEL_FORMAT_PG7): PG7 masks bit7 and shifts left by 1
+ * (bits[6:0] -> 0..254); RAW8 is already a full 8-bit pixel, used as-is. */
+export function pixelByteToGray(
+  byte: number,
+  format: PixelFormat = PixelFormat.PIXEL_FORMAT_PG7,
+): number {
+  if (format === PixelFormat.PIXEL_FORMAT_RAW8) {
+    return byte;
+  }
   return (byte & 0x7f) << 1;
 }
 
 /**
  * Render a frame's raw bytes into an RGBA buffer (Uint8ClampedArray-
  * compatible layout, 4 bytes per pixel) at 1x scale (no upscaling -- the
- * caller/canvas handles scaling via drawImage or CSS). Invalid pixels are
- * still rendered (as their masked value) since bit7 is just a validity
+ * caller/canvas handles scaling via drawImage or CSS). Invalid PG7 pixels
+ * are still rendered (as their masked value) since bit7 is just a validity
  * flag, not part of the topology.
+ *
+ * @param format Byte format of `bytes` (default PIXEL_FORMAT_PG7).
  */
-export function frameToRgba(bytes: Uint8Array): Uint8ClampedArray {
+export function frameToRgba(
+  bytes: Uint8Array,
+  format: PixelFormat = PixelFormat.PIXEL_FORMAT_PG7,
+): Uint8ClampedArray {
   const rgba = new Uint8ClampedArray(bytes.length * 4);
   for (let i = 0; i < bytes.length; i++) {
-    const gray = pixelByteToGray(bytes[i]);
+    const gray = pixelByteToGray(bytes[i], format);
     rgba[i * 4 + 0] = gray;
     rgba[i * 4 + 1] = gray;
     rgba[i * 4 + 2] = gray;

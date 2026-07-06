@@ -11,7 +11,7 @@
 import { useEffect, useRef } from "react";
 import type { UsePmw3610Return } from "../../hooks/usePmw3610";
 import { useLanguage } from "../../hooks/useLanguage";
-import { frameToRgba } from "../../lib/pmw3610Frame";
+import { frameToRgba, PixelFormat } from "../../lib/pmw3610Frame";
 
 const SIDE_OPTIONS = [19, 20, 21, 22];
 const PIXEL_SCALE = 12; // px per sensor pixel on <canvas>
@@ -20,6 +20,7 @@ function renderFrame(
   canvas: HTMLCanvasElement,
   bytes: Uint8Array,
   sideLength: number,
+  format: PixelFormat = PixelFormat.PIXEL_FORMAT_PG7,
 ) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
@@ -27,7 +28,7 @@ function renderFrame(
   canvas.width = sideLength * PIXEL_SCALE;
   canvas.height = sideLength * PIXEL_SCALE;
 
-  const rgba = frameToRgba(bytes);
+  const rgba = frameToRgba(bytes, format);
   const off = document.createElement("canvas");
   off.width = sideLength;
   off.height = sideLength;
@@ -82,7 +83,7 @@ export function Pmw3610FrameViewer({
 
   useEffect(() => {
     if (!frame || !canvasRef.current) return;
-    renderFrame(canvasRef.current, frame.bytes, frame.sideLength);
+    renderFrame(canvasRef.current, frame.bytes, frame.sideLength, frame.format);
   }, [frame]);
 
   // Stop streaming when this view unmounts (e.g. the section collapses or

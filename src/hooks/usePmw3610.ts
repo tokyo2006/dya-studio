@@ -14,6 +14,7 @@ import { MetaError } from "@zmkfirmware/zmk-studio-ts-client";
 import { ErrorConditions } from "@zmkfirmware/zmk-studio-ts-client/meta";
 import {
   Notification as Pmw3610Notification,
+  PixelFormat,
   Request,
   Response,
   type DeviceInfo,
@@ -23,6 +24,7 @@ import {
   assembleFrame,
   chunkOffsets,
   createFrameAssembler,
+  isValidPixelByte,
   type FrameChunk,
 } from "../lib/pmw3610Frame";
 
@@ -39,6 +41,9 @@ export interface CapturedFrame {
   /** Wall-clock capture duration; null while streaming (not reported
    * per-frame by the firmware). */
   durationMs: number | null;
+  /** Byte format of `bytes` (default PIXEL_FORMAT_PG7 when the firmware
+   * response left `format` unset). */
+  format: PixelFormat;
 }
 
 export interface UsePmw3610Return {
@@ -228,7 +233,10 @@ export function usePmw3610(): UsePmw3610Return {
           chunks.push({ offset: chunk.offset, data: chunk.data });
         }
 
-        const assembled = assembleFrame(chunks, totalLength);
+        // Old firmware never sets `format`, which decodes to the enum's zero
+        // value -- PIXEL_FORMAT_PG7, already the desired default.
+        const format = captureFrame.format ?? PixelFormat.PIXEL_FORMAT_PG7;
+        const assembled = assembleFrame(chunks, totalLength, format);
         setFrame({
           bytes: assembled.bytes,
           sideLength: side,
@@ -236,6 +244,7 @@ export function usePmw3610(): UsePmw3610Return {
           pixelCount: totalLength,
           complete: captureFrame.complete,
           durationMs: captureFrame.durationMs,
+          format,
         });
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unknown error");
@@ -320,10 +329,13 @@ export function usePmw3610(): UsePmw3610Return {
             if (!isComplete) return;
             assemblers.delete(chunk.frameId);
 
+            // Old firmware never sets `format`, which decodes to the enum's
+            // zero value -- PIXEL_FORMAT_PG7, already the desired default.
+            const format = chunk.format ?? PixelFormat.PIXEL_FORMAT_PG7;
             const bytes = assembler.getBytes();
             let invalidCount = 0;
             for (const b of bytes) {
-              if ((b & 0x80) === 0) invalidCount++;
+              if (!isValidPixelByte(b, format)) invalidCount++;
             }
             setFrame({
               bytes,
@@ -332,6 +344,7 @@ export function usePmw3610(): UsePmw3610Return {
               pixelCount: chunk.totalSize,
               complete: chunk.complete,
               durationMs: null,
+              format,
             });
 
             frameCountRef.current++;

@@ -3,7 +3,11 @@
  */
 
 import { Pmw3610Handler } from "../demo-pmw3610";
-import { Notification, Request } from "../../../proto/cormoran/pmw3610/pmw3610";
+import {
+  Notification,
+  PixelFormat,
+  Request,
+} from "../../../proto/cormoran/pmw3610/pmw3610";
 
 describe("Pmw3610Handler", () => {
   let handler: Pmw3610Handler;
@@ -65,6 +69,17 @@ describe("Pmw3610Handler", () => {
       expect(collected.every((b) => (b & 0x80) !== 0)).toBe(true);
     });
 
+    it("reports PIXEL_FORMAT_PG7 for the one-shot capture path", () => {
+      const captureResp = handler.process(
+        Request.create({
+          captureFrame: { deviceIndex: 0, pixelCount: 22 * 22 },
+        }),
+      );
+      expect(captureResp.captureFrame?.format).toBe(
+        PixelFormat.PIXEL_FORMAT_PG7,
+      );
+    });
+
     it("defaults to the full 22x22 array when pixelCount is 0", () => {
       const captureResp = handler.process(
         Request.create({ captureFrame: { deviceIndex: 0, pixelCount: 0 } }),
@@ -124,6 +139,24 @@ describe("Pmw3610Handler", () => {
       const decoded = Notification.decode(received[0]);
       expect(decoded.frameStreamChunk).toBeDefined();
       expect(decoded.frameStreamChunk?.totalSize).toBe(100);
+    });
+
+    it("streams PIXEL_FORMAT_RAW8 frames, exercising the burst-read path", () => {
+      const received: Uint8Array[] = [];
+      handler.notify((payload) => received.push(payload));
+
+      handler.process(
+        Request.create({
+          setFrameStream: { deviceIndex: 0, enable: true, pixelCount: 100 },
+        }),
+      );
+      jest.advanceTimersByTime(250);
+
+      expect(received.length).toBeGreaterThan(0);
+      const decoded = Notification.decode(received[0]);
+      expect(decoded.frameStreamChunk?.format).toBe(
+        PixelFormat.PIXEL_FORMAT_RAW8,
+      );
     });
 
     it("stops emitting once disabled", () => {
