@@ -2,11 +2,11 @@ import { useState, useContext, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   IconBattery2,
-  IconBluetooth,
   IconHome,
   IconKeyboard,
   IconKeyboardShow,
   IconListDetails,
+  IconPlugConnected,
   IconPointer,
   IconPuzzle,
   IconSettings,
@@ -25,7 +25,7 @@ import type { TabItem } from "./components/TabNavigation";
 import { AppLayout } from "./layouts/AppLayout";
 import { HomePage } from "./pages/HomePage";
 import { BatteryPage } from "./pages/BatteryPage";
-import { BLEConnectionsPage } from "./pages/BLEConnectionsPage";
+import { ConnectionPage } from "./pages/ConnectionPage";
 import { KeymapPage } from "./pages/KeymapPage";
 import { ComboPage } from "./pages/ComboPage";
 import { TrackballPage } from "./pages/TrackballPage";
@@ -67,10 +67,10 @@ function getTabs(t: (key: string) => string): TabItem[] {
       content: <TrackballPage />,
     },
     {
-      id: "ble",
-      label: t("BLE"),
-      icon: <IconBluetooth size={18} />,
-      content: <BLEConnectionsPage />,
+      id: "connection",
+      label: t("Connection"),
+      icon: <IconPlugConnected size={18} />,
+      content: <ConnectionPage />,
     },
     {
       id: "settings",

@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package cormoran.default_layer;
+
+// `value` fields use a shared sentinel encoding (also used by custom
+// settings): >=0 is a keymap layer index, -1 means unset (module leaves this
+// endpoint/OS alone), -2 (endpoint values only) means "resolve via the
+// per-OS mapping using the OS detected for this endpoint".
+message GetStateRequest {}
+
+message SetEndpointLayerRequest {
+    uint32 endpoint_index = 1;
+    int32 value = 2;
+}
+
+// os: enum zmk_os from zmk-feature-os-detection (0=unknown, 1=windows,
+// 2=macos, 3=linux, 4=ios, 5=android). value must not be -2 (OS detection is
+// not a valid value inside the per-OS mapping itself).
+message SetOsLayerRequest {
+    uint32 os = 1;
+    int32 value = 2;
+}
+
+message EndpointState {
+    uint32 index = 1;
+    bool is_usb = 2;
+    uint32 ble_profile_index = 3;
+    int32 value = 4;
+}
+
+message OsLayerState {
+    uint32 os = 1;
+    int32 value = 2;
+}
+
+message StateResponse {
+    repeated EndpointState endpoints = 1;
+    repeated OsLayerState os_layers = 2;
+    uint32 active_endpoint_index = 3;
+    uint32 current_os = 4;
+    int32 resolved_layer = 5;
+    uint32 layer_count = 6;
+    bool os_detection_available = 7;
+}
+
+message ErrorResponse { string message = 1; }
+
+message Request {
+    oneof request_type {
+        GetStateRequest get_state = 1;
+        SetEndpointLayerRequest set_endpoint_layer = 2;
+        SetOsLayerRequest set_os_layer = 3;
+    }
+}
+
+message Response {
+    oneof response_type {
+        ErrorResponse error = 1;
+        StateResponse state = 2;
+    }
+}
