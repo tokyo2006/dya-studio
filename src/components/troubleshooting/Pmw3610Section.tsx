@@ -1,8 +1,17 @@
+import { useState } from "react";
 import { IconLock, IconMouse, IconRefresh } from "@tabler/icons-react";
 import type { UsePmw3610Return } from "../../hooks/usePmw3610";
 import { useLanguage } from "../../hooks/useLanguage";
 import { formatHex } from "../../lib/troubleshootingFormat";
-import { NotAvailableNotice, SectionCard, SectionError } from "./SectionCard";
+import {
+  NotAvailableNotice,
+  SectionCard,
+  SectionError,
+  SectionSummaryBadge,
+} from "./SectionCard";
+import { Pmw3610FrameViewer } from "./Pmw3610FrameViewer";
+
+const DEFAULT_FRAME_SIDE = 22;
 
 const MODULE_NAME = "cormoran/zmk-driver-pmw3610-with-custom-studio-rpc";
 const MODULE_URL =
@@ -45,12 +54,26 @@ export function Pmw3610Section({ pmw3610 }: { pmw3610: UsePmw3610Return }) {
     refresh,
     readDiagnostics,
   } = pmw3610;
+  const [frameSide, setFrameSide] = useState(DEFAULT_FRAME_SIDE);
+
+  const hasInitError =
+    devices.length > 0 && devices.some((d) => d.initError !== 0 || !d.ready);
 
   return (
     <SectionCard
       icon={<IconMouse size={20} className="text-[var(--color-electric)]" />}
       title={t("Trackball Sensor (PMW3610)")}
       subtitle={t("Optical sensor health and surface diagnostics")}
+      summary={
+        devices.length > 0 &&
+        (hasInitError ? (
+          <SectionSummaryBadge tone="red">
+            {t("init error")}
+          </SectionSummaryBadge>
+        ) : (
+          <SectionSummaryBadge tone="ok">{t("OK")}</SectionSummaryBadge>
+        ))
+      }
       actions={
         isAvailable && (
           <button
@@ -161,6 +184,15 @@ export function Pmw3610Section({ pmw3610 }: { pmw3610: UsePmw3610Return }) {
                 return <p className={`text-xs mt-2 ${className}`}>{message}</p>;
               })()}
             </div>
+          )}
+
+          {devices.length > 0 && (
+            <Pmw3610FrameViewer
+              pmw3610={pmw3610}
+              deviceIndex={0}
+              side={frameSide}
+              onSideChange={setFrameSide}
+            />
           )}
         </>
       )}

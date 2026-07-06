@@ -204,7 +204,9 @@ describe("buildSupportReport", () => {
     );
     expect(report).toContain('"queueName": "sysworkq"');
     expect(report).toContain("## Key Switches (cormoran__kscan_diagnostics)");
-    expect(report).toContain("Devices: 1, total presses: 50, suspect keys: 1");
+    expect(report).toContain(
+      "Devices: 1, total presses: 50, suspect keys: 1, untested keys: 0",
+    );
     expect(report).toContain("## Trackball (cormoran__pmw3610)");
     expect(report).toContain('"squal": 45');
   });

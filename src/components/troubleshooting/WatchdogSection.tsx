@@ -15,7 +15,12 @@ import {
   formatResetCause,
   formatUptime,
 } from "../../lib/troubleshootingFormat";
-import { NotAvailableNotice, SectionCard, SectionError } from "./SectionCard";
+import {
+  NotAvailableNotice,
+  SectionCard,
+  SectionError,
+  SectionSummaryBadge,
+} from "./SectionCard";
 
 const MODULE_NAME = "cormoran/zmk-feature-watchdog";
 const MODULE_URL = "https://github.com/cormoran/zmk-feature-watchdog";
@@ -91,6 +96,28 @@ export function WatchdogSection({ watchdog }: { watchdog: UseWatchdogReturn }) {
       }
       title={t("Stability (Watchdog)")}
       subtitle={t("Freeze, crash and unexpected reset incidents")}
+      summary={
+        status && (
+          <>
+            {incidents.length > 0 ? (
+              <SectionSummaryBadge
+                tone={incidents.length > 3 ? "red" : "amber"}
+              >
+                {t("{{count}} incidents", { count: incidents.length })}
+              </SectionSummaryBadge>
+            ) : (
+              <SectionSummaryBadge tone="ok">
+                {t("No incidents")}
+              </SectionSummaryBadge>
+            )}
+            {status.recordingStopped && (
+              <SectionSummaryBadge tone="red">
+                {t("recording paused")}
+              </SectionSummaryBadge>
+            )}
+          </>
+        )
+      }
       actions={
         isAvailable && (
           <button

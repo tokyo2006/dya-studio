@@ -121,9 +121,12 @@ export function buildSupportReport(input: SupportReportInput): string {
     "## Key Switches (cormoran__kscan_diagnostics)",
     ...sectionBody(input.kscan, (data) => {
       const suspectKeys = findSuspectKeys(data.stats);
+      const untestedKeys = data.stats.filter(
+        (s) => s.presses === 0 && s.releases === 0,
+      );
       const totalPresses = data.stats.reduce((sum, s) => sum + s.presses, 0);
       return [
-        `- Devices: ${data.devices.length}, total presses: ${totalPresses}, suspect keys: ${suspectKeys.length}`,
+        `- Devices: ${data.devices.length}, total presses: ${totalPresses}, suspect keys: ${suspectKeys.length}, untested keys: ${untestedKeys.length}`,
         jsonBlock({ info: data.info, devices: data.devices, suspectKeys }),
       ];
     }),

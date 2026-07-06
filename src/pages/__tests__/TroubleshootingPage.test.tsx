@@ -62,6 +62,10 @@ function mockAllUnavailable() {
     error: null,
     refresh: jest.fn(),
     resetStats: jest.fn(),
+    topology: null,
+    isLoadingTopology: false,
+    topologyError: null,
+    loadTopology: jest.fn(),
   });
   mockUsePmw3610.mockReturnValue({
     isAvailable: false,
@@ -73,6 +77,13 @@ function mockAllUnavailable() {
     refresh: jest.fn(),
     readDiagnostics: jest.fn(),
     clearUnlockRequired: jest.fn(),
+    frame: null,
+    isCapturing: false,
+    isStreaming: false,
+    fps: null,
+    captureOnce: jest.fn(),
+    startStreaming: jest.fn(),
+    stopStreaming: jest.fn(),
   });
 }
 
@@ -96,18 +107,32 @@ describe("TroubleshootingPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows four 'not available' notices when no subsystem is present", () => {
+  it("shows four 'not available' notices when no subsystem is present (once expanded)", () => {
     render(<TroubleshootingPage />);
 
-    const notices = screen.getAllByText("Not available on this keyboard.");
-    expect(notices).toHaveLength(4);
-
     // One missing section must not affect the others: all four section
-    // headings still render.
+    // headings still render, collapsed by default.
     expect(screen.getByText("Device Info")).toBeInTheDocument();
     expect(screen.getByText("Stability (Watchdog)")).toBeInTheDocument();
     expect(screen.getByText("Key Switches")).toBeInTheDocument();
     expect(screen.getByText("Trackball Sensor (PMW3610)")).toBeInTheDocument();
+
+    // Sections start collapsed; nothing is visible until expanded.
+    expect(
+      screen.queryByText("Not available on this keyboard."),
+    ).not.toBeInTheDocument();
+
+    for (const name of [
+      "Device Info",
+      "Stability (Watchdog)",
+      "Key Switches",
+      "Trackball Sensor (PMW3610)",
+    ]) {
+      fireEvent.click(screen.getByRole("button", { name }));
+    }
+
+    const notices = screen.getAllByText("Not available on this keyboard.");
+    expect(notices).toHaveLength(4);
   });
 
   it("renders Device Info section content when its data is available", () => {
@@ -153,8 +178,18 @@ describe("TroubleshootingPage", () => {
 
     render(<TroubleshootingPage />);
 
-    // The other three sections still show their not-available notice --
-    // one available subsystem does not affect the others.
+    // Expand every section: the other three still show their
+    // not-available notice -- one available subsystem does not affect the
+    // others.
+    for (const name of [
+      "Device Info",
+      "Stability (Watchdog)",
+      "Key Switches",
+      "Trackball Sensor (PMW3610)",
+    ]) {
+      fireEvent.click(screen.getByRole("button", { name }));
+    }
+
     const notices = screen.getAllByText("Not available on this keyboard.");
     expect(notices).toHaveLength(3);
     expect(screen.getByText("dya_dash")).toBeInTheDocument();
@@ -176,6 +211,15 @@ describe("TroubleshootingPage", () => {
     });
 
     render(<TroubleshootingPage />);
+
+    for (const name of [
+      "Device Info",
+      "Stability (Watchdog)",
+      "Key Switches",
+      "Trackball Sensor (PMW3610)",
+    ]) {
+      fireEvent.click(screen.getByRole("button", { name }));
+    }
 
     expect(screen.getByText("Failed to load incidents")).toBeInTheDocument();
     // Still 3 "not available" notices for the other sections.

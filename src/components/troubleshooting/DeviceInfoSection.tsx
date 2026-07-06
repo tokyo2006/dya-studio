@@ -5,7 +5,12 @@ import {
   formatResetCause,
   formatUptime,
 } from "../../lib/troubleshootingFormat";
-import { NotAvailableNotice, SectionCard, SectionError } from "./SectionCard";
+import {
+  NotAvailableNotice,
+  SectionCard,
+  SectionError,
+  SectionSummaryBadge,
+} from "./SectionCard";
 
 const MODULE_NAME = "cormoran/zmk-feature-device-info";
 const MODULE_URL = "https://github.com/cormoran/zmk-feature-device-info";
@@ -49,6 +54,16 @@ export function DeviceInfoSection({
       }
       title={t("Device Info")}
       subtitle={t("Build, hardware and runtime details reported by firmware")}
+      summary={
+        info &&
+        (notReadyCount > 0 ? (
+          <SectionSummaryBadge tone="red">
+            {t("{{count}} devices not ready", { count: notReadyCount })}
+          </SectionSummaryBadge>
+        ) : (
+          <SectionSummaryBadge tone="ok">{t("OK")}</SectionSummaryBadge>
+        ))
+      }
       actions={
         isAvailable && (
           <button

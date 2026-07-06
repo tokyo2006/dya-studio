@@ -617,6 +617,8 @@ const ja: Record<string, string> = {
   "Zephyr Devices": "Zephyr デバイス",
   "{{count}} not ready": "{{count}} 件未準備",
   "all ready": "すべて準備完了",
+  OK: "OK",
+  "{{count}} devices not ready": "{{count}} 台のデバイスが未準備",
 
   "Stability (Watchdog)": "安定性（ウォッチドッグ）",
   "Freeze, crash and unexpected reset incidents":
@@ -631,6 +633,9 @@ const ja: Record<string, string> = {
     "発生履歴の保存領域が満杯です。記録が一時停止しています。再開するには履歴を削除してください。",
   "No incidents recorded — your keyboard looks stable.":
     "発生履歴はありません。キーボードは安定しているようです。",
+  "{{count}} incidents": "発生件数 {{count}} 件",
+  "No incidents": "発生なし",
+  "recording paused": "記録一時停止中",
   "Boot / Uptime": "起動 / 稼働時間",
   Detail: "詳細",
   "Delete incident {{id}}": "発生履歴 {{id}} を削除",
@@ -658,12 +663,31 @@ const ja: Record<string, string> = {
   Presses: "押下回数",
   Releases: "離した回数",
   "Min gap (ms)": "最小間隔 (ms)",
-  "Open the dedicated diagnostics UI for deep analysis":
-    "詳細な分析には専用の診断 UI を開いてください",
   "Reset statistics": "統計をリセット",
   "Reset key statistics?": "キー統計をリセットしますか？",
   "This will reset all key press statistics recorded on your keyboard.":
     "キーボード上に記録されたすべてのキー押下統計がリセットされます。",
+  "Driver details & statistics": "ドライバー詳細と統計",
+  "Untested keys (0 presses)": "未検証キー（押下回数 0）",
+  "Loading keyboard wiring…": "キーボードの配線情報を読み込み中…",
+  "Unlock your keyboard to show the interactive key map.":
+    "インタラクティブなキーマップを表示するにはキーボードのロックを解除してください。",
+  "{{count}} suspect keys": "疑わしいキー {{count}} 件",
+
+  Untested: "未検証",
+  "No record (0 presses)": "記録なし（押下回数 0）",
+  "Suspect (chatter or mismatch)": "疑わしい（チャタリングまたは不一致）",
+  "No wiring info (split peripheral half)":
+    "配線情報なし（分割キーボードの周辺側）",
+  "Wiring info unavailable (split peripheral half)":
+    "配線情報が利用できません（分割キーボードの周辺側）",
+  "Position {{position}}": "位置 {{position}}",
+  "Row {{row}} / Col {{col}}": "行 {{row}} / 列 {{col}}",
+  "Row line": "行ライン",
+  "Col line": "列ライン",
+  Debounce: "デバウンス",
+  "Min repress gap": "最小再押下間隔",
+  Chatter: "チャタリング",
 
   "Trackball Sensor (PMW3610)": "トラックボールセンサー (PMW3610)",
   "Optical sensor health and surface diagnostics":
@@ -686,6 +710,17 @@ const ja: Record<string, string> = {
     "センサーが表面を検出できません。ボールとレンズを確認してください。",
   "Poor tracking surface.": "トラッキング表面の状態が良くありません。",
   "Surface tracking OK.": "表面トラッキングは正常です。",
+  "init error": "初期化エラー",
+
+  "Live sensor view": "センサーのライブビュー",
+  "Capture Once": "1回キャプチャ",
+  "Capturing…": "キャプチャ中…",
+  "Start Streaming": "ストリーミング開始",
+  "Stop Streaming": "ストリーミング停止",
+  "Pixels captured": "キャプチャ済みピクセル数",
+  Complete: "完了",
+  "Capture time": "キャプチャ時間",
+  "FPS (streaming)": "FPS（ストリーミング中）",
 };
 
 const dictionaries: Record<Language, Record<string, string>> = {

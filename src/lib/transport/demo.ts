@@ -680,6 +680,27 @@ class Keyboard {
         }).finish(),
       );
     });
+
+    this.pmw3610Handler.notify((payload: Uint8Array) => {
+      callback(
+        Response.encode({
+          notification: {
+            custom: {
+              customNotification: {
+                subsystemIndex: this.PMW3610_SUBSYSTEM_INDEX,
+                payload: payload,
+              },
+            },
+          },
+        }).finish(),
+      );
+    });
+  }
+
+  /** Stop any demo-side background activity (e.g. the pmw3610 frame
+   * stream's interval) when the transport disconnects. */
+  disconnect() {
+    this.pmw3610Handler.disconnect();
   }
 }
 
@@ -689,6 +710,10 @@ class Keyboard {
 export async function connect(): Promise<RpcTransport> {
   const abort = new AbortController();
   const kb = new Keyboard();
+  // Stop any running demo-side interval (e.g. the pmw3610 frame stream) on
+  // disconnect, so it doesn't keep firing (or leak timers in tests) after
+  // the transport is torn down.
+  abort.signal.addEventListener("abort", () => kb.disconnect());
 
   // Buffer for accumulating bytes across chunks
   let buffer: number[] = [];

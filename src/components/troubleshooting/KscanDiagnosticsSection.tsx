@@ -1,22 +1,28 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   IconAlertTriangle,
   IconCircleCheck,
-  IconExternalLink,
   IconKeyboard,
+  IconLock,
   IconRefresh,
 } from "@tabler/icons-react";
 import { KscanDriverType } from "../../proto/cormoran/kscan_diagnostics/kscan_diagnostics";
 import type { UseKscanDiagnosticsReturn } from "../../hooks/useKscanDiagnostics";
+import { useOfficialLayouts } from "../../hooks/useOfficialLayouts";
 import { useLanguage } from "../../hooks/useLanguage";
 import { findSuspectKeys } from "../../lib/troubleshootingReport";
 import { formatUptime } from "../../lib/troubleshootingFormat";
-import { NotAvailableNotice, SectionCard, SectionError } from "./SectionCard";
+import { buildWiringMap } from "../../lib/kscanTopology";
+import {
+  NotAvailableNotice,
+  SectionCard,
+  SectionError,
+  SectionSummaryBadge,
+} from "./SectionCard";
+import { KscanKeyboardView } from "./KscanKeyboardView";
 
 const MODULE_NAME = "cormoran/zmk-feature-kscan-diagnostics";
 const MODULE_URL = "https://github.com/cormoran/zmk-feature-kscan-diagnostics";
-const DEEP_DIAGNOSIS_URL =
-  "https://cormoran.github.io/zmk-feature-kscan-diagnostics/";
 
 function driverTypeLabel(type: KscanDriverType): string {
   switch (type) {
@@ -50,10 +56,17 @@ export function KscanDiagnosticsSection({
     error,
     refresh,
     resetStats,
+    topology,
+    isLoadingTopology,
+    topologyError,
+    loadTopology,
   } = kscan;
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [hasRequestedTopology, setHasRequestedTopology] = useState(false);
+  const officialLayouts = useOfficialLayouts();
 
   const suspectKeys = findSuspectKeys(stats);
+  const untestedKeys = stats.filter((s) => s.presses === 0 && s.releases === 0);
   const totalPresses = stats.reduce((sum, s) => sum + s.presses, 0);
 
   const handleResetStats = async () => {
@@ -61,11 +74,68 @@ export function KscanDiagnosticsSection({
     await resetStats();
   };
 
+  // The kscan topology fetch is heavier than info/devices/stats, so it's
+  // loaded lazily on first expand of this section rather than eagerly.
+  const handleExpand = () => {
+    if (hasRequestedTopology) return;
+    setHasRequestedTopology(true);
+    void loadTopology();
+    void officialLayouts.load();
+  };
+
+  const activeLayout = useMemo(() => {
+    if (!topology) return null;
+    return (
+      topology.layouts.find((l) => l.layoutIndex === topology.selectedLayout) ??
+      topology.layouts[0] ??
+      null
+    );
+  }, [topology]);
+
+  const wiring = useMemo(() => {
+    if (!topology || !activeLayout) return new Map();
+    return buildWiringMap(topology, activeLayout);
+  }, [topology, activeLayout]);
+
+  const physicalLayout = useMemo(() => {
+    if (!officialLayouts.physicalLayouts) return null;
+    const selectedIndex = topology?.selectedLayout ?? 0;
+    return (
+      officialLayouts.physicalLayouts.layouts[selectedIndex] ??
+      officialLayouts.physicalLayouts.layouts[
+        officialLayouts.physicalLayouts.activeLayoutIndex
+      ] ??
+      officialLayouts.physicalLayouts.layouts[0] ??
+      null
+    );
+  }, [officialLayouts.physicalLayouts, topology?.selectedLayout]);
+
+  const statsByPosition = useMemo(() => {
+    const map = new Map<number, (typeof stats)[number]>();
+    for (const s of stats) map.set(s.position, s);
+    return map;
+  }, [stats]);
+
+  const showKeyboardPreview = physicalLayout && activeLayout;
+  const anyUnlockRequired = officialLayouts.unlockRequired;
+
   return (
     <SectionCard
       icon={<IconKeyboard size={20} className="text-[var(--color-electric)]" />}
       title={t("Key Switches")}
       subtitle={t("Key press statistics and chatter detection")}
+      defaultOpen={false}
+      onExpand={isAvailable ? handleExpand : undefined}
+      summary={
+        info?.statsEnabled &&
+        (suspectKeys.length > 0 ? (
+          <SectionSummaryBadge tone="amber">
+            {t("{{count}} suspect keys", { count: suspectKeys.length })}
+          </SectionSummaryBadge>
+        ) : (
+          <SectionSummaryBadge tone="ok">{t("OK")}</SectionSummaryBadge>
+        ))
+      }
       actions={
         isAvailable && (
           <button
@@ -88,6 +158,7 @@ export function KscanDiagnosticsSection({
       ) : (
         <>
           {error && <SectionError message={error} />}
+          {topologyError && <SectionError message={topologyError} />}
 
           {info && (
             <div className="flex flex-wrap gap-4 mb-4 text-xs text-[var(--color-text-secondary)]">
@@ -111,88 +182,127 @@ export function KscanDiagnosticsSection({
             </div>
           )}
 
-          {/* Devices */}
-          {devices.map((device) => (
-            <div
-              key={device.deviceIndex}
-              className="mb-3 p-3 rounded-lg bg-[var(--color-border)]/50 border border-[var(--color-border)] text-xs text-[var(--color-text-secondary)]"
-            >
-              <span className="font-mono text-[var(--color-text)]">
-                {device.nodeName}
-              </span>{" "}
-              — {driverTypeLabel(device.type)}, {device.rows}×{device.columns},{" "}
-              {t("debounce {{press}}/{{release}}ms", {
-                press: device.debouncePressMs,
-                release: device.debounceReleaseMs,
-              })}
-              {device.pollPeriodMs > 0 &&
-                `, ${t("poll {{ms}}ms", { ms: device.pollPeriodMs })}`}
+          {/* Interactive keyboard preview */}
+          {isLoadingTopology && !topology && (
+            <p className="text-sm text-[var(--color-text-muted)] mb-4">
+              {t("Loading keyboard wiring…")}
+            </p>
+          )}
+          {anyUnlockRequired && (
+            <div className="mb-4 p-4 rounded-lg bg-[var(--color-border)] border border-[var(--color-border-hover)] flex items-start gap-3">
+              <div className="p-1">
+                <IconLock size={20} className="text-[var(--color-electric)]" />
+              </div>
+              <p className="text-sm text-[var(--color-text-muted)]">
+                {t("Unlock your keyboard to show the interactive key map.")}
+              </p>
             </div>
-          ))}
+          )}
+          {showKeyboardPreview && (
+            <div className="mb-4">
+              <KscanKeyboardView
+                layout={physicalLayout}
+                wiring={wiring}
+                statsByPosition={statsByPosition}
+              />
+            </div>
+          )}
 
-          {/* Suspect keys */}
-          {info?.statsEnabled &&
-            (suspectKeys.length === 0 ? (
-              <div className="p-4 rounded-lg border border-dashed border-[var(--color-border)] flex items-center gap-2">
-                <IconCircleCheck size={18} className="text-green-400" />
-                <span className="text-sm text-[var(--color-text-muted)]">
-                  {t("No chatter or anomalies detected.")}
-                </span>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
+          {/* Driver info + suspect-key stats table, collapsed by default */}
+          <details className="mt-2">
+            <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-[var(--color-text-muted)]">
+              {t("Driver details & statistics")}
+            </summary>
+            <div className="mt-2">
+              {/* Devices */}
+              {devices.map((device) => (
+                <div
+                  key={device.deviceIndex}
+                  className="mb-3 p-3 rounded-lg bg-[var(--color-border)]/50 border border-[var(--color-border)] text-xs text-[var(--color-text-secondary)]"
+                >
+                  <span className="font-mono text-[var(--color-text)]">
+                    {device.nodeName}
+                  </span>{" "}
+                  — {driverTypeLabel(device.type)}, {device.rows}×
+                  {device.columns},{" "}
+                  {t("debounce {{press}}/{{release}}ms", {
+                    press: device.debouncePressMs,
+                    release: device.debounceReleaseMs,
+                  })}
+                  {device.pollPeriodMs > 0 &&
+                    `, ${t("poll {{ms}}ms", { ms: device.pollPeriodMs })}`}
+                </div>
+              ))}
+
+              {info?.statsEnabled && (
                 <p className="text-xs text-[var(--color-text-muted)] mb-2">
-                  {t(
-                    "Suspect keys (possible chatter or stuck switch) — position numbers follow the keymap order.",
-                  )}
+                  {t("Untested keys (0 presses)")}:{" "}
+                  <strong>{untestedKeys.length}</strong>
                 </p>
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="text-left text-[var(--color-text-muted)] border-b border-[var(--color-border)]">
-                      <th className="py-2 pr-3 font-medium">{t("Position")}</th>
-                      <th className="py-2 pr-3 font-medium">{t("Presses")}</th>
-                      <th className="py-2 pr-3 font-medium">{t("Releases")}</th>
-                      <th className="py-2 pr-3 font-medium">
-                        {t("Min gap (ms)")}
-                      </th>
-                      <th className="py-2 pr-3 font-medium">&lt;5ms</th>
-                      <th className="py-2 pr-3 font-medium">&lt;10ms</th>
-                      <th className="py-2 pr-3 font-medium">&lt;20ms</th>
-                      <th className="py-2 font-medium">&lt;50ms</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {suspectKeys.map((s) => (
-                      <tr
-                        key={s.position}
-                        className="border-b border-[var(--color-border)] last:border-b-0 font-mono"
-                      >
-                        <td className="py-2 pr-3">{s.position}</td>
-                        <td className="py-2 pr-3">{s.presses}</td>
-                        <td className="py-2 pr-3">{s.releases}</td>
-                        <td className="py-2 pr-3">{s.minRepressGapMs}</td>
-                        <td className="py-2 pr-3">{s.repressLt5}</td>
-                        <td className="py-2 pr-3">{s.repressLt10}</td>
-                        <td className="py-2 pr-3">{s.repressLt20}</td>
-                        <td className="py-2">{s.repressLt50}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ))}
+              )}
+
+              {/* Suspect keys */}
+              {info?.statsEnabled &&
+                (suspectKeys.length === 0 ? (
+                  <div className="p-4 rounded-lg border border-dashed border-[var(--color-border)] flex items-center gap-2">
+                    <IconCircleCheck size={18} className="text-green-400" />
+                    <span className="text-sm text-[var(--color-text-muted)]">
+                      {t("No chatter or anomalies detected.")}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <p className="text-xs text-[var(--color-text-muted)] mb-2">
+                      {t(
+                        "Suspect keys (possible chatter or stuck switch) — position numbers follow the keymap order.",
+                      )}
+                    </p>
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-left text-[var(--color-text-muted)] border-b border-[var(--color-border)]">
+                          <th className="py-2 pr-3 font-medium">
+                            {t("Position")}
+                          </th>
+                          <th className="py-2 pr-3 font-medium">
+                            {t("Presses")}
+                          </th>
+                          <th className="py-2 pr-3 font-medium">
+                            {t("Releases")}
+                          </th>
+                          <th className="py-2 pr-3 font-medium">
+                            {t("Min gap (ms)")}
+                          </th>
+                          <th className="py-2 pr-3 font-medium">&lt;5ms</th>
+                          <th className="py-2 pr-3 font-medium">&lt;10ms</th>
+                          <th className="py-2 pr-3 font-medium">&lt;20ms</th>
+                          <th className="py-2 font-medium">&lt;50ms</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {suspectKeys.map((s) => (
+                          <tr
+                            key={s.position}
+                            className="border-b border-[var(--color-border)] last:border-b-0 font-mono"
+                          >
+                            <td className="py-2 pr-3">{s.position}</td>
+                            <td className="py-2 pr-3">{s.presses}</td>
+                            <td className="py-2 pr-3">{s.releases}</td>
+                            <td className="py-2 pr-3">{s.minRepressGapMs}</td>
+                            <td className="py-2 pr-3">{s.repressLt5}</td>
+                            <td className="py-2 pr-3">{s.repressLt10}</td>
+                            <td className="py-2 pr-3">{s.repressLt20}</td>
+                            <td className="py-2">{s.repressLt50}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ))}
+            </div>
+          </details>
 
           {/* Footer actions */}
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-            <a
-              href={DEEP_DIAGNOSIS_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 text-xs text-[var(--color-electric)] hover:text-[var(--color-neon)] underline transition-colors"
-            >
-              <IconExternalLink size={14} />
-              {t("Open the dedicated diagnostics UI for deep analysis")}
-            </a>
+          <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
             {info?.statsEnabled && (
               <button
                 onClick={() => setShowResetConfirm(true)}
