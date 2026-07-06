@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package cormoran.os_detection;
+
+enum Os {
+    OS_UNSPECIFIED = 0;
+    OS_UNKNOWN = 1;
+    OS_WINDOWS = 2;
+    OS_MACOS = 3;
+    OS_LINUX = 4;
+    OS_IOS = 5;
+    OS_ANDROID = 6;
+}
+
+message GetStateRequest {}
+
+message SetBleOverrideRequest {
+    uint32 profile_index = 1;
+    Os os = 2; // OS_UNSPECIFIED or OS_UNKNOWN resets to AUTO
+}
+
+message UsbState {
+    bool connected = 1;
+    Os detected = 2;
+}
+
+message BleProfileState {
+    uint32 index = 1;
+    bool bonded = 2;
+    bool connected = 3;
+    Os detected = 4;
+    Os override = 5;
+    Os effective = 6;
+}
+
+message StateResponse {
+    UsbState usb = 1;
+    repeated BleProfileState ble_profiles = 2;
+    uint32 active_profile_index = 3;
+    Os current_effective = 4;
+}
+
+message SetBleOverrideResponse { BleProfileState profile = 1; }
+
+message ErrorResponse { string message = 1; }
+
+message Request {
+    oneof request_type {
+        GetStateRequest get_state = 1;
+        SetBleOverrideRequest set_ble_override = 2;
+    }
+}
+
+message Response {
+    oneof response_type {
+        ErrorResponse error = 1;
+        StateResponse state = 2;
+        SetBleOverrideResponse set_ble_override = 3;
+    }
+}
