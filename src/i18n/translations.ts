@@ -145,6 +145,11 @@ const ja: Record<string, string> = {
   "Loading trackball settings...": "トラックボール設定を読み込み中...",
   "No runtime input processor found. Make sure your firmware has the runtime input processor module enabled.":
     "ランタイム入力プロセッサーが見つかりません。ファームウェアでランタイム入力プロセッサーモジュールが有効になっていることを確認してください。",
+  "Advanced (PMW3610 Sensor Driver)": "詳細設定（PMW3610 センサードライバー）",
+  "Sensor-level tuning exposed by the pmw3610 driver's custom Studio RPC":
+    "pmw3610 ドライバーのカスタム Studio RPC が公開するセンサーレベルの調整項目です",
+  "No pmw3610 driver settings were reported by the keyboard.":
+    "キーボードから pmw3610 ドライバーの設定が報告されませんでした。",
   "Select Processor": "プロセッサーを選択",
   "{{count}} processors detected": "{{count}} 個のプロセッサーを検出",
   "Active on Layers": "有効にするレイヤー",
