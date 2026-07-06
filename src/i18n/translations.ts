@@ -227,6 +227,38 @@ const ja: Record<string, string> = {
   "You will need to reconnect manually after the change.":
     "変更後は手動で再接続する必要があります。",
 
+  Connection: "接続",
+  "Manage connections, default layers and OS detection":
+    "接続・デフォルトレイヤー・OS 検出の管理",
+  "Current OS": "現在の OS",
+  "Active Connection": "アクティブな接続",
+  "Resolved Default Layer": "解決済みのデフォルトレイヤー",
+  "Not connected": "未接続",
+  "BLE profile {{index}}": "BLE プロファイル {{index}}",
+  OS: "OS",
+  Auto: "自動",
+  Windows: "Windows",
+  macOS: "macOS",
+  Linux: "Linux",
+  iOS: "iOS",
+  Android: "Android",
+  Unknown: "不明",
+  "detected: {{os}}": "検出: {{os}}",
+  "{{connection}} OS override": "{{connection}} の OS 上書き",
+  "Default Layer": "デフォルトレイヤー",
+  "{{connection}} default layer": "{{connection}} のデフォルトレイヤー",
+  Unset: "未設定",
+  "OS detection": "OS 検出",
+  "Per-OS Default Layers": "OS ごとのデフォルトレイヤー",
+  "{{os}} default layer": "{{os}} のデフォルトレイヤー",
+  "OS detection is not enabled in this firmware build.":
+    "このファームウェアビルドでは OS 検出が有効になっていません。",
+  "Default layer subsystem is not available for your keyboard.":
+    "このキーボードではデフォルトレイヤーサブシステムを利用できません。",
+  "BLE OS detection is heuristic and may flap right after connecting. If detection is wrong, set a per-profile override above.":
+    "BLE の OS 検出はヒューリスティックなため、接続直後は不安定になることがあります。検出結果が誤っている場合は、上のプロファイルごとの上書き設定を使用してください。",
+  "Related modules:": "関連モジュール:",
+
   "Battery Status": "バッテリー状態",
   "Monitor battery levels and history": "バッテリー残量と履歴を確認します",
   "Refresh battery history": "バッテリー履歴を更新",
