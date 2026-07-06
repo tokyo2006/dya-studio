@@ -207,7 +207,6 @@ const ja: Record<string, string> = {
   "BLE management subsystem is not available for your keyboard.":
     "このキーボードでは BLE 管理サブシステムを利用できません。",
   "Output Priority": "出力優先度",
-  "Prioritized connection for keystrokes": "キー入力を優先して送信する接続先",
   "Loading profiles...": "プロファイルを読み込み中...",
   "Device name": "デバイス名",
   "Save name": "名前を保存",
@@ -237,6 +236,7 @@ const ja: Record<string, string> = {
   "BLE profile {{index}}": "BLE プロファイル {{index}}",
   OS: "OS",
   Auto: "自動",
+  "Auto (use detected OS)": "自動（検出された OS）",
   Windows: "Windows",
   macOS: "macOS",
   Linux: "Linux",
@@ -247,9 +247,24 @@ const ja: Record<string, string> = {
   "{{connection}} OS override": "{{connection}} の OS 上書き",
   "Default Layer": "デフォルトレイヤー",
   "{{connection}} default layer": "{{connection}} のデフォルトレイヤー",
-  Unset: "未設定",
-  "OS detection": "OS 検出",
+  "Not set": "未設定",
+  "Not set (leave as is)": "未設定（変更しない）",
+  "Follow OS detection": "OS 検出に従う",
+  Connections: "接続先",
+  "Set a default layer for each connection target. The layer switches automatically when that connection becomes active.":
+    "接続先ごとにデフォルトレイヤーを設定できます。その接続先がアクティブになると、設定したレイヤーへ自動で切り替わります。",
+  "Choosing 'Follow OS detection' applies the Per-OS Default Layers settings below.":
+    "「OS 検出に従う」を選ぶと、下の「OS ごとのデフォルトレイヤー」の設定が使われます。",
+  "Choose whether USB or Bluetooth is used for keystrokes when both are connected.":
+    "USB と Bluetooth の両方が接続されているとき、どちらにキー入力を送るかを選びます。",
+  "The OS is detected automatically from how the host communicates (heuristic).":
+    "OS はホストとの通信内容から自動判定されます（推定）。",
+  "The OS is detected automatically from how the host communicates (heuristic). If detection is wrong, select the correct OS here to override it for this connection.":
+    "OS はホストとの通信内容から自動判定されます（推定）。誤検出の場合は、この接続先の OS をここで選んで上書きできます。",
+  "More info": "詳細",
   "Per-OS Default Layers": "OS ごとのデフォルトレイヤー",
+  "Applied when a connection's default layer is set to 'Follow OS detection'. The layer configured for the detected OS is used.":
+    "接続先のデフォルトレイヤーで「OS 検出に従う」を選んだ場合に適用されます。検出された OS に設定したレイヤーが使われます。",
   "{{os}} default layer": "{{os}} のデフォルトレイヤー",
   "OS detection is not enabled in this firmware build.":
     "このファームウェアビルドでは OS 検出が有効になっていません。",

@@ -22,6 +22,7 @@ import { Os } from "../proto/cormoran/os_detection/os_detection";
 import { useLanguage } from "../hooks/useLanguage";
 import { OsBadge } from "../components/OsBadge";
 import { LayerSelect } from "../components/LayerSelect";
+import { InfoTip } from "../components/InfoTip";
 import {
   mergeConnectionCards,
   ZMK_OS_VALUES,
@@ -157,7 +158,7 @@ export function ConnectionPage() {
   const resolvedLayerLabel =
     defaultLayer.state && defaultLayer.state.resolvedLayer >= 0
       ? layerLabel(layerNames, defaultLayer.state.resolvedLayer)
-      : t("Unset");
+      : t("Not set");
 
   return (
     <div className="p-6 h-full overflow-auto">
@@ -270,7 +271,9 @@ export function ConnectionPage() {
                   </h3>
                 </div>
                 <p className="text-xs text-[var(--color-text-muted)]">
-                  {t("Prioritized connection for keystrokes")}
+                  {t(
+                    "Choose whether USB or Bluetooth is used for keystrokes when both are connected.",
+                  )}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -358,6 +361,24 @@ export function ConnectionPage() {
               </div>
             )}
 
+            {cards.length > 0 && (
+              <div className="mb-3">
+                <h3 className="text-sm font-medium text-[var(--color-text)] mb-1">
+                  {t("Connections")}
+                </h3>
+                {defaultLayer.isAvailable && (
+                  <p className="text-xs text-[var(--color-text-muted)]">
+                    {t(
+                      "Set a default layer for each connection target. The layer switches automatically when that connection becomes active.",
+                    )}{" "}
+                    {t(
+                      "Choosing 'Follow OS detection' applies the Per-OS Default Layers settings below.",
+                    )}
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="space-y-4 mb-6">
               {cards.map((card) => {
                 if (card.isUsb) {
@@ -388,33 +409,46 @@ export function ConnectionPage() {
                             )}
                           </div>
                         </div>
-                        {osDetection.isAvailable && usbState && (
-                          <OsBadge os={usbState.detected} />
-                        )}
                       </div>
-                      {defaultLayer.isAvailable && usbEndpoint && (
-                        <div className="mt-3 pt-3 border-t border-[var(--color-border)]">
-                          <div>
-                            <p className="text-xs text-[var(--color-text-muted)] mb-1">
-                              {t("Default Layer")}
-                            </p>
-                            <LayerSelect
-                              value={usbEndpoint.value}
-                              layerCount={defaultLayer.state?.layerCount ?? 0}
-                              layerNames={layerNames}
-                              allowOsDetection
-                              disabled={defaultLayer.isLoading}
-                              aria-label={t("{{connection}} default layer", {
-                                connection: "USB",
-                              })}
-                              onChange={(value) =>
-                                defaultLayer.setEndpointLayer(
-                                  usbEndpoint.index,
-                                  value,
-                                )
-                              }
-                            />
-                          </div>
+                      {((osDetection.isAvailable && usbState) ||
+                        (defaultLayer.isAvailable && usbEndpoint)) && (
+                        <div className="mt-3 pt-3 border-t border-[var(--color-border)] flex flex-col tablet:flex-row gap-4">
+                          {defaultLayer.isAvailable && usbEndpoint && (
+                            <div className="flex-1">
+                              <p className="text-xs text-[var(--color-text-muted)] mb-1">
+                                {t("Default Layer")}
+                              </p>
+                              <LayerSelect
+                                value={usbEndpoint.value}
+                                layerCount={defaultLayer.state?.layerCount ?? 0}
+                                layerNames={layerNames}
+                                allowOsDetection
+                                disabled={defaultLayer.isLoading}
+                                aria-label={t("{{connection}} default layer", {
+                                  connection: "USB",
+                                })}
+                                onChange={(value) =>
+                                  defaultLayer.setEndpointLayer(
+                                    usbEndpoint.index,
+                                    value,
+                                  )
+                                }
+                              />
+                            </div>
+                          )}
+                          {osDetection.isAvailable && usbState && (
+                            <div className="flex-1">
+                              <p className="text-xs text-[var(--color-text-muted)] mb-1 flex items-center gap-1">
+                                {t("OS")}
+                                <InfoTip
+                                  text={t(
+                                    "The OS is detected automatically from how the host communicates (heuristic).",
+                                  )}
+                                />
+                              </p>
+                              <OsBadge os={usbState.detected} />
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -600,51 +634,6 @@ export function ConnectionPage() {
                       {(osDetection.isAvailable && !profile.isOpen) ||
                       (defaultLayer.isAvailable && endpoint) ? (
                         <div className="mt-3 pt-3 border-t border-[var(--color-border)] flex flex-col tablet:flex-row gap-4">
-                          {osDetection.isAvailable &&
-                            !profile.isOpen &&
-                            osProfile && (
-                              <div className="flex-1">
-                                <p className="text-xs text-[var(--color-text-muted)] mb-1">
-                                  {t("OS")}
-                                </p>
-                                <div className="flex items-center gap-2">
-                                  <OsBadge os={osProfile.effective} />
-                                  <select
-                                    className="input-field text-sm"
-                                    value={osProfile.override}
-                                    disabled={osDetection.isLoading}
-                                    aria-label={t(
-                                      "{{connection}} OS override",
-                                      { connection: card.label },
-                                    )}
-                                    onChange={(e) =>
-                                      osDetection.setBleOverride(
-                                        profile.index,
-                                        Number.parseInt(
-                                          e.target.value,
-                                          10,
-                                        ) as Os,
-                                      )
-                                    }
-                                  >
-                                    {OVERRIDE_OPTIONS.map((os) => (
-                                      <option key={os} value={os}>
-                                        {os === Os.OS_UNSPECIFIED
-                                          ? t("Auto")
-                                          : t(osLabel(os))}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                                {osProfile.override !== Os.OS_UNSPECIFIED && (
-                                  <p className="text-xs text-[var(--color-text-muted)] mt-1">
-                                    {t("detected: {{os}}", {
-                                      os: t(osLabel(osProfile.detected)),
-                                    })}
-                                  </p>
-                                )}
-                              </div>
-                            )}
                           {defaultLayer.isAvailable && endpoint && (
                             <div className="flex-1">
                               <p className="text-xs text-[var(--color-text-muted)] mb-1">
@@ -668,6 +657,56 @@ export function ConnectionPage() {
                               />
                             </div>
                           )}
+                          {osDetection.isAvailable &&
+                            !profile.isOpen &&
+                            osProfile && (
+                              <div className="flex-1">
+                                <p className="text-xs text-[var(--color-text-muted)] mb-1 flex items-center gap-1">
+                                  {t("OS")}
+                                  <InfoTip
+                                    text={t(
+                                      "The OS is detected automatically from how the host communicates (heuristic). If detection is wrong, select the correct OS here to override it for this connection.",
+                                    )}
+                                  />
+                                </p>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <select
+                                    className="select-field text-sm w-full tablet:w-56"
+                                    value={osProfile.override}
+                                    disabled={osDetection.isLoading}
+                                    aria-label={t(
+                                      "{{connection}} OS override",
+                                      { connection: card.label },
+                                    )}
+                                    onChange={(e) =>
+                                      osDetection.setBleOverride(
+                                        profile.index,
+                                        Number.parseInt(
+                                          e.target.value,
+                                          10,
+                                        ) as Os,
+                                      )
+                                    }
+                                  >
+                                    {OVERRIDE_OPTIONS.map((os) => (
+                                      <option key={os} value={os}>
+                                        {os === Os.OS_UNSPECIFIED
+                                          ? t("Auto (use detected OS)")
+                                          : t(osLabel(os))}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <OsBadge os={osProfile.effective} />
+                                </div>
+                                {osProfile.override !== Os.OS_UNSPECIFIED && (
+                                  <p className="text-xs text-[var(--color-text-muted)] mt-1">
+                                    {t("detected: {{os}}", {
+                                      os: t(osLabel(osProfile.detected)),
+                                    })}
+                                  </p>
+                                )}
+                              </div>
+                            )}
                         </div>
                       ) : null}
                     </div>
@@ -732,9 +771,14 @@ export function ConnectionPage() {
         {/* Per-OS Default Layers Section */}
         {connection.isConnected && defaultLayer.isAvailable && (
           <div className="glass-card p-6 mb-6">
-            <h3 className="text-sm font-medium text-[var(--color-text)] mb-4">
+            <h3 className="text-sm font-medium text-[var(--color-text)] mb-1">
               {t("Per-OS Default Layers")}
             </h3>
+            <p className="text-xs text-[var(--color-text-muted)] mb-4">
+              {t(
+                "Applied when a connection's default layer is set to 'Follow OS detection'. The layer configured for the detected OS is used.",
+              )}
+            </p>
             {defaultLayer.state?.osDetectionAvailable === false && (
               <p className="text-xs text-[var(--color-text-muted)] mb-4">
                 {t("OS detection is not enabled in this firmware build.")}{" "}
@@ -758,10 +802,10 @@ export function ConnectionPage() {
                 return (
                   <div
                     key={zmkOs}
-                    className={`flex items-center justify-between gap-4 p-2 rounded-lg ${
+                    className={`flex items-center justify-between gap-4 p-2 rounded-lg border ${
                       isCurrent
-                        ? "bg-[var(--color-electric)]/10 border border-[var(--color-electric)]/20"
-                        : ""
+                        ? "bg-[var(--color-electric)]/10 border-[var(--color-electric)]/20"
+                        : "border-transparent"
                     }`}
                   >
                     <OsBadge os={protoOs} />

@@ -514,6 +514,85 @@ describe("ConnectionPage", () => {
     });
   });
 
+  describe("Beginner-friendly descriptions", () => {
+    const availableDefaultLayer = {
+      isAvailable: true,
+      state: {
+        endpoints: [{ index: 1, isUsb: true, bleProfileIndex: 0, value: -2 }],
+        osLayers: [
+          { os: 0, value: -1 },
+          { os: 2, value: 0 },
+        ],
+        activeEndpointIndex: 1,
+        currentOs: 2,
+        resolvedLayer: 0,
+        layerCount: 3,
+        osDetectionAvailable: true,
+      },
+    };
+
+    it("explains the Connections section and the OS-detection delegation rule", () => {
+      renderComponent(
+        { isConnected: true },
+        { profiles: mockProfiles },
+        {},
+        availableDefaultLayer,
+      );
+
+      expect(screen.getByText("Connections")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          /Set a default layer for each connection target\. The layer switches automatically/,
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          /Choosing 'Follow OS detection' applies the Per-OS Default Layers settings below\./,
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("explains when the Per-OS Default Layers section applies", () => {
+      renderComponent(
+        { isConnected: true },
+        { profiles: mockProfiles },
+        {},
+        availableDefaultLayer,
+      );
+
+      expect(
+        screen.getByText(
+          /Applied when a connection's default layer is set to 'Follow OS detection'\./,
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("uses self-explanatory sentinel option labels in layer selects", () => {
+      renderComponent(
+        { isConnected: true },
+        { profiles: mockProfiles },
+        {},
+        availableDefaultLayer,
+      );
+
+      const usbSelect = screen.getByLabelText("USB default layer");
+      const options = Array.from(usbSelect.querySelectorAll("option")).map(
+        (o) => o.textContent,
+      );
+      expect(options).toContain("Not set (leave as is)");
+      expect(options).toContain("Follow OS detection");
+    });
+
+    it("explains what Output Priority does", () => {
+      renderComponent({ isConnected: true }, { profiles: mockProfiles });
+      expect(
+        screen.getByText(
+          "Choose whether USB or Bluetooth is used for keystrokes when both are connected.",
+        ),
+      ).toBeInTheDocument();
+    });
+  });
+
   describe("Graceful degradation", () => {
     it("still renders BLE rows derived from default-layer/os-detection when ble-management is unavailable", () => {
       renderComponent(
