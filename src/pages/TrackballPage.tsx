@@ -7,6 +7,7 @@ import {
 } from "@tabler/icons-react";
 import * as Switch from "@radix-ui/react-switch";
 import { useRuntimeInputProcessor } from "../hooks/useRuntimeInputProcessor";
+import { TrackballAdvancedSettings } from "../components/TrackballAdvancedSettings";
 import { AxisSnapMode } from "../proto/zmk/runtime_input_processor/runtime_input_processor";
 import { useDebouncedSave } from "../hooks/useDebouncedSave";
 import { useLanguage } from "../hooks/useLanguage";
@@ -1078,6 +1079,10 @@ export function TrackballPage() {
             </div>
           </div>
         )}
+
+        <div className="mt-6">
+          <TrackballAdvancedSettings />
+        </div>
       </div>
     </div>
   );

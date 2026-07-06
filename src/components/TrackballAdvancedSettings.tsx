@@ -1,0 +1,144 @@
+import { useMemo, useState } from "react";
+import {
+  IconChevronDown,
+  IconChevronRight,
+  IconRefresh,
+} from "@tabler/icons-react";
+import { CustomSettingsSectionCard } from "./AdvancedSettingsSection";
+import { useCustomSettings } from "../hooks/useCustomSettings";
+import { useKeymap } from "../hooks/useKeymap";
+import { useLanguage } from "../hooks/useLanguage";
+
+// Custom subsystem identifier registered by the pmw3610 driver's settings
+// module (see src/settings/pmw3610_settings.c in the driver repository).
+// Frame capture/streaming lives in a separate, dedicated RPC subsystem and
+// is intentionally not surfaced here.
+const PMW3610_CUSTOM_SETTINGS_IDENTIFIER = "cormoran__pmw3610";
+
+export function TrackballAdvancedSettings() {
+  const { t } = useLanguage();
+  const [isExpanded, setIsExpanded] = useState(false);
+  const customSettings = useCustomSettings();
+  const { keymap, behaviors, isLoading: keymapLoading } = useKeymap();
+
+  const layers = useMemo(
+    () =>
+      keymap?.layers.map((layer) => ({
+        id: layer.id,
+        name: layer.name || t("Layer {{id}}", { id: layer.id }),
+      })) ?? [],
+    [keymap?.layers, t],
+  );
+
+  const pmw3610Sections = useMemo(
+    () =>
+      customSettings.sections.filter(
+        (section) => section.identifier === PMW3610_CUSTOM_SETTINGS_IDENTIFIER,
+      ),
+    [customSettings.sections],
+  );
+
+  const isSubsystemAvailable =
+    !customSettings.isLoading && pmw3610Sections.length > 0;
+
+  return (
+    <div className="glass-card overflow-hidden">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between gap-3 p-6 text-left"
+        onClick={() => setIsExpanded((expanded) => !expanded)}
+        aria-expanded={isExpanded}
+      >
+        <div>
+          <h3 className="text-sm font-medium text-[var(--color-text)]">
+            {t("Advanced (PMW3610 Sensor Driver)")}
+          </h3>
+          <p className="text-xs text-[var(--color-text-muted)]">
+            {t(
+              "Sensor-level tuning exposed by the pmw3610 driver's custom Studio RPC",
+            )}
+          </p>
+        </div>
+        {isExpanded ? (
+          <IconChevronDown
+            size={20}
+            className="flex-shrink-0 text-[var(--color-text-muted)]"
+          />
+        ) : (
+          <IconChevronRight
+            size={20}
+            className="flex-shrink-0 text-[var(--color-text-muted)]"
+          />
+        )}
+      </button>
+
+      {isExpanded && (
+        <div className="space-y-4 border-t border-[var(--color-border)] p-6 pt-4">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs text-[var(--color-text-muted)]">
+              {t(
+                "Changes are written to keyboard memory after a short delay. Save a section to persist them.",
+              )}
+            </p>
+            <button
+              type="button"
+              className="btn-ghost flex flex-shrink-0 items-center gap-2 border border-[var(--color-border)] text-sm"
+              onClick={customSettings.loadSettings}
+              disabled={customSettings.isLoading}
+            >
+              <IconRefresh size={16} />
+              {t("Reload")}
+            </button>
+          </div>
+
+          {!customSettings.isAvailable ? (
+            <p className="text-sm text-[var(--color-text-muted)]">
+              {t(
+                "Custom settings subsystem is not available for this keyboard.",
+              )}
+            </p>
+          ) : customSettings.isLoading && pmw3610Sections.length === 0 ? (
+            <p className="text-sm text-[var(--color-text-muted)]">
+              {t("Loading advanced settings...")}
+            </p>
+          ) : !isSubsystemAvailable ? (
+            <p className="text-sm text-[var(--color-text-muted)]">
+              {t("No pmw3610 driver settings were reported by the keyboard.")}
+              <br />
+              {t("Make sure your firmware has the {{module}} enabled.", {
+                module: "cormoran/zmk-driver-pmw3610-with-custom-studio-rpc",
+              })}
+              <a
+                href="https://github.com/cormoran/zmk-driver-pmw3610-with-custom-studio-rpc"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[var(--color-electric)] underline mx-1"
+              >
+                cormoran/zmk-driver-pmw3610-with-custom-studio-rpc
+              </a>
+            </p>
+          ) : (
+            <div className="space-y-6">
+              {pmw3610Sections.map((section) => (
+                <CustomSettingsSectionCard
+                  key={section.customSubsystemIndex}
+                  section={section}
+                  layers={layers}
+                  behaviors={behaviors}
+                  customSettings={customSettings}
+                  keymapLoading={keymapLoading}
+                />
+              ))}
+            </div>
+          )}
+
+          {customSettings.error && (
+            <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3">
+              <p className="text-sm text-red-400">{customSettings.error}</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

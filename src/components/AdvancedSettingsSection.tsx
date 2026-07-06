@@ -11,6 +11,8 @@ import {
 import {
   CUSTOM_SETTINGS_SOURCE_ALL,
   useCustomSettings,
+  type CustomSettingsSection,
+  type UseCustomSettingsReturn,
 } from "../hooks/useCustomSettings";
 import { useKeymap, type BehaviorDefinition } from "../hooks/useKeymap";
 import { useLanguage } from "../hooks/useLanguage";
@@ -586,6 +588,118 @@ function SettingRow({
   );
 }
 
+export interface CustomSettingsSectionCardProps {
+  section: CustomSettingsSection;
+  layers: { id: number; name: string }[];
+  behaviors: Map<number, BehaviorDefinition>;
+  customSettings: UseCustomSettingsReturn;
+  keymapLoading?: boolean;
+}
+
+export function CustomSettingsSectionCard({
+  section,
+  layers,
+  behaviors,
+  customSettings,
+  keymapLoading = false,
+}: CustomSettingsSectionCardProps) {
+  const { t } = useLanguage();
+  const hasUnsavedChanges = section.settings.some(
+    (setting) => setting.hasUnsavedValue,
+  );
+  const sortedSettings = [...section.settings].sort((a, b) =>
+    settingSortValue(a).localeCompare(settingSortValue(b)),
+  );
+
+  return (
+    <section className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
+      <div className="flex flex-col gap-3 border-b border-[var(--color-border)] p-4 md:flex-row md:items-center md:justify-between">
+        <div className="min-w-0">
+          <h4 className="truncate text-sm font-medium text-[var(--color-text)]">
+            {section.identifier}
+          </h4>
+          <p className="text-xs text-[var(--color-text-muted)]">
+            {t("{{count}} settings", {
+              count: section.settings.length,
+            })}
+            {keymapLoading ? t(" - loading layer and behavior names") : ""}
+          </p>
+        </div>
+        <div className="flex flex-wrap justify-end gap-2">
+          <button
+            type="button"
+            className="btn-electric flex items-center gap-2 px-3 py-2 text-sm"
+            disabled={customSettings.isLoading || !hasUnsavedChanges}
+            onClick={() =>
+              customSettings.saveSection(section.customSubsystemIndex)
+            }
+          >
+            <IconDeviceFloppy size={16} />
+            {t("Save")}
+          </button>
+          <button
+            type="button"
+            className="btn-ghost flex items-center gap-2 border border-[var(--color-border)] text-sm"
+            disabled={customSettings.isLoading}
+            onClick={() =>
+              customSettings.discardSection(section.customSubsystemIndex)
+            }
+          >
+            <IconRefresh size={16} />
+            {t("Discard")}
+          </button>
+          <button
+            type="button"
+            className="btn-ghost flex items-center gap-2 border border-red-500/30 text-sm text-red-400"
+            disabled={customSettings.isLoading}
+            onClick={() => {
+              if (
+                window.confirm(
+                  t("Reset all settings in {{identifier}}?", {
+                    identifier: section.identifier,
+                  }),
+                )
+              ) {
+                void customSettings.resetSection(section.customSubsystemIndex);
+              }
+            }}
+          >
+            <IconRotateClockwise size={16} />
+            {t("Reset")}
+          </button>
+        </div>
+      </div>
+
+      <div className="px-4">
+        <div className="hidden grid-cols-[minmax(0,1fr)_7rem_minmax(14rem,22rem)_8rem_7rem] gap-3 py-3 text-xs font-medium uppercase text-[var(--color-text-muted)] md:grid">
+          <span>{t("Setting")}</span>
+          <span>{t("Source")}</span>
+          <span>{t("Editor")}</span>
+          <span>{t("Status")}</span>
+          <span className="text-right">{t("Item")}</span>
+        </div>
+        {sortedSettings.map((setting) => (
+          <SettingRow
+            key={[
+              setting.customSubsystemIndex,
+              setting.key,
+              setting.source,
+              setting.value?.arrayValue?.index ?? "scalar",
+            ].join(":")}
+            setting={setting}
+            layers={layers}
+            behaviors={behaviors}
+            isLoading={customSettings.isLoading}
+            onWrite={customSettings.writeSettingToMemory}
+            onDiscard={customSettings.discardSetting}
+            onReset={customSettings.resetSetting}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function AdvancedSettingsSection() {
   const { t } = useLanguage();
   const customSettings = useCustomSettings();
@@ -650,111 +764,16 @@ export function AdvancedSettingsSection() {
         </p>
       ) : (
         <div className="space-y-6">
-          {customSettings.sections.map((section) => {
-            const hasUnsavedChanges = section.settings.some(
-              (setting) => setting.hasUnsavedValue,
-            );
-            const sortedSettings = [...section.settings].sort((a, b) =>
-              settingSortValue(a).localeCompare(settingSortValue(b)),
-            );
-
-            return (
-              <section
-                key={section.customSubsystemIndex}
-                className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]"
-              >
-                <div className="flex flex-col gap-3 border-b border-[var(--color-border)] p-4 md:flex-row md:items-center md:justify-between">
-                  <div className="min-w-0">
-                    <h4 className="truncate text-sm font-medium text-[var(--color-text)]">
-                      {section.identifier}
-                    </h4>
-                    <p className="text-xs text-[var(--color-text-muted)]">
-                      {t("{{count}} settings", {
-                        count: section.settings.length,
-                      })}
-                      {keymapLoading
-                        ? t(" - loading layer and behavior names")
-                        : ""}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap justify-end gap-2">
-                    <button
-                      type="button"
-                      className="btn-electric flex items-center gap-2 px-3 py-2 text-sm"
-                      disabled={customSettings.isLoading || !hasUnsavedChanges}
-                      onClick={() =>
-                        customSettings.saveSection(section.customSubsystemIndex)
-                      }
-                    >
-                      <IconDeviceFloppy size={16} />
-                      {t("Save")}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-ghost flex items-center gap-2 border border-[var(--color-border)] text-sm"
-                      disabled={customSettings.isLoading}
-                      onClick={() =>
-                        customSettings.discardSection(
-                          section.customSubsystemIndex,
-                        )
-                      }
-                    >
-                      <IconRefresh size={16} />
-                      {t("Discard")}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-ghost flex items-center gap-2 border border-red-500/30 text-sm text-red-400"
-                      disabled={customSettings.isLoading}
-                      onClick={() => {
-                        if (
-                          window.confirm(
-                            t("Reset all settings in {{identifier}}?", {
-                              identifier: section.identifier,
-                            }),
-                          )
-                        ) {
-                          void customSettings.resetSection(
-                            section.customSubsystemIndex,
-                          );
-                        }
-                      }}
-                    >
-                      <IconRotateClockwise size={16} />
-                      {t("Reset")}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="px-4">
-                  <div className="hidden grid-cols-[minmax(0,1fr)_7rem_minmax(14rem,22rem)_8rem_7rem] gap-3 py-3 text-xs font-medium uppercase text-[var(--color-text-muted)] md:grid">
-                    <span>{t("Setting")}</span>
-                    <span>{t("Source")}</span>
-                    <span>{t("Editor")}</span>
-                    <span>{t("Status")}</span>
-                    <span className="text-right">{t("Item")}</span>
-                  </div>
-                  {sortedSettings.map((setting) => (
-                    <SettingRow
-                      key={[
-                        setting.customSubsystemIndex,
-                        setting.key,
-                        setting.source,
-                        setting.value?.arrayValue?.index ?? "scalar",
-                      ].join(":")}
-                      setting={setting}
-                      layers={layers}
-                      behaviors={behaviors}
-                      isLoading={customSettings.isLoading}
-                      onWrite={customSettings.writeSettingToMemory}
-                      onDiscard={customSettings.discardSetting}
-                      onReset={customSettings.resetSetting}
-                    />
-                  ))}
-                </div>
-              </section>
-            );
-          })}
+          {customSettings.sections.map((section) => (
+            <CustomSettingsSectionCard
+              key={section.customSubsystemIndex}
+              section={section}
+              layers={layers}
+              behaviors={behaviors}
+              customSettings={customSettings}
+              keymapLoading={keymapLoading}
+            />
+          ))}
         </div>
       )}
 

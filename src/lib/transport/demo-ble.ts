@@ -22,7 +22,7 @@ const MOCK_BLE_PROFILES: ProfileInfo[] = [
     name: "MacBook Pro",
     address: "AA:BB:CC:DD:EE:01",
     isConnected: true,
-    isOpen: true,
+    isOpen: false,
     isActive: true,
   },
   {
@@ -30,7 +30,7 @@ const MOCK_BLE_PROFILES: ProfileInfo[] = [
     name: "iPad",
     address: "AA:BB:CC:DD:EE:02",
     isConnected: false,
-    isOpen: true,
+    isOpen: false,
     isActive: false,
   },
   {
@@ -38,7 +38,7 @@ const MOCK_BLE_PROFILES: ProfileInfo[] = [
     name: "",
     address: "00:00:00:00:00:00",
     isConnected: false,
-    isOpen: false,
+    isOpen: true,
     isActive: false,
   },
   {
@@ -46,7 +46,7 @@ const MOCK_BLE_PROFILES: ProfileInfo[] = [
     name: "",
     address: "00:00:00:00:00:00",
     isConnected: false,
-    isOpen: false,
+    isOpen: true,
     isActive: false,
   },
   {
@@ -54,7 +54,7 @@ const MOCK_BLE_PROFILES: ProfileInfo[] = [
     name: "",
     address: "00:00:00:00:00:00",
     isConnected: false,
-    isOpen: false,
+    isOpen: true,
     isActive: false,
   },
 ];

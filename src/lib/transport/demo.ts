@@ -49,6 +49,14 @@ import {
   INPUT_STREAM_IDENTIFIER,
 } from "./demo-input-stream";
 import {
+  OsDetectionHandler,
+  OS_DETECTION_IDENTIFIER,
+} from "./demo-os-detection";
+import {
+  DefaultLayerHandler,
+  DEFAULT_LAYER_IDENTIFIER,
+} from "./demo-default-layer";
+import {
   Request as BLERequest,
   Response as BLEResponse,
 } from "../../proto/zmk/ble_management/ble_management";
@@ -100,6 +108,14 @@ import {
   Request as CustomSettingsRequest,
   Response as CustomSettingsResponse,
 } from "../../proto/cormoran/zmk/custom_settings/custom_settings";
+import {
+  Request as OsDetectionRequest,
+  Response as OsDetectionResponse,
+} from "../../proto/cormoran/os_detection/os_detection";
+import {
+  Request as DefaultLayerRequest,
+  Response as DefaultLayerResponse,
+} from "../../proto/cormoran/default_layer/default_layer";
 import {
   ANSI60,
   ORTHO,
@@ -215,6 +231,8 @@ class Keyboard {
   private physicalLayoutsHandler = new PhysicalLayoutsHandler();
   private inputStreamHandler = new InputStreamHandler();
   private customSettingsHandler: CustomSettingsHandler;
+  private osDetectionHandler = new OsDetectionHandler();
+  private defaultLayerHandler: DefaultLayerHandler;
 
   // Custom subsystems registry
   private readonly BLE_SUBSYSTEM_INDEX = 0;
@@ -230,10 +248,15 @@ class Keyboard {
   private readonly WATCHDOG_SUBSYSTEM_INDEX = 10;
   private readonly KSCAN_DIAGNOSTICS_SUBSYSTEM_INDEX = 11;
   private readonly PMW3610_SUBSYSTEM_INDEX = 12;
+  private readonly OS_DETECTION_SUBSYSTEM_INDEX = 13;
+  private readonly DEFAULT_LAYER_SUBSYSTEM_INDEX = 14;
 
   constructor() {
     this.customSettingsHandler = new CustomSettingsHandler(
       this.SETTINGS_SUBSYSTEM_INDEX,
+    );
+    this.defaultLayerHandler = new DefaultLayerHandler(
+      this.data.keymap.layers.length,
     );
   }
 
@@ -301,6 +324,16 @@ class Keyboard {
     {
       index: this.PMW3610_SUBSYSTEM_INDEX,
       identifier: PMW3610_IDENTIFIER,
+      uiUrl: [],
+    },
+    {
+      index: this.OS_DETECTION_SUBSYSTEM_INDEX,
+      identifier: OS_DETECTION_IDENTIFIER,
+      uiUrl: [],
+    },
+    {
+      index: this.DEFAULT_LAYER_SUBSYSTEM_INDEX,
+      identifier: DEFAULT_LAYER_IDENTIFIER,
       uiUrl: [],
     },
   ];
@@ -580,6 +613,26 @@ class Keyboard {
             CustomSettingsResponse.encode(customSettingsResp).finish();
         } catch (e) {
           console.error("Custom Settings subsystem error:", e);
+        }
+      } else if (subsystemIndex === this.OS_DETECTION_SUBSYSTEM_INDEX) {
+        // OS Detection
+        try {
+          const osDetectionReq = OsDetectionRequest.decode(data);
+          const osDetectionResp =
+            this.osDetectionHandler.process(osDetectionReq);
+          responseData = OsDetectionResponse.encode(osDetectionResp).finish();
+        } catch (e) {
+          console.error("OS Detection subsystem error:", e);
+        }
+      } else if (subsystemIndex === this.DEFAULT_LAYER_SUBSYSTEM_INDEX) {
+        // Default Layer
+        try {
+          const defaultLayerReq = DefaultLayerRequest.decode(data);
+          const defaultLayerResp =
+            this.defaultLayerHandler.process(defaultLayerReq);
+          responseData = DefaultLayerResponse.encode(defaultLayerResp).finish();
+        } catch (e) {
+          console.error("Default Layer subsystem error:", e);
         }
       }
 
