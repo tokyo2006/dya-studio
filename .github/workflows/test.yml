@@ -21,44 +21,43 @@ jobs:
         run: npm run lint
       - name: Run tests
         run: npm test
-      - name: Build for Cloudflare Workers Preview
-        if: ${{ github.event_name != 'workflow_dispatch' }}
+      - name: Build for Cloudflare Workers
         run: npm run build
         env:
           VITE_BASE: /
-      - name: Build for github pages
-        if: ${{ github.event_name == 'workflow_dispatch' }}
-        run: npm run build
-        env:
-          VITE_BASE: /${{ github.event.repository.name }}/
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: dist
           path: dist
 
-      - name: Upload static files as artifact
-        if: ${{ github.event_name == 'workflow_dispatch' }}
-        id: deployment
-        uses: actions/upload-pages-artifact@v3
+  deploy-dev:
+    needs: build
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    permissions:
+      contents: read
+    environment:
+      name: cloudflare-dev
+      url: ${{ steps.deploy.outputs.deployment-url }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
         with:
+          name: dist
           path: dist
 
-  release:
-    needs: build
-    if: ${{ github.event_name == 'workflow_dispatch' }}
-    permissions:
-      pages: write # to deploy to Pages
-      id-token: write # to verify the deployment originates from an appropriate source
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Deploy to Cloudflare Workers (dev)
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --env dev
+          wranglerVersion: "4.58.0"
 
   preview:
     needs: build
@@ -73,19 +72,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - uses: actions/checkout@v5
+
       - name: Download build artifact
         uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist
 
-      - name: Deploy to Cloudflare Pages
+      - name: Deploy preview to Cloudflare Workers (dev)
         id: deploy
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: versions upload --assets dist --name dya-studio --compatibility-date 2026-01-11
+          command: versions upload --env dev
           wranglerVersion: "4.58.0"
 
       - name: Comment PR with deployment URL

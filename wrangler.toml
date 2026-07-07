@@ -1,6 +1,10 @@
 compatibility_date = "2024-06-11"
 assets = { directory = "./dist" }
 
+[env.dev]
+
+name = "dya-studio-dev"
+
 [env.release]
 
 name = "dya-studio"
