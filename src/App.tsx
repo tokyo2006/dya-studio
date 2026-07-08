@@ -148,6 +148,8 @@ function AppContent() {
               onConnect={connection.onConnect}
               isConnecting={connection.isLoading}
               error={connection.error}
+              isReconnecting={connection.isReconnecting}
+              onCancelReconnect={connection.onCancelReconnect}
             />
           </motion.div>
         )}

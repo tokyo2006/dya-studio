@@ -469,6 +469,7 @@ const ja: Record<string, string> = {
   "Try Demo Mode": "デモモードを試す",
   "Try Demo Mode (no device required)": "デモモードを試す（デバイス不要）",
   "Try demo mode without a keyboard": "キーボードなしでデモモードを試せます",
+  "Reconnecting to your keyboard...": "キーボードに再接続中...",
   "DYA Studio is maintained by": "DYA Studio のメンテナー",
   "Special thanks to": "Special thanks to",
   "ZMK community": "ZMK community",
