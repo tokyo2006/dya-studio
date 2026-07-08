@@ -8,10 +8,12 @@
  * web/src/useOfficialKeymap.ts, trimmed to just physical layouts.
  */
 import { useCallback, useContext, useState } from "react";
-import { call_rpc, MetaError } from "@zmkfirmware/zmk-studio-ts-client";
-import { ErrorConditions } from "@zmkfirmware/zmk-studio-ts-client/meta";
+import { call_rpc } from "@zmkfirmware/zmk-studio-ts-client";
 import type { PhysicalLayouts } from "@zmkfirmware/zmk-studio-ts-client/keymap";
-import { ZMKAppContext } from "@cormoran/zmk-studio-react-hook";
+import {
+  ZMKAppContext,
+  isUnlockRequiredError,
+} from "@cormoran/zmk-studio-react-hook";
 
 export interface UseOfficialLayoutsReturn {
   physicalLayouts: PhysicalLayouts | null;
@@ -45,10 +47,7 @@ export function useOfficialLayouts(): UseOfficialLayoutsReturn {
         setPhysicalLayouts(resp.keymap.getPhysicalLayouts);
       }
     } catch (e) {
-      if (
-        e instanceof MetaError &&
-        e.condition === ErrorConditions.UNLOCK_REQUIRED
-      ) {
+      if (isUnlockRequiredError(e)) {
         setUnlockRequired(true);
       } else {
         setError(e instanceof Error ? e.message : "Unknown error");

@@ -12,8 +12,11 @@ import {
   useMemo,
   useRef,
 } from "react";
-import { ZMKAppContext } from "@cormoran/zmk-studio-react-hook";
-import { call_rpc, MetaError } from "@zmkfirmware/zmk-studio-ts-client";
+import {
+  ZMKAppContext,
+  isUnlockRequiredError,
+} from "@cormoran/zmk-studio-react-hook";
+import { call_rpc } from "@zmkfirmware/zmk-studio-ts-client";
 import type {
   Keymap,
   Layer,
@@ -237,14 +240,12 @@ export function useKeymap(): UseKeymapReturn {
         clearError();
         return result;
       } catch (err) {
-        if (err instanceof MetaError) {
-          if (err.condition === ErrorConditions.UNLOCK_REQUIRED) {
-            setUnlockRequired(true);
-            setError(
-              "Keyboard needs to be unlocked. Please unlock your keyboard.",
-            );
-            return null;
-          }
+        if (isUnlockRequiredError(err)) {
+          setUnlockRequired(true);
+          setError(
+            "Keyboard needs to be unlocked. Please unlock your keyboard.",
+          );
+          return null;
         }
         console.error("RPC call failed:", err);
         setErrorWithAutoClear(
