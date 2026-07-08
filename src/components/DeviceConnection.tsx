@@ -19,7 +19,7 @@ export type ConnectionMethod = "serial" | "ble" | "demo";
  * Without this, a fast reconnect would flash the indicator so briefly the
  * user couldn't tell what happened.
  */
-export const AUTO_RECONNECT_MIN_DISPLAY_MS = 2500;
+export const AUTO_RECONNECT_MIN_DISPLAY_MS = 600;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
