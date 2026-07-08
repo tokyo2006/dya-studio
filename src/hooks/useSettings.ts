@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, useContext, useMemo } from "react";
+import { useState, useEffect, useCallback, useContext } from "react";
 import {
-  ZMKCustomSubsystem,
   ZMKAppContext,
+  useCustomSubsystem,
 } from "@cormoran/zmk-studio-react-hook";
 import {
   Request,
@@ -12,6 +12,11 @@ import {
 
 // Subsystem identifier for ZMK settings RPC
 const SUBSYSTEM_IDENTIFIER = "zmk__settings";
+
+const CODEC = {
+  encode: (request: Request) => Request.encode(request).finish(),
+  decode: (payload: Uint8Array) => Response.decode(payload),
+};
 
 // Time to wait for all notifications to arrive after requesting settings
 const NOTIFICATION_COLLECTION_TIMEOUT_MS = 500;
@@ -35,22 +40,19 @@ export interface UseSettingsReturn {
 
 export function useSettings(): UseSettingsReturn {
   const zmkApp = useContext(ZMKAppContext);
+  const { subsystem, ready, call } = useCustomSubsystem(
+    SUBSYSTEM_IDENTIFIER,
+    CODEC,
+  );
   const [devices, setDevices] = useState<DeviceActivitySettings[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Memoize subsystem to avoid unnecessary re-renders
-  const subsystem = useMemo(
-    () => zmkApp?.findSubsystem(SUBSYSTEM_IDENTIFIER),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [zmkApp?.state.customSubsystems],
-  );
 
   // Extract subsystem index as a stable primitive value for dependencies
   const subsystemIndex = subsystem?.index;
 
   const loadAllSettings = useCallback(async () => {
-    if (!zmkApp?.state.connection || subsystemIndex === undefined) {
+    if (!ready || !zmkApp || subsystemIndex === undefined) {
       setError("Not connected to device or subsystem not found");
       return;
     }
@@ -59,11 +61,6 @@ export function useSettings(): UseSettingsReturn {
     setError(null);
 
     try {
-      const service = new ZMKCustomSubsystem(
-        zmkApp.state.connection,
-        subsystemIndex,
-      );
-
       // Map to store settings by source ID
       const deviceMap = new Map<number, DeviceActivitySettings>();
 
@@ -112,20 +109,11 @@ export function useSettings(): UseSettingsReturn {
 
       try {
         // Send request to get all activity settings
-        const request = Request.create({
-          getAllActivitySettings: {},
-        });
-
-        const payload = Request.encode(request).finish();
-        const responsePayload = await service.callRPC(payload);
-
-        if (responsePayload) {
-          const resp = Response.decode(responsePayload);
-          if (resp.error) {
-            setError(resp.error.message);
-          }
-          // Note: The actual data comes via notifications, not the response
+        const resp = await call(Request.create({ getAllActivitySettings: {} }));
+        if (resp?.error) {
+          setError(resp.error.message);
         }
+        // Note: The actual data comes via notifications, not the response
       } finally {
         // Wait for all notifications to arrive from devices
         await new Promise((resolve) =>
@@ -141,11 +129,11 @@ export function useSettings(): UseSettingsReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [zmkApp, subsystemIndex]);
+  }, [zmkApp, ready, subsystemIndex, call]);
 
   const setActivitySettings = useCallback(
     async (idleMs: number, sleepMs: number) => {
-      if (!zmkApp?.state.connection || subsystemIndex === undefined) {
+      if (!ready) {
         setError("Not connected to device or subsystem not found");
         return;
       }
@@ -154,26 +142,19 @@ export function useSettings(): UseSettingsReturn {
       setError(null);
 
       try {
-        const service = new ZMKCustomSubsystem(
-          zmkApp.state.connection,
-          subsystemIndex,
+        const resp = await call(
+          Request.create({
+            setActivitySettings: {
+              settings: {
+                idleMs,
+                sleepMs,
+                source: 0, // Not used for set operation
+              },
+            },
+          }),
         );
 
-        const request = Request.create({
-          setActivitySettings: {
-            settings: {
-              idleMs,
-              sleepMs,
-              source: 0, // Not used for set operation
-            },
-          },
-        });
-
-        const payload = Request.encode(request).finish();
-        const responsePayload = await service.callRPC(payload);
-
-        if (responsePayload) {
-          const resp = Response.decode(responsePayload);
+        if (resp) {
           if (resp.error) {
             setError(resp.error.message);
           } else if (resp.setActivitySettings?.success) {
@@ -190,7 +171,7 @@ export function useSettings(): UseSettingsReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp, subsystemIndex, loadAllSettings],
+    [ready, call, loadAllSettings],
   );
 
   const resetToDefaults = useCallback(async () => {
@@ -202,13 +183,13 @@ export function useSettings(): UseSettingsReturn {
 
   // Load settings when connection or subsystem changes
   useEffect(() => {
-    if (subsystemIndex !== undefined && zmkApp?.state.connection) {
+    if (ready) {
       loadAllSettings();
     }
-  }, [subsystemIndex, zmkApp?.state.connection, loadAllSettings]);
+  }, [ready, loadAllSettings]);
 
   return {
-    isAvailable: subsystemIndex !== undefined,
+    isAvailable: subsystem !== null,
     devices,
     isLoading,
     error,

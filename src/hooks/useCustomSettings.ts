@@ -1,7 +1,7 @@
 import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import {
   ZMKAppContext,
-  ZMKCustomSubsystem,
+  useCustomSubsystem,
 } from "@cormoran/zmk-studio-react-hook";
 import {
   Notification,
@@ -16,6 +16,11 @@ import {
 import { useLanguage } from "./useLanguage";
 
 export const CUSTOM_SETTINGS_IDENTIFIER = "cormoran_custom_settings";
+
+const CODEC = {
+  encode: (request: Request) => Request.encode(request).finish(),
+  decode: (payload: Uint8Array) => Response.decode(payload),
+};
 export const CUSTOM_SETTINGS_SOURCE_ALL = 0xffffffff;
 
 const LIST_NOTIFICATION_TIMEOUT_MS = 750;
@@ -111,15 +116,14 @@ async function withTimeout<T>(
 export function useCustomSettings(): UseCustomSettingsReturn {
   const { t } = useLanguage();
   const zmkApp = useContext(ZMKAppContext);
+  const { subsystem, ready, call } = useCustomSubsystem(
+    CUSTOM_SETTINGS_IDENTIFIER,
+    CODEC,
+  );
   const [settings, setSettings] = useState<Setting[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const subsystem = useMemo(
-    () => zmkApp?.findSubsystem(CUSTOM_SETTINGS_IDENTIFIER),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [zmkApp?.state.customSubsystems],
-  );
   const subsystemIndex = subsystem?.index;
 
   const subsystemIdentifierForIndex = useCallback(
@@ -131,32 +135,25 @@ export function useCustomSettings(): UseCustomSettingsReturn {
 
   const callCustomRequest = useCallback(
     async (request: Request): Promise<Response> => {
-      if (!zmkApp?.state.connection || subsystemIndex === undefined) {
+      if (!ready) {
         throw new Error(t("Custom settings subsystem is not available"));
       }
 
-      const service = new ZMKCustomSubsystem(
-        zmkApp.state.connection,
-        subsystemIndex,
-      );
-      const responsePayload = await service.callRPC(
-        Request.encode(request).finish(),
-      );
-      if (!responsePayload) {
+      const response = await call(request);
+      if (!response) {
         throw new Error(t("Empty custom settings response"));
       }
 
-      const response = Response.decode(responsePayload);
       if (response.error) {
         throw new Error(response.error.message || t("Custom settings failed"));
       }
       return response;
     },
-    [t, zmkApp?.state.connection, subsystemIndex],
+    [t, ready, call],
   );
 
   const collectListSettings = useCallback(async (): Promise<Setting[]> => {
-    if (!zmkApp || subsystemIndex === undefined) {
+    if (!ready || !zmkApp || subsystemIndex === undefined) {
       return [];
     }
 
@@ -235,10 +232,10 @@ export function useCustomSettings(): UseCustomSettingsReturn {
         clearTimeout(quietTimeout);
       }
     }
-  }, [callCustomRequest, subsystemIndex, t, zmkApp]);
+  }, [callCustomRequest, ready, subsystemIndex, t, zmkApp]);
 
   const loadSettings = useCallback(async () => {
-    if (subsystemIndex === undefined || !zmkApp?.state.connection) {
+    if (!ready) {
       setSettings([]);
       return;
     }
@@ -271,7 +268,7 @@ export function useCustomSettings(): UseCustomSettingsReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [collectListSettings, subsystemIndex, t, zmkApp?.state.connection]);
+  }, [collectListSettings, ready, t]);
 
   const writeSettingToMemory = useCallback(
     async (setting: Setting, value: SettingValue) => {
@@ -371,7 +368,7 @@ export function useCustomSettings(): UseCustomSettingsReturn {
   }, [loadSettings]);
 
   return {
-    isAvailable: subsystemIndex !== undefined,
+    isAvailable: subsystem !== null,
     sections,
     isLoading,
     error,

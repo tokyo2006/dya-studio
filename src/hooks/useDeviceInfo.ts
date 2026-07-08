@@ -1,8 +1,5 @@
-import { useCallback, useContext, useEffect, useMemo, useState } from "react";
-import {
-  ZMKCustomSubsystem,
-  ZMKAppContext,
-} from "@cormoran/zmk-studio-react-hook";
+import { useCallback, useEffect, useState } from "react";
+import { useCustomSubsystem } from "@cormoran/zmk-studio-react-hook";
 import {
   Request,
   Response,
@@ -10,6 +7,11 @@ import {
 } from "../proto/zmk/device_info/device_info";
 
 export const DEVICE_INFO_SUBSYSTEM_IDENTIFIER = "zmk__device_info";
+
+const CODEC = {
+  encode: (request: Request) => Request.encode(request).finish(),
+  decode: (payload: Uint8Array) => Response.decode(payload),
+};
 
 export interface UseDeviceInfoReturn {
   isAvailable: boolean;
@@ -20,36 +22,26 @@ export interface UseDeviceInfoReturn {
 }
 
 export function useDeviceInfo(): UseDeviceInfoReturn {
-  const zmkApp = useContext(ZMKAppContext);
+  const { subsystem, ready, call } = useCustomSubsystem(
+    DEVICE_INFO_SUBSYSTEM_IDENTIFIER,
+    CODEC,
+  );
   const [info, setInfo] = useState<DeviceInfoResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const subsystem = useMemo(
-    () => zmkApp?.findSubsystem(DEVICE_INFO_SUBSYSTEM_IDENTIFIER),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [zmkApp?.state.customSubsystems],
-  );
-  const subsystemIndex = subsystem?.index;
-  const connection = zmkApp?.state.connection;
-
   const refresh = useCallback(async () => {
-    if (!connection || subsystemIndex === undefined) {
+    if (!ready) {
       setError("Not connected to device or subsystem not found");
       return;
     }
     setIsLoading(true);
     setError(null);
     try {
-      const service = new ZMKCustomSubsystem(connection, subsystemIndex);
-      const payload = Request.encode(
-        Request.create({ getDeviceInfo: {} }),
-      ).finish();
-      const responsePayload = await service.callRPC(payload);
-      if (!responsePayload) {
+      const resp = await call(Request.create({ getDeviceInfo: {} }));
+      if (!resp) {
         throw new Error("No response from device");
       }
-      const resp = Response.decode(responsePayload);
       if (resp.error) {
         throw new Error(resp.error.message);
       }
@@ -59,17 +51,17 @@ export function useDeviceInfo(): UseDeviceInfoReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [connection, subsystemIndex]);
+  }, [ready, call]);
 
   // Auto-fetch when the subsystem becomes available.
   useEffect(() => {
-    if (connection && subsystemIndex !== undefined) {
+    if (ready) {
       void refresh();
     }
-  }, [connection, subsystemIndex, refresh]);
+  }, [ready, refresh]);
 
   return {
-    isAvailable: subsystemIndex !== undefined,
+    isAvailable: subsystem !== null,
     info,
     isLoading,
     error,

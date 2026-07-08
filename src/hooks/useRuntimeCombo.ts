@@ -4,11 +4,8 @@
  * Provides access to cormoran/zmk-feature-runtime-combo through the custom ZMK
  * Studio RPC subsystem.
  */
-import { useCallback, useContext, useEffect, useMemo, useState } from "react";
-import {
-  ZMKAppContext,
-  ZMKCustomSubsystem,
-} from "@cormoran/zmk-studio-react-hook";
+import { useCallback, useEffect, useState } from "react";
+import { useCustomSubsystem } from "@cormoran/zmk-studio-react-hook";
 import {
   Request,
   Response,
@@ -21,6 +18,11 @@ import {
 export type { Combo, GlobalSettings, BehaviorBinding, StatusResponse };
 
 export const RUNTIME_COMBO_IDENTIFIER = "cormoran__runtime_combo";
+
+const CODEC = {
+  encode: (request: Request) => Request.encode(request).finish(),
+  decode: (payload: Uint8Array) => Response.decode(payload),
+};
 
 export interface ComboInput {
   index: number;
@@ -55,7 +57,10 @@ export interface UseRuntimeComboReturn {
 }
 
 export function useRuntimeCombo(): UseRuntimeComboReturn {
-  const zmkApp = useContext(ZMKAppContext);
+  const { subsystem, ready, call } = useCustomSubsystem(
+    RUNTIME_COMBO_IDENTIFIER,
+    CODEC,
+  );
   const [combos, setCombos] = useState<Combo[]>([]);
   const [globalSettings, setGlobalSettings] = useState<GlobalSettings | null>(
     null,
@@ -64,31 +69,18 @@ export function useRuntimeCombo(): UseRuntimeComboReturn {
   const [error, setError] = useState<string | null>(null);
   const [hasPendingChanges, setHasPendingChanges] = useState(false);
 
-  const subsystem = useMemo(
-    () => zmkApp?.findSubsystem(RUNTIME_COMBO_IDENTIFIER),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [zmkApp?.state.customSubsystems],
-  );
-  const subsystemIndex = subsystem?.index;
-
   const callRuntimeComboRPC = useCallback(
     async (request: Request): Promise<Response | null> => {
-      if (!zmkApp?.state.connection || subsystemIndex === undefined) {
+      if (!ready) {
         setError("Not connected to device or subsystem not found");
         return null;
       }
 
-      const service = new ZMKCustomSubsystem(
-        zmkApp.state.connection,
-        subsystemIndex,
-      );
-      const payload = Request.encode(request).finish();
-      const responsePayload = await service.callRPC(payload);
-      if (!responsePayload) {
+      const response = await call(request);
+      if (!response) {
         return null;
       }
 
-      const response = Response.decode(responsePayload);
       if (response.error) {
         setError(response.error.message);
         return response;
@@ -97,11 +89,11 @@ export function useRuntimeCombo(): UseRuntimeComboReturn {
       setError(null);
       return response;
     },
-    [zmkApp, subsystemIndex],
+    [ready, call],
   );
 
   const loadCombos = useCallback(async () => {
-    if (!zmkApp?.state.connection || subsystemIndex === undefined) {
+    if (!ready) {
       setCombos([]);
       return;
     }
@@ -127,10 +119,10 @@ export function useRuntimeCombo(): UseRuntimeComboReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [callRuntimeComboRPC, subsystemIndex, zmkApp?.state.connection]);
+  }, [callRuntimeComboRPC, ready]);
 
   const loadGlobalSettings = useCallback(async () => {
-    if (!zmkApp?.state.connection || subsystemIndex === undefined) {
+    if (!ready) {
       setGlobalSettings(null);
       return;
     }
@@ -154,7 +146,7 @@ export function useRuntimeCombo(): UseRuntimeComboReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [callRuntimeComboRPC, subsystemIndex, zmkApp?.state.connection]);
+  }, [callRuntimeComboRPC, ready]);
 
   const reload = useCallback(async () => {
     await Promise.all([loadCombos(), loadGlobalSettings()]);
@@ -414,7 +406,7 @@ export function useRuntimeCombo(): UseRuntimeComboReturn {
     }, [callRuntimeComboRPC, reload]);
 
   useEffect(() => {
-    if (subsystemIndex !== undefined && zmkApp?.state.connection) {
+    if (ready) {
       void reload();
     } else {
       setCombos([]);
@@ -422,10 +414,10 @@ export function useRuntimeCombo(): UseRuntimeComboReturn {
       setHasPendingChanges(false);
       setError(null);
     }
-  }, [reload, subsystemIndex, zmkApp?.state.connection]);
+  }, [reload, ready]);
 
   return {
-    isAvailable: subsystemIndex !== undefined,
+    isAvailable: subsystem !== null,
     combos,
     globalSettings,
     isLoading,

@@ -1,14 +1,7 @@
-import {
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import {
   ZMKAppContext,
-  ZMKCustomSubsystem,
+  useCustomSubsystem,
 } from "@cormoran/zmk-studio-react-hook";
 import type { CustomNotification } from "@zmkfirmware/zmk-studio-ts-client/custom";
 import {
@@ -18,6 +11,11 @@ import {
 } from "../proto/zmk/input_stream/input_stream";
 
 export const INPUT_STREAM_IDENTIFIER = "zmk__input_stream";
+
+const CODEC = {
+  encode: (request: Request) => Request.encode(request).finish(),
+  decode: (payload: Uint8Array) => Response.decode(payload),
+};
 
 const BEEP_DURATION_SECONDS = 0.08;
 const BEEP_START_GAIN = 0.2;
@@ -87,6 +85,10 @@ function errorMessage(err: unknown): string {
 
 export function useInputStream(): UseInputStreamReturn {
   const zmkApp = useContext(ZMKAppContext);
+  const { subsystem, ready, call } = useCustomSubsystem(
+    INPUT_STREAM_IDENTIFIER,
+    CODEC,
+  );
   const [isEnabled, setIsEnabled] = useState(false);
   const [isToggling, setIsToggling] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -96,52 +98,39 @@ export function useInputStream(): UseInputStreamReturn {
   const [activeLayerIndex, setActiveLayerIndex] = useState<number | null>(null);
 
   const isEnabledRef = useRef(false);
-  const connectionRef = useRef(zmkApp?.state.connection);
-  const subsystemIndexRef = useRef<number | undefined>(undefined);
+  const readyRef = useRef(ready);
+  const callRef = useRef(call);
 
-  const subsystem = useMemo(
-    () => zmkApp?.findSubsystem(INPUT_STREAM_IDENTIFIER) ?? undefined,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [zmkApp?.state.customSubsystems],
-  );
   const subsystemIndex = subsystem?.index;
-  const connection = zmkApp?.state.connection;
 
   useEffect(() => {
     isEnabledRef.current = isEnabled;
   }, [isEnabled]);
 
   useEffect(() => {
-    connectionRef.current = connection;
-  }, [connection]);
+    readyRef.current = ready;
+  }, [ready]);
 
   useEffect(() => {
-    subsystemIndexRef.current = subsystemIndex;
-  }, [subsystemIndex]);
+    callRef.current = call;
+  }, [call]);
 
   const callStreamRpc = useCallback(
     async (enabled: boolean) => {
-      if (!connection || subsystemIndex === undefined) return false;
+      if (!ready) return false;
 
-      const service = new ZMKCustomSubsystem(connection, subsystemIndex);
-      const request = Request.create(
-        enabled ? { enableStream: {} } : { disableStream: {} },
-      );
-      const responsePayload = await service.callRPC(
-        Request.encode(request).finish(),
+      const response = await call(
+        Request.create(enabled ? { enableStream: {} } : { disableStream: {} }),
       );
 
-      if (responsePayload) {
-        const response = Response.decode(responsePayload);
-        if (response.error) {
-          setError(response.error.message);
-          return false;
-        }
+      if (response?.error) {
+        setError(response.error.message);
+        return false;
       }
 
       return true;
     },
-    [connection, subsystemIndex],
+    [ready, call],
   );
 
   const setStreamEnabled = useCallback(
@@ -215,40 +204,27 @@ export function useInputStream(): UseInputStreamReturn {
   }, [zmkApp, subsystemIndex]);
 
   useEffect(() => {
-    if (connection && subsystemIndex !== undefined) return;
+    if (ready) return;
 
     setIsEnabled(false);
     setIsToggling(false);
     setError(null);
     setHighlightedKeys(new Set());
     setActiveLayerIndex(null);
-  }, [connection, subsystemIndex]);
+  }, [ready]);
 
   useEffect(() => {
     return () => {
-      const cleanupConnection = connectionRef.current;
-      const cleanupSubsystemIndex = subsystemIndexRef.current;
-      if (
-        !isEnabledRef.current ||
-        !cleanupConnection ||
-        cleanupSubsystemIndex === undefined
-      ) {
+      if (!isEnabledRef.current || !readyRef.current) {
         return;
       }
 
-      const service = new ZMKCustomSubsystem(
-        cleanupConnection,
-        cleanupSubsystemIndex,
-      );
-      const payload = Request.encode(
-        Request.create({ disableStream: {} }),
-      ).finish();
-      void service.callRPC(payload);
+      void callRef.current(Request.create({ disableStream: {} }));
     };
   }, []);
 
   return {
-    isAvailable: subsystemIndex !== undefined,
+    isAvailable: subsystem !== null,
     isEnabled,
     isToggling,
     error,

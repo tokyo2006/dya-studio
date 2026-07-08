@@ -1,8 +1,5 @@
-import { useState, useEffect, useCallback, useContext, useMemo } from "react";
-import {
-  ZMKCustomSubsystem,
-  ZMKAppContext,
-} from "@cormoran/zmk-studio-react-hook";
+import { useState, useEffect, useCallback } from "react";
+import { useCustomSubsystem } from "@cormoran/zmk-studio-react-hook";
 import {
   Request,
   Response,
@@ -16,6 +13,11 @@ import {
 export type { MacroGlobalSettings, MacroSlot, MacroStep, MacroSummary };
 
 export const RUNTIME_MACRO_SUBSYSTEM_IDENTIFIER = "cormoran__runtime_macro";
+
+const CODEC = {
+  encode: (request: Request) => Request.encode(request).finish(),
+  decode: (payload: Uint8Array) => Response.decode(payload),
+};
 
 export interface UseRuntimeMacroReturn {
   isAvailable: boolean;
@@ -52,7 +54,10 @@ export interface UseRuntimeMacroReturn {
 }
 
 export function useRuntimeMacro(): UseRuntimeMacroReturn {
-  const zmkApp = useContext(ZMKAppContext);
+  const { subsystem, ready, call } = useCustomSubsystem(
+    RUNTIME_MACRO_SUBSYSTEM_IDENTIFIER,
+    CODEC,
+  );
   const [macros, setMacros] = useState<MacroSummary[]>([]);
   const [globalSettings, setGlobalSettings] =
     useState<MacroGlobalSettings | null>(null);
@@ -62,11 +67,6 @@ export function useRuntimeMacro(): UseRuntimeMacroReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const subsystem = useMemo(
-    () => zmkApp?.findSubsystem(RUNTIME_MACRO_SUBSYSTEM_IDENTIFIER),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [zmkApp?.state.customSubsystems],
-  );
   const subsystemIndex = subsystem?.index;
 
   const clearError = useCallback(() => {
@@ -75,24 +75,18 @@ export function useRuntimeMacro(): UseRuntimeMacroReturn {
 
   const callRpc = useCallback(
     async (request: Request): Promise<Response | null> => {
-      if (!zmkApp?.state.connection || subsystemIndex === undefined) {
+      if (!ready) {
         setError("Not connected to device or subsystem not found");
         return null;
       }
 
-      const service = new ZMKCustomSubsystem(
-        zmkApp.state.connection,
-        subsystemIndex,
-      );
-      const payload = Request.encode(request).finish();
-      const responsePayload = await service.callRPC(payload);
+      const response = await call(request);
 
-      if (!responsePayload) {
+      if (!response) {
         setError("Runtime macro RPC returned an empty response");
         return null;
       }
 
-      const response = Response.decode(responsePayload);
       if (response.error) {
         setError(response.error.message);
         return null;
@@ -101,7 +95,7 @@ export function useRuntimeMacro(): UseRuntimeMacroReturn {
       setError(null);
       return response;
     },
-    [zmkApp, subsystemIndex],
+    [ready, call],
   );
 
   const runMutation = useCallback(
@@ -136,7 +130,7 @@ export function useRuntimeMacro(): UseRuntimeMacroReturn {
   );
 
   const loadMacros = useCallback(async () => {
-    if (!zmkApp?.state.connection || subsystemIndex === undefined) {
+    if (!ready) {
       setMacros([]);
       setGlobalSettings(null);
       return;
@@ -169,7 +163,7 @@ export function useRuntimeMacro(): UseRuntimeMacroReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [callRpc, zmkApp?.state.connection, subsystemIndex]);
+  }, [callRpc, ready]);
 
   const getMacro = useCallback(
     async (index: number): Promise<MacroSlot | null> => {
@@ -302,7 +296,7 @@ export function useRuntimeMacro(): UseRuntimeMacroReturn {
   }, [loadMacros, subsystemIndex]);
 
   return {
-    isAvailable: subsystemIndex !== undefined,
+    isAvailable: subsystem !== null,
     macros,
     globalSettings,
     maxMacroBytes,

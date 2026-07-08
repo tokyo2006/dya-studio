@@ -49,6 +49,9 @@ function TestComponent() {
       )}
       {connection.isLoading && <div data-testid="loading">Loading...</div>}
       {connection.error && <div data-testid="error">{connection.error}</div>}
+      {connection.isReconnecting && (
+        <div data-testid="reconnecting">Reconnecting...</div>
+      )}
       <button
         onClick={() => connection.onConnect("serial")}
         data-testid="connect-button"
@@ -58,9 +61,39 @@ function TestComponent() {
       <button onClick={connection.onDisconnect} data-testid="disconnect-button">
         Disconnect
       </button>
+      <button
+        onClick={connection.onCancelReconnect}
+        data-testid="cancel-reconnect-button"
+      >
+        Cancel Reconnect
+      </button>
     </div>
   );
 }
+
+/** Builds a mock `SerialPort`-like object suitable for the auto-reconnect flow. */
+function createMockSerialPort(overrides: Record<string, unknown> = {}) {
+  return {
+    open: jest.fn().mockResolvedValue(undefined),
+    close: jest.fn().mockResolvedValue(undefined),
+    getInfo: jest
+      .fn()
+      .mockReturnValue({ usbVendorId: 0x1234, usbProductId: 0x5678 }),
+    readable: { cancel: jest.fn().mockResolvedValue(undefined) },
+    writable: { close: jest.fn().mockResolvedValue(undefined) },
+    ...overrides,
+  };
+}
+
+/** Makes `navigator.serial.getPorts()` resolve to the given paired ports. */
+function setPairedSerialPorts(ports: unknown[]) {
+  Object.defineProperty(navigator, "serial", {
+    configurable: true,
+    value: { getPorts: jest.fn().mockResolvedValue(ports) },
+  });
+}
+
+type NavigatorWithOptionalSerial = Navigator & { serial?: unknown };
 
 describe("DeviceConnection", () => {
   let mocks: ReturnType<typeof setupZMKMocks>;
@@ -68,6 +101,12 @@ describe("DeviceConnection", () => {
   beforeEach(() => {
     // Reset mocks using the test helper
     mocks = setupZMKMocks();
+    // Auto-reconnect remembers ports in sessionStorage; start each test clean.
+    window.sessionStorage.clear();
+  });
+
+  afterEach(() => {
+    delete (navigator as NavigatorWithOptionalSerial).serial;
   });
 
   describe("Initial State", () => {
@@ -415,6 +454,175 @@ describe("DeviceConnection", () => {
           "My Keyboard",
         );
       });
+    });
+  });
+
+  describe("Auto-reconnect on mount", () => {
+    test("renders children in the disconnected state when there is no paired serial port", async () => {
+      // jsdom has no navigator.serial by default, so the app-driven
+      // auto-reconnect attempt resolves to "nothing to reconnect to" and the
+      // normal connect screen shows immediately -- isReconnecting never
+      // becomes true.
+      render(
+        <DeviceConnectionProvider reconnectMinDisplayMs={0}>
+          <TestComponent />
+        </DeviceConnectionProvider>,
+      );
+
+      // Let the auto-reconnect effect (and its microtasks) settle.
+      await waitFor(() => {
+        expect(screen.getByTestId("connection-status")).toHaveTextContent(
+          "Disconnected",
+        );
+      });
+      expect(screen.getByTestId("connect-button")).toBeInTheDocument();
+      expect(screen.queryByTestId("device-name")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("reconnecting")).not.toBeInTheDocument();
+    });
+
+    test("transitions to connected when a previously paired serial port reconnects successfully", async () => {
+      mocks.mockSuccessfulConnection({
+        deviceName: "Auto Reconnected Keyboard",
+      });
+
+      const mockPort = createMockSerialPort();
+      setPairedSerialPorts([mockPort]);
+
+      render(
+        <DeviceConnectionProvider reconnectMinDisplayMs={0}>
+          <TestComponent />
+        </DeviceConnectionProvider>,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId("connection-status")).toHaveTextContent(
+          "Connected",
+        );
+      });
+      expect(screen.getByTestId("device-name")).toHaveTextContent(
+        "Auto Reconnected Keyboard",
+      );
+      expect(mockPort.open).toHaveBeenCalledWith({ baudRate: 12500 });
+      expect(screen.queryByTestId("reconnecting")).not.toBeInTheDocument();
+    });
+
+    test("exposes isReconnecting while the attempt is in flight, then clears it once connected", async () => {
+      mocks.mockSuccessfulConnection({ deviceName: "Slow Reconnect" });
+
+      // Keep `port.open()` pending until the test explicitly resolves it, so
+      // we can observe the in-between isReconnecting: true state.
+      let resolveOpen: () => void = () => {};
+      const openPromise = new Promise<void>((resolve) => {
+        resolveOpen = resolve;
+      });
+      const mockPort = createMockSerialPort({
+        open: jest.fn().mockReturnValue(openPromise),
+      });
+      setPairedSerialPorts([mockPort]);
+
+      render(
+        <DeviceConnectionProvider reconnectMinDisplayMs={0}>
+          <TestComponent />
+        </DeviceConnectionProvider>,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId("reconnecting")).toBeInTheDocument();
+      });
+      expect(screen.getByTestId("connection-status")).toHaveTextContent(
+        "Disconnected",
+      );
+
+      resolveOpen();
+
+      await waitFor(() => {
+        expect(screen.queryByTestId("reconnecting")).not.toBeInTheDocument();
+      });
+      await waitFor(() => {
+        expect(screen.getByTestId("connection-status")).toHaveTextContent(
+          "Connected",
+        );
+      });
+      expect(screen.getByTestId("device-name")).toHaveTextContent(
+        "Slow Reconnect",
+      );
+    });
+
+    test("cancelling a pending reconnect stays disconnected even if the transport later resolves", async () => {
+      const user = userEvent.setup();
+      mocks.mockSuccessfulConnection({ deviceName: "Should Not Connect" });
+
+      let resolveOpen: () => void = () => {};
+      const openPromise = new Promise<void>((resolve) => {
+        resolveOpen = resolve;
+      });
+      const mockPort = createMockSerialPort({
+        open: jest.fn().mockReturnValue(openPromise),
+      });
+      setPairedSerialPorts([mockPort]);
+
+      render(
+        <DeviceConnectionProvider reconnectMinDisplayMs={0}>
+          <TestComponent />
+        </DeviceConnectionProvider>,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId("reconnecting")).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByTestId("cancel-reconnect-button"));
+
+      // Cancelling returns to the non-reconnecting disconnected state
+      // immediately, without waiting for the transport.
+      expect(screen.queryByTestId("reconnecting")).not.toBeInTheDocument();
+      expect(screen.getByTestId("connection-status")).toHaveTextContent(
+        "Disconnected",
+      );
+
+      // Now let the (cancelled) transport resolve -- the app must not
+      // become connected even though a transport was obtained.
+      resolveOpen();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(screen.getByTestId("connection-status")).toHaveTextContent(
+        "Disconnected",
+      );
+      expect(screen.queryByTestId("device-name")).not.toBeInTheDocument();
+    });
+
+    test("keeps the reconnecting indicator visible for at least reconnectMinDisplayMs even on an instant success", async () => {
+      mocks.mockSuccessfulConnection({ deviceName: "Fast Reconnect" });
+      const mockPort = createMockSerialPort();
+      setPairedSerialPorts([mockPort]);
+
+      render(
+        <DeviceConnectionProvider reconnectMinDisplayMs={300}>
+          <TestComponent />
+        </DeviceConnectionProvider>,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId("reconnecting")).toBeInTheDocument();
+      });
+
+      // The underlying reconnect resolves almost instantly, but the
+      // indicator must still be showing well before the minimum elapses.
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(screen.getByTestId("reconnecting")).toBeInTheDocument();
+      expect(screen.getByTestId("connection-status")).toHaveTextContent(
+        "Disconnected",
+      );
+
+      await waitFor(
+        () => {
+          expect(screen.queryByTestId("reconnecting")).not.toBeInTheDocument();
+        },
+        { timeout: 2000 },
+      );
+      expect(screen.getByTestId("connection-status")).toHaveTextContent(
+        "Connected",
+      );
     });
   });
 });

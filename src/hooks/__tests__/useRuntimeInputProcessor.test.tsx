@@ -17,12 +17,24 @@ import {
 const mockCallRPC = jest.fn();
 const mockOnNotification = jest.fn();
 
-jest.mock("@cormoran/zmk-studio-react-hook", () => ({
-  ...jest.requireActual("@cormoran/zmk-studio-react-hook"),
-  ZMKCustomSubsystem: jest.fn().mockImplementation(() => ({
+jest.mock("@cormoran/zmk-studio-react-hook", () => {
+  const actual = jest.requireActual("@cormoran/zmk-studio-react-hook");
+  const {
+    createUseCustomSubsystemMock,
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+  } = require("../testUtils/mockUseCustomSubsystem");
+  const ZMKCustomSubsystem = jest.fn().mockImplementation(() => ({
     callRPC: mockCallRPC,
-  })),
-}));
+  }));
+  return {
+    ...actual,
+    ZMKCustomSubsystem,
+    useCustomSubsystem: createUseCustomSubsystemMock(
+      actual.ZMKAppContext,
+      ZMKCustomSubsystem,
+    ),
+  };
+});
 
 // Create a wrapper with ZMKAppContext
 function createWrapper(zmkAppValue: {

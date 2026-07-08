@@ -13,6 +13,7 @@ import {
 } from "@tabler/icons-react";
 
 import { SplashScreen } from "./components/SplashScreen";
+import { ReconnectingOverlay } from "./components/ReconnectingOverlay";
 import {
   DeviceConnectionProvider,
   ConnectionContext,
@@ -137,19 +138,26 @@ function AppContent() {
   return (
     <>
       <AnimatePresence>
-        {!connection.isConnected && (
-          <motion.div
-            key="splash"
-            initial={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            <SplashScreen
-              onConnect={connection.onConnect}
-              isConnecting={connection.isLoading}
-              error={connection.error}
-            />
-          </motion.div>
+        {connection.isReconnecting ? (
+          <ReconnectingOverlay
+            key="reconnecting"
+            onCancel={connection.onCancelReconnect}
+          />
+        ) : (
+          !connection.isConnected && (
+            <motion.div
+              key="splash"
+              initial={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <SplashScreen
+                onConnect={connection.onConnect}
+                isConnecting={connection.isLoading}
+                error={connection.error}
+              />
+            </motion.div>
+          )
         )}
       </AnimatePresence>
 
