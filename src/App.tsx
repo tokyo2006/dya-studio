@@ -147,32 +147,26 @@ function AppContent() {
   return (
     <>
       <AnimatePresence>
-        {!connection.isConnected && (
-          <motion.div
-            key="splash"
-            initial={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            // Kept mounted (but non-interactive) behind the reconnecting
-            // overlay so the page doesn't flash to a blank screen while a
-            // page-load auto-reconnect attempt is in flight.
-            inert={connection.isReconnecting}
-          >
-            <SplashScreen
-              onConnect={connection.onConnect}
-              isConnecting={connection.isLoading}
-              error={connection.error}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {connection.isReconnecting && (
+        {connection.isReconnecting ? (
           <ReconnectingOverlay
             key="reconnecting"
             onCancel={connection.onCancelReconnect}
           />
+        ) : (
+          !connection.isConnected && (
+            <motion.div
+              key="splash"
+              initial={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <SplashScreen
+                onConnect={connection.onConnect}
+                isConnecting={connection.isLoading}
+                error={connection.error}
+              />
+            </motion.div>
+          )
         )}
       </AnimatePresence>
 
