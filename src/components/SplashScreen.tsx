@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   IconBluetooth,
   IconUsb,
@@ -16,13 +16,8 @@ interface SplashScreenProps {
   onConnect: (method: ConnectionMethod) => void;
   isConnecting: boolean;
   error: string | null;
-  /** True while a page-load auto-reconnect attempt is in flight. */
-  isReconnecting: boolean;
-  /** Cancels an in-flight page-load auto-reconnect attempt. */
-  onCancelReconnect: () => void;
 }
 
-// Reused for both the manual-connect dots and the reconnecting spinner.
 function LoadingDots() {
   return (
     <div className="flex gap-1.5">
@@ -58,8 +53,6 @@ export function SplashScreen({
   onConnect,
   isConnecting,
   error,
-  isReconnecting,
-  onCancelReconnect,
 }: SplashScreenProps) {
   const { t } = useLanguage();
   // Dialog state
@@ -164,124 +157,81 @@ export function SplashScreen({
           animate={{ opacity: 1 }}
           transition={{ delay: 0.8, duration: 2 }}
         >
-          <AnimatePresence mode="wait" initial={false}>
-            {isReconnecting ? (
-              <motion.div
-                key="reconnecting"
-                className="flex flex-col items-center gap-4"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
+          {/* Connect label */}
+          <p className="text-sm font-light tracking-wider text-[var(--color-text-secondary)] text-center uppercase">
+            {t("Connect")}
+          </p>
+
+          {/* Connection buttons */}
+          <div className="flex flex-col items-center gap-4">
+            {/* Device connection buttons */}
+            <div className="flex gap-6">
+              <button
+                onClick={() => handleConnectClick("serial")}
+                disabled={isConnecting}
+                className="relative w-16 h-16 rounded-full flex items-center justify-center border-2 transition-all disabled:opacity-30 disabled:cursor-not-allowed border-[var(--color-electric)] bg-[var(--color-electric)]/10 hover:bg-[var(--color-electric)]/20 hover:border-[var(--color-electric)] hover:shadow-[0_0_20px_rgba(0,212,255,0.3)]"
+                aria-label={t("Connect via USB")}
+                title={t("Connect via USB")}
               >
-                {/* Prominent spinner */}
-                <motion.div
-                  className="w-16 h-16 rounded-full border-2 border-transparent border-t-[var(--color-electric)] border-r-[var(--color-electric)]"
-                  animate={{ rotate: 360 }}
-                  transition={{
-                    duration: 1,
-                    repeat: Infinity,
-                    ease: "linear",
-                  }}
+                <IconUsb
+                  size={28}
+                  className="text-[var(--color-electric)] relative z-10"
+                  strokeWidth={1.5}
                 />
-                <p className="text-sm font-light tracking-wider text-[var(--color-text-secondary)] text-center">
-                  {t("Reconnecting to your keyboard...")}
-                </p>
-                <button
-                  onClick={onCancelReconnect}
-                  aria-label={t("Cancel")}
-                  className="text-xs text-[var(--color-text-muted)] underline underline-offset-4 hover:text-[var(--color-text-secondary)] transition-colors"
-                >
-                  {t("Cancel")}
-                </button>
-              </motion.div>
-            ) : (
-              <motion.div
-                key="connect"
-                className="flex flex-col items-center gap-4"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
+                {isConnecting && (
+                  <DisabledSlash color="bg-[var(--color-electric)]" />
+                )}
+              </button>
+              <button
+                onClick={() => handleConnectClick("ble")}
+                disabled={isConnecting}
+                className="relative w-16 h-16 rounded-full flex items-center justify-center border-2 transition-all disabled:opacity-30 disabled:cursor-not-allowed border-[var(--color-neon)] bg-[var(--color-neon)]/10 hover:bg-[var(--color-neon)]/20 hover:border-[var(--color-neon)] hover:shadow-[0_0_20px_rgba(0,255,204,0.3)]"
+                aria-label={t("Connect via Bluetooth")}
+                title={t("Connect via Bluetooth")}
               >
-                {/* Connect label */}
-                <p className="text-sm font-light tracking-wider text-[var(--color-text-secondary)] text-center uppercase">
-                  {t("Connect")}
-                </p>
+                <IconBluetooth
+                  size={28}
+                  className="text-[var(--color-neon)] relative z-10"
+                  strokeWidth={1.5}
+                />
+                {isConnecting && (
+                  <DisabledSlash color="bg-[var(--color-neon)]" />
+                )}
+              </button>
+              <button
+                onClick={() => handleConnectClick("demo")}
+                disabled={isConnecting}
+                className="relative w-16 h-16 rounded-full flex items-center justify-center border-2 transition-all disabled:opacity-30 disabled:cursor-not-allowed border-[var(--color-cyber)] bg-[var(--color-cyber)]/10 hover:bg-[var(--color-cyber)]/20 hover:border-[var(--color-cyber)] hover:shadow-[0_0_20px_rgba(139,92,246,0.3)]"
+                aria-label={t("Try Demo Mode")}
+                title={t("Try Demo Mode (no device required)")}
+              >
+                <IconDeviceDesktop
+                  size={28}
+                  className="text-[var(--color-cyber)] relative z-10"
+                  strokeWidth={1.5}
+                />
+                {isConnecting && (
+                  <DisabledSlash color="bg-[var(--color-cyber)]" />
+                )}
+              </button>
+            </div>
+          </div>
 
-                {/* Connection buttons */}
-                <div className="flex flex-col items-center gap-4">
-                  {/* Device connection buttons */}
-                  <div className="flex gap-6">
-                    <button
-                      onClick={() => handleConnectClick("serial")}
-                      disabled={isConnecting}
-                      className="relative w-16 h-16 rounded-full flex items-center justify-center border-2 transition-all disabled:opacity-30 disabled:cursor-not-allowed border-[var(--color-electric)] bg-[var(--color-electric)]/10 hover:bg-[var(--color-electric)]/20 hover:border-[var(--color-electric)] hover:shadow-[0_0_20px_rgba(0,212,255,0.3)]"
-                      aria-label={t("Connect via USB")}
-                      title={t("Connect via USB")}
-                    >
-                      <IconUsb
-                        size={28}
-                        className="text-[var(--color-electric)] relative z-10"
-                        strokeWidth={1.5}
-                      />
-                      {isConnecting && (
-                        <DisabledSlash color="bg-[var(--color-electric)]" />
-                      )}
-                    </button>
-                    <button
-                      onClick={() => handleConnectClick("ble")}
-                      disabled={isConnecting}
-                      className="relative w-16 h-16 rounded-full flex items-center justify-center border-2 transition-all disabled:opacity-30 disabled:cursor-not-allowed border-[var(--color-neon)] bg-[var(--color-neon)]/10 hover:bg-[var(--color-neon)]/20 hover:border-[var(--color-neon)] hover:shadow-[0_0_20px_rgba(0,255,204,0.3)]"
-                      aria-label={t("Connect via Bluetooth")}
-                      title={t("Connect via Bluetooth")}
-                    >
-                      <IconBluetooth
-                        size={28}
-                        className="text-[var(--color-neon)] relative z-10"
-                        strokeWidth={1.5}
-                      />
-                      {isConnecting && (
-                        <DisabledSlash color="bg-[var(--color-neon)]" />
-                      )}
-                    </button>
-                    <button
-                      onClick={() => handleConnectClick("demo")}
-                      disabled={isConnecting}
-                      className="relative w-16 h-16 rounded-full flex items-center justify-center border-2 transition-all disabled:opacity-30 disabled:cursor-not-allowed border-[var(--color-cyber)] bg-[var(--color-cyber)]/10 hover:bg-[var(--color-cyber)]/20 hover:border-[var(--color-cyber)] hover:shadow-[0_0_20px_rgba(139,92,246,0.3)]"
-                      aria-label={t("Try Demo Mode")}
-                      title={t("Try Demo Mode (no device required)")}
-                    >
-                      <IconDeviceDesktop
-                        size={28}
-                        className="text-[var(--color-cyber)] relative z-10"
-                        strokeWidth={1.5}
-                      />
-                      {isConnecting && (
-                        <DisabledSlash color="bg-[var(--color-cyber)]" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Demo mode hint */}
-                <motion.p
-                  className="text-xs text-[var(--color-text-muted)] mt-2 text-center leading-tight"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 1.2 }}
-                >
-                  {t("Try demo mode without a keyboard")}
-                  <br />
-                  <IconArrowUp size={14} className="inline-block" />
-                </motion.p>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {/* Demo mode hint */}
+          <motion.p
+            className="text-xs text-[var(--color-text-muted)] mt-2 text-center leading-tight"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1.2 }}
+          >
+            {t("Try demo mode without a keyboard")}
+            <br />
+            <IconArrowUp size={14} className="inline-block" />
+          </motion.p>
         </motion.div>
       </motion.div>
-      {/* Loading indicator (manual connect only; reconnecting has its own spinner above) */}
-      {isConnecting && !isReconnecting && (
+      {/* Loading indicator */}
+      {isConnecting && (
         <motion.div
           className="flex gap-1 mt-4"
           initial={{ opacity: 0 }}
