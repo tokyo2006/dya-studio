@@ -18,7 +18,11 @@ export function ReconnectingOverlay({ onCancel }: ReconnectingOverlayProps) {
 
   return (
     <motion.div
-      className="fixed inset-0 z-50 flex flex-col items-center justify-center"
+      // pointer-events-none so the page underneath stays clickable even if
+      // the exit animation stalls (e.g. a throttled background tab) instead
+      // of leaving a full-viewport click-blocker behind; the cancel button
+      // opts back in below.
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center pointer-events-none"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -45,7 +49,7 @@ export function ReconnectingOverlay({ onCancel }: ReconnectingOverlayProps) {
       <button
         onClick={onCancel}
         aria-label={t("Cancel")}
-        className="mt-4 text-xs text-[var(--color-text-muted)] underline underline-offset-4 hover:text-[var(--color-text-secondary)] transition-colors"
+        className="pointer-events-auto mt-4 text-xs text-[var(--color-text-muted)] underline underline-offset-4 hover:text-[var(--color-text-secondary)] transition-colors"
       >
         {t("Cancel")}
       </button>
