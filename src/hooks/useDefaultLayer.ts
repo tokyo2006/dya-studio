@@ -1,8 +1,5 @@
-import { useState, useEffect, useCallback, useContext, useMemo } from "react";
-import {
-  ZMKCustomSubsystem,
-  ZMKAppContext,
-} from "@cormoran/zmk-studio-react-hook";
+import { useState, useEffect, useCallback } from "react";
+import { useCustomSubsystem } from "@cormoran/zmk-studio-react-hook";
 import {
   Request,
   Response,
@@ -12,6 +9,11 @@ import {
 // Subsystem identifier for the ZMK default-layer custom protocol.
 // This matches the identifier registered in the zmk-feature-default-layer module.
 const SUBSYSTEM_IDENTIFIER = "cormoran__default_layer";
+
+const CODEC = {
+  encode: (request: Request) => Request.encode(request).finish(),
+  decode: (payload: Uint8Array) => Response.decode(payload),
+};
 
 export interface UseDefaultLayerReturn {
   isAvailable: boolean;
@@ -24,22 +26,16 @@ export interface UseDefaultLayerReturn {
 }
 
 export function useDefaultLayer(): UseDefaultLayerReturn {
-  const zmkApp = useContext(ZMKAppContext);
+  const { subsystem, ready, call } = useCustomSubsystem(
+    SUBSYSTEM_IDENTIFIER,
+    CODEC,
+  );
   const [state, setState] = useState<StateResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const subsystem = useMemo(
-    () => zmkApp?.findSubsystem(SUBSYSTEM_IDENTIFIER),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [zmkApp?.state.customSubsystems],
-  );
-
-  const subsystemIndex = subsystem?.index;
-  const connection = zmkApp?.state.connection;
-
   const load = useCallback(async () => {
-    if (!connection || subsystemIndex === undefined) {
+    if (!ready) {
       return;
     }
 
@@ -47,13 +43,9 @@ export function useDefaultLayer(): UseDefaultLayerReturn {
     setError(null);
 
     try {
-      const service = new ZMKCustomSubsystem(connection, subsystemIndex);
-      const request = Request.create({ getState: {} });
-      const payload = Request.encode(request).finish();
-      const responsePayload = await service.callRPC(payload);
+      const resp = await call(Request.create({ getState: {} }));
 
-      if (responsePayload) {
-        const resp = Response.decode(responsePayload);
+      if (resp) {
         if (resp.state) {
           setState(resp.state);
         } else if (resp.error) {
@@ -68,25 +60,21 @@ export function useDefaultLayer(): UseDefaultLayerReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [connection, subsystemIndex]);
+  }, [ready, call]);
 
   const setEndpointLayer = useCallback(
     async (endpointIndex: number, value: number) => {
-      if (!connection || subsystemIndex === undefined) return;
+      if (!ready) return;
 
       setIsLoading(true);
       setError(null);
 
       try {
-        const service = new ZMKCustomSubsystem(connection, subsystemIndex);
-        const request = Request.create({
-          setEndpointLayer: { endpointIndex, value },
-        });
-        const payload = Request.encode(request).finish();
-        const responsePayload = await service.callRPC(payload);
+        const resp = await call(
+          Request.create({ setEndpointLayer: { endpointIndex, value } }),
+        );
 
-        if (responsePayload) {
-          const resp = Response.decode(responsePayload);
+        if (resp) {
           if (resp.state) {
             // Response contains the full refreshed state - use it directly.
             setState(resp.state);
@@ -103,24 +91,20 @@ export function useDefaultLayer(): UseDefaultLayerReturn {
         setIsLoading(false);
       }
     },
-    [connection, subsystemIndex],
+    [ready, call],
   );
 
   const setOsLayer = useCallback(
     async (os: number, value: number) => {
-      if (!connection || subsystemIndex === undefined) return;
+      if (!ready) return;
 
       setIsLoading(true);
       setError(null);
 
       try {
-        const service = new ZMKCustomSubsystem(connection, subsystemIndex);
-        const request = Request.create({ setOsLayer: { os, value } });
-        const payload = Request.encode(request).finish();
-        const responsePayload = await service.callRPC(payload);
+        const resp = await call(Request.create({ setOsLayer: { os, value } }));
 
-        if (responsePayload) {
-          const resp = Response.decode(responsePayload);
+        if (resp) {
           if (resp.state) {
             // Response contains the full refreshed state - use it directly.
             setState(resp.state);
@@ -137,19 +121,19 @@ export function useDefaultLayer(): UseDefaultLayerReturn {
         setIsLoading(false);
       }
     },
-    [connection, subsystemIndex],
+    [ready, call],
   );
 
   // Load state when connection or subsystem changes.
   useEffect(() => {
-    if (subsystemIndex !== undefined && connection) {
+    if (ready) {
       load();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subsystemIndex, connection]);
+  }, [ready]);
 
   return {
-    isAvailable: subsystemIndex !== undefined,
+    isAvailable: subsystem !== null,
     state,
     isLoading,
     error,

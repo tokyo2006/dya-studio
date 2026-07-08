@@ -1,17 +1,9 @@
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import {
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import {
-  ZMKCustomSubsystem,
   ZMKAppContext,
+  isUnlockRequiredError,
+  useCustomSubsystem,
 } from "@cormoran/zmk-studio-react-hook";
-import { MetaError } from "@zmkfirmware/zmk-studio-ts-client";
-import { ErrorConditions } from "@zmkfirmware/zmk-studio-ts-client/meta";
 import {
   Notification as Pmw3610Notification,
   PixelFormat,
@@ -29,6 +21,11 @@ import {
 } from "../lib/pmw3610Frame";
 
 export const PMW3610_SUBSYSTEM_IDENTIFIER = "cormoran__pmw3610";
+
+const CODEC = {
+  encode: (request: Request) => Request.encode(request).finish(),
+  decode: (payload: Uint8Array) => Response.decode(payload),
+};
 
 /** Result of a completed frame capture (one-shot or a completed streamed
  * frame), ready for the section to render to a canvas. */
@@ -72,6 +69,10 @@ export interface UsePmw3610Return {
 
 export function usePmw3610(): UsePmw3610Return {
   const zmkApp = useContext(ZMKAppContext);
+  const { subsystem, ready, call } = useCustomSubsystem(
+    PMW3610_SUBSYSTEM_IDENTIFIER,
+    CODEC,
+  );
   const [devices, setDevices] = useState<DeviceInfo[]>([]);
   const [diagnostics, setDiagnostics] =
     useState<ReadDiagnosticsResponse | null>(null);
@@ -79,42 +80,31 @@ export function usePmw3610(): UsePmw3610Return {
   const [error, setError] = useState<string | null>(null);
   const [unlockRequired, setUnlockRequired] = useState(false);
 
-  const subsystem = useMemo(
-    () => zmkApp?.findSubsystem(PMW3610_SUBSYSTEM_IDENTIFIER),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [zmkApp?.state.customSubsystems],
-  );
   const subsystemIndex = subsystem?.index;
-  const connection = zmkApp?.state.connection;
 
   const callRpc = useCallback(
     async (request: Request): Promise<Response | null> => {
-      if (!connection || subsystemIndex === undefined) return null;
-      const service = new ZMKCustomSubsystem(connection, subsystemIndex);
-      const payload = Request.encode(request).finish();
+      if (!ready) return null;
       try {
-        const responsePayload = await service.callRPC(payload);
-        if (!responsePayload) return null;
+        const resp = await call(request);
+        if (!resp) return null;
         setUnlockRequired(false);
-        return Response.decode(responsePayload);
+        return resp;
       } catch (err) {
         // The pmw3610 subsystem is SECURED: RPC fails with UNLOCK_REQUIRED
         // while ZMK Studio is locked.
-        if (
-          err instanceof MetaError &&
-          err.condition === ErrorConditions.UNLOCK_REQUIRED
-        ) {
+        if (isUnlockRequiredError(err)) {
           setUnlockRequired(true);
           return null;
         }
         throw err;
       }
     },
-    [connection, subsystemIndex],
+    [ready, call],
   );
 
   const refresh = useCallback(async () => {
-    if (!connection || subsystemIndex === undefined) return;
+    if (!ready) return;
     setIsLoading(true);
     setError(null);
     try {
@@ -129,7 +119,7 @@ export function usePmw3610(): UsePmw3610Return {
     } finally {
       setIsLoading(false);
     }
-  }, [connection, subsystemIndex, callRpc]);
+  }, [ready, callRpc]);
 
   const readDiagnostics = useCallback(
     async (deviceIndex: number) => {
@@ -152,10 +142,10 @@ export function usePmw3610(): UsePmw3610Return {
 
   // Auto-fetch sensor info when the subsystem becomes available.
   useEffect(() => {
-    if (connection && subsystemIndex !== undefined) {
+    if (ready) {
       void refresh();
     }
-  }, [connection, subsystemIndex, refresh]);
+  }, [ready, refresh]);
 
   // Retry automatically once the keyboard reports it was unlocked.
   useEffect(() => {
@@ -380,12 +370,12 @@ export function usePmw3610(): UsePmw3610Return {
     };
   }, []);
   useEffect(() => {
-    if (!connection && unsubscribeStreamRef.current) {
+    if (!zmkApp?.state.connection && unsubscribeStreamRef.current) {
       unsubscribeStreamRef.current();
       unsubscribeStreamRef.current = null;
       setIsStreaming(false);
     }
-  }, [connection]);
+  }, [zmkApp?.state.connection]);
 
   // Firmware silently stops the stream loop on lock (it does not, and
   // cannot, notify the client) — reset the UI's streaming state to match so
@@ -403,7 +393,7 @@ export function usePmw3610(): UsePmw3610Return {
   }, [unlockRequired]);
 
   return {
-    isAvailable: subsystemIndex !== undefined,
+    isAvailable: subsystem !== null,
     devices,
     diagnostics,
     isLoading,

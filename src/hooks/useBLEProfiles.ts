@@ -1,8 +1,5 @@
-import { useState, useEffect, useCallback, useContext, useMemo } from "react";
-import {
-  ZMKCustomSubsystem,
-  ZMKAppContext,
-} from "@cormoran/zmk-studio-react-hook";
+import { useState, useEffect, useCallback } from "react";
+import { useCustomSubsystem } from "@cormoran/zmk-studio-react-hook";
 import {
   Request,
   Response,
@@ -12,6 +9,11 @@ import {
 // Subsystem identifier for ZMK BLE management custom protocol
 // This matches the identifier registered in the ZMK firmware module
 const SUBSYSTEM_IDENTIFIER = "cormoran_ble";
+
+const CODEC = {
+  encode: (request: Request) => Request.encode(request).finish(),
+  decode: (payload: Uint8Array) => Response.decode(payload),
+};
 
 export interface BLEProfile {
   index: number;
@@ -38,7 +40,10 @@ export interface UseBLEProfilesReturn {
 }
 
 export function useBLEProfiles(): UseBLEProfilesReturn {
-  const zmkApp = useContext(ZMKAppContext);
+  const { subsystem, ready, call } = useCustomSubsystem(
+    SUBSYSTEM_IDENTIFIER,
+    CODEC,
+  );
   const [profiles, setProfiles] = useState<BLEProfile[]>([]);
   const [maxProfiles, setMaxProfiles] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(false);
@@ -46,18 +51,8 @@ export function useBLEProfiles(): UseBLEProfilesReturn {
   const [outputPriority, setOutputPriorityState] =
     useState<OutputPriority | null>(null);
 
-  // Memoize subsystem to avoid unnecessary re-renders
-  const subsystem = useMemo(
-    () => zmkApp?.findSubsystem(SUBSYSTEM_IDENTIFIER),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [zmkApp?.state.customSubsystems],
-  );
-
-  // Extract subsystem index as a stable primitive value for dependencies
-  const subsystemIndex = subsystem?.index;
-
   const loadProfiles = useCallback(async () => {
-    if (!zmkApp?.state.connection || subsystemIndex === undefined) {
+    if (!ready) {
       setError("Not connected to device or subsystem not found");
       return;
     }
@@ -66,20 +61,9 @@ export function useBLEProfiles(): UseBLEProfilesReturn {
     setError(null);
 
     try {
-      const service = new ZMKCustomSubsystem(
-        zmkApp.state.connection,
-        subsystemIndex,
-      );
+      const resp = await call(Request.create({ getProfiles: {} }));
 
-      const request = Request.create({
-        getProfiles: {},
-      });
-
-      const payload = Request.encode(request).finish();
-      const responsePayload = await service.callRPC(payload);
-
-      if (responsePayload) {
-        const resp = Response.decode(responsePayload);
+      if (resp) {
         if (resp.getProfiles) {
           // The protobuf-generated ProfileInfo matches our BLEProfile interface
           const profiles = resp.getProfiles.profiles.map((p) => ({
@@ -104,30 +88,19 @@ export function useBLEProfiles(): UseBLEProfilesReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [zmkApp?.state.connection, subsystemIndex]);
+  }, [ready, call]);
 
   const switchProfile = useCallback(
     async (index: number) => {
-      if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
+      if (!ready) return;
 
       setIsLoading(true);
       setError(null);
 
       try {
-        const service = new ZMKCustomSubsystem(
-          zmkApp.state.connection,
-          subsystemIndex,
-        );
+        const resp = await call(Request.create({ switchProfile: { index } }));
 
-        const request = Request.create({
-          switchProfile: { index },
-        });
-
-        const payload = Request.encode(request).finish();
-        const responsePayload = await service.callRPC(payload);
-
-        if (responsePayload) {
-          const resp = Response.decode(responsePayload);
+        if (resp) {
           if (resp.switchProfile?.success) {
             await loadProfiles();
           } else if (resp.error) {
@@ -145,31 +118,20 @@ export function useBLEProfiles(): UseBLEProfilesReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, loadProfiles],
+    [ready, call, loadProfiles],
   );
 
   const unpairProfile = useCallback(
     async (index: number) => {
-      if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
+      if (!ready) return;
 
       setIsLoading(true);
       setError(null);
 
       try {
-        const service = new ZMKCustomSubsystem(
-          zmkApp.state.connection,
-          subsystemIndex,
-        );
+        const resp = await call(Request.create({ unpairProfile: { index } }));
 
-        const request = Request.create({
-          unpairProfile: { index },
-        });
-
-        const payload = Request.encode(request).finish();
-        const responsePayload = await service.callRPC(payload);
-
-        if (responsePayload) {
-          const resp = Response.decode(responsePayload);
+        if (resp) {
           if (resp.unpairProfile?.success) {
             await loadProfiles();
           } else if (resp.error) {
@@ -187,31 +149,22 @@ export function useBLEProfiles(): UseBLEProfilesReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, loadProfiles],
+    [ready, call, loadProfiles],
   );
 
   const setProfileName = useCallback(
     async (index: number, name: string) => {
-      if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
+      if (!ready) return;
 
       setIsLoading(true);
       setError(null);
 
       try {
-        const service = new ZMKCustomSubsystem(
-          zmkApp.state.connection,
-          subsystemIndex,
+        const resp = await call(
+          Request.create({ setProfileName: { index, name } }),
         );
 
-        const request = Request.create({
-          setProfileName: { index, name },
-        });
-
-        const payload = Request.encode(request).finish();
-        const responsePayload = await service.callRPC(payload);
-
-        if (responsePayload) {
-          const resp = Response.decode(responsePayload);
+        if (resp) {
           if (resp.setProfileName?.success) {
             await loadProfiles();
           } else if (resp.error) {
@@ -229,11 +182,11 @@ export function useBLEProfiles(): UseBLEProfilesReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, loadProfiles],
+    [ready, call, loadProfiles],
   );
 
   const getOutputPriority = useCallback(async () => {
-    if (!zmkApp?.state.connection || subsystemIndex === undefined) {
+    if (!ready) {
       setError("Not connected to device or subsystem not found");
       return;
     }
@@ -242,20 +195,9 @@ export function useBLEProfiles(): UseBLEProfilesReturn {
     setError(null);
 
     try {
-      const service = new ZMKCustomSubsystem(
-        zmkApp.state.connection,
-        subsystemIndex,
-      );
+      const resp = await call(Request.create({ getOutputPriority: {} }));
 
-      const request = Request.create({
-        getOutputPriority: {},
-      });
-
-      const payload = Request.encode(request).finish();
-      const responsePayload = await service.callRPC(payload);
-
-      if (responsePayload) {
-        const resp = Response.decode(responsePayload);
+      if (resp) {
         if (resp.getOutputPriority) {
           setOutputPriorityState(resp.getOutputPriority.priority);
         } else if (resp.error) {
@@ -270,30 +212,21 @@ export function useBLEProfiles(): UseBLEProfilesReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [zmkApp?.state.connection, subsystemIndex]);
+  }, [ready, call]);
 
   const setOutputPriority = useCallback(
     async (priority: OutputPriority) => {
-      if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
+      if (!ready) return;
 
       setIsLoading(true);
       setError(null);
 
       try {
-        const service = new ZMKCustomSubsystem(
-          zmkApp.state.connection,
-          subsystemIndex,
+        const resp = await call(
+          Request.create({ setOutputPriority: { priority } }),
         );
 
-        const request = Request.create({
-          setOutputPriority: { priority },
-        });
-
-        const payload = Request.encode(request).finish();
-        const responsePayload = await service.callRPC(payload);
-
-        if (responsePayload) {
-          const resp = Response.decode(responsePayload);
+        if (resp) {
           if (resp.setOutputPriority?.success) {
             await getOutputPriority();
           } else if (resp.error) {
@@ -311,20 +244,20 @@ export function useBLEProfiles(): UseBLEProfilesReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, getOutputPriority],
+    [ready, call, getOutputPriority],
   );
 
   // Load profiles and output priority when connection or subsystem changes
   useEffect(() => {
-    if (subsystemIndex !== undefined && zmkApp?.state.connection) {
+    if (ready) {
       loadProfiles();
       getOutputPriority();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subsystemIndex, zmkApp?.state.connection]);
+  }, [ready]);
 
   return {
-    isAvailable: subsystemIndex !== undefined,
+    isAvailable: subsystem !== null,
     profiles,
     maxProfiles,
     isLoading,

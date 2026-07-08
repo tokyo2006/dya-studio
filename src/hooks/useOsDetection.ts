@@ -1,15 +1,5 @@
-import {
-  useState,
-  useEffect,
-  useCallback,
-  useContext,
-  useMemo,
-  useRef,
-} from "react";
-import {
-  ZMKCustomSubsystem,
-  ZMKAppContext,
-} from "@cormoran/zmk-studio-react-hook";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useCustomSubsystem } from "@cormoran/zmk-studio-react-hook";
 import {
   Request,
   Response,
@@ -20,6 +10,11 @@ import {
 // Subsystem identifier for the ZMK OS detection custom protocol.
 // This matches the identifier registered in the zmk-feature-os-detection module.
 const SUBSYSTEM_IDENTIFIER = "cormoran__os_detection";
+
+const CODEC = {
+  encode: (request: Request) => Request.encode(request).finish(),
+  decode: (payload: Uint8Array) => Response.decode(payload),
+};
 
 // Poll interval while connected: OS detection has no notifications, so we
 // have to poll to reflect state changes made on the device itself.
@@ -35,23 +30,17 @@ export interface UseOsDetectionReturn {
 }
 
 export function useOsDetection(): UseOsDetectionReturn {
-  const zmkApp = useContext(ZMKAppContext);
+  const { subsystem, ready, call } = useCustomSubsystem(
+    SUBSYSTEM_IDENTIFIER,
+    CODEC,
+  );
   const [state, setState] = useState<StateResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inFlightRef = useRef(false);
 
-  const subsystem = useMemo(
-    () => zmkApp?.findSubsystem(SUBSYSTEM_IDENTIFIER),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [zmkApp?.state.customSubsystems],
-  );
-
-  const subsystemIndex = subsystem?.index;
-  const connection = zmkApp?.state.connection;
-
   const load = useCallback(async () => {
-    if (!connection || subsystemIndex === undefined) {
+    if (!ready) {
       return;
     }
     if (inFlightRef.current) {
@@ -62,13 +51,9 @@ export function useOsDetection(): UseOsDetectionReturn {
     setError(null);
 
     try {
-      const service = new ZMKCustomSubsystem(connection, subsystemIndex);
-      const request = Request.create({ getState: {} });
-      const payload = Request.encode(request).finish();
-      const responsePayload = await service.callRPC(payload);
+      const resp = await call(Request.create({ getState: {} }));
 
-      if (responsePayload) {
-        const resp = Response.decode(responsePayload);
+      if (resp) {
         if (resp.state) {
           setState(resp.state);
         } else if (resp.error) {
@@ -84,25 +69,21 @@ export function useOsDetection(): UseOsDetectionReturn {
       inFlightRef.current = false;
       setIsLoading(false);
     }
-  }, [connection, subsystemIndex]);
+  }, [ready, call]);
 
   const setBleOverride = useCallback(
     async (profileIndex: number, os: Os) => {
-      if (!connection || subsystemIndex === undefined) return;
+      if (!ready) return;
 
       setIsLoading(true);
       setError(null);
 
       try {
-        const service = new ZMKCustomSubsystem(connection, subsystemIndex);
-        const request = Request.create({
-          setBleOverride: { profileIndex, os },
-        });
-        const payload = Request.encode(request).finish();
-        const responsePayload = await service.callRPC(payload);
+        const resp = await call(
+          Request.create({ setBleOverride: { profileIndex, os } }),
+        );
 
-        if (responsePayload) {
-          const resp = Response.decode(responsePayload);
+        if (resp) {
           if (resp.setBleOverride) {
             // Response only contains the single updated profile; refetch
             // the full state so the rest of the UI stays consistent.
@@ -120,30 +101,30 @@ export function useOsDetection(): UseOsDetectionReturn {
         setIsLoading(false);
       }
     },
-    [connection, subsystemIndex, load],
+    [ready, call, load],
   );
 
   // Auto-load on connect / subsystem discovery.
   useEffect(() => {
-    if (subsystemIndex !== undefined && connection) {
+    if (ready) {
       load();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subsystemIndex, connection]);
+  }, [ready]);
 
   // Poll while mounted and connected, since there are no notifications.
   useEffect(() => {
-    if (subsystemIndex === undefined || !connection) {
+    if (!ready) {
       return;
     }
     const interval = setInterval(() => {
       load();
     }, POLL_INTERVAL_MS);
     return () => clearInterval(interval);
-  }, [subsystemIndex, connection, load]);
+  }, [ready, load]);
 
   return {
-    isAvailable: subsystemIndex !== undefined,
+    isAvailable: subsystem !== null,
     state,
     isLoading,
     error,

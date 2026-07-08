@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, useContext, useMemo } from "react";
+import { useState, useEffect, useCallback, useContext } from "react";
 import {
-  ZMKCustomSubsystem,
   ZMKAppContext,
+  useCustomSubsystem,
 } from "@cormoran/zmk-studio-react-hook";
 import {
   Request,
@@ -17,6 +17,11 @@ export { AxisSnapMode };
 // Subsystem identifier for ZMK runtime input processor custom protocol
 // This matches the identifier registered in the ZMK firmware module
 const SUBSYSTEM_IDENTIFIER = "cormoran_rip";
+
+const CODEC = {
+  encode: (request: Request) => Request.encode(request).finish(),
+  decode: (payload: Uint8Array) => Response.decode(payload),
+};
 
 // Time to wait for all notifications to arrive after requesting processors
 const NOTIFICATION_COLLECTION_TIMEOUT_MS = 500;
@@ -101,17 +106,14 @@ export interface UseRuntimeInputProcessorReturn {
 
 export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
   const zmkApp = useContext(ZMKAppContext);
+  const { subsystem, ready, call } = useCustomSubsystem(
+    SUBSYSTEM_IDENTIFIER,
+    CODEC,
+  );
   const [processors, setProcessors] = useState<InputProcessor[]>([]);
   const [layers, setLayers] = useState<LayerInformation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Memoize subsystem to avoid unnecessary re-renders
-  const subsystem = useMemo(
-    () => zmkApp?.findSubsystem(SUBSYSTEM_IDENTIFIER),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [zmkApp?.state.customSubsystems],
-  );
 
   // Extract subsystem index as a stable primitive value for dependencies
   const subsystemIndex = subsystem?.index;
@@ -193,7 +195,7 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
   );
 
   const loadProcessors = useCallback(async () => {
-    if (!zmkApp?.state.connection || subsystemIndex === undefined) {
+    if (!ready) {
       setError("Not connected to device or subsystem not found");
       return;
     }
@@ -202,22 +204,15 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
     setError(null);
 
     try {
-      const service = new ZMKCustomSubsystem(
-        zmkApp.state.connection,
-        subsystemIndex,
-      );
-
       // Send request to list processors
       // The actual processor data will come via notifications handled by the useEffect above
       const request = Request.create({
         listProcessors: {},
       });
 
-      const payload = Request.encode(request).finish();
-      const responsePayload = await service.callRPC(payload);
+      const resp = await call(request);
 
-      if (responsePayload) {
-        const resp = Response.decode(responsePayload);
+      if (resp) {
         if (resp.error) {
           setError(resp.error.message);
         }
@@ -235,39 +230,29 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [zmkApp, subsystemIndex]);
+  }, [ready, call]);
 
   const setScaling = useCallback(
     async (id: number, multiplier: number, divisor: number) => {
-      if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
+      if (!ready) return;
 
       setIsLoading(true);
       setError(null);
 
       try {
-        const service = new ZMKCustomSubsystem(
-          zmkApp.state.connection,
-          subsystemIndex,
-        );
-
         // Simplify the fraction to reduce risk of overflow
         const simplified = simplifyFraction(multiplier, divisor);
 
         // Set multiplier
-        const multiplierRequest = Request.create({
-          setScaleMultiplier: {
-            id,
-            value: simplified.multiplier,
-          },
-        });
-
-        const multiplierPayload = Request.encode(multiplierRequest).finish();
-        const multiplierResponse = await service.callRPC(multiplierPayload);
+        const multiplierResponse = await call(
+          Request.create({
+            setScaleMultiplier: { id, value: simplified.multiplier },
+          }),
+        );
 
         if (multiplierResponse) {
-          const resp = Response.decode(multiplierResponse);
-          if (resp.error) {
-            setError(resp.error.message);
+          if (multiplierResponse.error) {
+            setError(multiplierResponse.error.message);
             return;
           }
         }
@@ -278,20 +263,15 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         });
 
         // Set divisor
-        const divisorRequest = Request.create({
-          setScaleDivisor: {
-            id,
-            value: simplified.divisor,
-          },
-        });
-
-        const divisorPayload = Request.encode(divisorRequest).finish();
-        const divisorResponse = await service.callRPC(divisorPayload);
+        const divisorResponse = await call(
+          Request.create({
+            setScaleDivisor: { id, value: simplified.divisor },
+          }),
+        );
 
         if (divisorResponse) {
-          const resp = Response.decode(divisorResponse);
-          if (resp.error) {
-            setError(resp.error.message);
+          if (divisorResponse.error) {
+            setError(divisorResponse.error.message);
             return;
           }
         }
@@ -304,22 +284,17 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, updateProcessorOptimistically],
+    [ready, call, updateProcessorOptimistically],
   );
 
   const setRotation = useCallback(
     async (id: number, degrees: number) => {
-      if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
+      if (!ready) return;
 
       setIsLoading(true);
       setError(null);
 
       try {
-        const service = new ZMKCustomSubsystem(
-          zmkApp.state.connection,
-          subsystemIndex,
-        );
-
         updateProcessorOptimistically(id, { rotationDegrees: degrees });
 
         const request = Request.create({
@@ -329,11 +304,9 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
           },
         });
 
-        const payload = Request.encode(request).finish();
-        const responsePayload = await service.callRPC(payload);
+        const resp = await call(request);
 
-        if (responsePayload) {
-          const resp = Response.decode(responsePayload);
+        if (resp) {
           if (resp.error) {
             setError(resp.error.message);
             return;
@@ -348,22 +321,17 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, updateProcessorOptimistically],
+    [ready, call, updateProcessorOptimistically],
   );
 
   const setTempLayerEnabled = useCallback(
     async (id: number, enabled: boolean) => {
-      if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
+      if (!ready) return;
 
       setIsLoading(true);
       setError(null);
 
       try {
-        const service = new ZMKCustomSubsystem(
-          zmkApp.state.connection,
-          subsystemIndex,
-        );
-
         updateProcessorOptimistically(id, { tempLayerEnabled: enabled });
 
         const request = Request.create({
@@ -373,11 +341,9 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
           },
         });
 
-        const payload = Request.encode(request).finish();
-        const responsePayload = await service.callRPC(payload);
+        const resp = await call(request);
 
-        if (responsePayload) {
-          const resp = Response.decode(responsePayload);
+        if (resp) {
           if (resp.error) {
             setError(resp.error.message);
             return;
@@ -392,22 +358,17 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, updateProcessorOptimistically],
+    [ready, call, updateProcessorOptimistically],
   );
 
   const setTempLayerLayer = useCallback(
     async (id: number, layer: number) => {
-      if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
+      if (!ready) return;
 
       setIsLoading(true);
       setError(null);
 
       try {
-        const service = new ZMKCustomSubsystem(
-          zmkApp.state.connection,
-          subsystemIndex,
-        );
-
         updateProcessorOptimistically(id, { tempLayerLayer: layer });
 
         const request = Request.create({
@@ -417,11 +378,9 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
           },
         });
 
-        const payload = Request.encode(request).finish();
-        const responsePayload = await service.callRPC(payload);
+        const resp = await call(request);
 
-        if (responsePayload) {
-          const resp = Response.decode(responsePayload);
+        if (resp) {
           if (resp.error) {
             setError(resp.error.message);
             return;
@@ -436,22 +395,17 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, updateProcessorOptimistically],
+    [ready, call, updateProcessorOptimistically],
   );
 
   const setTempLayerActivationDelay = useCallback(
     async (id: number, delayMs: number) => {
-      if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
+      if (!ready) return;
 
       setIsLoading(true);
       setError(null);
 
       try {
-        const service = new ZMKCustomSubsystem(
-          zmkApp.state.connection,
-          subsystemIndex,
-        );
-
         updateProcessorOptimistically(id, {
           tempLayerActivationDelayMs: delayMs,
         });
@@ -463,11 +417,9 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
           },
         });
 
-        const payload = Request.encode(request).finish();
-        const responsePayload = await service.callRPC(payload);
+        const resp = await call(request);
 
-        if (responsePayload) {
-          const resp = Response.decode(responsePayload);
+        if (resp) {
           if (resp.error) {
             setError(resp.error.message);
             return;
@@ -482,22 +434,17 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, updateProcessorOptimistically],
+    [ready, call, updateProcessorOptimistically],
   );
 
   const setTempLayerDeactivationDelay = useCallback(
     async (id: number, delayMs: number) => {
-      if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
+      if (!ready) return;
 
       setIsLoading(true);
       setError(null);
 
       try {
-        const service = new ZMKCustomSubsystem(
-          zmkApp.state.connection,
-          subsystemIndex,
-        );
-
         updateProcessorOptimistically(id, {
           tempLayerDeactivationDelayMs: delayMs,
         });
@@ -509,11 +456,9 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
           },
         });
 
-        const payload = Request.encode(request).finish();
-        const responsePayload = await service.callRPC(payload);
+        const resp = await call(request);
 
-        if (responsePayload) {
-          const resp = Response.decode(responsePayload);
+        if (resp) {
           if (resp.error) {
             setError(resp.error.message);
             return;
@@ -528,22 +473,17 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, updateProcessorOptimistically],
+    [ready, call, updateProcessorOptimistically],
   );
 
   const setActiveLayers = useCallback(
     async (id: number, layersBitmask: number) => {
-      if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
+      if (!ready) return;
 
       setIsLoading(true);
       setError(null);
 
       try {
-        const service = new ZMKCustomSubsystem(
-          zmkApp.state.connection,
-          subsystemIndex,
-        );
-
         updateProcessorOptimistically(id, { activeLayers: layersBitmask });
 
         const request = Request.create({
@@ -553,11 +493,9 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
           },
         });
 
-        const payload = Request.encode(request).finish();
-        const responsePayload = await service.callRPC(payload);
+        const resp = await call(request);
 
-        if (responsePayload) {
-          const resp = Response.decode(responsePayload);
+        if (resp) {
           if (resp.error) {
             setError(resp.error.message);
             return;
@@ -572,22 +510,17 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, updateProcessorOptimistically],
+    [ready, call, updateProcessorOptimistically],
   );
 
   const setAxisSnapMode = useCallback(
     async (id: number, mode: AxisSnapMode) => {
-      if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
+      if (!ready) return;
 
       setIsLoading(true);
       setError(null);
 
       try {
-        const service = new ZMKCustomSubsystem(
-          zmkApp.state.connection,
-          subsystemIndex,
-        );
-
         updateProcessorOptimistically(id, { axisSnapMode: mode });
 
         const request = Request.create({
@@ -597,11 +530,9 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
           },
         });
 
-        const payload = Request.encode(request).finish();
-        const responsePayload = await service.callRPC(payload);
+        const resp = await call(request);
 
-        if (responsePayload) {
-          const resp = Response.decode(responsePayload);
+        if (resp) {
           if (resp.error) {
             setError(resp.error.message);
             return;
@@ -616,22 +547,17 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, updateProcessorOptimistically],
+    [ready, call, updateProcessorOptimistically],
   );
 
   const setAxisSnapThreshold = useCallback(
     async (id: number, threshold: number) => {
-      if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
+      if (!ready) return;
 
       setIsLoading(true);
       setError(null);
 
       try {
-        const service = new ZMKCustomSubsystem(
-          zmkApp.state.connection,
-          subsystemIndex,
-        );
-
         updateProcessorOptimistically(id, { axisSnapThreshold: threshold });
 
         const request = Request.create({
@@ -641,11 +567,9 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
           },
         });
 
-        const payload = Request.encode(request).finish();
-        const responsePayload = await service.callRPC(payload);
+        const resp = await call(request);
 
-        if (responsePayload) {
-          const resp = Response.decode(responsePayload);
+        if (resp) {
           if (resp.error) {
             setError(resp.error.message);
             return;
@@ -660,22 +584,17 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, updateProcessorOptimistically],
+    [ready, call, updateProcessorOptimistically],
   );
 
   const setAxisSnapTimeout = useCallback(
     async (id: number, timeoutMs: number) => {
-      if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
+      if (!ready) return;
 
       setIsLoading(true);
       setError(null);
 
       try {
-        const service = new ZMKCustomSubsystem(
-          zmkApp.state.connection,
-          subsystemIndex,
-        );
-
         updateProcessorOptimistically(id, { axisSnapTimeoutMs: timeoutMs });
 
         const request = Request.create({
@@ -685,11 +604,9 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
           },
         });
 
-        const payload = Request.encode(request).finish();
-        const responsePayload = await service.callRPC(payload);
+        const resp = await call(request);
 
-        if (responsePayload) {
-          const resp = Response.decode(responsePayload);
+        if (resp) {
           if (resp.error) {
             setError(resp.error.message);
             return;
@@ -704,22 +621,17 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, updateProcessorOptimistically],
+    [ready, call, updateProcessorOptimistically],
   );
 
   const setXInvert = useCallback(
     async (id: number, invert: boolean) => {
-      if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
+      if (!ready) return;
 
       setIsLoading(true);
       setError(null);
 
       try {
-        const service = new ZMKCustomSubsystem(
-          zmkApp.state.connection,
-          subsystemIndex,
-        );
-
         updateProcessorOptimistically(id, { xInvert: invert });
 
         const request = Request.create({
@@ -729,11 +641,9 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
           },
         });
 
-        const payload = Request.encode(request).finish();
-        const responsePayload = await service.callRPC(payload);
+        const resp = await call(request);
 
-        if (responsePayload) {
-          const resp = Response.decode(responsePayload);
+        if (resp) {
           if (resp.error) {
             setError(resp.error.message);
             return;
@@ -748,22 +658,17 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, updateProcessorOptimistically],
+    [ready, call, updateProcessorOptimistically],
   );
 
   const setYInvert = useCallback(
     async (id: number, invert: boolean) => {
-      if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
+      if (!ready) return;
 
       setIsLoading(true);
       setError(null);
 
       try {
-        const service = new ZMKCustomSubsystem(
-          zmkApp.state.connection,
-          subsystemIndex,
-        );
-
         updateProcessorOptimistically(id, { yInvert: invert });
 
         const request = Request.create({
@@ -773,11 +678,9 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
           },
         });
 
-        const payload = Request.encode(request).finish();
-        const responsePayload = await service.callRPC(payload);
+        const resp = await call(request);
 
-        if (responsePayload) {
-          const resp = Response.decode(responsePayload);
+        if (resp) {
           if (resp.error) {
             setError(resp.error.message);
             return;
@@ -792,22 +695,17 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, updateProcessorOptimistically],
+    [ready, call, updateProcessorOptimistically],
   );
 
   const setXyToScrollEnabled = useCallback(
     async (id: number, enabled: boolean) => {
-      if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
+      if (!ready) return;
 
       setIsLoading(true);
       setError(null);
 
       try {
-        const service = new ZMKCustomSubsystem(
-          zmkApp.state.connection,
-          subsystemIndex,
-        );
-
         updateProcessorOptimistically(id, { xyToScrollEnabled: enabled });
 
         const request = Request.create({
@@ -817,11 +715,9 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
           },
         });
 
-        const payload = Request.encode(request).finish();
-        const responsePayload = await service.callRPC(payload);
+        const resp = await call(request);
 
-        if (responsePayload) {
-          const resp = Response.decode(responsePayload);
+        if (resp) {
           if (resp.error) {
             setError(resp.error.message);
             return;
@@ -836,22 +732,17 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, updateProcessorOptimistically],
+    [ready, call, updateProcessorOptimistically],
   );
 
   const setXySwapEnabled = useCallback(
     async (id: number, enabled: boolean) => {
-      if (!zmkApp?.state.connection || subsystemIndex === undefined) return;
+      if (!ready) return;
 
       setIsLoading(true);
       setError(null);
 
       try {
-        const service = new ZMKCustomSubsystem(
-          zmkApp.state.connection,
-          subsystemIndex,
-        );
-
         updateProcessorOptimistically(id, { xySwapEnabled: enabled });
 
         const request = Request.create({
@@ -861,11 +752,9 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
           },
         });
 
-        const payload = Request.encode(request).finish();
-        const responsePayload = await service.callRPC(payload);
+        const resp = await call(request);
 
-        if (responsePayload) {
-          const resp = Response.decode(responsePayload);
+        if (resp) {
           if (resp.error) {
             setError(resp.error.message);
             return;
@@ -880,11 +769,11 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp?.state.connection, subsystemIndex, updateProcessorOptimistically],
+    [ready, call, updateProcessorOptimistically],
   );
 
   const loadLayers = useCallback(async () => {
-    if (!zmkApp?.state.connection || subsystemIndex === undefined) {
+    if (!ready) {
       setError("Not connected to device or subsystem not found");
       return;
     }
@@ -893,20 +782,13 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
     setError(null);
 
     try {
-      const service = new ZMKCustomSubsystem(
-        zmkApp.state.connection,
-        subsystemIndex,
-      );
-
       const request = Request.create({
         getLayerInfo: {},
       });
 
-      const payload = Request.encode(request).finish();
-      const responsePayload = await service.callRPC(payload);
+      const resp = await call(request);
 
-      if (responsePayload) {
-        const resp = Response.decode(responsePayload);
+      if (resp) {
         if (resp.error) {
           setError(resp.error.message);
           return;
@@ -929,18 +811,18 @@ export function useRuntimeInputProcessor(): UseRuntimeInputProcessorReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [zmkApp, subsystemIndex]);
+  }, [ready, call]);
 
   // Load processors and layers when connection or subsystem changes
   useEffect(() => {
-    if (subsystemIndex !== undefined && zmkApp?.state.connection) {
+    if (ready) {
       loadProcessors();
       loadLayers();
     }
-  }, [subsystemIndex, zmkApp?.state.connection, loadProcessors, loadLayers]);
+  }, [ready, loadProcessors, loadLayers]);
 
   return {
-    isAvailable: subsystemIndex !== undefined,
+    isAvailable: subsystem !== null,
     processors,
     layers,
     isLoading,

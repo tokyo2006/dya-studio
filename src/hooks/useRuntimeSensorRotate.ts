@@ -4,11 +4,8 @@
  * This hook provides access to runtime sensor rotation configuration via a custom ZMK subsystem.
  * It allows configuring rotary encoder bindings per layer at runtime without reflashing.
  */
-import { useState, useEffect, useCallback, useContext, useMemo } from "react";
-import {
-  ZMKCustomSubsystem,
-  ZMKAppContext,
-} from "@cormoran/zmk-studio-react-hook";
+import { useState, useEffect, useCallback } from "react";
+import { useCustomSubsystem } from "@cormoran/zmk-studio-react-hook";
 import {
   Request,
   Response,
@@ -23,6 +20,11 @@ export type { SensorInfo, LayerBindings, Binding };
 // Subsystem identifier for ZMK runtime sensor rotate custom protocol
 // This should match the identifier registered in the ZMK firmware module
 const SUBSYSTEM_IDENTIFIER = "cormoran_rsr";
+
+const CODEC = {
+  encode: (request: Request) => Request.encode(request).finish(),
+  decode: (payload: Uint8Array) => Response.decode(payload),
+};
 
 /**
  * Sensor information
@@ -62,23 +64,16 @@ export interface UseRuntimeSensorRotateReturn {
 }
 
 export function useRuntimeSensorRotate(): UseRuntimeSensorRotateReturn {
-  const zmkApp = useContext(ZMKAppContext);
+  const { subsystem, ready, call } = useCustomSubsystem(
+    SUBSYSTEM_IDENTIFIER,
+    CODEC,
+  );
   const [sensors, setSensors] = useState<Sensor[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Memoize subsystem to avoid unnecessary re-renders
-  const subsystem = useMemo(
-    () => zmkApp?.findSubsystem(SUBSYSTEM_IDENTIFIER),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [zmkApp?.state.customSubsystems],
-  );
-
-  // Extract subsystem index as a stable primitive value for dependencies
-  const subsystemIndex = subsystem?.index;
-
   const loadSensors = useCallback(async () => {
-    if (!zmkApp?.state.connection || subsystemIndex === undefined) {
+    if (!ready) {
       setError("Not connected to device or subsystem not found");
       return;
     }
@@ -87,20 +82,9 @@ export function useRuntimeSensorRotate(): UseRuntimeSensorRotateReturn {
     setError(null);
 
     try {
-      const service = new ZMKCustomSubsystem(
-        zmkApp.state.connection,
-        subsystemIndex,
-      );
+      const resp = await call(Request.create({ getSensors: {} }));
 
-      const request = Request.create({
-        getSensors: {},
-      });
-
-      const payload = Request.encode(request).finish();
-      const responsePayload = await service.callRPC(payload);
-
-      if (responsePayload) {
-        const resp = Response.decode(responsePayload);
+      if (resp) {
         if (resp.error) {
           setError(resp.error.message);
           return;
@@ -123,11 +107,11 @@ export function useRuntimeSensorRotate(): UseRuntimeSensorRotateReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [zmkApp, subsystemIndex]);
+  }, [ready, call]);
 
   const getAllLayerBindings = useCallback(
     async (sensorIndex: number): Promise<LayerBindings[]> => {
-      if (!zmkApp?.state.connection || subsystemIndex === undefined) {
+      if (!ready) {
         setError("Not connected to device or subsystem not found");
         return [];
       }
@@ -136,22 +120,11 @@ export function useRuntimeSensorRotate(): UseRuntimeSensorRotateReturn {
       setError(null);
 
       try {
-        const service = new ZMKCustomSubsystem(
-          zmkApp.state.connection,
-          subsystemIndex,
+        const resp = await call(
+          Request.create({ getAllLayerBindings: { sensorIndex } }),
         );
 
-        const request = Request.create({
-          getAllLayerBindings: {
-            sensorIndex,
-          },
-        });
-
-        const payload = Request.encode(request).finish();
-        const responsePayload = await service.callRPC(payload);
-
-        if (responsePayload) {
-          const resp = Response.decode(responsePayload);
+        if (resp) {
           if (resp.error) {
             setError(resp.error.message);
             return [];
@@ -171,7 +144,7 @@ export function useRuntimeSensorRotate(): UseRuntimeSensorRotateReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp, subsystemIndex],
+    [ready, call],
   );
 
   const setLayerCwBindings = useCallback(
@@ -180,7 +153,7 @@ export function useRuntimeSensorRotate(): UseRuntimeSensorRotateReturn {
       layer: number,
       cwBinding: Binding,
     ): Promise<boolean> => {
-      if (!zmkApp?.state.connection || subsystemIndex === undefined) {
+      if (!ready) {
         setError("Not connected to device or subsystem not found");
         return false;
       }
@@ -189,24 +162,13 @@ export function useRuntimeSensorRotate(): UseRuntimeSensorRotateReturn {
       setError(null);
 
       try {
-        const service = new ZMKCustomSubsystem(
-          zmkApp.state.connection,
-          subsystemIndex,
+        const resp = await call(
+          Request.create({
+            setLayerCwBinding: { sensorIndex, layer, binding: cwBinding },
+          }),
         );
 
-        const request = Request.create({
-          setLayerCwBinding: {
-            sensorIndex,
-            layer,
-            binding: cwBinding,
-          },
-        });
-
-        const payload = Request.encode(request).finish();
-        const responsePayload = await service.callRPC(payload);
-
-        if (responsePayload) {
-          const resp = Response.decode(responsePayload);
+        if (resp) {
           if (resp.error) {
             setError(resp.error.message);
             return false;
@@ -226,7 +188,7 @@ export function useRuntimeSensorRotate(): UseRuntimeSensorRotateReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp, subsystemIndex],
+    [ready, call],
   );
 
   const setLayerCcwBindings = useCallback(
@@ -235,7 +197,7 @@ export function useRuntimeSensorRotate(): UseRuntimeSensorRotateReturn {
       layer: number,
       ccwBinding: Binding,
     ): Promise<boolean> => {
-      if (!zmkApp?.state.connection || subsystemIndex === undefined) {
+      if (!ready) {
         setError("Not connected to device or subsystem not found");
         return false;
       }
@@ -244,24 +206,13 @@ export function useRuntimeSensorRotate(): UseRuntimeSensorRotateReturn {
       setError(null);
 
       try {
-        const service = new ZMKCustomSubsystem(
-          zmkApp.state.connection,
-          subsystemIndex,
+        const resp = await call(
+          Request.create({
+            setLayerCcwBinding: { sensorIndex, layer, binding: ccwBinding },
+          }),
         );
 
-        const request = Request.create({
-          setLayerCcwBinding: {
-            sensorIndex,
-            layer,
-            binding: ccwBinding,
-          },
-        });
-
-        const payload = Request.encode(request).finish();
-        const responsePayload = await service.callRPC(payload);
-
-        if (responsePayload) {
-          const resp = Response.decode(responsePayload);
+        if (resp) {
           if (resp.error) {
             setError(resp.error.message);
             return false;
@@ -281,21 +232,21 @@ export function useRuntimeSensorRotate(): UseRuntimeSensorRotateReturn {
         setIsLoading(false);
       }
     },
-    [zmkApp, subsystemIndex],
+    [ready, call],
   );
 
   // Load sensors when connection or subsystem changes
   useEffect(() => {
-    if (subsystemIndex !== undefined && zmkApp?.state.connection) {
+    if (ready) {
       loadSensors();
     } else {
       setSensors([]);
       setError(null);
     }
-  }, [subsystemIndex, zmkApp?.state.connection, loadSensors]);
+  }, [ready, loadSensors]);
 
   return {
-    isAvailable: subsystemIndex !== undefined,
+    isAvailable: subsystem !== null,
     sensors,
     isLoading,
     error,

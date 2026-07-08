@@ -1,8 +1,6 @@
-import { useCallback, useContext, useEffect, useMemo, useState } from "react";
-import {
-  ZMKCustomSubsystem,
-  ZMKAppContext,
-} from "@cormoran/zmk-studio-react-hook";
+import { useCallback, useEffect, useState } from "react";
+import { useCustomSubsystem } from "@cormoran/zmk-studio-react-hook";
+import type { UseCustomSubsystemTypedReturn } from "@cormoran/zmk-studio-react-hook";
 import {
   GpioLineKind,
   Request,
@@ -16,6 +14,13 @@ import type { KscanDevice, KscanLayout, Topology } from "../lib/kscanTopology";
 
 export const KSCAN_DIAGNOSTICS_SUBSYSTEM_IDENTIFIER =
   "cormoran__kscan_diagnostics";
+
+const CODEC = {
+  encode: (request: Request) => Request.encode(request).finish(),
+  decode: (payload: Uint8Array) => Response.decode(payload),
+};
+
+type Caller = UseCustomSubsystemTypedReturn<Request, Response>["call"];
 
 // Safety valve against a misbehaving firmware paginating forever.
 const MAX_PAGES = 2000;
@@ -39,32 +44,22 @@ export interface UseKscanDiagnosticsReturn {
   loadTopology: () => Promise<void>;
 }
 
-async function callRpc(
-  service: ZMKCustomSubsystem,
-  request: Request,
-): Promise<Response> {
-  const payload = Request.encode(request).finish();
-  const responsePayload = await service.callRPC(payload);
-  if (!responsePayload) {
+async function callRpc(call: Caller, request: Request): Promise<Response> {
+  const resp = await call(request);
+  if (!resp) {
     throw new Error("No response from device");
   }
-  const resp = Response.decode(responsePayload);
   if (resp.error) {
     throw new Error(resp.error.message);
   }
   return resp;
 }
 
-async function fetchStats(
-  service: ZMKCustomSubsystem,
-): Promise<PositionStats[]> {
+async function fetchStats(call: Caller): Promise<PositionStats[]> {
   const entries: PositionStats[] = [];
   let offset = 0;
   for (let page = 0; page < MAX_PAGES; page++) {
-    const resp = await callRpc(
-      service,
-      Request.create({ getStats: { offset } }),
-    );
+    const resp = await callRpc(call, Request.create({ getStats: { offset } }));
     const chunk = resp.stats;
     if (!chunk) {
       throw new Error("Unexpected response to GetStats");
@@ -77,7 +72,7 @@ async function fetchStats(
 }
 
 async function fetchGpioPinsOfKind(
-  service: ZMKCustomSubsystem,
+  call: Caller,
   deviceIndex: number,
   kind: GpioLineKind,
 ): Promise<GpioPin[]> {
@@ -85,7 +80,7 @@ async function fetchGpioPinsOfKind(
   let offset = 0;
   for (let page = 0; page < MAX_PAGES; page++) {
     const resp = await callRpc(
-      service,
+      call,
       Request.create({ getGpioPins: { deviceIndex, kind, offset } }),
     );
     const chunk = resp.gpioPins;
@@ -107,7 +102,7 @@ async function fetchGpioPinsOfKind(
  * fetched per-kind.
  */
 async function fetchGpioLinesByKind(
-  service: ZMKCustomSubsystem,
+  call: Caller,
   deviceIndex: number,
 ): Promise<Record<GpioLineKind, GpioPin[]>> {
   const kinds: GpioLineKind[] = [
@@ -120,20 +115,20 @@ async function fetchGpioLinesByKind(
   const result = {} as Record<GpioLineKind, GpioPin[]>;
   result[GpioLineKind.KIND_UNKNOWN] = [];
   for (const kind of kinds) {
-    result[kind] = await fetchGpioPinsOfKind(service, deviceIndex, kind);
+    result[kind] = await fetchGpioPinsOfKind(call, deviceIndex, kind);
   }
   return result;
 }
 
 async function fetchPositionMap(
-  service: ZMKCustomSubsystem,
+  call: Caller,
   layoutIndex: number,
 ): Promise<(number | null)[]> {
   const cells: (number | null)[] = [];
   let offset = 0;
   for (let page = 0; page < MAX_PAGES; page++) {
     const resp = await callRpc(
-      service,
+      call,
       Request.create({ getPositionMap: { layoutIndex, offset } }),
     );
     const chunk = resp.positionMap;
@@ -151,18 +146,18 @@ async function fetchPositionMap(
 }
 
 async function fetchDevice(
-  service: ZMKCustomSubsystem,
+  call: Caller,
   deviceIndex: number,
 ): Promise<KscanDevice> {
   const resp = await callRpc(
-    service,
+    call,
     Request.create({ getDevice: { deviceIndex } }),
   );
   const d = resp.device;
   if (!d) {
     throw new Error("Unexpected response to GetDevice");
   }
-  const gpioLinesByKind = await fetchGpioLinesByKind(service, deviceIndex);
+  const gpioLinesByKind = await fetchGpioLinesByKind(call, deviceIndex);
   return {
     deviceIndex: d.deviceIndex,
     nodeName: d.nodeName,
@@ -181,18 +176,18 @@ async function fetchDevice(
 }
 
 async function fetchLayout(
-  service: ZMKCustomSubsystem,
+  call: Caller,
   layoutIndex: number,
 ): Promise<KscanLayout> {
   const resp = await callRpc(
-    service,
+    call,
     Request.create({ getLayout: { layoutIndex } }),
   );
   const l = resp.layout;
   if (!l) {
     throw new Error("Unexpected response to GetLayout");
   }
-  const positionMap = await fetchPositionMap(service, layoutIndex);
+  const positionMap = await fetchPositionMap(call, layoutIndex);
   return {
     layoutIndex: l.layoutIndex,
     displayName: l.displayName,
@@ -208,8 +203,8 @@ async function fetchLayout(
   };
 }
 
-async function fetchTopology(service: ZMKCustomSubsystem): Promise<Topology> {
-  const infoResp = await callRpc(service, Request.create({ getInfo: {} }));
+async function fetchTopology(call: Caller): Promise<Topology> {
+  const infoResp = await callRpc(call, Request.create({ getInfo: {} }));
   const info = infoResp.info;
   if (!info) {
     throw new Error("Unexpected response to GetInfo");
@@ -217,14 +212,14 @@ async function fetchTopology(service: ZMKCustomSubsystem): Promise<Topology> {
 
   const layouts: KscanLayout[] = [];
   for (let i = 0; i < info.layoutCount; i++) {
-    layouts.push(await fetchLayout(service, i));
+    layouts.push(await fetchLayout(call, i));
   }
 
   // Every device in device_count is fetched so the wiring overlay works even
   // for devices not attached to the active layout (multi-layout keyboards).
   const devices: KscanDevice[] = [];
   for (let i = 0; i < info.deviceCount; i++) {
-    devices.push(await fetchDevice(service, i));
+    devices.push(await fetchDevice(call, i));
   }
 
   return {
@@ -239,32 +234,22 @@ async function fetchTopology(service: ZMKCustomSubsystem): Promise<Topology> {
 }
 
 export function useKscanDiagnostics(): UseKscanDiagnosticsReturn {
-  const zmkApp = useContext(ZMKAppContext);
+  const { subsystem, ready, call } = useCustomSubsystem(
+    KSCAN_DIAGNOSTICS_SUBSYSTEM_IDENTIFIER,
+    CODEC,
+  );
   const [info, setInfo] = useState<Info | null>(null);
   const [devices, setDevices] = useState<Device[]>([]);
   const [stats, setStats] = useState<PositionStats[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const subsystem = useMemo(
-    () => zmkApp?.findSubsystem(KSCAN_DIAGNOSTICS_SUBSYSTEM_IDENTIFIER),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [zmkApp?.state.customSubsystems],
-  );
-  const subsystemIndex = subsystem?.index;
-  const connection = zmkApp?.state.connection;
-
-  const service = useMemo(() => {
-    if (!connection || subsystemIndex === undefined) return null;
-    return new ZMKCustomSubsystem(connection, subsystemIndex);
-  }, [connection, subsystemIndex]);
-
   const refresh = useCallback(async () => {
-    if (!service) return;
+    if (!ready) return;
     setIsLoading(true);
     setError(null);
     try {
-      const infoResp = await callRpc(service, Request.create({ getInfo: {} }));
+      const infoResp = await callRpc(call, Request.create({ getInfo: {} }));
       const nextInfo = infoResp.info;
       if (!nextInfo) {
         throw new Error("Unexpected response to GetInfo");
@@ -272,14 +257,14 @@ export function useKscanDiagnostics(): UseKscanDiagnosticsReturn {
       const nextDevices: Device[] = [];
       for (let i = 0; i < nextInfo.deviceCount; i++) {
         const resp = await callRpc(
-          service,
+          call,
           Request.create({ getDevice: { deviceIndex: i } }),
         );
         if (resp.device) {
           nextDevices.push(resp.device);
         }
       }
-      const nextStats = nextInfo.statsEnabled ? await fetchStats(service) : [];
+      const nextStats = nextInfo.statsEnabled ? await fetchStats(call) : [];
       setInfo(nextInfo);
       setDevices(nextDevices);
       setStats(nextStats);
@@ -288,49 +273,49 @@ export function useKscanDiagnostics(): UseKscanDiagnosticsReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [service]);
+  }, [ready, call]);
 
   const resetStats = useCallback(async () => {
-    if (!service) return;
+    if (!ready) return;
     setIsLoading(true);
     setError(null);
     try {
-      await callRpc(service, Request.create({ resetStats: {} }));
-      setStats(await fetchStats(service));
+      await callRpc(call, Request.create({ resetStats: {} }));
+      setStats(await fetchStats(call));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setIsLoading(false);
     }
-  }, [service]);
+  }, [ready, call]);
 
   // Auto-fetch when the subsystem becomes available.
   useEffect(() => {
-    if (service) {
+    if (ready) {
       void refresh();
     }
-  }, [service, refresh]);
+  }, [ready, refresh]);
 
   const [topology, setTopology] = useState<Topology | null>(null);
   const [isLoadingTopology, setIsLoadingTopology] = useState(false);
   const [topologyError, setTopologyError] = useState<string | null>(null);
 
   const loadTopology = useCallback(async () => {
-    if (!service) return;
+    if (!ready) return;
     setIsLoadingTopology(true);
     setTopologyError(null);
     try {
-      const t = await fetchTopology(service);
+      const t = await fetchTopology(call);
       setTopology(t);
     } catch (err) {
       setTopologyError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setIsLoadingTopology(false);
     }
-  }, [service]);
+  }, [ready, call]);
 
   return {
-    isAvailable: subsystemIndex !== undefined,
+    isAvailable: subsystem !== null,
     info,
     devices,
     stats,

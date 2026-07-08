@@ -1,7 +1,7 @@
-import { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { useCallback, useContext, useEffect, useState } from "react";
 import {
-  ZMKCustomSubsystem,
   ZMKAppContext,
+  useCustomSubsystem,
 } from "@cormoran/zmk-studio-react-hook";
 import {
   Request,
@@ -12,6 +12,11 @@ import {
 } from "../proto/cormoran/watchdog/watchdog";
 
 export const WATCHDOG_SUBSYSTEM_IDENTIFIER = "cormoran__watchdog";
+
+const CODEC = {
+  encode: (request: Request) => Request.encode(request).finish(),
+  decode: (payload: Uint8Array) => Response.decode(payload),
+};
 
 // How long to wait for a split peripheral to answer a relayed request
 // before giving up — there is no way to know which peripheral slots are
@@ -37,30 +42,24 @@ export interface UseWatchdogReturn {
 
 export function useWatchdog(): UseWatchdogReturn {
   const zmkApp = useContext(ZMKAppContext);
+  const { subsystem, ready, call } = useCustomSubsystem(
+    WATCHDOG_SUBSYSTEM_IDENTIFIER,
+    CODEC,
+  );
   const [source, setSource] = useState(0);
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const subsystem = useMemo(
-    () => zmkApp?.findSubsystem(WATCHDOG_SUBSYSTEM_IDENTIFIER),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [zmkApp?.state.customSubsystems],
-  );
   const subsystemIndex = subsystem?.index;
-  const connection = zmkApp?.state.connection;
 
   const callRpc = useCallback(
     async (request: Request): Promise<Response | null> => {
-      if (!connection || subsystemIndex === undefined) return null;
-      const service = new ZMKCustomSubsystem(connection, subsystemIndex);
-      const payload = Request.encode(request).finish();
-      const responsePayload = await service.callRPC(payload);
-      if (!responsePayload) return null;
-      return Response.decode(responsePayload);
+      if (!ready) return null;
+      return call(request);
     },
-    [connection, subsystemIndex],
+    [ready, call],
   );
 
   // Awaits the real Response for a request that came back as a
@@ -158,7 +157,7 @@ export function useWatchdog(): UseWatchdogReturn {
   }, [callRpcAwaitingRelay, source]);
 
   const refresh = useCallback(async () => {
-    if (!connection || subsystemIndex === undefined) return;
+    if (!ready) return;
     setIsLoading(true);
     setError(null);
     try {
@@ -169,14 +168,14 @@ export function useWatchdog(): UseWatchdogReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [connection, subsystemIndex, refreshStatus, refreshIncidents]);
+  }, [ready, refreshStatus, refreshIncidents]);
 
   // Auto-load when the subsystem becomes available or the source changes.
   useEffect(() => {
-    if (connection && subsystemIndex !== undefined) {
+    if (ready) {
       void refresh();
     }
-  }, [connection, subsystemIndex, source, refresh]);
+  }, [ready, source, refresh]);
 
   // Live incident push: firmware notifies whenever a new incident is
   // persisted on the local (central) store.
@@ -238,7 +237,7 @@ export function useWatchdog(): UseWatchdogReturn {
   );
 
   return {
-    isAvailable: subsystemIndex !== undefined,
+    isAvailable: subsystem !== null,
     source,
     setSource,
     status,
