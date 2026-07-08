@@ -62,12 +62,20 @@ function TestComponent() {
   );
 }
 
+type NavigatorWithOptionalSerial = Navigator & { serial?: unknown };
+
 describe("DeviceConnection", () => {
   let mocks: ReturnType<typeof setupZMKMocks>;
 
   beforeEach(() => {
     // Reset mocks using the test helper
     mocks = setupZMKMocks();
+    // Auto-reconnect remembers ports in sessionStorage; start each test clean.
+    window.sessionStorage.clear();
+  });
+
+  afterEach(() => {
+    delete (navigator as NavigatorWithOptionalSerial).serial;
   });
 
   describe("Initial State", () => {
@@ -415,6 +423,64 @@ describe("DeviceConnection", () => {
           "My Keyboard",
         );
       });
+    });
+  });
+
+  describe("Auto-reconnect on mount", () => {
+    test("renders children in the disconnected state when there is no paired serial port", async () => {
+      // jsdom has no navigator.serial by default, so the silent auto-reconnect
+      // attempt inside ZMKConnection resolves to "nothing to reconnect to"
+      // and the app should fall back to the normal connect screen.
+      render(
+        <DeviceConnectionProvider>
+          <TestComponent />
+        </DeviceConnectionProvider>,
+      );
+
+      // Let the auto-reconnect effect (and its microtasks) settle.
+      await waitFor(() => {
+        expect(screen.getByTestId("connection-status")).toHaveTextContent(
+          "Disconnected",
+        );
+      });
+      expect(screen.getByTestId("connect-button")).toBeInTheDocument();
+      expect(screen.queryByTestId("device-name")).not.toBeInTheDocument();
+    });
+
+    test("transitions to connected when a previously paired serial port reconnects successfully", async () => {
+      mocks.mockSuccessfulConnection({
+        deviceName: "Auto Reconnected Keyboard",
+      });
+
+      const mockPort = {
+        open: jest.fn().mockResolvedValue(undefined),
+        close: jest.fn().mockResolvedValue(undefined),
+        getInfo: jest
+          .fn()
+          .mockReturnValue({ usbVendorId: 0x1234, usbProductId: 0x5678 }),
+        readable: {},
+        writable: { close: jest.fn().mockResolvedValue(undefined) },
+      };
+      Object.defineProperty(navigator, "serial", {
+        configurable: true,
+        value: { getPorts: jest.fn().mockResolvedValue([mockPort]) },
+      });
+
+      render(
+        <DeviceConnectionProvider>
+          <TestComponent />
+        </DeviceConnectionProvider>,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId("connection-status")).toHaveTextContent(
+          "Connected",
+        );
+      });
+      expect(screen.getByTestId("device-name")).toHaveTextContent(
+        "Auto Reconnected Keyboard",
+      );
+      expect(mockPort.open).toHaveBeenCalledWith({ baudRate: 12500 });
     });
   });
 });

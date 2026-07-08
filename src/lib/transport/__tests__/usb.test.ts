@@ -1,4 +1,4 @@
-import { connect as connectSerial } from "@zmkfirmware/zmk-studio-ts-client/transport/serial";
+import { connectSerial } from "@cormoran/zmk-studio-react-hook";
 import { connect as connectWebUsb } from "../webUsb";
 import {
   connect,
@@ -6,8 +6,9 @@ import {
   shouldUseWebUsbForUsbConnection,
 } from "../usb";
 
-jest.mock("@zmkfirmware/zmk-studio-ts-client/transport/serial", () => ({
-  connect: jest.fn(),
+jest.mock("@cormoran/zmk-studio-react-hook", () => ({
+  connectSerial: jest.fn(),
+  isWebSerialSupported: jest.fn(() => "serial" in navigator),
 }));
 
 jest.mock("../webUsb", () => ({
@@ -48,6 +49,15 @@ describe("USB transport selection", () => {
   test("detects Android Chrome user agents", () => {
     expect(shouldUseWebUsbForUsbConnection(androidChromeUserAgent)).toBe(true);
     expect(shouldUseWebUsbForUsbConnection(desktopChromeUserAgent)).toBe(false);
+  });
+
+  test("treats Web Serial support as USB-capable", () => {
+    Object.defineProperty(navigator, "serial", {
+      configurable: true,
+      value: { requestPort: jest.fn(), getPorts: jest.fn() },
+    });
+
+    expect(isUsbConnectionAvailable()).toBe(true);
   });
 
   test("treats Android Chrome WebUSB as USB-capable without Web Serial", () => {

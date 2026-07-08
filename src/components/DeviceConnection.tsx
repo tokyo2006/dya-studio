@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { createContext, useCallback } from "react";
 import type { RpcTransport } from "@zmkfirmware/zmk-studio-ts-client/transport/index";
-import { useZMKApp, ZMKAppContext } from "@cormoran/zmk-studio-react-hook";
+import { useZMKApp, ZMKConnection } from "@cormoran/zmk-studio-react-hook";
 import { connect as connectBLE } from "@zmkfirmware/zmk-studio-ts-client/transport/gatt";
 import { connect as connectUSB } from "../lib/transport/usb";
 import { connect as connectDemo } from "../lib/transport/demo";
@@ -64,12 +64,19 @@ export function DeviceConnectionProvider({
     error: zmkApp.state.error,
   };
 
+  const content = (
+    <ConnectionContext.Provider value={connectionValue}>
+      {children}
+    </ConnectionContext.Provider>
+  );
+
   return (
-    <ZMKAppContext.Provider value={zmkApp}>
-      <ConnectionContext.Provider value={connectionValue}>
-        {children}
-      </ConnectionContext.Provider>
-    </ZMKAppContext.Provider>
+    <ZMKConnection
+      zmkApp={zmkApp}
+      autoReconnect
+      renderDisconnected={() => content}
+      renderConnected={() => content}
+    />
   );
 }
 
