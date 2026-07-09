@@ -1,4 +1,11 @@
-import { useState, useContext, useCallback, useMemo, useEffect } from "react";
+import {
+  useState,
+  useContext,
+  useCallback,
+  useMemo,
+  useEffect,
+  useRef,
+} from "react";
 import {
   IconKeyboard,
   IconDeviceFloppy,
@@ -11,8 +18,10 @@ import {
   IconRestore,
   IconAlertTriangle,
   IconInfoCircle,
+  IconPencil,
 } from "@tabler/icons-react";
 import * as Tooltip from "@radix-ui/react-tooltip";
+import * as Dialog from "@radix-ui/react-dialog";
 import * as Switch from "@radix-ui/react-switch";
 import { ConnectionContext } from "../components/DeviceConnection";
 import { KeyboardLayoutContext } from "../contexts/KeyboardLayoutContext";
@@ -47,6 +56,10 @@ export function KeymapPage() {
   const [showKeycodeSelector, setShowKeycodeSelector] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDiscarding, setIsDiscarding] = useState(false);
+  const [showRenameDialog, setShowRenameDialog] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
+  const [isRenaming, setIsRenaming] = useState(false);
+  const renameInputRef = useRef<HTMLInputElement>(null);
 
   // Get current layer
   const currentLayer = useMemo(() => {
@@ -182,6 +195,29 @@ export function KeymapPage() {
       setSelectedLayerIndex(atIndex);
     }
   }, [keymap]);
+
+  // Handle open rename dialog
+  const handleOpenRenameDialog = useCallback(() => {
+    if (!keymap.keymap?.layers) return;
+    const layer = keymap.keymap.layers[selectedLayerIndex];
+    if (!layer) return;
+    setRenameValue(layer.name);
+    setShowRenameDialog(true);
+  }, [keymap.keymap?.layers, selectedLayerIndex]);
+
+  // Handle rename confirm
+  const handleRenameConfirm = useCallback(async () => {
+    if (!keymap.keymap?.layers) return;
+    const layer = keymap.keymap.layers[selectedLayerIndex];
+    if (!layer) return;
+    setIsRenaming(true);
+    try {
+      await keymap.setLayerName(layer.id, renameValue);
+      setShowRenameDialog(false);
+    } finally {
+      setIsRenaming(false);
+    }
+  }, [keymap, selectedLayerIndex, renameValue]);
 
   // Handle unlock retry
   const handleUnlockRetry = useCallback(() => {
@@ -405,6 +441,31 @@ export function KeymapPage() {
 
                 {/* Layer Add/Delete/Restore Buttons */}
                 <div className="flex items-center gap-1 border-l border-[var(--color-border)] pl-2">
+                  {/* Rename Layer Button */}
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <button
+                        className="p-2 rounded-lg hover:bg-[var(--color-border)] disabled:opacity-30 disabled:cursor-not-allowed"
+                        onClick={handleOpenRenameDialog}
+                        aria-label={t("Rename current layer")}
+                      >
+                        <IconPencil
+                          size={16}
+                          className="text-[var(--color-text-muted)]"
+                        />
+                      </button>
+                    </Tooltip.Trigger>
+                    <Tooltip.Portal>
+                      <Tooltip.Content
+                        className="px-2 py-1 rounded bg-[var(--color-surface-elevated)] border border-[var(--color-border)] text-xs text-[var(--color-text-secondary)] shadow-lg z-50"
+                        sideOffset={5}
+                      >
+                        {t("Rename current layer")}
+                        <Tooltip.Arrow className="fill-[var(--color-surface-elevated)]" />
+                      </Tooltip.Content>
+                    </Tooltip.Portal>
+                  </Tooltip.Root>
+
                   {/* Add Layer Button */}
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>
@@ -660,6 +721,60 @@ export function KeymapPage() {
           </p>
         </div>
       </div>
+
+      {/* Rename Layer Dialog */}
+      <Dialog.Root
+        open={showRenameDialog}
+        onOpenChange={(open) => !open && setShowRenameDialog(false)}
+      >
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" />
+          <Dialog.Content
+            className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-sm bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] shadow-2xl z-50 p-6"
+            onOpenAutoFocus={(e) => {
+              e.preventDefault();
+              renameInputRef.current?.focus();
+              renameInputRef.current?.select();
+            }}
+          >
+            <Dialog.Title className="text-base font-medium text-[var(--color-text)] mb-4">
+              {t("Rename Layer")}
+            </Dialog.Title>
+            <input
+              ref={renameInputRef}
+              type="text"
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void handleRenameConfirm();
+                if (e.key === "Escape") setShowRenameDialog(false);
+              }}
+              maxLength={keymap.maxLayerNameLength || undefined}
+              className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface-elevated)] border border-[var(--color-border)] text-sm text-[var(--color-text)] focus:outline-none focus:border-[var(--color-electric)] mb-4"
+              placeholder={t("Layer name")}
+            />
+            <div className="flex gap-3">
+              <button
+                className="flex-1 btn-ghost border border-[var(--color-border)]"
+                onClick={() => setShowRenameDialog(false)}
+                disabled={isRenaming}
+              >
+                {t("Cancel")}
+              </button>
+              <button
+                className="flex-1 btn-electric flex items-center justify-center gap-2"
+                onClick={() => void handleRenameConfirm()}
+                disabled={isRenaming}
+              >
+                {isRenaming && (
+                  <IconLoader2 size={16} className="animate-spin" />
+                )}
+                {t("Rename")}
+              </button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
 
       {/* Keycode Selector Dialog */}
       <KeycodeSelector
