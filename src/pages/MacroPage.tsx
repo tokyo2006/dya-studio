@@ -16,15 +16,12 @@ import { KeyboardLayoutContext } from "../contexts/KeyboardLayoutContext";
 import { useKeymap } from "../hooks/useKeymap";
 import { useLanguage } from "../hooks/useLanguage";
 import { useRuntimeMacro } from "../hooks/useRuntimeMacro";
-import {
-  getRuntimeMacroEncodedSize,
-  RUNTIME_MACRO_FORMAT_VERSION,
-} from "../lib/runtimeMacroCodec";
+import { getRuntimeMacroEncodedSize } from "../lib/runtimeMacroCodec";
 import { formatBehaviorBinding } from "../lib/behaviorMetadata";
 import { createHidUsage, HID_USAGE_PAGE_KEYBOARD } from "../lib/keycodes";
 import type { BehaviorBinding as KeymapBehaviorBinding } from "../hooks/useKeymap";
 import type {
-  MacroSlot,
+  MacroDetail,
   MacroStep,
 } from "../proto/cormoran/runtime_macro/runtime_macro";
 
@@ -176,9 +173,9 @@ function createStep(
   return { [action]: nextBinding };
 }
 
-function formatMacroName(macro: MacroSlot | null, index: number): string {
+function formatMacroName(macro: MacroDetail | null, slot: number): string {
   if (macro?.name) return macro.name;
-  return `Macro ${index}`;
+  return `Macro ${slot}`;
 }
 
 function clampUInt32(value: number): number {
@@ -356,11 +353,15 @@ export function MacroPage() {
   const runtimeMacro = useRuntimeMacro();
   const keymap = useKeymap();
   const keyboardLayoutContext = useContext(KeyboardLayoutContext);
-  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  const [loadedMacro, setLoadedMacro] = useState<MacroSlot | null>(null);
+  const [selectedName, setSelectedName] = useState<string | null>(null);
+  const [loadedMacro, setLoadedMacro] = useState<MacroDetail | null>(null);
   const [editingStepIndex, setEditingStepIndex] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isDiscarding, setIsDiscarding] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [newMacroName, setNewMacroName] = useState("");
+  const [renameDraft, setRenameDraft] = useState("");
   const [stringConversionError, setStringConversionError] = useState<
     string | null
   >(null);
@@ -413,11 +414,12 @@ export function MacroPage() {
     editingStepIndex !== null ? loadedMacro?.steps[editingStepIndex] : null;
 
   const loadMacro = useCallback(
-    async (index: number) => {
-      const macro = await runtimeMacro.getMacro(index);
+    async (slot: number) => {
+      const macro = await runtimeMacro.getMacro(slot);
       if (macro) {
-        setSelectedIndex(index);
+        setSelectedName(macro.name);
         setLoadedMacro(macro);
+        setRenameDraft(macro.name);
         setStringDraft(null);
         setStringConversionError(null);
       }
@@ -428,17 +430,22 @@ export function MacroPage() {
   useEffect(() => {
     const timer = window.setTimeout(() => {
       if (!runtimeMacro.isAvailable || runtimeMacro.macros.length === 0) {
-        setSelectedIndex(null);
+        setSelectedName(null);
         setLoadedMacro(null);
         return;
       }
 
-      const nextIndex = selectedIndex ?? runtimeMacro.macros[0].index;
-      if (selectedIndex === null) {
-        setSelectedIndex(nextIndex);
+      // Reselect by name (not slot) after a create/delete/rename, since a
+      // macro's slot can change identity across a re-list.
+      const stillSelected = runtimeMacro.macros.find(
+        (macro) => macro.name === selectedName,
+      );
+      const nextMacro = stillSelected ?? runtimeMacro.macros[0];
+      if (selectedName === null) {
+        setSelectedName(nextMacro.name);
       }
-      if (!loadedMacro || loadedMacro.index !== nextIndex) {
-        void loadMacro(nextIndex);
+      if (!loadedMacro || loadedMacro.slot !== nextMacro.slot) {
+        void loadMacro(nextMacro.slot);
       }
     }, 0);
     return () => window.clearTimeout(timer);
@@ -447,19 +454,28 @@ export function MacroPage() {
     loadedMacro,
     runtimeMacro.isAvailable,
     runtimeMacro.macros,
-    selectedIndex,
+    selectedName,
   ]);
 
-  const commitMacroName = useCallback(
-    async (name: string) => {
-      if (!loadedMacro) return;
-      const trimmedName = name.slice(0, runtimeMacro.maxNameLength);
+  const commitRename = useCallback(async () => {
+    if (!loadedMacro) return;
+    const trimmedName = renameDraft.slice(0, runtimeMacro.maxNameLength).trim();
+    if (!trimmedName || trimmedName === loadedMacro.name) {
+      setRenameDraft(loadedMacro.name);
+      return;
+    }
+    const ok = await runtimeMacro.renameMacro(
+      loadedMacro.name,
+      trimmedName,
+      loadedMacro.steps,
+    );
+    if (ok) {
+      setSelectedName(trimmedName);
       setLoadedMacro({ ...loadedMacro, name: trimmedName });
-      await runtimeMacro.setMacroName(loadedMacro.index, trimmedName);
-      await runtimeMacro.loadMacros();
-    },
-    [loadedMacro, runtimeMacro],
-  );
+    } else {
+      setRenameDraft(loadedMacro.name);
+    }
+  }, [loadedMacro, renameDraft, runtimeMacro]);
 
   const commitSteps = useCallback(
     async (steps: MacroStep[]) => {
@@ -478,14 +494,14 @@ export function MacroPage() {
       }
 
       const countUpdated = await runtimeMacro.setMacroStepCount(
-        loadedMacro.index,
+        loadedMacro.slot,
         steps.length,
       );
       if (!countUpdated) return false;
 
       for (const [stepIndex, step] of steps.entries()) {
         const stepUpdated = await runtimeMacro.setMacroStep(
-          loadedMacro.index,
+          loadedMacro.slot,
           stepIndex,
           step,
         );
@@ -643,18 +659,32 @@ export function MacroPage() {
 
   const handleDeleteMacro = useCallback(async () => {
     if (!loadedMacro) return;
-    const ok = await runtimeMacro.deleteMacro(loadedMacro.index);
-    if (ok) {
-      const emptyMacro = {
-        ...loadedMacro,
-        name: "",
-        steps: [],
-        encodedSize: RUNTIME_MACRO_FORMAT_VERSION === 1 ? 1 : 0,
-      };
-      setLoadedMacro(emptyMacro);
-      await runtimeMacro.loadMacros();
+    setIsDeleting(true);
+    try {
+      const ok = await runtimeMacro.deleteMacro(loadedMacro.name);
+      if (ok) {
+        setSelectedName(null);
+        setLoadedMacro(null);
+      }
+    } finally {
+      setIsDeleting(false);
     }
   }, [loadedMacro, runtimeMacro]);
+
+  const handleCreateMacro = useCallback(async () => {
+    const name = newMacroName.trim();
+    if (!name) return;
+    setIsCreating(true);
+    try {
+      const ok = await runtimeMacro.createMacro(name);
+      if (ok) {
+        setNewMacroName("");
+        setSelectedName(name);
+      }
+    } finally {
+      setIsCreating(false);
+    }
+  }, [newMacroName, runtimeMacro]);
 
   const handleSave = useCallback(async () => {
     setIsSaving(true);
@@ -669,13 +699,13 @@ export function MacroPage() {
     setIsDiscarding(true);
     try {
       await runtimeMacro.discardMacros();
-      if (selectedIndex !== null) {
-        await loadMacro(selectedIndex);
+      if (loadedMacro) {
+        await loadMacro(loadedMacro.slot);
       }
     } finally {
       setIsDiscarding(false);
     }
-  }, [loadMacro, runtimeMacro, selectedIndex]);
+  }, [loadMacro, loadedMacro, runtimeMacro]);
 
   const handleTapMsChange = useCallback(
     async (tapMs: number) => {
@@ -813,7 +843,7 @@ export function MacroPage() {
               <div className="glass-card p-3">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-sm font-medium text-[var(--color-text)]">
-                    {t("Slots")}
+                    {t("Macros")}
                   </h2>
                   {runtimeMacro.isLoading && (
                     <IconLoader2
@@ -823,19 +853,24 @@ export function MacroPage() {
                   )}
                 </div>
                 <div className="space-y-1">
+                  {runtimeMacro.macros.length === 0 && (
+                    <p className="text-sm text-[var(--color-text-muted)] py-4 text-center">
+                      {t("No macros yet. Create one below.")}
+                    </p>
+                  )}
                   {runtimeMacro.macros.map((macro) => (
                     <button
-                      key={macro.index}
+                      key={macro.name}
                       className={`w-full px-3 py-2 rounded-lg text-left transition-colors ${
-                        selectedIndex === macro.index
+                        selectedName === macro.name
                           ? "bg-[var(--color-electric)]/20 text-[var(--color-electric)] border border-[var(--color-electric)]/30"
                           : "text-[var(--color-text-secondary)] hover:bg-[var(--color-border)]"
                       }`}
-                      onClick={() => void loadMacro(macro.index)}
+                      onClick={() => void loadMacro(macro.slot)}
                     >
                       <span className="block text-sm font-medium truncate">
                         {macro.name ||
-                          t("Macro {{index}}", { index: macro.index })}
+                          t("Macro {{slot}}", { slot: macro.slot })}
                       </span>
                       <span className="block text-xs text-[var(--color-text-muted)]">
                         {t("{{encodedSize}}/{{maxMacroBytes}} bytes", {
@@ -845,6 +880,27 @@ export function MacroPage() {
                       </span>
                     </button>
                   ))}
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <input
+                    className="flex-1 min-w-0 px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] text-sm text-[var(--color-text)] focus:outline-none focus:border-[var(--color-electric)]/50"
+                    value={newMacroName}
+                    maxLength={runtimeMacro.maxNameLength}
+                    placeholder={t("New macro name")}
+                    onChange={(event) => setNewMacroName(event.target.value)}
+                  />
+                  <button
+                    className="btn-electric text-sm flex items-center gap-1.5 px-3"
+                    onClick={() => void handleCreateMacro()}
+                    disabled={isCreating || !newMacroName.trim()}
+                  >
+                    {isCreating ? (
+                      <IconLoader2 size={16} className="animate-spin" />
+                    ) : (
+                      <IconPlus size={16} />
+                    )}
+                    {t("Create")}
+                  </button>
                 </div>
               </div>
 
@@ -873,6 +929,22 @@ export function MacroPage() {
                     }
                   />
                 </label>
+                {runtimeMacro.globalSettings &&
+                  runtimeMacro.globalSettings.poolBytesTotal > 0 && (
+                    <p
+                      className={`mt-3 text-xs ${
+                        runtimeMacro.globalSettings.poolBytesUsed >=
+                        runtimeMacro.globalSettings.poolBytesTotal
+                          ? "text-amber-400"
+                          : "text-[var(--color-text-muted)]"
+                      }`}
+                    >
+                      {t("Shared macro pool: {{used}}/{{total}} B", {
+                        used: runtimeMacro.globalSettings.poolBytesUsed,
+                        total: runtimeMacro.globalSettings.poolBytesTotal,
+                      })}
+                    </p>
+                  )}
               </div>
             </div>
 
@@ -886,24 +958,14 @@ export function MacroPage() {
                       </label>
                       <input
                         className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text)] focus:outline-none focus:border-[var(--color-electric)]/50"
-                        value={loadedMacro.name}
+                        value={renameDraft}
                         maxLength={runtimeMacro.maxNameLength}
                         placeholder={formatMacroName(
                           loadedMacro,
-                          loadedMacro.index,
-                        ).replace(
-                          `Macro ${loadedMacro.index}`,
-                          t("Macro {{index}}", { index: loadedMacro.index }),
+                          loadedMacro.slot,
                         )}
-                        onChange={(event) =>
-                          setLoadedMacro({
-                            ...loadedMacro,
-                            name: event.target.value,
-                          })
-                        }
-                        onBlur={(event) =>
-                          void commitMacroName(event.target.value)
-                        }
+                        onChange={(event) => setRenameDraft(event.target.value)}
+                        onBlur={() => void commitRename()}
                       />
                     </div>
                     <div>
@@ -928,12 +990,16 @@ export function MacroPage() {
                     </h2>
                     <div className="flex items-center gap-2">
                       <button
-                        className="btn-ghost text-sm flex items-center gap-1.5"
-                        onClick={handleDeleteMacro}
-                        disabled={runtimeMacro.isLoading}
+                        className="btn-ghost text-sm flex items-center gap-1.5 text-red-400"
+                        onClick={() => void handleDeleteMacro()}
+                        disabled={isDeleting || runtimeMacro.isLoading}
                       >
-                        <IconTrash size={16} />
-                        {t("Clear")}
+                        {isDeleting ? (
+                          <IconLoader2 size={16} className="animate-spin" />
+                        ) : (
+                          <IconTrash size={16} />
+                        )}
+                        {t("Delete")}
                       </button>
                       <button
                         className="btn-electric text-sm flex items-center gap-1.5"
@@ -1052,7 +1118,9 @@ export function MacroPage() {
               ) : (
                 <div className="p-6 text-center">
                   <p className="text-sm text-[var(--color-text-muted)]">
-                    {t("Select a macro slot")}
+                    {runtimeMacro.macros.length === 0
+                      ? t("No macros yet. Create one to get started.")
+                      : t("Select a macro")}
                   </p>
                 </div>
               )}

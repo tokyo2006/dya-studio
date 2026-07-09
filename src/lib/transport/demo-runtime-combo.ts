@@ -5,6 +5,8 @@
  */
 
 import {
+  ComboSource,
+  SlowReleaseOverride,
   type BehaviorBinding,
   type Combo,
   type GlobalSettings,
@@ -32,6 +34,10 @@ const MOCK_COMBOS: Combo[] = [
     behavior: createBehavior(BEHAVIOR_KEY_PRESS, 0x29),
     layerMask: 0,
     enabled: true,
+    timeoutMs: 0,
+    requirePriorIdleMs: 0,
+    slowReleaseOverride: SlowReleaseOverride.SLOW_RELEASE_OVERRIDE_INHERIT,
+    source: ComboSource.COMBO_SOURCE_DEFAULT,
   },
   {
     index: 1,
@@ -40,6 +46,10 @@ const MOCK_COMBOS: Combo[] = [
     behavior: createBehavior(BEHAVIOR_KEY_PRESS, 0x2b),
     layerMask: 1,
     enabled: true,
+    timeoutMs: 0,
+    requirePriorIdleMs: 0,
+    slowReleaseOverride: SlowReleaseOverride.SLOW_RELEASE_OVERRIDE_INHERIT,
+    source: ComboSource.COMBO_SOURCE_DEFAULT,
   },
 ];
 
@@ -47,7 +57,11 @@ const MOCK_GLOBAL_SETTINGS: GlobalSettings = {
   timeoutMs: 50,
   slowRelease: false,
   maxCombo: 16,
+  requirePriorIdleMs: 0,
 };
+
+/** Slots that exist as compile-time defaults (i.e. seeded in MOCK_COMBOS). */
+const DEFAULT_SLOT_INDICES = new Set(MOCK_COMBOS.map((combo) => combo.index));
 
 function cloneCombo(combo: Combo): Combo {
   return {
@@ -88,8 +102,17 @@ export class RuntimeComboHandler {
     }
 
     if (request.setCombo !== undefined) {
-      const { index, keyPositions, behavior, layerMask, enabled, persist } =
-        request.setCombo;
+      const {
+        index,
+        keyPositions,
+        behavior,
+        layerMask,
+        enabled,
+        persist,
+        timeoutMs,
+        requirePriorIdleMs,
+        slowReleaseOverride,
+      } = request.setCombo;
       if (index >= this.globalSettings.maxCombo) {
         return { error: { message: `Invalid combo slot: ${index}` } };
       }
@@ -98,6 +121,7 @@ export class RuntimeComboHandler {
       }
 
       const current = this.combos.find((item) => item.index === index);
+      const hasCompileTimeDefault = DEFAULT_SLOT_INDICES.has(index);
       const nextCombo: Combo = {
         index,
         name: current?.name ?? "",
@@ -105,6 +129,12 @@ export class RuntimeComboHandler {
         behavior: { ...behavior },
         layerMask,
         enabled,
+        timeoutMs,
+        requirePriorIdleMs,
+        slowReleaseOverride,
+        source: hasCompileTimeDefault
+          ? ComboSource.COMBO_SOURCE_OVERRIDDEN
+          : ComboSource.COMBO_SOURCE_RUNTIME,
       };
       this.combos = [
         ...this.combos.filter((item) => item.index !== index),
@@ -137,6 +167,9 @@ export class RuntimeComboHandler {
     if (request.deleteCombo !== undefined) {
       const { index, persist } = request.deleteCombo;
       const before = this.combos.length;
+      // Deleting removes any stored runtime value for this slot, which is
+      // conceptually source = COMBO_SOURCE_EMPTY; represented here by
+      // filtering the combo out of the in-memory list entirely.
       this.combos = this.combos.filter((item) => item.index !== index);
       if (persist) {
         this.persistentCombos = this.combos.map(cloneCombo);
@@ -148,6 +181,26 @@ export class RuntimeComboHandler {
           affectedCount: before === this.combos.length ? 0 : 1,
           message: "Combo disabled",
         },
+      };
+    }
+
+    if (request.resetCombo !== undefined) {
+      const { index } = request.resetCombo;
+      const defaultCombo = MOCK_COMBOS.find((item) => item.index === index);
+      if (defaultCombo) {
+        this.combos = [
+          ...this.combos.filter((item) => item.index !== index),
+          {
+            ...cloneCombo(defaultCombo),
+            source: ComboSource.COMBO_SOURCE_DEFAULT,
+          },
+        ].sort((a, b) => a.index - b.index);
+      } else {
+        this.combos = this.combos.filter((item) => item.index !== index);
+      }
+      this.pendingChanges = true;
+      return {
+        status: { affectedCount: 1, message: "Combo reset to default" },
       };
     }
 
@@ -186,6 +239,25 @@ export class RuntimeComboHandler {
         status: {
           affectedCount: 1,
           message: "Runtime combo slow release written",
+        },
+      };
+    }
+
+    if (request.setRequirePriorIdleMs !== undefined) {
+      const { requirePriorIdleMs, persist } = request.setRequirePriorIdleMs;
+      if (requirePriorIdleMs < 0 || requirePriorIdleMs > 65535) {
+        return { error: { message: "Invalid require-prior-idle duration" } };
+      }
+      this.globalSettings.requirePriorIdleMs = requirePriorIdleMs;
+      if (persist) {
+        this.persistentGlobalSettings = { ...this.globalSettings };
+      } else {
+        this.pendingChanges = true;
+      }
+      return {
+        status: {
+          affectedCount: 1,
+          message: "Runtime combo require-prior-idle written",
         },
       };
     }

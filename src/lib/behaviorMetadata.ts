@@ -72,8 +72,8 @@ export interface FormatContext {
   layers?: (Omit<Layer, "bindings"> & Partial<Pick<Layer, "bindings">>)[];
   /** Keyboard layout for localized keycode display */
   keyboardLayout?: import("./keyboardLayouts").KeyboardLayoutType;
-  /** Runtime macro summaries for resolving macro behavior param1 */
-  runtimeMacros?: Array<{ index: number; name?: string }>;
+  /** Runtime macro summaries for resolving macro behavior param1 (the macro's slot) */
+  runtimeMacros?: Array<{ slot: number; name?: string }>;
 }
 
 /**
@@ -314,15 +314,13 @@ const BEHAVIOR_METADATA_BASE: BehaviorMetadata[] = [
     param1Type: "macro",
     getDisplayText: (binding, context) => {
       const macro = context.runtimeMacros?.find(
-        (item) => item.index === binding.param1,
+        (item) => item.slot === binding.param1,
       );
       return `Macro ${macro?.name || binding.param1}`;
     },
     formatParam: (param1, _param2, paramNumber, context) => {
       if (paramNumber !== 1) return "";
-      const macro = context.runtimeMacros?.find(
-        (item) => item.index === param1,
-      );
+      const macro = context.runtimeMacros?.find((item) => item.slot === param1);
       return macro?.name || param1.toString();
     },
     description: "Execute macro",

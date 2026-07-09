@@ -3,6 +3,7 @@ import {
   Request,
   Response,
   SettingNotificationKind,
+  SettingWriteMode,
   type Setting,
   type SettingScope,
   type SettingValue,
@@ -11,6 +12,20 @@ import {
 export const CUSTOM_SETTINGS_IDENTIFIER = "cormoran_custom_settings";
 
 const SOURCE_ALL = 0xffffffff;
+
+// A simple RPC-creatable keyspace: any key starting with this prefix can be
+// created/deleted via CreateSetting/DeleteSetting. This backs the demo
+// runtime-macro handler's "macro/<name>" entries (see
+// demo-runtime-macro.ts), mirroring firmware's
+// ZMK_CUSTOM_SETTING_KEYSPACE_DEFINE.
+export const MACRO_KEYSPACE_PREFIX = "macro/";
+
+interface PendingChunkedWrite {
+  totalSize: number;
+  received: number;
+  chunks: Uint8Array[];
+  mode: SettingWriteMode;
+}
 
 function createMockSettings(customSubsystemIndex: number): Setting[] {
   return [
@@ -90,6 +105,19 @@ function createMockSettings(customSubsystemIndex: number): Setting[] {
       },
       value: { bytesValue: Uint8Array.from([0x01, 0x02, 0x0a, 0xff]) },
     },
+    {
+      customSubsystemIndex,
+      key: "tap_behavior_binding",
+      source: 0,
+      hasUnsavedValue: false,
+      meta: {
+        confidentiality: 2,
+        readPermission: 0,
+        writePermission: 0,
+        constraints: [],
+      },
+      value: { behaviorValue: { behaviorId: 10, param1: 0, param2: 0 } },
+    },
   ];
 }
 
@@ -109,6 +137,9 @@ function cloneValue(value: SettingValue | undefined): SettingValue | undefined {
   }
   if (value.stringValue !== undefined) {
     return { stringValue: value.stringValue };
+  }
+  if (value.behaviorValue !== undefined) {
+    return { behaviorValue: { ...value.behaviorValue } };
   }
   if (value.arrayValue !== undefined) {
     return {
@@ -205,15 +236,48 @@ function settingValueForWrite(
 }
 
 export class CustomSettingsHandler {
+  private readonly customSubsystemIndex: number;
   private readonly defaults: Setting[];
   private persistent: Setting[];
   private settings: Setting[];
   private callbacks: ((data: Uint8Array) => void)[] = [];
+  private pendingChunks = new Map<string, PendingChunkedWrite>();
+  private keyspaceChangeCallbacks: (() => void)[] = [];
 
   constructor(customSubsystemIndex: number) {
+    this.customSubsystemIndex = customSubsystemIndex;
     this.defaults = createMockSettings(customSubsystemIndex);
     this.persistent = this.defaults.map(cloneSetting);
     this.settings = this.defaults.map(cloneSetting);
+  }
+
+  // Lets other demo handlers (e.g. demo-runtime-macro.ts) read/react to the
+  // "macro/" keyspace entries this handler owns, so create/delete via
+  // CreateSetting/DeleteSetting is visible to ListMacros without duplicating
+  // storage.
+  onKeyspaceChange(callback: () => void) {
+    this.keyspaceChangeCallbacks.push(callback);
+  }
+
+  keyspaceEntries(prefix: string): { key: string; value: SettingValue }[] {
+    return this.settings
+      .filter((setting) => setting.key.startsWith(prefix) && setting.value)
+      .map((setting) => ({ key: setting.key, value: setting.value! }));
+  }
+
+  // Seeds an initial keyspace entry (e.g. for demo mock data) without going
+  // through the CreateSetting request/notification path.
+  seedKeyspaceEntry(key: string, value: SettingValue) {
+    if (this.settings.some((setting) => setting.key === key)) {
+      return;
+    }
+    this.settings.push({
+      customSubsystemIndex: this.customSubsystemIndex,
+      key,
+      source: 0,
+      hasUnsavedValue: false,
+      value: cloneValue(value) ?? {},
+    });
   }
 
   process(request: Request): Response {
@@ -313,7 +377,122 @@ export class CustomSettingsHandler {
       return { status: { affectedCount: affected, message: "reset" } };
     }
 
+    if (request.createSetting?.setting) {
+      return this.handleCreateSetting(request.createSetting);
+    }
+
+    if (request.deleteSetting?.setting) {
+      return this.handleDeleteSetting(request.deleteSetting);
+    }
+
+    if (request.writeValueChunk?.setting) {
+      return this.handleWriteValueChunk(request.writeValueChunk);
+    }
+
     return { error: { message: "Not implemented" } };
+  }
+
+  private handleCreateSetting(
+    createSetting: NonNullable<Request["createSetting"]>,
+  ): Response {
+    const ref = createSetting.setting!;
+    const key = ref.key ?? "";
+    if (!key.startsWith(MACRO_KEYSPACE_PREFIX)) {
+      return {
+        error: { message: `No keyspace registered for key "${key}"` },
+      };
+    }
+    if (this.settings.some((setting) => setting.key === key)) {
+      return { error: { message: `Key already in use: ${key}` } };
+    }
+
+    const setting: Setting = {
+      customSubsystemIndex: this.customSubsystemIndex,
+      key,
+      source: 0,
+      hasUnsavedValue:
+        createSetting.mode !== SettingWriteMode.SETTING_WRITE_MODE_PERSIST,
+      value: cloneValue(createSetting.value) ?? {},
+    };
+    this.settings.push(setting);
+    if (createSetting.mode === SettingWriteMode.SETTING_WRITE_MODE_PERSIST) {
+      this.persistent.push(cloneSetting(setting));
+    }
+    this.notifySetting(setting);
+    this.notifyKeyspaceChange();
+    return { status: { affectedCount: 1, message: "created" } };
+  }
+
+  private handleDeleteSetting(
+    deleteSetting: NonNullable<Request["deleteSetting"]>,
+  ): Response {
+    const ref = deleteSetting.setting!;
+    const key = ref.key ?? "";
+    const index = this.settings.findIndex((setting) => setting.key === key);
+    if (index < 0) {
+      return { error: { message: `No live entry for key: ${key}` } };
+    }
+    this.settings.splice(index, 1);
+    this.persistent = this.persistent.filter((setting) => setting.key !== key);
+    this.notifyKeyspaceChange();
+    return { status: { affectedCount: 1, message: "deleted" } };
+  }
+
+  private handleWriteValueChunk(
+    writeValueChunk: NonNullable<Request["writeValueChunk"]>,
+  ): Response {
+    const ref = writeValueChunk.setting!;
+    const key = ref.key ?? "";
+    const { totalSize, offset, data, commit, mode } = writeValueChunk;
+
+    if (offset === 0) {
+      this.pendingChunks.set(key, {
+        totalSize,
+        received: 0,
+        chunks: [],
+        mode,
+      });
+    }
+
+    const pending = this.pendingChunks.get(key);
+    if (!pending || offset !== pending.received) {
+      this.pendingChunks.delete(key);
+      return { error: { message: "Chunk out of order" } };
+    }
+
+    pending.chunks.push(data);
+    pending.received += data.length;
+
+    if (!commit) {
+      return { status: { affectedCount: 0, message: "chunk received" } };
+    }
+
+    this.pendingChunks.delete(key);
+    const assembled = new Uint8Array(pending.received);
+    let cursor = 0;
+    for (const chunk of pending.chunks) {
+      assembled.set(chunk, cursor);
+      cursor += chunk.length;
+    }
+
+    const setting = this.settings.find((candidate) => candidate.key === key);
+    if (!setting) {
+      return { error: { message: "Setting not found" } };
+    }
+
+    setting.value = settingValueForWrite(setting, { bytesValue: assembled });
+    setting.hasUnsavedValue =
+      mode !== SettingWriteMode.SETTING_WRITE_MODE_PERSIST;
+    this.notifySetting(
+      setting,
+      SettingNotificationKind.SETTING_NOTIFICATION_KIND_VALUE_UPDATED,
+    );
+    this.notifyKeyspaceChange();
+    return { status: { affectedCount: 1, message: "written" } };
+  }
+
+  private notifyKeyspaceChange() {
+    this.keyspaceChangeCallbacks.forEach((callback) => callback());
   }
 
   notify(callback: (data: Uint8Array) => void) {

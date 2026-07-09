@@ -1,9 +1,11 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { ZMKAppContext } from "@cormoran/zmk-studio-react-hook";
 import type { ReactNode } from "react";
 import { useRuntimeCombo } from "../useRuntimeCombo";
 import {
+  ComboSource,
   Response,
+  SlowReleaseOverride,
   type Combo,
 } from "../../proto/cormoran/runtime_combo/runtime_combo";
 
@@ -57,6 +59,10 @@ describe("useRuntimeCombo", () => {
       behavior: { behaviorId: 10, param1: 0x29, param2: 0 },
       layerMask: 0,
       enabled: true,
+      timeoutMs: 0,
+      requirePriorIdleMs: 0,
+      slowReleaseOverride: SlowReleaseOverride.SLOW_RELEASE_OVERRIDE_INHERIT,
+      source: ComboSource.COMBO_SOURCE_EMPTY,
     };
 
     mockCallRPC
@@ -95,6 +101,7 @@ describe("useRuntimeCombo", () => {
       timeoutMs: 50,
       slowRelease: false,
       maxCombo: 16,
+      requirePriorIdleMs: 0,
     });
     expect(result.current.error).toBe(null);
   });
@@ -109,5 +116,132 @@ describe("useRuntimeCombo", () => {
 
     expect(result.current.isAvailable).toBe(false);
     expect(result.current.combos).toEqual([]);
+  });
+
+  it("resets a combo to its default and reloads combos from the device", async () => {
+    const resetCombo: Combo = {
+      index: 0,
+      name: "Escape chord",
+      keyPositions: [0, 1],
+      behavior: { behaviorId: 10, param1: 0x29, param2: 0 },
+      layerMask: 0,
+      enabled: true,
+      timeoutMs: 0,
+      requirePriorIdleMs: 0,
+      slowReleaseOverride: SlowReleaseOverride.SLOW_RELEASE_OVERRIDE_INHERIT,
+      source: ComboSource.COMBO_SOURCE_DEFAULT,
+    };
+
+    mockCallRPC
+      .mockResolvedValueOnce(
+        Response.encode(
+          Response.create({ listCombos: { combos: [] } }),
+        ).finish(),
+      )
+      .mockResolvedValueOnce(
+        Response.encode(
+          Response.create({
+            getGlobalSettings: {
+              settings: {
+                timeoutMs: 50,
+                slowRelease: false,
+                maxCombo: 16,
+                requirePriorIdleMs: 0,
+              },
+            },
+          }),
+        ).finish(),
+      )
+      .mockResolvedValueOnce(
+        Response.encode(
+          Response.create({ status: { affectedCount: 1, message: "ok" } }),
+        ).finish(),
+      )
+      .mockResolvedValueOnce(
+        Response.encode(
+          Response.create({ listCombos: { combos: [resetCombo] } }),
+        ).finish(),
+      );
+
+    const wrapper = createWrapper({
+      state: {
+        connection: { isConnected: true },
+        customSubsystems: [{ index: 7, identifier: "cormoran__runtime_combo" }],
+      },
+      findSubsystem: (id: string) =>
+        id === "cormoran__runtime_combo"
+          ? { index: 7, identifier: "cormoran__runtime_combo" }
+          : null,
+    });
+
+    const { result } = renderHook(() => useRuntimeCombo(), { wrapper });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    let ok = false;
+    await act(async () => {
+      ok = await result.current.resetCombo(0);
+    });
+
+    expect(ok).toBe(true);
+    expect(result.current.combos).toEqual([resetCombo]);
+    expect(result.current.hasPendingChanges).toBe(true);
+  });
+
+  it("sets the global require-prior-idle duration", async () => {
+    mockCallRPC
+      .mockResolvedValueOnce(
+        Response.encode(
+          Response.create({ listCombos: { combos: [] } }),
+        ).finish(),
+      )
+      .mockResolvedValueOnce(
+        Response.encode(
+          Response.create({
+            getGlobalSettings: {
+              settings: {
+                timeoutMs: 50,
+                slowRelease: false,
+                maxCombo: 16,
+                requirePriorIdleMs: 0,
+              },
+            },
+          }),
+        ).finish(),
+      )
+      .mockResolvedValueOnce(
+        Response.encode(
+          Response.create({ status: { affectedCount: 1, message: "ok" } }),
+        ).finish(),
+      );
+
+    const wrapper = createWrapper({
+      state: {
+        connection: { isConnected: true },
+        customSubsystems: [{ index: 7, identifier: "cormoran__runtime_combo" }],
+      },
+      findSubsystem: (id: string) =>
+        id === "cormoran__runtime_combo"
+          ? { index: 7, identifier: "cormoran__runtime_combo" }
+          : null,
+    });
+
+    const { result } = renderHook(() => useRuntimeCombo(), { wrapper });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    let ok = false;
+    await act(async () => {
+      ok = await result.current.setRequirePriorIdleMs(30);
+    });
+
+    expect(ok).toBe(true);
+    expect(result.current.globalSettings).toEqual({
+      timeoutMs: 50,
+      slowRelease: false,
+      maxCombo: 16,
+      requirePriorIdleMs: 30,
+    });
+    expect(result.current.hasPendingChanges).toBe(true);
   });
 });

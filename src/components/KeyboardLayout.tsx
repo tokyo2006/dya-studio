@@ -56,7 +56,7 @@ interface KeyboardLayoutProps {
   /** Key positions currently highlighted in the preview */
   highlightedKeys?: ReadonlySet<number>;
   /** Runtime macro summaries for macro behavior display */
-  runtimeMacros?: Array<{ index: number; name?: string }>;
+  runtimeMacros?: Array<{ slot: number; name?: string }>;
 }
 
 type LayoutGeometry = Pick<

@@ -324,7 +324,8 @@ const ja: Record<string, string> = {
   "Runtime macro subsystem not found. Build firmware with":
     "ランタイムマクロサブシステムが見つかりません。ファームウェアに",
   Slots: "スロット",
-  "Macro {{index}}": "マクロ {{index}}",
+  Macros: "マクロ一覧",
+  "Macro {{slot}}": "マクロ {{slot}}",
   "{{encodedSize}}/{{maxMacroBytes}} bytes":
     "{{encodedSize}}/{{maxMacroBytes}} バイト",
   "Global Settings": "グローバル設定",
@@ -341,6 +342,15 @@ const ja: Record<string, string> = {
   String: "文字列",
   "Remove step {{n}}": "ステップ {{n}} を削除",
   "Select a macro slot": "マクロスロットを選択",
+  "Select a macro": "マクロを選択してください",
+  "No macros yet. Create one below.":
+    "マクロがまだありません。下から作成してください。",
+  "No macros yet. Create one to get started.":
+    "マクロがまだありません。作成して始めましょう。",
+  "New macro name": "新しいマクロ名",
+  Create: "作成",
+  "Shared macro pool: {{used}}/{{total}} B":
+    "共有マクロプール: {{used}}/{{total}} B",
 
   "Configure runtime combo slots": "ランタイムコンボスロットを設定",
   "All layers": "すべてのレイヤー",
@@ -386,6 +396,21 @@ const ja: Record<string, string> = {
   "Save Combo": "コンボを保存",
   Slot: "スロット",
   Positions: "位置",
+  Empty: "空",
+  Default: "デフォルト",
+  Overridden: "上書き済み",
+  "Reset to Default": "デフォルトにリセット",
+  "Combo reset to default is pending.":
+    "コンボのデフォルトへのリセットが保留中です。",
+  "Timeout ms (0 = inherit global)":
+    "タイムアウト ms（0 = グローバル設定を継承）",
+  "Require prior idle ms (0 = inherit global)":
+    "事前アイドル時間 ms（0 = グローバル設定を継承）",
+  "Require prior idle ms (0 disables)": "事前アイドル時間 ms（0 で無効化）",
+  "Slow release override": "スローリリースの上書き",
+  "Inherit global": "グローバル設定を継承",
+  On: "オン",
+  Off: "オフ",
 
   "(hidden)": "（非表示）",
   Local: "ローカル",
@@ -764,6 +789,9 @@ const ja: Record<string, string> = {
   "Poor tracking surface.": "トラッキング表面の状態が良くありません。",
   "Surface tracking OK.": "表面トラッキングは正常です。",
   "init error": "初期化エラー",
+
+  "Param 1": "パラメータ1",
+  "Param 2": "パラメータ2",
 
   "Live sensor view": "センサーのライブビュー",
   "Capture Once": "1回キャプチャ",

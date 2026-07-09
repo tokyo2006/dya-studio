@@ -13,14 +13,14 @@ export interface ListMacrosRequest {
 }
 
 export interface GetMacroRequest {
-  index: number;
+  slot: number;
 }
 
 export interface GetMacroGlobalSettingsRequest {
 }
 
 export interface MacroSummary {
-  index: number;
+  slot: number;
   name: string;
   encodedSize: number;
 }
@@ -47,39 +47,34 @@ export interface MacroStep {
   keyTapSequence?: KeyTapSequenceStep | undefined;
 }
 
-export interface MacroSlot {
-  index: number;
+export interface MacroDetail {
+  slot: number;
   name: string;
   steps: MacroStep[];
   encodedSize: number;
 }
 
-export interface SetMacroNameRequest {
-  index: number;
-  name: string;
-  persist: boolean;
-}
-
 export interface SetMacroStepCountRequest {
-  index: number;
+  slot: number;
   stepCount: number;
   persist: boolean;
 }
 
 export interface SetMacroStepRequest {
-  index: number;
+  slot: number;
   stepIndex: number;
+  step: MacroStep | undefined;
+  persist: boolean;
+}
+
+export interface AppendMacroStepRequest {
+  slot: number;
   step: MacroStep | undefined;
   persist: boolean;
 }
 
 export interface SetTapMsRequest {
   tapMs: number;
-  persist: boolean;
-}
-
-export interface DeleteMacroRequest {
-  index: number;
   persist: boolean;
 }
 
@@ -92,14 +87,13 @@ export interface DiscardMacrosRequest {
 export interface Request {
   listMacros?: ListMacrosRequest | undefined;
   getMacro?: GetMacroRequest | undefined;
-  setMacroName?: SetMacroNameRequest | undefined;
   setMacroStepCount?: SetMacroStepCountRequest | undefined;
   getMacroGlobalSettings?: GetMacroGlobalSettingsRequest | undefined;
   setTapMs?: SetTapMsRequest | undefined;
   setMacroStep?: SetMacroStepRequest | undefined;
-  deleteMacro?: DeleteMacroRequest | undefined;
   saveMacros?: SaveMacrosRequest | undefined;
   discardMacros?: DiscardMacrosRequest | undefined;
+  appendMacroStep?: AppendMacroStepRequest | undefined;
 }
 
 export interface ErrorResponse {
@@ -118,13 +112,19 @@ export interface ListMacrosResponse {
 }
 
 export interface GetMacroResponse {
-  macro: MacroSlot | undefined;
+  macro: MacroDetail | undefined;
 }
 
 export interface MacroGlobalSettings {
   tapMs: number;
-  maxMacro: number;
+  maxEntries: number;
   keyPressBehaviorId: number;
+  /**
+   * Shared macro name+body pool budget (CONFIG_ZMK_RUNTIME_MACRO_POOL_BYTES)
+   * and the bytes currently occupied by every macro combined.
+   */
+  poolBytesTotal: number;
+  poolBytesUsed: number;
 }
 
 export interface GetMacroGlobalSettingsResponse {
@@ -174,13 +174,13 @@ export const ListMacrosRequest: MessageFns<ListMacrosRequest> = {
 };
 
 function createBaseGetMacroRequest(): GetMacroRequest {
-  return { index: 0 };
+  return { slot: 0 };
 }
 
 export const GetMacroRequest: MessageFns<GetMacroRequest> = {
   encode(message: GetMacroRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.index !== 0) {
-      writer.uint32(8).uint32(message.index);
+    if (message.slot !== 0) {
+      writer.uint32(8).uint32(message.slot);
     }
     return writer;
   },
@@ -197,7 +197,7 @@ export const GetMacroRequest: MessageFns<GetMacroRequest> = {
             break;
           }
 
-          message.index = reader.uint32();
+          message.slot = reader.uint32();
           continue;
         }
       }
@@ -214,7 +214,7 @@ export const GetMacroRequest: MessageFns<GetMacroRequest> = {
   },
   fromPartial(object: DeepPartial<GetMacroRequest>): GetMacroRequest {
     const message = createBaseGetMacroRequest();
-    message.index = object.index ?? 0;
+    message.slot = object.slot ?? 0;
     return message;
   },
 };
@@ -254,13 +254,13 @@ export const GetMacroGlobalSettingsRequest: MessageFns<GetMacroGlobalSettingsReq
 };
 
 function createBaseMacroSummary(): MacroSummary {
-  return { index: 0, name: "", encodedSize: 0 };
+  return { slot: 0, name: "", encodedSize: 0 };
 }
 
 export const MacroSummary: MessageFns<MacroSummary> = {
   encode(message: MacroSummary, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.index !== 0) {
-      writer.uint32(8).uint32(message.index);
+    if (message.slot !== 0) {
+      writer.uint32(8).uint32(message.slot);
     }
     if (message.name !== "") {
       writer.uint32(18).string(message.name);
@@ -283,7 +283,7 @@ export const MacroSummary: MessageFns<MacroSummary> = {
             break;
           }
 
-          message.index = reader.uint32();
+          message.slot = reader.uint32();
           continue;
         }
         case 2: {
@@ -316,7 +316,7 @@ export const MacroSummary: MessageFns<MacroSummary> = {
   },
   fromPartial(object: DeepPartial<MacroSummary>): MacroSummary {
     const message = createBaseMacroSummary();
-    message.index = object.index ?? 0;
+    message.slot = object.slot ?? 0;
     message.name = object.name ?? "";
     message.encodedSize = object.encodedSize ?? 0;
     return message;
@@ -587,14 +587,14 @@ export const MacroStep: MessageFns<MacroStep> = {
   },
 };
 
-function createBaseMacroSlot(): MacroSlot {
-  return { index: 0, name: "", steps: [], encodedSize: 0 };
+function createBaseMacroDetail(): MacroDetail {
+  return { slot: 0, name: "", steps: [], encodedSize: 0 };
 }
 
-export const MacroSlot: MessageFns<MacroSlot> = {
-  encode(message: MacroSlot, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.index !== 0) {
-      writer.uint32(8).uint32(message.index);
+export const MacroDetail: MessageFns<MacroDetail> = {
+  encode(message: MacroDetail, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.slot !== 0) {
+      writer.uint32(8).uint32(message.slot);
     }
     if (message.name !== "") {
       writer.uint32(18).string(message.name);
@@ -608,10 +608,10 @@ export const MacroSlot: MessageFns<MacroSlot> = {
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): MacroSlot {
+  decode(input: BinaryReader | Uint8Array, length?: number): MacroDetail {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseMacroSlot();
+    const message = createBaseMacroDetail();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -620,7 +620,7 @@ export const MacroSlot: MessageFns<MacroSlot> = {
             break;
           }
 
-          message.index = reader.uint32();
+          message.slot = reader.uint32();
           continue;
         }
         case 2: {
@@ -656,12 +656,12 @@ export const MacroSlot: MessageFns<MacroSlot> = {
     return message;
   },
 
-  create(base?: DeepPartial<MacroSlot>): MacroSlot {
-    return MacroSlot.fromPartial(base ?? {});
+  create(base?: DeepPartial<MacroDetail>): MacroDetail {
+    return MacroDetail.fromPartial(base ?? {});
   },
-  fromPartial(object: DeepPartial<MacroSlot>): MacroSlot {
-    const message = createBaseMacroSlot();
-    message.index = object.index ?? 0;
+  fromPartial(object: DeepPartial<MacroDetail>): MacroDetail {
+    const message = createBaseMacroDetail();
+    message.slot = object.slot ?? 0;
     message.name = object.name ?? "";
     message.steps = object.steps?.map((e) => MacroStep.fromPartial(e)) || [];
     message.encodedSize = object.encodedSize ?? 0;
@@ -669,84 +669,14 @@ export const MacroSlot: MessageFns<MacroSlot> = {
   },
 };
 
-function createBaseSetMacroNameRequest(): SetMacroNameRequest {
-  return { index: 0, name: "", persist: false };
-}
-
-export const SetMacroNameRequest: MessageFns<SetMacroNameRequest> = {
-  encode(message: SetMacroNameRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.index !== 0) {
-      writer.uint32(8).uint32(message.index);
-    }
-    if (message.name !== "") {
-      writer.uint32(18).string(message.name);
-    }
-    if (message.persist !== false) {
-      writer.uint32(24).bool(message.persist);
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): SetMacroNameRequest {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseSetMacroNameRequest();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 8) {
-            break;
-          }
-
-          message.index = reader.uint32();
-          continue;
-        }
-        case 2: {
-          if (tag !== 18) {
-            break;
-          }
-
-          message.name = reader.string();
-          continue;
-        }
-        case 3: {
-          if (tag !== 24) {
-            break;
-          }
-
-          message.persist = reader.bool();
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  create(base?: DeepPartial<SetMacroNameRequest>): SetMacroNameRequest {
-    return SetMacroNameRequest.fromPartial(base ?? {});
-  },
-  fromPartial(object: DeepPartial<SetMacroNameRequest>): SetMacroNameRequest {
-    const message = createBaseSetMacroNameRequest();
-    message.index = object.index ?? 0;
-    message.name = object.name ?? "";
-    message.persist = object.persist ?? false;
-    return message;
-  },
-};
-
 function createBaseSetMacroStepCountRequest(): SetMacroStepCountRequest {
-  return { index: 0, stepCount: 0, persist: false };
+  return { slot: 0, stepCount: 0, persist: false };
 }
 
 export const SetMacroStepCountRequest: MessageFns<SetMacroStepCountRequest> = {
   encode(message: SetMacroStepCountRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.index !== 0) {
-      writer.uint32(8).uint32(message.index);
+    if (message.slot !== 0) {
+      writer.uint32(8).uint32(message.slot);
     }
     if (message.stepCount !== 0) {
       writer.uint32(16).uint32(message.stepCount);
@@ -769,7 +699,7 @@ export const SetMacroStepCountRequest: MessageFns<SetMacroStepCountRequest> = {
             break;
           }
 
-          message.index = reader.uint32();
+          message.slot = reader.uint32();
           continue;
         }
         case 2: {
@@ -802,7 +732,7 @@ export const SetMacroStepCountRequest: MessageFns<SetMacroStepCountRequest> = {
   },
   fromPartial(object: DeepPartial<SetMacroStepCountRequest>): SetMacroStepCountRequest {
     const message = createBaseSetMacroStepCountRequest();
-    message.index = object.index ?? 0;
+    message.slot = object.slot ?? 0;
     message.stepCount = object.stepCount ?? 0;
     message.persist = object.persist ?? false;
     return message;
@@ -810,13 +740,13 @@ export const SetMacroStepCountRequest: MessageFns<SetMacroStepCountRequest> = {
 };
 
 function createBaseSetMacroStepRequest(): SetMacroStepRequest {
-  return { index: 0, stepIndex: 0, step: undefined, persist: false };
+  return { slot: 0, stepIndex: 0, step: undefined, persist: false };
 }
 
 export const SetMacroStepRequest: MessageFns<SetMacroStepRequest> = {
   encode(message: SetMacroStepRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.index !== 0) {
-      writer.uint32(8).uint32(message.index);
+    if (message.slot !== 0) {
+      writer.uint32(8).uint32(message.slot);
     }
     if (message.stepIndex !== 0) {
       writer.uint32(16).uint32(message.stepIndex);
@@ -842,7 +772,7 @@ export const SetMacroStepRequest: MessageFns<SetMacroStepRequest> = {
             break;
           }
 
-          message.index = reader.uint32();
+          message.slot = reader.uint32();
           continue;
         }
         case 2: {
@@ -883,8 +813,78 @@ export const SetMacroStepRequest: MessageFns<SetMacroStepRequest> = {
   },
   fromPartial(object: DeepPartial<SetMacroStepRequest>): SetMacroStepRequest {
     const message = createBaseSetMacroStepRequest();
-    message.index = object.index ?? 0;
+    message.slot = object.slot ?? 0;
     message.stepIndex = object.stepIndex ?? 0;
+    message.step = (object.step !== undefined && object.step !== null) ? MacroStep.fromPartial(object.step) : undefined;
+    message.persist = object.persist ?? false;
+    return message;
+  },
+};
+
+function createBaseAppendMacroStepRequest(): AppendMacroStepRequest {
+  return { slot: 0, step: undefined, persist: false };
+}
+
+export const AppendMacroStepRequest: MessageFns<AppendMacroStepRequest> = {
+  encode(message: AppendMacroStepRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.slot !== 0) {
+      writer.uint32(8).uint32(message.slot);
+    }
+    if (message.step !== undefined) {
+      MacroStep.encode(message.step, writer.uint32(18).fork()).join();
+    }
+    if (message.persist !== false) {
+      writer.uint32(24).bool(message.persist);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AppendMacroStepRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseAppendMacroStepRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.slot = reader.uint32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.step = MacroStep.decode(reader, reader.uint32());
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.persist = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<AppendMacroStepRequest>): AppendMacroStepRequest {
+    return AppendMacroStepRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<AppendMacroStepRequest>): AppendMacroStepRequest {
+    const message = createBaseAppendMacroStepRequest();
+    message.slot = object.slot ?? 0;
     message.step = (object.step !== undefined && object.step !== null) ? MacroStep.fromPartial(object.step) : undefined;
     message.persist = object.persist ?? false;
     return message;
@@ -944,64 +944,6 @@ export const SetTapMsRequest: MessageFns<SetTapMsRequest> = {
   fromPartial(object: DeepPartial<SetTapMsRequest>): SetTapMsRequest {
     const message = createBaseSetTapMsRequest();
     message.tapMs = object.tapMs ?? 0;
-    message.persist = object.persist ?? false;
-    return message;
-  },
-};
-
-function createBaseDeleteMacroRequest(): DeleteMacroRequest {
-  return { index: 0, persist: false };
-}
-
-export const DeleteMacroRequest: MessageFns<DeleteMacroRequest> = {
-  encode(message: DeleteMacroRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.index !== 0) {
-      writer.uint32(8).uint32(message.index);
-    }
-    if (message.persist !== false) {
-      writer.uint32(16).bool(message.persist);
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): DeleteMacroRequest {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseDeleteMacroRequest();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 8) {
-            break;
-          }
-
-          message.index = reader.uint32();
-          continue;
-        }
-        case 2: {
-          if (tag !== 16) {
-            break;
-          }
-
-          message.persist = reader.bool();
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  create(base?: DeepPartial<DeleteMacroRequest>): DeleteMacroRequest {
-    return DeleteMacroRequest.fromPartial(base ?? {});
-  },
-  fromPartial(object: DeepPartial<DeleteMacroRequest>): DeleteMacroRequest {
-    const message = createBaseDeleteMacroRequest();
-    message.index = object.index ?? 0;
     message.persist = object.persist ?? false;
     return message;
   },
@@ -1079,14 +1021,13 @@ function createBaseRequest(): Request {
   return {
     listMacros: undefined,
     getMacro: undefined,
-    setMacroName: undefined,
     setMacroStepCount: undefined,
     getMacroGlobalSettings: undefined,
     setTapMs: undefined,
     setMacroStep: undefined,
-    deleteMacro: undefined,
     saveMacros: undefined,
     discardMacros: undefined,
+    appendMacroStep: undefined,
   };
 }
 
@@ -1097,9 +1038,6 @@ export const Request: MessageFns<Request> = {
     }
     if (message.getMacro !== undefined) {
       GetMacroRequest.encode(message.getMacro, writer.uint32(18).fork()).join();
-    }
-    if (message.setMacroName !== undefined) {
-      SetMacroNameRequest.encode(message.setMacroName, writer.uint32(26).fork()).join();
     }
     if (message.setMacroStepCount !== undefined) {
       SetMacroStepCountRequest.encode(message.setMacroStepCount, writer.uint32(34).fork()).join();
@@ -1113,14 +1051,14 @@ export const Request: MessageFns<Request> = {
     if (message.setMacroStep !== undefined) {
       SetMacroStepRequest.encode(message.setMacroStep, writer.uint32(58).fork()).join();
     }
-    if (message.deleteMacro !== undefined) {
-      DeleteMacroRequest.encode(message.deleteMacro, writer.uint32(66).fork()).join();
-    }
     if (message.saveMacros !== undefined) {
       SaveMacrosRequest.encode(message.saveMacros, writer.uint32(74).fork()).join();
     }
     if (message.discardMacros !== undefined) {
       DiscardMacrosRequest.encode(message.discardMacros, writer.uint32(82).fork()).join();
+    }
+    if (message.appendMacroStep !== undefined) {
+      AppendMacroStepRequest.encode(message.appendMacroStep, writer.uint32(90).fork()).join();
     }
     return writer;
   },
@@ -1146,14 +1084,6 @@ export const Request: MessageFns<Request> = {
           }
 
           message.getMacro = GetMacroRequest.decode(reader, reader.uint32());
-          continue;
-        }
-        case 3: {
-          if (tag !== 26) {
-            break;
-          }
-
-          message.setMacroName = SetMacroNameRequest.decode(reader, reader.uint32());
           continue;
         }
         case 4: {
@@ -1188,14 +1118,6 @@ export const Request: MessageFns<Request> = {
           message.setMacroStep = SetMacroStepRequest.decode(reader, reader.uint32());
           continue;
         }
-        case 8: {
-          if (tag !== 66) {
-            break;
-          }
-
-          message.deleteMacro = DeleteMacroRequest.decode(reader, reader.uint32());
-          continue;
-        }
         case 9: {
           if (tag !== 74) {
             break;
@@ -1210,6 +1132,14 @@ export const Request: MessageFns<Request> = {
           }
 
           message.discardMacros = DiscardMacrosRequest.decode(reader, reader.uint32());
+          continue;
+        }
+        case 11: {
+          if (tag !== 90) {
+            break;
+          }
+
+          message.appendMacroStep = AppendMacroStepRequest.decode(reader, reader.uint32());
           continue;
         }
       }
@@ -1232,9 +1162,6 @@ export const Request: MessageFns<Request> = {
     message.getMacro = (object.getMacro !== undefined && object.getMacro !== null)
       ? GetMacroRequest.fromPartial(object.getMacro)
       : undefined;
-    message.setMacroName = (object.setMacroName !== undefined && object.setMacroName !== null)
-      ? SetMacroNameRequest.fromPartial(object.setMacroName)
-      : undefined;
     message.setMacroStepCount = (object.setMacroStepCount !== undefined && object.setMacroStepCount !== null)
       ? SetMacroStepCountRequest.fromPartial(object.setMacroStepCount)
       : undefined;
@@ -1248,14 +1175,14 @@ export const Request: MessageFns<Request> = {
     message.setMacroStep = (object.setMacroStep !== undefined && object.setMacroStep !== null)
       ? SetMacroStepRequest.fromPartial(object.setMacroStep)
       : undefined;
-    message.deleteMacro = (object.deleteMacro !== undefined && object.deleteMacro !== null)
-      ? DeleteMacroRequest.fromPartial(object.deleteMacro)
-      : undefined;
     message.saveMacros = (object.saveMacros !== undefined && object.saveMacros !== null)
       ? SaveMacrosRequest.fromPartial(object.saveMacros)
       : undefined;
     message.discardMacros = (object.discardMacros !== undefined && object.discardMacros !== null)
       ? DiscardMacrosRequest.fromPartial(object.discardMacros)
+      : undefined;
+    message.appendMacroStep = (object.appendMacroStep !== undefined && object.appendMacroStep !== null)
+      ? AppendMacroStepRequest.fromPartial(object.appendMacroStep)
       : undefined;
     return message;
   },
@@ -1442,7 +1369,7 @@ function createBaseGetMacroResponse(): GetMacroResponse {
 export const GetMacroResponse: MessageFns<GetMacroResponse> = {
   encode(message: GetMacroResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.macro !== undefined) {
-      MacroSlot.encode(message.macro, writer.uint32(10).fork()).join();
+      MacroDetail.encode(message.macro, writer.uint32(10).fork()).join();
     }
     return writer;
   },
@@ -1459,7 +1386,7 @@ export const GetMacroResponse: MessageFns<GetMacroResponse> = {
             break;
           }
 
-          message.macro = MacroSlot.decode(reader, reader.uint32());
+          message.macro = MacroDetail.decode(reader, reader.uint32());
           continue;
         }
       }
@@ -1477,14 +1404,14 @@ export const GetMacroResponse: MessageFns<GetMacroResponse> = {
   fromPartial(object: DeepPartial<GetMacroResponse>): GetMacroResponse {
     const message = createBaseGetMacroResponse();
     message.macro = (object.macro !== undefined && object.macro !== null)
-      ? MacroSlot.fromPartial(object.macro)
+      ? MacroDetail.fromPartial(object.macro)
       : undefined;
     return message;
   },
 };
 
 function createBaseMacroGlobalSettings(): MacroGlobalSettings {
-  return { tapMs: 0, maxMacro: 0, keyPressBehaviorId: 0 };
+  return { tapMs: 0, maxEntries: 0, keyPressBehaviorId: 0, poolBytesTotal: 0, poolBytesUsed: 0 };
 }
 
 export const MacroGlobalSettings: MessageFns<MacroGlobalSettings> = {
@@ -1492,11 +1419,17 @@ export const MacroGlobalSettings: MessageFns<MacroGlobalSettings> = {
     if (message.tapMs !== 0) {
       writer.uint32(8).uint32(message.tapMs);
     }
-    if (message.maxMacro !== 0) {
-      writer.uint32(16).uint32(message.maxMacro);
+    if (message.maxEntries !== 0) {
+      writer.uint32(16).uint32(message.maxEntries);
     }
     if (message.keyPressBehaviorId !== 0) {
       writer.uint32(24).uint32(message.keyPressBehaviorId);
+    }
+    if (message.poolBytesTotal !== 0) {
+      writer.uint32(32).uint32(message.poolBytesTotal);
+    }
+    if (message.poolBytesUsed !== 0) {
+      writer.uint32(40).uint32(message.poolBytesUsed);
     }
     return writer;
   },
@@ -1521,7 +1454,7 @@ export const MacroGlobalSettings: MessageFns<MacroGlobalSettings> = {
             break;
           }
 
-          message.maxMacro = reader.uint32();
+          message.maxEntries = reader.uint32();
           continue;
         }
         case 3: {
@@ -1530,6 +1463,22 @@ export const MacroGlobalSettings: MessageFns<MacroGlobalSettings> = {
           }
 
           message.keyPressBehaviorId = reader.uint32();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.poolBytesTotal = reader.uint32();
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.poolBytesUsed = reader.uint32();
           continue;
         }
       }
@@ -1547,8 +1496,10 @@ export const MacroGlobalSettings: MessageFns<MacroGlobalSettings> = {
   fromPartial(object: DeepPartial<MacroGlobalSettings>): MacroGlobalSettings {
     const message = createBaseMacroGlobalSettings();
     message.tapMs = object.tapMs ?? 0;
-    message.maxMacro = object.maxMacro ?? 0;
+    message.maxEntries = object.maxEntries ?? 0;
     message.keyPressBehaviorId = object.keyPressBehaviorId ?? 0;
+    message.poolBytesTotal = object.poolBytesTotal ?? 0;
+    message.poolBytesUsed = object.poolBytesUsed ?? 0;
     return message;
   },
 };

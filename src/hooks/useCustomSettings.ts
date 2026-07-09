@@ -13,6 +13,10 @@ import {
   type SettingScope,
   type SettingValue,
 } from "../proto/cormoran/zmk/custom_settings/custom_settings";
+import {
+  SINGLE_FRAME_VALUE_MAX,
+  writeValueChunked,
+} from "../lib/customSettingsChunkedValue";
 import { useLanguage } from "./useLanguage";
 
 export const CUSTOM_SETTINGS_IDENTIFIER = "cormoran_custom_settings";
@@ -47,6 +51,12 @@ export interface UseCustomSettingsReturn {
   resetSection: (customSubsystemIndex: number) => Promise<void>;
   discardSetting: (setting: Setting) => Promise<void>;
   resetSetting: (setting: Setting) => Promise<void>;
+  createSetting: (
+    key: string,
+    value: SettingValue,
+    mode: SettingWriteMode,
+  ) => Promise<Response>;
+  deleteSetting: (key: string) => Promise<Response>;
   clearError: () => void;
 }
 
@@ -282,21 +292,48 @@ export function useCustomSettings(): UseCustomSettingsReturn {
         ),
       );
 
+      const settingRef = {
+        customSubsystemIndex: setting.customSubsystemIndex,
+        key: setting.key,
+        source: setting.source,
+        arrayIndex: setting.value?.arrayValue?.index,
+      };
+
+      // A BYTES/STRING scalar value larger than one frame cannot ride the
+      // single-frame SettingValue field, so it is written over the chunked
+      // WriteValueChunk RPC. Arrays and small values keep the plain write
+      // path.
+      const isArray = value.arrayValue !== undefined;
+      const chunkBytes = !isArray
+        ? value.bytesValue !== undefined
+          ? value.bytesValue
+          : value.stringValue !== undefined
+            ? new TextEncoder().encode(value.stringValue)
+            : undefined
+        : undefined;
+
       try {
-        await callCustomRequest(
-          Request.create({
-            writeSetting: {
-              setting: {
-                customSubsystemIndex: setting.customSubsystemIndex,
-                key: setting.key,
-                source: setting.source,
-                arrayIndex: setting.value?.arrayValue?.index,
+        if (
+          chunkBytes !== undefined &&
+          chunkBytes.length > SINGLE_FRAME_VALUE_MAX
+        ) {
+          await writeValueChunked(
+            callCustomRequest,
+            settingRef,
+            chunkBytes,
+            SettingWriteMode.SETTING_WRITE_MODE_MEMORY,
+          );
+        } else {
+          await callCustomRequest(
+            Request.create({
+              writeSetting: {
+                setting: settingRef,
+                value: nextValue,
+                mode: SettingWriteMode.SETTING_WRITE_MODE_MEMORY,
               },
-              value: nextValue,
-              mode: SettingWriteMode.SETTING_WRITE_MODE_MEMORY,
-            },
-          }),
-        );
+            }),
+          );
+        }
         setError(null);
       } catch (err) {
         console.error("Failed to write custom setting:", err);
@@ -309,6 +346,40 @@ export function useCustomSettings(): UseCustomSettingsReturn {
       }
     },
     [callCustomRequest, loadSettings, t],
+  );
+
+  const createSetting = useCallback(
+    async (
+      key: string,
+      value: SettingValue,
+      mode: SettingWriteMode,
+    ): Promise<Response> => {
+      const response = await callCustomRequest(
+        Request.create({
+          createSetting: {
+            setting: { key },
+            value,
+            mode,
+          },
+        }),
+      );
+      return response;
+    },
+    [callCustomRequest],
+  );
+
+  const deleteSetting = useCallback(
+    async (key: string): Promise<Response> => {
+      const response = await callCustomRequest(
+        Request.create({
+          deleteSetting: {
+            setting: { key },
+          },
+        }),
+      );
+      return response;
+    },
+    [callCustomRequest],
   );
 
   const mutateScope = useCallback(
@@ -384,6 +455,8 @@ export function useCustomSettings(): UseCustomSettingsReturn {
       mutateScope(scopeForSetting(setting), "discardSettings"),
     resetSetting: (setting) =>
       mutateScope(scopeForSetting(setting), "resetSettings"),
+    createSetting,
+    deleteSetting,
     clearError: () => setError(null),
   };
 }

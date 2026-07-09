@@ -8,6 +8,26 @@ message BehaviorBinding {
     uint32 param2 = 3;
 }
 
+// Tri-state override for the global slow-release setting.
+enum SlowReleaseOverride {
+    SLOW_RELEASE_OVERRIDE_INHERIT = 0;
+    SLOW_RELEASE_OVERRIDE_ON = 1;
+    SLOW_RELEASE_OVERRIDE_OFF = 2;
+}
+
+// Where a combo's currently effective configuration comes from.
+enum ComboSource {
+    // No stored value and no compile-time default.
+    COMBO_SOURCE_EMPTY = 0;
+    // A compile-time default, not overridden at runtime.
+    COMBO_SOURCE_DEFAULT = 1;
+    // A compile-time default exists, but a stored runtime value takes
+    // precedence (which may itself be a disabled tombstone).
+    COMBO_SOURCE_OVERRIDDEN = 2;
+    // A stored runtime value with no compile-time default.
+    COMBO_SOURCE_RUNTIME = 3;
+}
+
 message Combo {
     uint32 index = 1;
     string name = 2;
@@ -15,12 +35,20 @@ message Combo {
     BehaviorBinding behavior = 4;
     uint32 layer_mask = 6;
     bool enabled = 8;
+    // 0 means inherit the global timeout.
+    uint32 timeout_ms = 9;
+    // 0 means inherit the global require-prior-idle setting.
+    uint32 require_prior_idle_ms = 10;
+    SlowReleaseOverride slow_release_override = 11;
+    ComboSource source = 12;
 }
 
 message GlobalSettings {
     uint32 timeout_ms = 1;
     bool slow_release = 2;
     uint32 max_combo = 3;
+    // 0 disables the require-prior-idle guard.
+    uint32 require_prior_idle_ms = 4;
 }
 
 message ListCombosRequest {}
@@ -34,6 +62,11 @@ message SetComboRequest {
     uint32 layer_mask = 5;
     bool enabled = 7;
     bool persist = 8;
+    // 0 means inherit the global timeout.
+    uint32 timeout_ms = 9;
+    // 0 means inherit the global require-prior-idle setting.
+    uint32 require_prior_idle_ms = 10;
+    SlowReleaseOverride slow_release_override = 11;
 }
 
 message SetComboNameRequest {
@@ -47,6 +80,10 @@ message DeleteComboRequest {
     bool persist = 2;
 }
 
+// Erases a stored runtime override, restoring the compile-time default (or an
+// empty slot, if there is none).
+message ResetComboRequest { uint32 index = 1; }
+
 message GetGlobalSettingsRequest {}
 
 message SetTimeoutMsRequest {
@@ -56,6 +93,11 @@ message SetTimeoutMsRequest {
 
 message SetSlowReleaseRequest {
     bool slow_release = 1;
+    bool persist = 2;
+}
+
+message SetRequirePriorIdleMsRequest {
+    uint32 require_prior_idle_ms = 1;
     bool persist = 2;
 }
 
@@ -75,6 +117,8 @@ message Request {
         SetSlowReleaseRequest set_slow_release = 8;
         SaveRequest save = 9;
         DiscardRequest discard = 10;
+        SetRequirePriorIdleMsRequest set_require_prior_idle_ms = 11;
+        ResetComboRequest reset_combo = 12;
     }
 }
 
