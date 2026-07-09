@@ -27,6 +27,7 @@ import type {
 } from "@zmkfirmware/zmk-studio-ts-client/keymap";
 import type { BehaviorBindingParametersSet } from "@zmkfirmware/zmk-studio-ts-client/behaviors";
 import { ErrorConditions } from "@zmkfirmware/zmk-studio-ts-client/meta";
+import type { TranslationParams } from "../i18n/translations";
 
 // Error response constants for better readability
 const SetLayerBindingResp = {
@@ -56,6 +57,47 @@ export interface BehaviorDefinition {
 }
 
 /**
+ * Phases of {@link UseKeymapReturn.loadKeymapData}. Behaviors are loaded one
+ * at a time, so that phase carries a determinate count.
+ */
+export type KeymapLoadPhase = "layouts" | "keymap" | "behaviors" | "finalizing";
+
+/**
+ * Progress of the current keymap load, or `null` when idle. Used to show the
+ * user what is loading and — for the behaviors phase — how far along it is.
+ */
+export interface KeymapLoadProgress {
+  phase: KeymapLoadPhase;
+  /** Items loaded so far (behaviors phase only). */
+  current?: number;
+  /** Total items to load (behaviors phase only). */
+  total?: number;
+}
+
+/**
+ * Translate a {@link KeymapLoadProgress} into a human-readable label describing
+ * what is currently loading. Kept here so every consumer of {@link useKeymap}
+ * (keymap tab, combo tab, …) shows consistent wording.
+ */
+export function getKeymapLoadingLabel(
+  t: (key: string, params?: TranslationParams) => string,
+  progress: KeymapLoadProgress | null,
+): string {
+  switch (progress?.phase) {
+    case "layouts":
+      return t("Loading physical layouts...");
+    case "keymap":
+      return t("Loading keymap...");
+    case "behaviors":
+      return t("Loading behaviors...");
+    case "finalizing":
+      return t("Finalizing...");
+    default:
+      return t("Loading keymap data...");
+  }
+}
+
+/**
  * Original binding stored for comparison and reset
  */
 export interface OriginalBinding {
@@ -80,6 +122,8 @@ export interface KeymapState {
   hasUnsavedChanges: boolean;
   /** Whether loading data */
   isLoading: boolean;
+  /** Progress of the in-flight load (what/how-far), or null when idle */
+  loadingProgress: KeymapLoadProgress | null;
   /** Error message if any */
   error: string | null;
   /** Whether unlock is required */
@@ -169,6 +213,8 @@ export function useKeymap(): UseKeymapReturn {
   >(new Map());
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingProgress, setLoadingProgress] =
+    useState<KeymapLoadProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [unlockRequired, setUnlockRequired] = useState(false);
   const [removedLayerIds, setRemovedLayerIds] = useState<number[]>([]);
@@ -278,40 +324,54 @@ export function useKeymap(): UseKeymapReturn {
     );
   }, [callRpc]);
 
-  // Load all behaviors
-  const loadBehaviors = useCallback(async (): Promise<
-    Map<number, BehaviorDefinition>
-  > => {
-    const behaviorsMap = new Map<number, BehaviorDefinition>();
+  // Load all behaviors.
+  //
+  // Behavior details are fetched one at a time over RPC, which is the slowest
+  // part of loading the keymap tab. `onProgress` is invoked with the running
+  // count so the UI can show "N / M" and a percentage.
+  const loadBehaviors = useCallback(
+    async (
+      onProgress?: (current: number, total: number) => void,
+    ): Promise<Map<number, BehaviorDefinition>> => {
+      const behaviorsMap = new Map<number, BehaviorDefinition>();
 
-    // First get list of all behavior IDs
-    const behaviorIds = await callRpc(
-      { behaviors: { listAllBehaviors: true } },
-      (response) => response.behaviors?.listAllBehaviors?.behaviors,
-    );
-
-    if (!behaviorIds) {
-      return behaviorsMap;
-    }
-
-    // Then get details for each behavior
-    for (const behaviorId of behaviorIds) {
-      const details = await callRpc(
-        { behaviors: { getBehaviorDetails: { behaviorId } } },
-        (response) => response.behaviors?.getBehaviorDetails,
+      // First get list of all behavior IDs
+      const behaviorIds = await callRpc(
+        { behaviors: { listAllBehaviors: true } },
+        (response) => response.behaviors?.listAllBehaviors?.behaviors,
       );
 
-      if (details) {
-        behaviorsMap.set(behaviorId, {
-          id: details.id,
-          displayName: details.displayName,
-          metadata: details.metadata,
-        });
+      if (!behaviorIds) {
+        return behaviorsMap;
       }
-    }
 
-    return behaviorsMap;
-  }, [callRpc]);
+      const total = behaviorIds.length;
+      onProgress?.(0, total);
+
+      // Then get details for each behavior
+      let current = 0;
+      for (const behaviorId of behaviorIds) {
+        const details = await callRpc(
+          { behaviors: { getBehaviorDetails: { behaviorId } } },
+          (response) => response.behaviors?.getBehaviorDetails,
+        );
+
+        if (details) {
+          behaviorsMap.set(behaviorId, {
+            id: details.id,
+            displayName: details.displayName,
+            metadata: details.metadata,
+          });
+        }
+
+        current += 1;
+        onProgress?.(current, total);
+      }
+
+      return behaviorsMap;
+    },
+    [callRpc],
+  );
 
   // Store original bindings from keymap
   const storeOriginalBindings = useCallback((keymap: Keymap) => {
@@ -332,6 +392,7 @@ export function useKeymap(): UseKeymapReturn {
     }
 
     setIsLoading(true);
+    setLoadingProgress({ phase: "layouts" });
     setError(null);
     setUnlockRequired(false);
 
@@ -343,6 +404,7 @@ export function useKeymap(): UseKeymapReturn {
       }
 
       // Load keymap
+      setLoadingProgress({ phase: "keymap" });
       const km = await loadKeymap();
       if (km) {
         setKeymap(km);
@@ -353,11 +415,15 @@ export function useKeymap(): UseKeymapReturn {
         }
       }
 
-      // Load behaviors
-      const behaviorMap = await loadBehaviors();
+      // Load behaviors (slowest phase — report per-item progress)
+      setLoadingProgress({ phase: "behaviors", current: 0, total: 0 });
+      const behaviorMap = await loadBehaviors((current, total) => {
+        setLoadingProgress({ phase: "behaviors", current, total });
+      });
       setBehaviors(behaviorMap);
 
       // Check unsaved changes
+      setLoadingProgress({ phase: "finalizing" });
       const unsaved = await callRpc(
         { keymap: { checkUnsavedChanges: true } },
         (response) => response.keymap?.checkUnsavedChanges,
@@ -370,6 +436,7 @@ export function useKeymap(): UseKeymapReturn {
       );
     } finally {
       setIsLoading(false);
+      setLoadingProgress(null);
     }
   }, [
     connection,
@@ -829,6 +896,7 @@ export function useKeymap(): UseKeymapReturn {
       setError(null);
       setUnlockRequired(false);
       setRemovedLayerIds([]);
+      setLoadingProgress(null);
       dataLoadedRef.current = false;
       // Clear error timer
       if (errorTimerRef.current) {
@@ -854,6 +922,7 @@ export function useKeymap(): UseKeymapReturn {
     originalBindings,
     hasUnsavedChanges,
     isLoading,
+    loadingProgress,
     error,
     unlockRequired,
     loadKeymapData,

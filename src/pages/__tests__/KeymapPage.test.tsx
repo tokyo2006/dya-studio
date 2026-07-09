@@ -22,8 +22,12 @@ global.ResizeObserver = jest.fn().mockImplementation(() => ({
   disconnect: jest.fn(),
 }));
 
-// Mock the useKeymap hook
-jest.mock("../../hooks/useKeymap");
+// Mock the useKeymap hook, keeping the real getKeymapLoadingLabel helper so
+// the page renders a proper loading label.
+jest.mock("../../hooks/useKeymap", () => ({
+  ...jest.requireActual("../../hooks/useKeymap"),
+  useKeymap: jest.fn(),
+}));
 jest.mock("../../hooks/usePhysicalLayoutModules");
 import { useKeymap } from "../../hooks/useKeymap";
 import { usePhysicalLayoutModules } from "../../hooks/usePhysicalLayoutModules";
@@ -101,6 +105,7 @@ describe("KeymapPage", () => {
       originalBindings: new Map(),
       hasUnsavedChanges: false,
       isLoading: false,
+      loadingProgress: null,
       error: null,
       unlockRequired: false,
       loadKeymapData: jest.fn(),

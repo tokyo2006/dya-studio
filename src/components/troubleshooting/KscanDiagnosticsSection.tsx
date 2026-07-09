@@ -13,6 +13,7 @@ import { useLanguage } from "../../hooks/useLanguage";
 import { findSuspectKeys } from "../../lib/troubleshootingReport";
 import { formatUptime } from "../../lib/troubleshootingFormat";
 import { buildWiringMap } from "../../lib/kscanTopology";
+import { LoadingIndicator } from "../LoadingIndicator";
 import {
   NotAvailableNotice,
   SectionCard,
@@ -184,9 +185,11 @@ export function KscanDiagnosticsSection({
 
           {/* Interactive keyboard preview */}
           {isLoadingTopology && !topology && (
-            <p className="text-sm text-[var(--color-text-muted)] mb-4">
-              {t("Loading keyboard wiring…")}
-            </p>
+            <LoadingIndicator
+              variant="inline"
+              className="mb-4"
+              label={t("Loading keyboard wiring…")}
+            />
           )}
           {anyUnlockRequired && (
             <div className="mb-4 p-4 rounded-lg bg-[var(--color-border)] border border-[var(--color-border-hover)] flex items-start gap-3">

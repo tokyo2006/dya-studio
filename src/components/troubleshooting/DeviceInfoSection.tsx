@@ -11,6 +11,7 @@ import {
   SectionError,
   SectionSummaryBadge,
 } from "./SectionCard";
+import { LoadingIndicator } from "../LoadingIndicator";
 
 const MODULE_NAME = "cormoran/zmk-feature-device-info";
 const MODULE_URL = "https://github.com/cormoran/zmk-feature-device-info";
@@ -87,11 +88,15 @@ export function DeviceInfoSection({
         <>
           {error && <SectionError message={error} />}
 
-          {!info && !error && (
-            <p className="text-sm text-[var(--color-text-muted)]">
-              {isLoading ? t("Loading") : t("No data loaded yet.")}
-            </p>
-          )}
+          {!info &&
+            !error &&
+            (isLoading ? (
+              <LoadingIndicator variant="inline" label={t("Loading")} />
+            ) : (
+              <p className="text-sm text-[var(--color-text-muted)]">
+                {t("No data loaded yet.")}
+              </p>
+            ))}
 
           {info?.build && (
             <div className="mb-4">

@@ -103,6 +103,10 @@ const ja: Record<string, string> = {
   "Connect your keyboard to edit keymaps":
     "キーマップを編集するにはキーボードを接続してください",
   "Loading keymap data...": "キーマップデータを読み込み中...",
+  "Loading physical layouts...": "物理レイアウトを読み込み中...",
+  "Loading keymap...": "キーマップを読み込み中...",
+  "Loading behaviors...": "動作（ビヘイビア）を読み込み中...",
+  "Finalizing...": "仕上げ中...",
   "Are you sure you want to discard all changes?":
     "すべての変更を破棄しますか？",
   "Are you sure you want to delete this layer?": "このレイヤーを削除しますか？",

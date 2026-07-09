@@ -23,6 +23,7 @@ import { useLanguage } from "../hooks/useLanguage";
 import { OsBadge } from "../components/OsBadge";
 import { LayerSelect } from "../components/LayerSelect";
 import { InfoTip } from "../components/InfoTip";
+import { LoadingIndicator } from "../components/LoadingIndicator";
 import {
   mergeConnectionCards,
   ZMK_OS_VALUES,
@@ -354,11 +355,10 @@ export function ConnectionPage() {
         {connection.isConnected && (
           <>
             {isAvailable && isLoading && profiles.length === 0 && (
-              <div className="glass-card p-6 text-center mb-4">
-                <p className="text-sm text-[var(--color-text-muted)]">
-                  ⏳ {t("Loading profiles...")}
-                </p>
-              </div>
+              <LoadingIndicator
+                className="mb-4"
+                label={t("Loading profiles...")}
+              />
             )}
 
             {cards.length > 0 && (
