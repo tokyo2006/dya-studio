@@ -1,6 +1,7 @@
 import { useCallback, useContext, useMemo, useState } from "react";
 import {
   IconAlertTriangle,
+  IconChevronDown,
   IconCommand,
   IconDeviceFloppy,
   IconLoader2,
@@ -89,15 +90,6 @@ function normalizePositions(positions: number[]): number[] {
   return [...new Set(positions)]
     .filter((position) => Number.isInteger(position) && position >= 0)
     .sort((a, b) => a - b);
-}
-
-function parsePositions(value: string): number[] {
-  return normalizePositions(
-    value
-      .split(",")
-      .map((part) => Number.parseInt(part.trim(), 10))
-      .filter((position) => Number.isFinite(position)),
-  );
 }
 
 function positionsToText(positions: number[]): string {
@@ -190,6 +182,12 @@ function formatComboBehavior(
   });
 }
 
+function PendingDot() {
+  return (
+    <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-neon)] flex-shrink-0 inline-block" />
+  );
+}
+
 export function ComboPage() {
   const { t } = useLanguage();
   const connection = useContext(ConnectionContext);
@@ -210,6 +208,12 @@ export function ComboPage() {
   });
   const [showBehaviorSelector, setShowBehaviorSelector] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [isGlobalSettingsExpanded, setIsGlobalSettingsExpanded] =
+    useState(false);
+  const [isAdvancedExpanded, setIsAdvancedExpanded] = useState(false);
+  const [modifiedIndices, setModifiedIndices] = useState<Set<number>>(
+    new Set(),
+  );
 
   const maxCombo = runtimeCombo.globalSettings?.maxCombo;
   const displayTimeoutMs =
@@ -272,11 +276,6 @@ export function ComboPage() {
     });
   }, []);
 
-  const handlePositionsTextChange = useCallback((value: string) => {
-    setPositionsText(value);
-    setDraft((prev) => ({ ...prev, keyPositions: parsePositions(value) }));
-  }, []);
-
   const validationError = useMemo(() => {
     if (draft.index < 0 || !Number.isInteger(draft.index)) {
       return t("Choose a valid slot.");
@@ -327,6 +326,7 @@ export function ComboPage() {
     const nameSaved = await runtimeCombo.setComboName(draft.index, draft.name);
     if (nameSaved) {
       setSelectedIndex(draft.index);
+      setModifiedIndices((prev) => new Set([...prev, draft.index]));
       setStatusMessage(t("Combo changes are pending."));
     }
   }, [draft, runtimeCombo, t, validationError]);
@@ -340,6 +340,11 @@ export function ComboPage() {
       const nextDraft = remaining.at(0)
         ? comboToDraft(remaining[0], keymap.behaviors)
         : createDraft(remaining, maxCombo, keymap.behaviors);
+      setModifiedIndices((prev) => {
+        const next = new Set(prev);
+        next.delete(draft.index);
+        return next;
+      });
       selectDraft(nextDraft);
       setStatusMessage(t("Combo deletion is pending."));
     }
@@ -349,8 +354,6 @@ export function ComboPage() {
     const resetIndex = draft.index;
     const reset = await runtimeCombo.resetCombo(resetIndex);
     if (reset) {
-      // resetCombo() already refreshed `combos` from the device, so look up
-      // the (possibly restored, possibly now-empty) slot in the fresh list.
       const updated = runtimeCombo.combos.find(
         (combo) => combo.index === resetIndex,
       );
@@ -396,6 +399,7 @@ export function ComboPage() {
   const handleSavePending = useCallback(async () => {
     const status = await runtimeCombo.saveChanges();
     if (status) {
+      setModifiedIndices(new Set());
       setStatusMessage(
         t("Saved {{count}} runtime combo changes.", {
           count: status.affectedCount,
@@ -407,6 +411,7 @@ export function ComboPage() {
   const handleDiscardPending = useCallback(async () => {
     const status = await runtimeCombo.discardChanges();
     if (status) {
+      setModifiedIndices(new Set());
       setStatusMessage(
         t("Discarded {{count}} runtime combo changes.", {
           count: status.affectedCount,
@@ -419,6 +424,11 @@ export function ComboPage() {
   const selectedComboExists = runtimeCombo.combos.some(
     (combo) => combo.index === draft.index,
   );
+
+  const globalSettingsModified =
+    globalDraft.timeoutMs !== null ||
+    globalDraft.slowRelease !== null ||
+    globalDraft.requirePriorIdleMs !== null;
 
   return (
     <div className="p-6 h-full overflow-auto">
@@ -441,8 +451,9 @@ export function ComboPage() {
           {connection.isConnected && runtimeCombo.isAvailable && (
             <div className="flex items-center gap-2 ml-auto flex-wrap">
               {runtimeCombo.hasPendingChanges && (
-                <span className="text-xs text-[var(--color-neon)] mr-2">
-                  {t("● Pending changes")}
+                <span className="flex items-center gap-1 text-xs text-[var(--color-neon)] mr-2">
+                  <PendingDot />
+                  {t("Pending changes")}
                 </span>
               )}
               <button
@@ -486,8 +497,8 @@ export function ComboPage() {
         )}
 
         {connection.isConnected && !runtimeCombo.isAvailable && (
-          <div className="glass-card p-4 border-yellow-500/20 bg-yellow-500/10 flex items-center gap-3">
-            <IconAlertTriangle size={24} />
+          <div className="glass-card p-4 warning-banner border flex items-center gap-3">
+            <IconAlertTriangle size={24} className="flex-shrink-0" />
             <p className="text-sm">
               {t("Runtime combo subsystem is not available for your keyboard.")}
               <a
@@ -546,8 +557,116 @@ export function ComboPage() {
         {connection.isConnected &&
           runtimeCombo.isAvailable &&
           keymap.keymap && (
-            <div className="grid grid-cols-1 desktop:grid-cols-[320px_1fr] gap-4">
+            <div className="grid grid-cols-1 desktop:grid-cols-[320px_1fr] gap-4 min-w-0">
               <div className="space-y-4">
+                {/* Global Settings - collapsible, above Slots */}
+                <section className="glass-card overflow-hidden">
+                  <button
+                    className="flex items-center gap-2 w-full p-4 text-left"
+                    onClick={() =>
+                      setIsGlobalSettingsExpanded(!isGlobalSettingsExpanded)
+                    }
+                  >
+                    <IconSettings
+                      size={16}
+                      className="text-[var(--color-electric)] flex-shrink-0"
+                    />
+                    <h2 className="text-sm font-medium text-[var(--color-text)] flex-1">
+                      {t("Global Settings")}
+                    </h2>
+                    {globalSettingsModified && <PendingDot />}
+                    <IconChevronDown
+                      size={14}
+                      className={`text-[var(--color-text-muted)] flex-shrink-0 transition-transform ${
+                        isGlobalSettingsExpanded ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+                  {isGlobalSettingsExpanded && (
+                    <div className="px-4 pb-4 border-t border-[var(--color-border)]">
+                      <div className="space-y-3 mt-3">
+                        <label className="block">
+                          <span className="text-xs text-[var(--color-text-muted)]">
+                            {t("Max slots")}
+                          </span>
+                          <input
+                            className="mt-1 w-full px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text)]"
+                            value={maxCombo ?? ""}
+                            readOnly
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="text-xs text-[var(--color-text-muted)]">
+                            {t("Timeout ms")}
+                          </span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={65535}
+                            className="mt-1 w-full px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text)]"
+                            value={displayTimeoutMs}
+                            onChange={(event) =>
+                              setGlobalDraft((prev) => ({
+                                ...prev,
+                                timeoutMs: Number(event.target.value),
+                              }))
+                            }
+                          />
+                        </label>
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-sm text-[var(--color-text)]">
+                            {t("Slow release")}
+                          </span>
+                          <Switch.Root
+                            checked={displaySlowRelease}
+                            onCheckedChange={(slowRelease) =>
+                              setGlobalDraft((prev) => ({
+                                ...prev,
+                                slowRelease,
+                              }))
+                            }
+                            className="w-10 h-5 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-border)] border border-[var(--color-border)] transition-colors"
+                          >
+                            <Switch.Thumb className="block w-4 h-4 rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform bg-white border border-[var(--color-border)]" />
+                          </Switch.Root>
+                        </div>
+                        <label className="block">
+                          <span className="text-xs text-[var(--color-text-muted)]">
+                            {t("Require prior idle ms (0 disables)")}
+                          </span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={65535}
+                            className="mt-1 w-full px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text)]"
+                            value={displayRequirePriorIdleMs}
+                            onChange={(event) =>
+                              setGlobalDraft((prev) => ({
+                                ...prev,
+                                requirePriorIdleMs: Number(event.target.value),
+                              }))
+                            }
+                          />
+                        </label>
+                        <button
+                          className="btn-electric w-full text-sm"
+                          onClick={handleApplyGlobalSettings}
+                          disabled={
+                            runtimeCombo.isLoading ||
+                            displayTimeoutMs < 1 ||
+                            displayTimeoutMs > 65535 ||
+                            displayRequirePriorIdleMs < 0 ||
+                            displayRequirePriorIdleMs > 65535
+                          }
+                        >
+                          {t("Apply Global Settings")}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </section>
+
+                {/* Slots list */}
                 <section className="glass-card p-4">
                   <div className="flex items-center justify-between mb-3">
                     <div>
@@ -559,13 +678,21 @@ export function ComboPage() {
                         {maxCombo ? ` / ${maxCombo}` : ""} {t("configured")}
                       </p>
                     </div>
-                    <button
-                      className="btn-ghost text-sm flex items-center gap-1.5"
-                      onClick={handleNewCombo}
-                    >
-                      <IconPlus size={16} />
-                      {t("New")}
-                    </button>
+                    <div className="flex items-center gap-1">
+                      {runtimeCombo.isLoading && (
+                        <IconLoader2
+                          size={14}
+                          className="animate-spin text-[var(--color-electric)]"
+                        />
+                      )}
+                      <button
+                        className="p-1 rounded hover:bg-[var(--color-border)] text-[var(--color-electric)] disabled:opacity-40 transition-colors"
+                        onClick={handleNewCombo}
+                        title={t("New combo")}
+                      >
+                        <IconPlus size={15} />
+                      </button>
+                    </div>
                   </div>
 
                   <div className="space-y-2">
@@ -590,14 +717,17 @@ export function ComboPage() {
                             selectDraft(comboToDraft(combo, keymap.behaviors))
                           }
                         >
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="text-sm font-medium text-[var(--color-text)] truncate">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-sm font-medium text-[var(--color-text)] truncate flex-1">
                               {combo.name ||
                                 t("Combo {{index}}", {
                                   index: combo.index,
                                 })}
                             </span>
                             <span className="flex items-center gap-1.5 shrink-0">
+                              {modifiedIndices.has(combo.index) && (
+                                <PendingDot />
+                              )}
                               <span className="text-xs font-mono text-[var(--color-text-muted)]">
                                 #{combo.index}
                               </span>
@@ -625,94 +755,6 @@ export function ComboPage() {
                     })}
                   </div>
                 </section>
-
-                <section className="glass-card p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <IconSettings
-                      size={18}
-                      className="text-[var(--color-electric)]"
-                    />
-                    <h2 className="text-sm font-medium text-[var(--color-text)]">
-                      {t("Global Settings")}
-                    </h2>
-                  </div>
-
-                  <div className="space-y-3">
-                    <label className="block">
-                      <span className="text-xs text-[var(--color-text-muted)]">
-                        {t("Max slots")}
-                      </span>
-                      <input
-                        className="mt-1 w-full px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text)]"
-                        value={maxCombo ?? ""}
-                        readOnly
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="text-xs text-[var(--color-text-muted)]">
-                        {t("Timeout ms")}
-                      </span>
-                      <input
-                        type="number"
-                        min={1}
-                        max={65535}
-                        className="mt-1 w-full px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text)]"
-                        value={displayTimeoutMs}
-                        onChange={(event) =>
-                          setGlobalDraft((prev) => ({
-                            ...prev,
-                            timeoutMs: Number(event.target.value),
-                          }))
-                        }
-                      />
-                    </label>
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-sm text-[var(--color-text)]">
-                        {t("Slow release")}
-                      </span>
-                      <Switch.Root
-                        checked={displaySlowRelease}
-                        onCheckedChange={(slowRelease) =>
-                          setGlobalDraft((prev) => ({ ...prev, slowRelease }))
-                        }
-                        className="w-10 h-5 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-border)] border border-[var(--color-border)] transition-colors"
-                      >
-                        <Switch.Thumb className="block w-4 h-4 rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform bg-white border border-[var(--color-border)]" />
-                      </Switch.Root>
-                    </div>
-                    <label className="block">
-                      <span className="text-xs text-[var(--color-text-muted)]">
-                        {t("Require prior idle ms (0 disables)")}
-                      </span>
-                      <input
-                        type="number"
-                        min={0}
-                        max={65535}
-                        className="mt-1 w-full px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text)]"
-                        value={displayRequirePriorIdleMs}
-                        onChange={(event) =>
-                          setGlobalDraft((prev) => ({
-                            ...prev,
-                            requirePriorIdleMs: Number(event.target.value),
-                          }))
-                        }
-                      />
-                    </label>
-                    <button
-                      className="btn-electric w-full text-sm"
-                      onClick={handleApplyGlobalSettings}
-                      disabled={
-                        runtimeCombo.isLoading ||
-                        displayTimeoutMs < 1 ||
-                        displayTimeoutMs > 65535 ||
-                        displayRequirePriorIdleMs < 0 ||
-                        displayRequirePriorIdleMs > 65535
-                      }
-                    >
-                      {t("Apply Global Settings")}
-                    </button>
-                  </div>
-                </section>
               </div>
 
               {selectedIndex === null ? (
@@ -738,16 +780,18 @@ export function ComboPage() {
                   </div>
                 </section>
               ) : (
-                <section className="glass-card p-4 tablet:p-6">
-                  <div className="flex items-center justify-between gap-3 mb-4">
-                    <div>
-                      <div className="flex items-center gap-2">
+                <section className="glass-card p-4 tablet:p-6 min-w-0 overflow-hidden">
+                  {/* Editor header */}
+                  <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <h2 className="text-sm font-medium text-[var(--color-text)]">
                           {t("Combo Editor")}
                         </h2>
                         <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-[var(--color-border)] text-[var(--color-text-muted)]">
                           {comboSourceLabel(draft.source, t)}
                         </span>
+                        {modifiedIndices.has(draft.index) && <PendingDot />}
                       </div>
                       <p className="text-xs text-[var(--color-text-muted)]">
                         {selectedComboExists
@@ -755,7 +799,7 @@ export function ComboPage() {
                           : t("New slot")}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       {(draft.source === ComboSource.COMBO_SOURCE_DEFAULT ||
                         draft.source ===
                           ComboSource.COMBO_SOURCE_OVERRIDDEN) && (
@@ -768,6 +812,21 @@ export function ComboPage() {
                           {t("Reset to Default")}
                         </button>
                       )}
+                      {/* Enabled toggle inline with action buttons */}
+                      <div className="flex items-center gap-2 px-2">
+                        <span className="text-xs text-[var(--color-text-muted)]">
+                          {t("Enabled")}
+                        </span>
+                        <Switch.Root
+                          checked={draft.enabled}
+                          onCheckedChange={(enabled) =>
+                            setDraft((prev) => ({ ...prev, enabled }))
+                          }
+                          className="w-8 h-4 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-border)] border border-[var(--color-border)] transition-colors"
+                        >
+                          <Switch.Thumb className="block w-3 h-3 rounded-full transition-transform data-[state=checked]:translate-x-4 translate-x-0.5 will-change-transform bg-white border border-[var(--color-border)]" />
+                        </Switch.Root>
+                      </div>
                       <button
                         className="btn-ghost text-sm flex items-center gap-1.5"
                         onClick={handleDeleteCombo}
@@ -795,34 +854,14 @@ export function ComboPage() {
                   </div>
 
                   {validationError && (
-                    <div className="mb-4 p-3 rounded-lg border border-amber-400/40 bg-amber-500/15 text-sm text-amber-100 flex items-center gap-2">
-                      <IconAlertTriangle
-                        size={16}
-                        className="shrink-0 text-amber-200"
-                      />
+                    <div className="mb-4 p-3 rounded-lg border warning-banner text-sm flex items-center gap-2">
+                      <IconAlertTriangle size={16} className="shrink-0" />
                       <span>{validationError}</span>
                     </div>
                   )}
 
-                  <div className="grid grid-cols-1 tablet:grid-cols-2 gap-3 mb-4">
-                    <label>
-                      <span className="text-xs text-[var(--color-text-muted)]">
-                        {t("Slot")}
-                      </span>
-                      <input
-                        type="number"
-                        min={0}
-                        max={maxCombo ? Math.max(0, maxCombo - 1) : undefined}
-                        className="mt-1 w-full px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text)]"
-                        value={draft.index}
-                        onChange={(event) =>
-                          setDraft((prev) => ({
-                            ...prev,
-                            index: Number(event.target.value),
-                          }))
-                        }
-                      />
-                    </label>
+                  {/* Name (Slot removed) */}
+                  <div className="mb-4">
                     <label>
                       <span className="text-xs text-[var(--color-text-muted)]">
                         {t("Name")}
@@ -841,7 +880,8 @@ export function ComboPage() {
                     </label>
                   </div>
 
-                  <div className="grid grid-cols-1 tablet:grid-cols-[1fr_auto] gap-3 mb-4">
+                  {/* Behavior — full width */}
+                  <div className="mb-4">
                     <button
                       className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] hover:border-[var(--color-electric)]/50 text-left transition-colors"
                       onClick={() => setShowBehaviorSelector(true)}
@@ -860,96 +900,9 @@ export function ComboPage() {
                         )}
                       </span>
                     </button>
-                    <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)]">
-                      <span className="text-sm text-[var(--color-text)]">
-                        {t("Enabled")}
-                      </span>
-                      <Switch.Root
-                        checked={draft.enabled}
-                        onCheckedChange={(enabled) =>
-                          setDraft((prev) => ({ ...prev, enabled }))
-                        }
-                        className="w-10 h-5 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-border)] border border-[var(--color-border)] transition-colors"
-                      >
-                        <Switch.Thumb className="block w-4 h-4 rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform bg-white border border-[var(--color-border)]" />
-                      </Switch.Root>
-                    </div>
                   </div>
 
-                  <div className="grid grid-cols-1 tablet:grid-cols-3 gap-3 mb-4">
-                    <label>
-                      <span className="text-xs text-[var(--color-text-muted)]">
-                        {t("Timeout ms (0 = inherit global)")}
-                      </span>
-                      <input
-                        type="number"
-                        min={0}
-                        max={65535}
-                        className="mt-1 w-full px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text)]"
-                        value={draft.timeoutMs}
-                        onChange={(event) =>
-                          setDraft((prev) => ({
-                            ...prev,
-                            timeoutMs: Number(event.target.value),
-                          }))
-                        }
-                      />
-                    </label>
-                    <label>
-                      <span className="text-xs text-[var(--color-text-muted)]">
-                        {t("Require prior idle ms (0 = inherit global)")}
-                      </span>
-                      <input
-                        type="number"
-                        min={0}
-                        max={65535}
-                        className="mt-1 w-full px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text)]"
-                        value={draft.requirePriorIdleMs}
-                        onChange={(event) =>
-                          setDraft((prev) => ({
-                            ...prev,
-                            requirePriorIdleMs: Number(event.target.value),
-                          }))
-                        }
-                      />
-                    </label>
-                    <label>
-                      <span className="text-xs text-[var(--color-text-muted)]">
-                        {t("Slow release override")}
-                      </span>
-                      <select
-                        className="select-field mt-1 w-full text-sm"
-                        value={draft.slowReleaseOverride}
-                        onChange={(event) =>
-                          setDraft((prev) => ({
-                            ...prev,
-                            slowReleaseOverride: Number(
-                              event.target.value,
-                            ) as SlowReleaseOverride,
-                          }))
-                        }
-                      >
-                        <option
-                          value={
-                            SlowReleaseOverride.SLOW_RELEASE_OVERRIDE_INHERIT
-                          }
-                        >
-                          {t("Inherit global")}
-                        </option>
-                        <option
-                          value={SlowReleaseOverride.SLOW_RELEASE_OVERRIDE_ON}
-                        >
-                          {t("On")}
-                        </option>
-                        <option
-                          value={SlowReleaseOverride.SLOW_RELEASE_OVERRIDE_OFF}
-                        >
-                          {t("Off")}
-                        </option>
-                      </select>
-                    </label>
-                  </div>
-
+                  {/* Layers */}
                   <div className="mb-4">
                     <div className="flex items-center gap-2 flex-wrap mb-2">
                       <span className="text-xs text-[var(--color-text-muted)]">
@@ -993,21 +946,21 @@ export function ComboPage() {
                     </p>
                   </div>
 
+                  {/* Positions — read-only, updated via keyboard clicks */}
                   <label className="block mb-4">
                     <span className="text-xs text-[var(--color-text-muted)]">
                       {t("Positions")}
                     </span>
                     <input
-                      className="mt-1 w-full px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text)]"
+                      readOnly
+                      className="mt-1 w-full px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text)] cursor-default select-none"
                       value={positionsText}
-                      onChange={(event) =>
-                        handlePositionsTextChange(event.target.value)
-                      }
                     />
                   </label>
 
+                  {/* Keyboard layout preview */}
                   {currentLayout && previewLayer && (
-                    <div className="rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] p-3">
+                    <div className="rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] p-3 overflow-x-auto mb-4">
                       <KeyboardLayout
                         layout={currentLayout}
                         layer={previewLayer}
@@ -1024,6 +977,107 @@ export function ComboPage() {
                       />
                     </div>
                   )}
+
+                  {/* Advanced Options — collapsible */}
+                  <div className="rounded-lg border border-[var(--color-border)] overflow-hidden">
+                    <button
+                      className="flex items-center gap-2 w-full px-3 py-2.5 text-left bg-[var(--color-bg)] hover:bg-[var(--color-border)]/50 transition-colors"
+                      onClick={() => setIsAdvancedExpanded(!isAdvancedExpanded)}
+                    >
+                      <span className="text-xs font-medium text-[var(--color-text-muted)] flex-1">
+                        {t("Advanced Options")}
+                      </span>
+                      <IconChevronDown
+                        size={13}
+                        className={`text-[var(--color-text-muted)] flex-shrink-0 transition-transform ${
+                          isAdvancedExpanded ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
+                    {isAdvancedExpanded && (
+                      <div className="p-3 border-t border-[var(--color-border)] bg-[var(--color-bg)]">
+                        <div className="grid grid-cols-1 tablet:grid-cols-3 gap-3">
+                          <label>
+                            <span className="text-xs text-[var(--color-text-muted)]">
+                              {t("Timeout ms (0 = inherit global)")}
+                            </span>
+                            <input
+                              type="number"
+                              min={0}
+                              max={65535}
+                              className="mt-1 w-full px-3 py-2 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)]"
+                              value={draft.timeoutMs}
+                              onChange={(event) =>
+                                setDraft((prev) => ({
+                                  ...prev,
+                                  timeoutMs: Number(event.target.value),
+                                }))
+                              }
+                            />
+                          </label>
+                          <label>
+                            <span className="text-xs text-[var(--color-text-muted)]">
+                              {t("Require prior idle ms (0 = inherit global)")}
+                            </span>
+                            <input
+                              type="number"
+                              min={0}
+                              max={65535}
+                              className="mt-1 w-full px-3 py-2 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)]"
+                              value={draft.requirePriorIdleMs}
+                              onChange={(event) =>
+                                setDraft((prev) => ({
+                                  ...prev,
+                                  requirePriorIdleMs: Number(
+                                    event.target.value,
+                                  ),
+                                }))
+                              }
+                            />
+                          </label>
+                          <label>
+                            <span className="text-xs text-[var(--color-text-muted)]">
+                              {t("Slow release override")}
+                            </span>
+                            <select
+                              className="select-field mt-1 w-full text-sm"
+                              value={draft.slowReleaseOverride}
+                              onChange={(event) =>
+                                setDraft((prev) => ({
+                                  ...prev,
+                                  slowReleaseOverride: Number(
+                                    event.target.value,
+                                  ) as SlowReleaseOverride,
+                                }))
+                              }
+                            >
+                              <option
+                                value={
+                                  SlowReleaseOverride.SLOW_RELEASE_OVERRIDE_INHERIT
+                                }
+                              >
+                                {t("Inherit global")}
+                              </option>
+                              <option
+                                value={
+                                  SlowReleaseOverride.SLOW_RELEASE_OVERRIDE_ON
+                                }
+                              >
+                                {t("On")}
+                              </option>
+                              <option
+                                value={
+                                  SlowReleaseOverride.SLOW_RELEASE_OVERRIDE_OFF
+                                }
+                              >
+                                {t("Off")}
+                              </option>
+                            </select>
+                          </label>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </section>
               )}
             </div>
