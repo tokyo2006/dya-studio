@@ -16,7 +16,7 @@
  * subsystem is read-only, and the official keymap subsystem is what owns the
  * edit/save state. See {@link useKeymap}.
  */
-import { useCallback, useContext, useMemo } from "react";
+import { useCallback, useContext, useEffect, useMemo } from "react";
 import {
   ZMKAppContext,
   isUnlockRequiredError,
@@ -41,6 +41,10 @@ import {
   loadPhysicalLayoutGeometry,
   type FastKeymapModel,
 } from "../lib/fastKeymap";
+import {
+  assertOfficialKeymapRpcAllowed,
+  setFastKeymapAvailable,
+} from "../lib/officialKeymapRpcGuard";
 import type { TranslationParams } from "../i18n/translations";
 
 /** Identifier the fast-keymap module registers on the device. */
@@ -257,6 +261,13 @@ export function useKeymapSource(): UseKeymapSourceReturn {
   const isFastAvailable = subsystem !== null;
   const source: KeymapSource = isFastAvailable ? "fast" : "official";
 
+  // Keep the app-wide official-RPC guard in sync: once fast-keymap is
+  // available, any official keymap/behaviors *read* becomes a hard error
+  // (see officialKeymapRpcGuard) instead of a silent slow round-trip.
+  useEffect(() => {
+    setFastKeymapAvailable(isFastAvailable);
+  }, [isFastAvailable]);
+
   // -- official-path RPC helper (throws on unlock, like the fast path) ------
   const officialRpc = useCallback(
     async <T>(
@@ -268,6 +279,7 @@ export function useKeymapSource(): UseKeymapSourceReturn {
       if (!connection) {
         throw new Error("Not connected to keyboard");
       }
+      assertOfficialKeymapRpcAllowed(request);
       const response = await call_rpc(connection, request);
       if (response.meta?.simpleError !== undefined) {
         if (response.meta.simpleError === ErrorConditions.UNLOCK_REQUIRED) {

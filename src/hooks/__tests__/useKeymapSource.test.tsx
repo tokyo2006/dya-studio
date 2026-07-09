@@ -2,6 +2,7 @@ import { renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { ZMKAppContext } from "@cormoran/zmk-studio-react-hook";
 import { useKeymapSource } from "../useKeymapSource";
+import { setFastKeymapAvailable } from "../../lib/officialKeymapRpcGuard";
 import type { FastKeymapModel } from "../../lib/fastKeymap";
 
 // -- mock the transport bits --------------------------------------------------
@@ -41,6 +42,12 @@ function wrapper({ children }: { children: ReactNode }) {
 
 beforeEach(() => {
   jest.clearAllMocks();
+});
+
+// The guard uses a module-level flag synced by useKeymapSource; reset it so
+// the fast-path tests can't leak availability into later assertions.
+afterEach(() => {
+  setFastKeymapAvailable(false);
 });
 
 describe("useKeymapSource — official fallback", () => {

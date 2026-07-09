@@ -34,6 +34,7 @@ import {
   type KeymapLoadPhase,
   type KeymapLoadProgress,
 } from "./useKeymapSource";
+import { assertOfficialKeymapRpcAllowed } from "../lib/officialKeymapRpcGuard";
 
 // Error response constants for better readability
 const SetLayerBindingResp = {
@@ -238,6 +239,11 @@ export function useKeymap(): UseKeymapReturn {
       }
 
       try {
+        // Guard: when fast-keymap is available, an official keymap/behaviors
+        // *read* here is a bug (must go through useKeymapSource) — throw
+        // rather than silently pay for a slow official round-trip. Edits and
+        // checkUnsavedChanges are not forbidden reads, so they pass through.
+        assertOfficialKeymapRpcAllowed(request);
         const response = await call_rpc(connection, request);
 
         // Check for meta errors
