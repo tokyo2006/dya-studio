@@ -58,6 +58,11 @@ export interface UseRuntimeMacroReturn {
     step: MacroStep,
     persist?: boolean,
   ) => Promise<boolean>;
+  appendMacroStep: (
+    slot: number,
+    step: MacroStep,
+    persist?: boolean,
+  ) => Promise<boolean>;
   setTapMs: (tapMs: number, persist?: boolean) => Promise<boolean>;
   saveMacros: () => Promise<boolean>;
   discardMacros: () => Promise<boolean>;
@@ -225,6 +230,17 @@ export function useRuntimeMacro(): UseRuntimeMacroReturn {
         Request.create({
           setMacroStep: { slot, stepIndex, step, persist },
         }),
+        persist,
+      );
+      return status !== null;
+    },
+    [runMutation],
+  );
+
+  const appendMacroStep = useCallback(
+    async (slot: number, step: MacroStep, persist = false): Promise<boolean> => {
+      const status = await runMutation(
+        Request.create({ appendMacroStep: { slot, step, persist } }),
         persist,
       );
       return status !== null;
@@ -411,6 +427,7 @@ export function useRuntimeMacro(): UseRuntimeMacroReturn {
     renameMacro,
     setMacroStepCount,
     setMacroStep,
+    appendMacroStep,
     setTapMs,
     saveMacros,
     discardMacros,

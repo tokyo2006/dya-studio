@@ -648,14 +648,23 @@ export function MacroPage() {
   const handleAddStep = useCallback(async () => {
     if (!loadedMacro) return;
     const steps = [...loadedMacro.steps, DEFAULT_STEP];
+    try {
+      const size = getRuntimeMacroEncodedSize(steps);
+      if (size > runtimeMacro.maxMacroBytes) return;
+    } catch {
+      return;
+    }
     setStringDraft(null);
-    setLoadedMacro({
-      ...loadedMacro,
-      steps,
-      encodedSize: getRuntimeMacroEncodedSize(steps),
-    });
-    await commitSteps(steps);
-  }, [commitSteps, loadedMacro]);
+    const ok = await runtimeMacro.appendMacroStep(loadedMacro.slot, DEFAULT_STEP);
+    if (ok) {
+      setLoadedMacro({
+        ...loadedMacro,
+        steps,
+        encodedSize: getRuntimeMacroEncodedSize(steps),
+      });
+      await runtimeMacro.loadMacros();
+    }
+  }, [loadedMacro, runtimeMacro]);
 
   const handleDeleteMacro = useCallback(async () => {
     if (!loadedMacro) return;

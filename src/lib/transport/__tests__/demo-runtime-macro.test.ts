@@ -118,6 +118,26 @@ describe("RuntimeMacroHandler", () => {
     expect(getResponse.getMacro?.macro?.steps.length).toBe(0);
   });
 
+  it("appends a step without rewriting existing steps", () => {
+    const before = handler.process(Request.create({ getMacro: { slot: 0 } }));
+    const initialCount = before.getMacro?.macro?.steps.length ?? 0;
+
+    const appendResponse = handler.process(
+      Request.create({
+        appendMacroStep: {
+          slot: 0,
+          step: { delay: { delayMs: 50 } },
+          persist: false,
+        },
+      }),
+    );
+    expect(appendResponse.status?.affectedCount).toBe(1);
+
+    const after = handler.process(Request.create({ getMacro: { slot: 0 } }));
+    expect(after.getMacro?.macro?.steps.length).toBe(initialCount + 1);
+    expect(after.getMacro?.macro?.steps[initialCount].delay?.delayMs).toBe(50);
+  });
+
   it("creates a new macro when the custom-settings keyspace gains a matching entry", () => {
     const createResponse = customSettings.process(
       CustomSettingsRequest.create({
