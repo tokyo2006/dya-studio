@@ -11,6 +11,7 @@ import { IncidentType } from "../../proto/cormoran/watchdog/watchdog";
 import type { UseWatchdogReturn } from "../../hooks/useWatchdog";
 import { useLanguage } from "../../hooks/useLanguage";
 import {
+  formatFatalReason,
   formatHex,
   formatResetCause,
   formatUptime,
@@ -25,16 +26,19 @@ import {
 const MODULE_NAME = "cormoran/zmk-feature-watchdog";
 const MODULE_URL = "https://github.com/cormoran/zmk-feature-watchdog";
 
-function incidentTypeLabel(type: IncidentType): string {
+function incidentTypeLabel(
+  type: IncidentType,
+  t: (key: string) => string,
+): string {
   switch (type) {
     case IncidentType.FREEZE:
-      return "FREEZE";
+      return t("Freeze");
     case IncidentType.FATAL:
-      return "FATAL";
+      return t("Crash");
     case IncidentType.RESET_CAUSE:
-      return "RESET_CAUSE";
+      return t("Reset");
     default:
-      return "UNKNOWN";
+      return t("Unknown");
   }
 }
 
@@ -49,18 +53,27 @@ function incidentTypeBadgeClass(type: IncidentType): string {
   }
 }
 
-function incidentDetail(incident: Incident): string {
+function incidentDetail(
+  incident: Incident,
+  t: (key: string, params?: Record<string, string | number>) => string,
+): string {
   if (incident.freeze) {
-    return `queue: ${incident.freeze.queueName || `#${incident.freeze.channelId}`}`;
+    const queue = incident.freeze.queueName || `#${incident.freeze.channelId}`;
+    return `${t("queue")}: ${queue}`;
   }
   if (incident.fatal) {
-    const thread = incident.fatal.threadName
-      ? `, thread: ${incident.fatal.threadName}`
-      : "";
-    return `reason ${incident.fatal.reason}, PC ${formatHex(incident.fatal.pc, 8)}, LR ${formatHex(incident.fatal.lr, 8)}${thread}`;
+    const parts = [
+      formatFatalReason(incident.fatal.reason, t),
+      `PC ${formatHex(incident.fatal.pc, 8)}`,
+      `LR ${formatHex(incident.fatal.lr, 8)}`,
+    ];
+    if (incident.fatal.threadName) {
+      parts.push(`${t("thread")}: ${incident.fatal.threadName}`);
+    }
+    return parts.join(", ");
   }
   if (incident.reset) {
-    return formatResetCause(incident.reset.causeBits);
+    return formatResetCause(incident.reset.causeBits, t);
   }
   return "";
 }
@@ -225,7 +238,7 @@ export function WatchdogSection({ watchdog }: { watchdog: UseWatchdogReturn }) {
                           <span
                             className={`inline-block px-2 py-0.5 rounded border ${incidentTypeBadgeClass(incident.type)}`}
                           >
-                            {incidentTypeLabel(incident.type)}
+                            {incidentTypeLabel(incident.type, t)}
                           </span>
                         </td>
                         <td className="py-2 pr-3 font-mono">
@@ -233,7 +246,7 @@ export function WatchdogSection({ watchdog }: { watchdog: UseWatchdogReturn }) {
                           {formatUptime(incident.uptimeS * 1000)}
                         </td>
                         <td className="py-2 pr-3 text-[var(--color-text-secondary)] break-all">
-                          {incidentDetail(incident)}
+                          {incidentDetail(incident, t)}
                         </td>
                         <td className="py-2 text-right">
                           <button

@@ -16,7 +16,8 @@ export { AxisSnapMode };
 
 // Subsystem identifier for ZMK runtime input processor custom protocol
 // This matches the identifier registered in the ZMK firmware module
-const SUBSYSTEM_IDENTIFIER = "cormoran_rip";
+export const RUNTIME_INPUT_PROCESSOR_SUBSYSTEM_IDENTIFIER = "cormoran_rip";
+const SUBSYSTEM_IDENTIFIER = RUNTIME_INPUT_PROCESSOR_SUBSYSTEM_IDENTIFIER;
 
 const CODEC = {
   encode: (request: Request) => Request.encode(request).finish(),

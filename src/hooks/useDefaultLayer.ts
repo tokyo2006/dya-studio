@@ -8,7 +8,8 @@ import {
 
 // Subsystem identifier for the ZMK default-layer custom protocol.
 // This matches the identifier registered in the zmk-feature-default-layer module.
-const SUBSYSTEM_IDENTIFIER = "cormoran__default_layer";
+export const DEFAULT_LAYER_SUBSYSTEM_IDENTIFIER = "cormoran__default_layer";
+const SUBSYSTEM_IDENTIFIER = DEFAULT_LAYER_SUBSYSTEM_IDENTIFIER;
 
 const CODEC = {
   encode: (request: Request) => Request.encode(request).finish(),

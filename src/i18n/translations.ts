@@ -459,6 +459,59 @@ const ja: Record<string, string> = {
   Editor: "エディター",
   Status: "状態",
   Item: "項目",
+  "● Unsaved": "● 未保存",
+  "What Source means": "ソースの意味",
+  "Source legend": "ソースの凡例",
+  "Local: the split side you are connected to.":
+    "Local: 現在接続している側（分割キーボードの片側）です。",
+  "Source N: another split side's own independently stored copy.":
+    "Source N: もう一方の側が個別に保持している設定値です。",
+  "All: every split side at once, used for section-wide actions.":
+    "All: 両側をまとめて扱う値で、セクション単位の操作に使われます。",
+  "What Status means": "状態の意味",
+  "Status legend": "状態の凡例",
+  "Current: matches the value persisted on the keyboard.":
+    "Current: キーボードに保存されている値と一致しています。",
+  "In memory: written to RAM; save the section to persist it.":
+    "In memory: RAM には書き込み済みですが、永続化するにはセクションを保存してください。",
+  "Queued: your edit is about to be sent.":
+    "Queued: 変更が送信されるのを待っています。",
+  "Memory...: the edit is being written right now.":
+    "Memory...: 変更を書き込んでいる最中です。",
+  Sensitivity: "感度",
+  "Tracking resolution.": "トラッキングの解像度です。",
+  Orientation: "向き",
+  "Axis mapping for how the sensor is mounted.":
+    "センサーの取り付け方向に応じた軸のマッピングです。",
+  "Power & Rest Mode": "省電力・レストモード",
+  "Idle downshift stages that reduce sensor polling and power use while the trackball is not moving.":
+    "トラックボールが動いていない間にセンサーのポーリング頻度と消費電力を段階的に下げるアイドル設定です。",
+  Reporting: "レポート",
+  "How often motion reports are sent to the host.":
+    "ホストへ動きのレポートを送信する頻度です。",
+  "Sensor resolution in counts per inch. Higher values move the cursor faster for the same physical motion.":
+    "1インチあたりのカウント数（CPI）によるセンサー解像度です。値が大きいほど同じ動きでもカーソルが速く動きます。",
+  "Swap the X and Y axes.": "X軸とY軸を入れ替えます。",
+  "Invert the horizontal movement direction.": "水平方向の動きを反転します。",
+  "Invert the vertical movement direction.": "垂直方向の動きを反転します。",
+  "Keep the sensor fully powered, skipping the rest mode stages below.":
+    "以下のレストモード段階を使わず、センサーを常にフル稼働させます。",
+  "Enable the sensor's adaptive positioning algorithm.":
+    "センサーの適応的な位置検出アルゴリズムを有効にします。",
+  "Time of continuous motion before dropping from Run mode into Rest1.":
+    "Runモードから Rest1 に移行するまでの、動き続ける時間です。",
+  "Time in Rest1 before dropping into Rest2.":
+    "Rest1 から Rest2 に移行するまでの時間です。",
+  "Time in Rest2 before dropping into Rest3.":
+    "Rest2 から Rest3 に移行するまでの時間です。",
+  "Sensor sampling interval while in Rest1.":
+    "Rest1 中のセンサーのサンプリング間隔です。",
+  "Sensor sampling interval while in Rest2.":
+    "Rest2 中のセンサーのサンプリング間隔です。",
+  "Sensor sampling interval while in Rest3, the deepest idle stage.":
+    "最も深いアイドル段階である Rest3 中のセンサーのサンプリング間隔です。",
+  "Minimum time between motion reports sent to the host.":
+    "ホストへ動きのレポートを送信する最小間隔です。",
   "Subsystem {{index}}": "サブシステム {{index}}",
   "Custom settings subsystem is not available":
     "カスタム設定サブシステムを利用できません",
@@ -489,6 +542,11 @@ const ja: Record<string, string> = {
     "このサブシステムで利用可能な Web UI はありません。",
   "No custom subsystems available. Custom subsystems are provided by the keyboard firmware.":
     "利用可能なカスタムサブシステムはありません。カスタムサブシステムはキーボードファームウェアによって提供されます。",
+  "All custom subsystems reported by this device are already supported by DYA Studio.":
+    "このデバイスが報告するカスタムサブシステムは、すべて DYA Studio で既にサポートされています。",
+  "Already supported by DYA Studio": "DYA Studio で既にサポート済み",
+  "These subsystems have a dedicated UI elsewhere in DYA Studio":
+    "これらのサブシステムは、DYA Studio の他の場所に専用の UI があります",
   "Custom subsystems are additional features provided by your keyboard firmware author. Web UI links open external pages supplied by the firmware metadata.":
     "カスタムサブシステムは、キーボードファームウェア作者が提供する追加機能です。Web UI リンクは、ファームウェアメタデータで提供された外部ページを開きます。",
 
@@ -726,6 +784,78 @@ const ja: Record<string, string> = {
   "This will permanently delete all recorded incidents from your keyboard.":
     "キーボード上のすべての発生履歴データが完全に削除されます。",
   "This action cannot be undone.": "この操作は元に戻せません。",
+
+  Freeze: "フリーズ",
+  Crash: "クラッシュ",
+  queue: "キュー",
+  thread: "スレッド",
+  "Unknown fault": "不明な障害",
+
+  // Reset cause bits (Zephyr hwinfo)
+  "External Pin": "外部ピン",
+  Software: "ソフトウェア",
+  Brownout: "ブラウンアウト",
+  "Power-On": "電源投入",
+  Watchdog: "ウォッチドッグ",
+  Debug: "デバッグ",
+  Security: "セキュリティ",
+  "Low Power Wake": "低消費電力からの復帰",
+  "CPU Lockup": "CPUロックアップ",
+  "Parity Error": "パリティエラー",
+  "PLL Error": "PLLエラー",
+  "Clock Error": "クロックエラー",
+  "Hardware Reset": "ハードウェアリセット",
+  "User Reset": "ユーザーリセット",
+  Temperature: "温度",
+
+  // Fatal crash reason codes (Zephyr k_fatal_error_reason + ARM arch codes)
+  "CPU exception": "CPU例外",
+  "Spurious interrupt": "スプリアス割り込み",
+  "Stack overflow (corruption detected)":
+    "スタックオーバーフロー（破損を検出）",
+  "Kernel oops": "カーネルOops（中程度のソフトウェアエラー）",
+  "Kernel panic": "カーネルパニック（重大なソフトウェアエラー）",
+  "Memory fault": "メモリフォルト",
+  "Memory fault while stacking": "スタック処理中のメモリフォルト",
+  "Memory fault while unstacking": "アンスタック処理中のメモリフォルト",
+  "Memory fault: data access": "メモリフォルト：データアクセス",
+  "Memory fault: instruction access": "メモリフォルト：命令アクセス",
+  "Memory fault: FP lazy state preservation": "メモリフォルト：FP遅延状態保存",
+  "Bus fault": "バスフォルト",
+  "Bus fault while stacking": "スタック処理中のバスフォルト",
+  "Bus fault while unstacking": "アンスタック処理中のバスフォルト",
+  "Bus fault: precise data bus error": "バスフォルト：precise データバスエラー",
+  "Bus fault: imprecise data bus error":
+    "バスフォルト：imprecise データバスエラー",
+  "Bus fault: instruction bus error": "バスフォルト：命令バスエラー",
+  "Bus fault: FP lazy state preservation": "バスフォルト：FP遅延状態保存",
+  "Usage fault": "使用エラー（Usage Fault）",
+  "Usage fault: division by zero": "使用エラー：ゼロ除算",
+  "Usage fault: unaligned access": "使用エラー：非アラインアクセス",
+  "Usage fault: stack overflow": "使用エラー：スタックオーバーフロー",
+  "Usage fault: no coprocessor": "使用エラー：コプロセッサなし",
+  "Usage fault: illegal EXC_RETURN": "使用エラー：不正なEXC_RETURN",
+  "Usage fault: illegal EPSR state": "使用エラー：不正なEPSR状態",
+  "Usage fault: undefined instruction": "使用エラー：未定義命令",
+  "Secure fault": "セキュアフォルト",
+  "Secure fault: entry point": "セキュアフォルト：エントリポイント",
+  "Secure fault: integrity signature": "セキュアフォルト：整合性シグネチャ",
+  "Secure fault: exception return": "セキュアフォルト：例外リターン",
+  "Secure fault: attribution unit": "セキュアフォルト：属性ユニット",
+  "Secure fault: transition": "セキュアフォルト：遷移",
+  "Secure fault: lazy state preservation": "セキュアフォルト：遅延状態保存",
+  "Secure fault: lazy state error": "セキュアフォルト：遅延状態エラー",
+  "Undefined instruction": "未定義命令",
+  "Alignment fault": "アラインメントフォルト",
+  "Background fault": "バックグラウンドフォルト",
+  "Permission fault": "パーミッションフォルト",
+  "Synchronous external abort": "同期的な外部アボート",
+  "Asynchronous external abort": "非同期の外部アボート",
+  "Synchronous parity error": "同期的なパリティエラー",
+  "Asynchronous parity error": "非同期のパリティエラー",
+  "Debug event": "デバッグイベント",
+  "Translation fault": "アドレス変換フォルト",
+  "Unsupported exclusive access fault": "非対応の排他アクセスフォルト",
 
   "Key Switches": "キースイッチ",
   "Key press statistics and chatter detection":

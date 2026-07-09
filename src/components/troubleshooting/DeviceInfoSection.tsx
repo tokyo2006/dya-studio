@@ -46,7 +46,12 @@ export function DeviceInfoSection({
   const { t } = useLanguage();
   const { isAvailable, info, isLoading, error, refresh } = deviceInfo;
 
-  const notReadyCount = info?.zephyrDevices.filter((d) => !d.ready).length ?? 0;
+  // Devices with an empty name are internal/hidden Zephyr devices that are
+  // normally left uninitialized — exclude them from the "not ready" count
+  // and the list so they don't inflate it with noise.
+  const namedDevices =
+    info?.zephyrDevices.filter((d) => d.name.trim() !== "") ?? [];
+  const notReadyCount = namedDevices.filter((d) => !d.ready).length;
 
   return (
     <SectionCard
@@ -138,7 +143,7 @@ export function DeviceInfoSection({
               <InfoRow label={t("Device ID")} value={info.hardware.deviceId} />
               <InfoRow
                 label={t("Reset Cause")}
-                value={formatResetCause(info.hardware.resetCause)}
+                value={formatResetCause(info.hardware.resetCause, t)}
               />
               <InfoRow
                 label={t("Flash")}
@@ -233,7 +238,7 @@ export function DeviceInfoSection({
             </div>
           )}
 
-          {info && info.zephyrDevices.length > 0 && (
+          {namedDevices.length > 0 && (
             <details>
               <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-[var(--color-text-muted)] flex items-center gap-2">
                 {t("Zephyr Devices")}
@@ -248,7 +253,7 @@ export function DeviceInfoSection({
                 )}
               </summary>
               <div className="mt-2 space-y-1">
-                {[...info.zephyrDevices]
+                {[...namedDevices]
                   .sort((a, b) => (a.ready === b.ready ? 0 : a.ready ? 1 : -1))
                   .map((dev, idx) => (
                     <div
