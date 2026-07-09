@@ -11,7 +11,10 @@ import {
   ConnectionContext,
 } from "../DeviceConnection";
 import { useContext } from "react";
-import { useZMKApp } from "@cormoran/zmk-studio-react-hook";
+import {
+  useZMKApp,
+  CONNECT_TIMEOUT_ERROR,
+} from "@cormoran/zmk-studio-react-hook";
 import { setupZMKMocks } from "@cormoran/zmk-studio-react-hook/testing";
 
 // Mock the ZMK Studio client
@@ -623,6 +626,58 @@ describe("DeviceConnection", () => {
       expect(screen.getByTestId("connection-status")).toHaveTextContent(
         "Connected",
       );
+    });
+
+    test("gives up reconnecting instead of hanging forever when the paired device never answers the handshake", async () => {
+      const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation();
+      const consoleWarnSpy = jest.spyOn(console, "warn").mockImplementation();
+      const mockPort = createMockSerialPort();
+      setPairedSerialPorts([mockPort]);
+
+      // The device is paired and opens fine, but never responds to the RPC
+      // handshake -- `call_rpc`'s pending read only settles once the
+      // connection is aborted by the `connectTimeoutMs` watchdog.
+      let capturedSignal: AbortSignal | undefined;
+      mocks.create_rpc_connection.mockImplementation(
+        (_transport: unknown, opts: { signal: AbortSignal }) => {
+          capturedSignal = opts.signal;
+          return mocks.mockConnection;
+        },
+      );
+      // Drop any queued `mockResolvedValueOnce` responses left over from a
+      // previous test's `mockSuccessfulConnection` -- `jest.clearAllMocks()`
+      // (run in `beforeEach`) does not clear those queues, only call history.
+      mocks.call_rpc.mockReset();
+      mocks.call_rpc.mockImplementation(
+        () =>
+          new Promise((_resolve, reject) => {
+            capturedSignal?.addEventListener("abort", () =>
+              reject(capturedSignal?.reason ?? new Error("aborted")),
+            );
+          }),
+      );
+
+      render(
+        <DeviceConnectionProvider
+          reconnectMinDisplayMs={0}
+          connectTimeoutMs={20}
+        >
+          <TestComponent />
+        </DeviceConnectionProvider>,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId("error")).toHaveTextContent(
+          CONNECT_TIMEOUT_ERROR,
+        );
+      });
+      expect(screen.getByTestId("connection-status")).toHaveTextContent(
+        "Disconnected",
+      );
+      expect(screen.queryByTestId("reconnecting")).not.toBeInTheDocument();
+
+      consoleErrorSpy.mockRestore();
+      consoleWarnSpy.mockRestore();
     });
   });
 });

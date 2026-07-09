@@ -7,6 +7,7 @@ import {
   getPairedSerialPorts,
   connectToPairedSerial,
 } from "@cormoran/zmk-studio-react-hook";
+import type { UseZMKAppOptions } from "@cormoran/zmk-studio-react-hook";
 import { connect as connectBLE } from "@zmkfirmware/zmk-studio-ts-client/transport/gatt";
 import { connect as connectUSB } from "../lib/transport/usb";
 import { connect as connectDemo } from "../lib/transport/demo";
@@ -58,13 +59,23 @@ interface DeviceConnectionProviderProps {
    * mainly so tests don't have to wait out the real-world default.
    */
   reconnectMinDisplayMs?: number;
+  /**
+   * How long (ms) to wait for the device to answer the initial RPC handshake
+   * before giving up. Forwarded to `useZMKApp`; defaults to the library's
+   * own default (5000ms) when omitted. Without this, a paired-but-unresponsive
+   * device (e.g. sitting in the bootloader) would hang the page-load
+   * auto-reconnect attempt forever instead of falling back to the connect
+   * screen.
+   */
+  connectTimeoutMs?: UseZMKAppOptions["connectTimeoutMs"];
 }
 
 export function DeviceConnectionProvider({
   children,
   reconnectMinDisplayMs = AUTO_RECONNECT_MIN_DISPLAY_MS,
+  connectTimeoutMs,
 }: DeviceConnectionProviderProps) {
-  const zmkApp = useZMKApp();
+  const zmkApp = useZMKApp({ connectTimeoutMs });
   const [isReconnecting, setIsReconnecting] = useState(false);
 
   // Guards against React StrictMode's double-invoke of effects triggering
