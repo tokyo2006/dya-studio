@@ -19,7 +19,8 @@ export type { SensorInfo, LayerBindings, Binding };
 
 // Subsystem identifier for ZMK runtime sensor rotate custom protocol
 // This should match the identifier registered in the ZMK firmware module
-const SUBSYSTEM_IDENTIFIER = "cormoran_rsr";
+export const RUNTIME_SENSOR_ROTATE_SUBSYSTEM_IDENTIFIER = "cormoran_rsr";
+const SUBSYSTEM_IDENTIFIER = RUNTIME_SENSOR_ROTATE_SUBSYSTEM_IDENTIFIER;
 
 const CODEC = {
   encode: (request: Request) => Request.encode(request).finish(),

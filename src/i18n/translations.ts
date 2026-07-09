@@ -489,6 +489,11 @@ const ja: Record<string, string> = {
     "このサブシステムで利用可能な Web UI はありません。",
   "No custom subsystems available. Custom subsystems are provided by the keyboard firmware.":
     "利用可能なカスタムサブシステムはありません。カスタムサブシステムはキーボードファームウェアによって提供されます。",
+  "All custom subsystems reported by this device are already supported by DYA Studio.":
+    "このデバイスが報告するカスタムサブシステムは、すべて DYA Studio で既にサポートされています。",
+  "Already supported by DYA Studio": "DYA Studio で既にサポート済み",
+  "These subsystems have a dedicated UI elsewhere in DYA Studio":
+    "これらのサブシステムは、DYA Studio の他の場所に専用の UI があります",
   "Custom subsystems are additional features provided by your keyboard firmware author. Web UI links open external pages supplied by the firmware metadata.":
     "カスタムサブシステムは、キーボードファームウェア作者が提供する追加機能です。Web UI リンクは、ファームウェアメタデータで提供された外部ページを開きます。",
 
