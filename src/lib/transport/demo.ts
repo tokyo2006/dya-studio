@@ -227,7 +227,7 @@ class Keyboard {
   private runtimeInputProcessorHandler = new RuntimeInputProcessorHandler();
   private runtimeSensorRotateHandler = new RuntimeSensorRotateHandler();
   private runtimeComboHandler = new RuntimeComboHandler();
-  private runtimeMacroHandler = new RuntimeMacroHandler();
+  private runtimeMacroHandler: RuntimeMacroHandler;
   private physicalLayoutsHandler = new PhysicalLayoutsHandler();
   private inputStreamHandler = new InputStreamHandler();
   private customSettingsHandler: CustomSettingsHandler;
@@ -254,6 +254,9 @@ class Keyboard {
   constructor() {
     this.customSettingsHandler = new CustomSettingsHandler(
       this.SETTINGS_SUBSYSTEM_INDEX,
+    );
+    this.runtimeMacroHandler = new RuntimeMacroHandler(
+      this.customSettingsHandler,
     );
     this.defaultLayerHandler = new DefaultLayerHandler(
       this.data.keymap.layers.length,

@@ -80,11 +80,22 @@ export namespace SettingNotificationKind {
   export type UNRECOGNIZED = typeof SettingNotificationKind.UNRECOGNIZED;
 }
 
+/**
+ * A ZMK behavior binding: the behavior's local ID (see
+ * CONFIG_ZMK_BEHAVIOR_LOCAL_IDS) plus its two binding parameters.
+ */
+export interface SettingBehaviorValue {
+  behaviorId: number;
+  param1: number;
+  param2: number;
+}
+
 export interface SettingScalarValue {
   bytesValue?: Uint8Array | undefined;
   int32Value?: number | undefined;
   boolValue?: boolean | undefined;
   stringValue?: string | undefined;
+  behaviorValue?: SettingBehaviorValue | undefined;
 }
 
 /** Array values encode one active element plus the active array length. */
@@ -101,6 +112,7 @@ export interface SettingValue {
   boolValue?: boolean | undefined;
   stringValue?: string | undefined;
   arrayValue?: SettingArrayValue | undefined;
+  behaviorValue?: SettingBehaviorValue | undefined;
 }
 
 export interface SettingConstraintRange {
@@ -212,6 +224,28 @@ export interface PopBackArrayRequest {
   mode: SettingWriteMode;
 }
 
+/**
+ * Create one entry in an RPC-creatable keyspace (see
+ * ZMK_CUSTOM_SETTING_KEYSPACE_DEFINE). setting.key must start with the
+ * target keyspace's key_prefix and fit its max_key_len; setting.array_index
+ * is unused. Fails with an ErrorResponse if the keyspace is full, the key is
+ * already in use, or the key does not match any registered keyspace prefix.
+ */
+export interface CreateSettingRequest {
+  setting: SettingRef | undefined;
+  value: SettingValue | undefined;
+  mode: SettingWriteMode;
+}
+
+/**
+ * Delete one entry previously created by CreateSettingRequest (or persisted
+ * by one in an earlier session). Fails with an ErrorResponse if setting.key
+ * has no live entry.
+ */
+export interface DeleteSettingRequest {
+  setting: SettingRef | undefined;
+}
+
 export interface SaveSettingsRequest {
   scope: SettingScope | undefined;
 }
@@ -224,6 +258,23 @@ export interface ResetSettingsRequest {
   scope: SettingScope | undefined;
 }
 
+/**
+ * Write one chunk of a bytes/string setting value. The first chunk (offset =
+ * 0) opens a transfer session and declares total_size; subsequent chunks for
+ * the same setting must arrive in order (offset must equal the number of
+ * bytes received so far). Set commit = true on the final chunk to validate
+ * and apply the assembled value; the write only takes effect on commit, so a
+ * half-transferred value is never observable.
+ */
+export interface WriteValueChunkRequest {
+  setting: SettingRef | undefined;
+  totalSize: number;
+  offset: number;
+  data: Uint8Array;
+  commit: boolean;
+  mode: SettingWriteMode;
+}
+
 export interface Request {
   listSettings?: ListSettingsRequest | undefined;
   getSetting?: GetSettingRequest | undefined;
@@ -233,6 +284,9 @@ export interface Request {
   resetSettings?: ResetSettingsRequest | undefined;
   pushBackArray?: PushBackArrayRequest | undefined;
   popBackArray?: PopBackArrayRequest | undefined;
+  writeValueChunk?: WriteValueChunkRequest | undefined;
+  createSetting?: CreateSettingRequest | undefined;
+  deleteSetting?: DeleteSettingRequest | undefined;
 }
 
 export interface ErrorResponse {
@@ -263,8 +317,84 @@ export interface Notification {
   setting?: SettingNotification | undefined;
 }
 
+function createBaseSettingBehaviorValue(): SettingBehaviorValue {
+  return { behaviorId: 0, param1: 0, param2: 0 };
+}
+
+export const SettingBehaviorValue: MessageFns<SettingBehaviorValue> = {
+  encode(message: SettingBehaviorValue, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.behaviorId !== 0) {
+      writer.uint32(8).uint32(message.behaviorId);
+    }
+    if (message.param1 !== 0) {
+      writer.uint32(16).uint32(message.param1);
+    }
+    if (message.param2 !== 0) {
+      writer.uint32(24).uint32(message.param2);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): SettingBehaviorValue {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSettingBehaviorValue();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.behaviorId = reader.uint32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.param1 = reader.uint32();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.param2 = reader.uint32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<SettingBehaviorValue>): SettingBehaviorValue {
+    return SettingBehaviorValue.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<SettingBehaviorValue>): SettingBehaviorValue {
+    const message = createBaseSettingBehaviorValue();
+    message.behaviorId = object.behaviorId ?? 0;
+    message.param1 = object.param1 ?? 0;
+    message.param2 = object.param2 ?? 0;
+    return message;
+  },
+};
+
 function createBaseSettingScalarValue(): SettingScalarValue {
-  return { bytesValue: undefined, int32Value: undefined, boolValue: undefined, stringValue: undefined };
+  return {
+    bytesValue: undefined,
+    int32Value: undefined,
+    boolValue: undefined,
+    stringValue: undefined,
+    behaviorValue: undefined,
+  };
 }
 
 export const SettingScalarValue: MessageFns<SettingScalarValue> = {
@@ -280,6 +410,9 @@ export const SettingScalarValue: MessageFns<SettingScalarValue> = {
     }
     if (message.stringValue !== undefined) {
       writer.uint32(34).string(message.stringValue);
+    }
+    if (message.behaviorValue !== undefined) {
+      SettingBehaviorValue.encode(message.behaviorValue, writer.uint32(42).fork()).join();
     }
     return writer;
   },
@@ -323,6 +456,14 @@ export const SettingScalarValue: MessageFns<SettingScalarValue> = {
           message.stringValue = reader.string();
           continue;
         }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.behaviorValue = SettingBehaviorValue.decode(reader, reader.uint32());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -341,6 +482,9 @@ export const SettingScalarValue: MessageFns<SettingScalarValue> = {
     message.int32Value = object.int32Value ?? undefined;
     message.boolValue = object.boolValue ?? undefined;
     message.stringValue = object.stringValue ?? undefined;
+    message.behaviorValue = (object.behaviorValue !== undefined && object.behaviorValue !== null)
+      ? SettingBehaviorValue.fromPartial(object.behaviorValue)
+      : undefined;
     return message;
   },
 };
@@ -424,6 +568,7 @@ function createBaseSettingValue(): SettingValue {
     boolValue: undefined,
     stringValue: undefined,
     arrayValue: undefined,
+    behaviorValue: undefined,
   };
 }
 
@@ -443,6 +588,9 @@ export const SettingValue: MessageFns<SettingValue> = {
     }
     if (message.arrayValue !== undefined) {
       SettingArrayValue.encode(message.arrayValue, writer.uint32(42).fork()).join();
+    }
+    if (message.behaviorValue !== undefined) {
+      SettingBehaviorValue.encode(message.behaviorValue, writer.uint32(50).fork()).join();
     }
     return writer;
   },
@@ -494,6 +642,14 @@ export const SettingValue: MessageFns<SettingValue> = {
           message.arrayValue = SettingArrayValue.decode(reader, reader.uint32());
           continue;
         }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.behaviorValue = SettingBehaviorValue.decode(reader, reader.uint32());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -514,6 +670,9 @@ export const SettingValue: MessageFns<SettingValue> = {
     message.stringValue = object.stringValue ?? undefined;
     message.arrayValue = (object.arrayValue !== undefined && object.arrayValue !== null)
       ? SettingArrayValue.fromPartial(object.arrayValue)
+      : undefined;
+    message.behaviorValue = (object.behaviorValue !== undefined && object.behaviorValue !== null)
+      ? SettingBehaviorValue.fromPartial(object.behaviorValue)
       : undefined;
     return message;
   },
@@ -1565,6 +1724,128 @@ export const PopBackArrayRequest: MessageFns<PopBackArrayRequest> = {
   },
 };
 
+function createBaseCreateSettingRequest(): CreateSettingRequest {
+  return { setting: undefined, value: undefined, mode: 0 };
+}
+
+export const CreateSettingRequest: MessageFns<CreateSettingRequest> = {
+  encode(message: CreateSettingRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.setting !== undefined) {
+      SettingRef.encode(message.setting, writer.uint32(10).fork()).join();
+    }
+    if (message.value !== undefined) {
+      SettingValue.encode(message.value, writer.uint32(18).fork()).join();
+    }
+    if (message.mode !== 0) {
+      writer.uint32(24).int32(message.mode);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): CreateSettingRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCreateSettingRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.setting = SettingRef.decode(reader, reader.uint32());
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.value = SettingValue.decode(reader, reader.uint32());
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.mode = reader.int32() as any;
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<CreateSettingRequest>): CreateSettingRequest {
+    return CreateSettingRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<CreateSettingRequest>): CreateSettingRequest {
+    const message = createBaseCreateSettingRequest();
+    message.setting = (object.setting !== undefined && object.setting !== null)
+      ? SettingRef.fromPartial(object.setting)
+      : undefined;
+    message.value = (object.value !== undefined && object.value !== null)
+      ? SettingValue.fromPartial(object.value)
+      : undefined;
+    message.mode = object.mode ?? 0;
+    return message;
+  },
+};
+
+function createBaseDeleteSettingRequest(): DeleteSettingRequest {
+  return { setting: undefined };
+}
+
+export const DeleteSettingRequest: MessageFns<DeleteSettingRequest> = {
+  encode(message: DeleteSettingRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.setting !== undefined) {
+      SettingRef.encode(message.setting, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DeleteSettingRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDeleteSettingRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.setting = SettingRef.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<DeleteSettingRequest>): DeleteSettingRequest {
+    return DeleteSettingRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<DeleteSettingRequest>): DeleteSettingRequest {
+    const message = createBaseDeleteSettingRequest();
+    message.setting = (object.setting !== undefined && object.setting !== null)
+      ? SettingRef.fromPartial(object.setting)
+      : undefined;
+    return message;
+  },
+};
+
 function createBaseSaveSettingsRequest(): SaveSettingsRequest {
   return { scope: undefined };
 }
@@ -1709,6 +1990,114 @@ export const ResetSettingsRequest: MessageFns<ResetSettingsRequest> = {
   },
 };
 
+function createBaseWriteValueChunkRequest(): WriteValueChunkRequest {
+  return { setting: undefined, totalSize: 0, offset: 0, data: new Uint8Array(0), commit: false, mode: 0 };
+}
+
+export const WriteValueChunkRequest: MessageFns<WriteValueChunkRequest> = {
+  encode(message: WriteValueChunkRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.setting !== undefined) {
+      SettingRef.encode(message.setting, writer.uint32(10).fork()).join();
+    }
+    if (message.totalSize !== 0) {
+      writer.uint32(16).uint32(message.totalSize);
+    }
+    if (message.offset !== 0) {
+      writer.uint32(24).uint32(message.offset);
+    }
+    if (message.data.length !== 0) {
+      writer.uint32(34).bytes(message.data);
+    }
+    if (message.commit !== false) {
+      writer.uint32(40).bool(message.commit);
+    }
+    if (message.mode !== 0) {
+      writer.uint32(48).int32(message.mode);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): WriteValueChunkRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseWriteValueChunkRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.setting = SettingRef.decode(reader, reader.uint32());
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.totalSize = reader.uint32();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.offset = reader.uint32();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.data = reader.bytes();
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.commit = reader.bool();
+          continue;
+        }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.mode = reader.int32() as any;
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<WriteValueChunkRequest>): WriteValueChunkRequest {
+    return WriteValueChunkRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<WriteValueChunkRequest>): WriteValueChunkRequest {
+    const message = createBaseWriteValueChunkRequest();
+    message.setting = (object.setting !== undefined && object.setting !== null)
+      ? SettingRef.fromPartial(object.setting)
+      : undefined;
+    message.totalSize = object.totalSize ?? 0;
+    message.offset = object.offset ?? 0;
+    message.data = object.data ?? new Uint8Array(0);
+    message.commit = object.commit ?? false;
+    message.mode = object.mode ?? 0;
+    return message;
+  },
+};
+
 function createBaseRequest(): Request {
   return {
     listSettings: undefined,
@@ -1719,6 +2108,9 @@ function createBaseRequest(): Request {
     resetSettings: undefined,
     pushBackArray: undefined,
     popBackArray: undefined,
+    writeValueChunk: undefined,
+    createSetting: undefined,
+    deleteSetting: undefined,
   };
 }
 
@@ -1747,6 +2139,15 @@ export const Request: MessageFns<Request> = {
     }
     if (message.popBackArray !== undefined) {
       PopBackArrayRequest.encode(message.popBackArray, writer.uint32(66).fork()).join();
+    }
+    if (message.writeValueChunk !== undefined) {
+      WriteValueChunkRequest.encode(message.writeValueChunk, writer.uint32(82).fork()).join();
+    }
+    if (message.createSetting !== undefined) {
+      CreateSettingRequest.encode(message.createSetting, writer.uint32(90).fork()).join();
+    }
+    if (message.deleteSetting !== undefined) {
+      DeleteSettingRequest.encode(message.deleteSetting, writer.uint32(98).fork()).join();
     }
     return writer;
   },
@@ -1822,6 +2223,30 @@ export const Request: MessageFns<Request> = {
           message.popBackArray = PopBackArrayRequest.decode(reader, reader.uint32());
           continue;
         }
+        case 10: {
+          if (tag !== 82) {
+            break;
+          }
+
+          message.writeValueChunk = WriteValueChunkRequest.decode(reader, reader.uint32());
+          continue;
+        }
+        case 11: {
+          if (tag !== 90) {
+            break;
+          }
+
+          message.createSetting = CreateSettingRequest.decode(reader, reader.uint32());
+          continue;
+        }
+        case 12: {
+          if (tag !== 98) {
+            break;
+          }
+
+          message.deleteSetting = DeleteSettingRequest.decode(reader, reader.uint32());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1859,6 +2284,15 @@ export const Request: MessageFns<Request> = {
       : undefined;
     message.popBackArray = (object.popBackArray !== undefined && object.popBackArray !== null)
       ? PopBackArrayRequest.fromPartial(object.popBackArray)
+      : undefined;
+    message.writeValueChunk = (object.writeValueChunk !== undefined && object.writeValueChunk !== null)
+      ? WriteValueChunkRequest.fromPartial(object.writeValueChunk)
+      : undefined;
+    message.createSetting = (object.createSetting !== undefined && object.createSetting !== null)
+      ? CreateSettingRequest.fromPartial(object.createSetting)
+      : undefined;
+    message.deleteSetting = (object.deleteSetting !== undefined && object.deleteSetting !== null)
+      ? DeleteSettingRequest.fromPartial(object.deleteSetting)
       : undefined;
     return message;
   },

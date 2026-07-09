@@ -31,12 +31,21 @@ enum SettingNotificationKind {
     SETTING_NOTIFICATION_KIND_RESET = 4;
 }
 
+// A ZMK behavior binding: the behavior's local ID (see
+// CONFIG_ZMK_BEHAVIOR_LOCAL_IDS) plus its two binding parameters.
+message SettingBehaviorValue {
+    uint32 behavior_id = 1;
+    uint32 param1 = 2;
+    uint32 param2 = 3;
+}
+
 message SettingScalarValue {
     oneof value_type {
         bytes bytes_value = 1;
         int32 int32_value = 2;
         bool bool_value = 3;
         string string_value = 4;
+        SettingBehaviorValue behavior_value = 5;
     }
 }
 
@@ -56,6 +65,7 @@ message SettingValue {
         bool bool_value = 3;
         string string_value = 4;
         SettingArrayValue array_value = 5;
+        SettingBehaviorValue behavior_value = 6;
     }
 }
 
@@ -158,13 +168,49 @@ message PopBackArrayRequest {
     SettingWriteMode mode = 2;
 }
 
+// Create one entry in an RPC-creatable keyspace (see
+// ZMK_CUSTOM_SETTING_KEYSPACE_DEFINE). setting.key must start with the
+// target keyspace's key_prefix and fit its max_key_len; setting.array_index
+// is unused. Fails with an ErrorResponse if the keyspace is full, the key is
+// already in use, or the key does not match any registered keyspace prefix.
+message CreateSettingRequest {
+    SettingRef setting = 1;
+    SettingValue value = 2;
+    SettingWriteMode mode = 3;
+}
+
+// Delete one entry previously created by CreateSettingRequest (or persisted
+// by one in an earlier session). Fails with an ErrorResponse if setting.key
+// has no live entry.
+message DeleteSettingRequest { SettingRef setting = 1; }
+
 message SaveSettingsRequest { SettingScope scope = 1; }
 
 message DiscardSettingsRequest { SettingScope scope = 1; }
 
 message ResetSettingsRequest { SettingScope scope = 1; }
 
+// Write one chunk of a bytes/string setting value. The first chunk (offset =
+// 0) opens a transfer session and declares total_size; subsequent chunks for
+// the same setting must arrive in order (offset must equal the number of
+// bytes received so far). Set commit = true on the final chunk to validate
+// and apply the assembled value; the write only takes effect on commit, so a
+// half-transferred value is never observable.
+message WriteValueChunkRequest {
+    SettingRef setting = 1;
+    uint32 total_size = 2;
+    uint32 offset = 3;
+    bytes data = 4;
+    bool commit = 5;
+    SettingWriteMode mode = 6;
+}
+
 message Request {
+    // GetSetting / ListSettings stream a value of any size directly (see
+    // SettingValue.bytes_value / string_value in the .options file), so there
+    // is no read-chunk request.
+    reserved 9;
+
     oneof request_type {
         ListSettingsRequest list_settings = 1;
         GetSettingRequest get_setting = 2;
@@ -174,6 +220,9 @@ message Request {
         ResetSettingsRequest reset_settings = 6;
         PushBackArrayRequest push_back_array = 7;
         PopBackArrayRequest pop_back_array = 8;
+        WriteValueChunkRequest write_value_chunk = 10;
+        CreateSettingRequest create_setting = 11;
+        DeleteSettingRequest delete_setting = 12;
     }
 }
 
@@ -187,6 +236,10 @@ message StatusResponse {
 message GetSettingResponse { Setting setting = 1; }
 
 message Response {
+    // WriteValueChunk's ack is a plain StatusResponse (see
+    // handle_private_write_value_chunk); there is no dedicated chunk response.
+    reserved 4;
+
     oneof response_type {
         ErrorResponse error = 1;
         StatusResponse status = 2;

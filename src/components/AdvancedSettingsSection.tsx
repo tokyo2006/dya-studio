@@ -18,12 +18,13 @@ import { useKeymap, type BehaviorDefinition } from "../hooks/useKeymap";
 import { useLanguage } from "../hooks/useLanguage";
 import {
   type Setting,
+  type SettingBehaviorValue,
   type SettingConstraint,
   type SettingScalarValue,
   type SettingValue,
 } from "../proto/cormoran/zmk/custom_settings/custom_settings";
 
-type ValueKind = "bytes" | "int32" | "bool" | "string" | "unknown";
+type ValueKind = "bytes" | "int32" | "bool" | "string" | "behavior" | "unknown";
 
 const MEMORY_WRITE_DEBOUNCE_MS = 500;
 
@@ -38,7 +39,19 @@ function valueKind(setting: Setting): ValueKind {
   if (scalar.int32Value !== undefined) return "int32";
   if (scalar.boolValue !== undefined) return "bool";
   if (scalar.stringValue !== undefined) return "string";
+  if (scalar.behaviorValue !== undefined) return "behavior";
   return "unknown";
+}
+
+function parseBehaviorValue(value: string): SettingBehaviorValue {
+  const [behaviorId = 0, param1 = 0, param2 = 0] = value
+    .split(",")
+    .map((token) => Number.parseInt(token.trim(), 10) || 0);
+  return { behaviorId, param1, param2 };
+}
+
+function formatBehaviorValue(value: SettingBehaviorValue): string {
+  return `${value.behaviorId},${value.param1},${value.param2}`;
 }
 
 function scalarToSettingValue(kind: ValueKind, value: unknown): SettingValue {
@@ -51,6 +64,9 @@ function scalarToSettingValue(kind: ValueKind, value: unknown): SettingValue {
   if (kind === "string") {
     return { stringValue: String(value) };
   }
+  if (kind === "behavior") {
+    return { behaviorValue: parseBehaviorValue(String(value)) };
+  }
   return { int32Value: Number(value) || 0 };
 }
 
@@ -62,6 +78,8 @@ function scalarToInputValue(setting: Setting): string {
   if (scalar.boolValue !== undefined)
     return scalar.boolValue ? "true" : "false";
   if (scalar.stringValue !== undefined) return scalar.stringValue;
+  if (scalar.behaviorValue !== undefined)
+    return formatBehaviorValue(scalar.behaviorValue);
   return "";
 }
 
@@ -121,6 +139,8 @@ function scalarOptionValue(value: SettingScalarValue): string {
   if (value.boolValue !== undefined) return value.boolValue ? "true" : "false";
   if (value.stringValue !== undefined) return value.stringValue;
   if (value.bytesValue !== undefined) return bytesToHex(value.bytesValue);
+  if (value.behaviorValue !== undefined)
+    return formatBehaviorValue(value.behaviorValue);
   return "";
 }
 
@@ -130,6 +150,8 @@ function scalarOptionToSettingValue(value: SettingScalarValue): SettingValue {
   if (value.stringValue !== undefined)
     return { stringValue: value.stringValue };
   if (value.bytesValue !== undefined) return { bytesValue: value.bytesValue };
+  if (value.behaviorValue !== undefined)
+    return { behaviorValue: value.behaviorValue };
   return {};
 }
 
@@ -469,6 +491,70 @@ function SettingEditor({
           )
         }
       />
+    );
+  }
+
+  if (kind === "behavior") {
+    // This is the SettingValue.behavior_value VALUE type (behaviorId +
+    // param1 + param2), distinct from SettingConstraintBehaviorId above
+    // (an INT32-typed value constrained to a behavior selector).
+    const behaviorValue = scalarValue(setting)?.behaviorValue ?? {
+      behaviorId: 0,
+      param1: 0,
+      param2: 0,
+    };
+    const behaviorList = Array.from(behaviors.values()).sort((a, b) =>
+      a.displayName.localeCompare(b.displayName),
+    );
+    const emitBehaviorValue = (next: Partial<SettingBehaviorValue>) =>
+      onChange({ behaviorValue: { ...behaviorValue, ...next } });
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          className="input-field max-w-[10rem] text-sm"
+          value={behaviorValue.behaviorId}
+          onChange={(event) =>
+            emitBehaviorValue({
+              behaviorId: Number.parseInt(event.target.value, 10),
+            })
+          }
+        >
+          {behaviorList.map((behavior) => (
+            <option key={behavior.id} value={behavior.id}>
+              {behavior.displayName} ({behavior.id})
+            </option>
+          ))}
+          {behaviorList.length === 0 && (
+            <option value={behaviorValue.behaviorId}>
+              {behaviorValue.behaviorId}
+            </option>
+          )}
+        </select>
+        <input
+          className="input-field w-20 text-sm"
+          type="number"
+          title={t("Param 1")}
+          placeholder={t("Param 1")}
+          value={behaviorValue.param1}
+          onChange={(event) =>
+            emitBehaviorValue({
+              param1: Number.parseInt(event.target.value, 10) || 0,
+            })
+          }
+        />
+        <input
+          className="input-field w-20 text-sm"
+          type="number"
+          title={t("Param 2")}
+          placeholder={t("Param 2")}
+          value={behaviorValue.param2}
+          onChange={(event) =>
+            emitBehaviorValue({
+              param2: Number.parseInt(event.target.value, 10) || 0,
+            })
+          }
+        />
+      </div>
     );
   }
 

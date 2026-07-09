@@ -56,7 +56,7 @@ interface KeycodeSelectorProps {
   layers: Array<{ id: number; name: string }>;
   keyboardLayout?: KeyboardLayoutType;
   behaviorQuickSelects?: string[]; // Optional list of behavior displayNameVariants for quick select
-  runtimeMacros?: Array<{ index: number; name?: string }>;
+  runtimeMacros?: Array<{ slot: number; name?: string }>;
 }
 
 // =============================================================================
@@ -146,7 +146,7 @@ function formatParamValue(
   paramNumber: 1 | 2,
   layers: Array<{ id: number; name: string }>,
   keyboardLayout?: KeyboardLayoutType,
-  runtimeMacros?: Array<{ index: number; name?: string }>,
+  runtimeMacros?: Array<{ slot: number; name?: string }>,
 ): string {
   const behavior = behaviorInfo.behavior;
   // From DYA Studio override metadata
@@ -480,8 +480,8 @@ export function KeycodeSelector({
             return runtimeMacros.length > 0 ? (
               <ButtonListSelector
                 options={runtimeMacros.map((macro) => ({
-                  value: macro.index,
-                  label: macro.name || `Macro ${macro.index}`,
+                  value: macro.slot,
+                  label: macro.name || `Macro ${macro.slot}`,
                 }))}
                 value={value}
                 onChange={onChange}

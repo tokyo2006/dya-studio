@@ -1,30 +1,43 @@
 /**
  * Demo Runtime Macro Custom Subsystem Handler
  *
- * Provides mock runtime macro slots for demo mode.
+ * Provides mock runtime macros for demo mode. Macros are modeled as a
+ * variable list of named entries (not fixed slots): creation/deletion/rename
+ * of the macro identity is driven by the "macro/" keyspace in
+ * demo-custom-settings.ts (mirroring firmware, where raw create/delete/
+ * rename go through the generic custom-settings CreateSetting/DeleteSetting
+ * RPC). This handler owns the actual step data and global settings, and
+ * assigns/reclaims slots as keyspace entries come and go.
  */
 
 import {
+  type MacroDetail,
   type MacroGlobalSettings,
-  type MacroSlot,
   type MacroStep,
   type MacroSummary,
   type Request,
   type Response,
 } from "../../proto/cormoran/runtime_macro/runtime_macro";
 import { getRuntimeMacroEncodedSize } from "../runtimeMacroCodec";
+import {
+  CustomSettingsHandler,
+  MACRO_KEYSPACE_PREFIX,
+} from "./demo-custom-settings";
 
 export const RUNTIME_MACRO_IDENTIFIER = "cormoran__runtime_macro";
 
 const BEHAVIOR_KEY_PRESS = 10;
-const MAX_MACRO = 8;
+const MAX_ENTRIES = 8;
 const MAX_MACRO_BYTES = 64;
 const MAX_NAME_LENGTH = 64;
+const POOL_BYTES_TOTAL = 1024;
 
 const MOCK_GLOBAL_SETTINGS: MacroGlobalSettings = {
   tapMs: 30,
-  maxMacro: MAX_MACRO,
+  maxEntries: MAX_ENTRIES,
   keyPressBehaviorId: BEHAVIOR_KEY_PRESS,
+  poolBytesTotal: POOL_BYTES_TOTAL,
+  poolBytesUsed: 0,
 };
 
 function createTapStep(param1: number): MacroStep {
@@ -55,53 +68,77 @@ function cloneStep(step: MacroStep): MacroStep {
   return { tap: { ...(step.tap ?? { behaviorId: 0, param1: 0, param2: 0 }) } };
 }
 
-function cloneMacro(macro: MacroSlot): MacroSlot {
+function cloneMacro(macro: MacroDetail): MacroDetail {
   return {
     ...macro,
     steps: macro.steps.map(cloneStep),
   };
 }
 
-function createMacro(index: number, name = "", steps: MacroStep[] = []) {
+function createMacro(
+  slot: number,
+  name = "",
+  steps: MacroStep[] = [],
+): MacroDetail {
   return {
-    index,
+    slot,
     name,
     steps,
     encodedSize: steps.length === 0 ? 0 : getRuntimeMacroEncodedSize(steps),
   };
 }
 
-function macroSummary(macro: MacroSlot): MacroSummary {
+function macroSummary(macro: MacroDetail): MacroSummary {
   return {
-    index: macro.index,
+    slot: macro.slot,
     name: macro.name,
     encodedSize: macro.encodedSize,
   };
 }
 
-const MOCK_MACROS: MacroSlot[] = Array.from({ length: MAX_MACRO }, (_, index) =>
-  createMacro(index),
-);
-MOCK_MACROS[0] = createMacro(0, "Hello", [
-  createTapStep(0x0b),
-  createTapStep(0x08),
-  createTapStep(0x0f),
-  createTapStep(0x0f),
-  createTapStep(0x12),
-]);
-MOCK_MACROS[1] = createMacro(1, "Wait Enter", [
-  createDelayStep(100),
-  createTapStep(0x28),
-]);
+const SEED_MACROS: MacroDetail[] = [
+  createMacro(0, "Hello", [
+    createTapStep(0x0b),
+    createTapStep(0x08),
+    createTapStep(0x0f),
+    createTapStep(0x0f),
+    createTapStep(0x12),
+  ]),
+  createMacro(1, "Wait Enter", [createDelayStep(100), createTapStep(0x28)]),
+];
 
 export class RuntimeMacroHandler {
-  private persistentMacros: MacroSlot[] = MOCK_MACROS.map(cloneMacro);
-  private macros: MacroSlot[] = MOCK_MACROS.map(cloneMacro);
+  private readonly customSettings: CustomSettingsHandler;
+  private persistentMacros: MacroDetail[];
+  private macros: MacroDetail[];
   private persistentGlobalSettings: MacroGlobalSettings = {
     ...MOCK_GLOBAL_SETTINGS,
   };
   private globalSettings: MacroGlobalSettings = { ...MOCK_GLOBAL_SETTINGS };
   private pendingChanges = false;
+  private nextSlot = SEED_MACROS.length;
+
+  constructor(customSettings?: CustomSettingsHandler) {
+    // Fall back to an owned instance so this handler stays constructible on
+    // its own (e.g. in unit tests), while demo.ts wires the app's shared
+    // CustomSettingsHandler through for real coordination.
+    this.customSettings = customSettings ?? new CustomSettingsHandler(0);
+    this.macros = SEED_MACROS.map(cloneMacro);
+    this.persistentMacros = SEED_MACROS.map(cloneMacro);
+    this.refreshPoolUsage();
+
+    // Seed the custom-settings "macro/" keyspace with entries for the mock
+    // macros so create/delete/rename (routed through CreateSetting/
+    // DeleteSetting) can find them by name from the start.
+    for (const macro of this.macros) {
+      this.customSettings.seedKeyspaceEntry(
+        MACRO_KEYSPACE_PREFIX + macro.name,
+        { bytesValue: Uint8Array.from([1]) },
+      );
+    }
+
+    this.customSettings.onKeyspaceChange(() => this.syncFromKeyspace());
+  }
 
   process(request: Request): Response {
     if (request.listMacros !== undefined) {
@@ -115,10 +152,12 @@ export class RuntimeMacroHandler {
     }
 
     if (request.getMacro !== undefined) {
-      const macro = this.macros[request.getMacro.index];
+      const macro = this.macros.find(
+        (candidate) => candidate.slot === request.getMacro?.slot,
+      );
       if (!macro) {
         return {
-          error: { message: `Macro not found: ${request.getMacro.index}` },
+          error: { message: `Macro not found: ${request.getMacro.slot}` },
         };
       }
       return { getMacro: { macro: cloneMacro(macro) } };
@@ -142,23 +181,11 @@ export class RuntimeMacroHandler {
       return { status: { affectedCount: 1, message: "Tap time updated" } };
     }
 
-    if (request.setMacroName !== undefined) {
-      const { index, name, persist } = request.setMacroName;
-      const macro = this.macros[index];
-      if (!macro) {
-        return { error: { message: `Macro not found: ${index}` } };
-      }
-      macro.name = name.slice(0, MAX_NAME_LENGTH);
-      this.refreshEncodedSize(macro);
-      this.markChanged(persist);
-      return { status: { affectedCount: 1, message: "Macro name updated" } };
-    }
-
     if (request.setMacroStepCount !== undefined) {
-      const { index, stepCount, persist } = request.setMacroStepCount;
-      const macro = this.macros[index];
+      const { slot, stepCount, persist } = request.setMacroStepCount;
+      const macro = this.macros.find((candidate) => candidate.slot === slot);
       if (!macro) {
-        return { error: { message: `Macro not found: ${index}` } };
+        return { error: { message: `Macro not found: ${slot}` } };
       }
       if (stepCount > 32) {
         return { error: { message: "Too many macro steps" } };
@@ -174,10 +201,10 @@ export class RuntimeMacroHandler {
     }
 
     if (request.setMacroStep !== undefined) {
-      const { index, stepIndex, step, persist } = request.setMacroStep;
-      const macro = this.macros[index];
+      const { slot, stepIndex, step, persist } = request.setMacroStep;
+      const macro = this.macros.find((candidate) => candidate.slot === slot);
       if (!macro) {
-        return { error: { message: `Macro not found: ${index}` } };
+        return { error: { message: `Macro not found: ${slot}` } };
       }
       if (!step || stepIndex >= macro.steps.length) {
         return { error: { message: "Invalid macro step" } };
@@ -189,17 +216,20 @@ export class RuntimeMacroHandler {
       return { status: { affectedCount: 1, message: "Macro step updated" } };
     }
 
-    if (request.deleteMacro !== undefined) {
-      const { index, persist } = request.deleteMacro;
-      const macro = this.macros[index];
+    if (request.appendMacroStep !== undefined) {
+      const { slot, step, persist } = request.appendMacroStep;
+      const macro = this.macros.find((candidate) => candidate.slot === slot);
       if (!macro) {
-        return { error: { message: `Macro not found: ${index}` } };
+        return { error: { message: `Macro not found: ${slot}` } };
       }
-      macro.name = "";
-      macro.steps = [];
-      macro.encodedSize = 0;
+      if (!step) {
+        return { error: { message: "Invalid macro step" } };
+      }
+      macro.steps.push(cloneStep(step));
+      const error = this.refreshEncodedSize(macro);
+      if (error) return error;
       this.markChanged(persist);
-      return { status: { affectedCount: 1, message: "Macro deleted" } };
+      return { status: { affectedCount: 1, message: "Macro step appended" } };
     }
 
     if (request.saveMacros !== undefined) {
@@ -220,6 +250,7 @@ export class RuntimeMacroHandler {
       this.macros = this.persistentMacros.map(cloneMacro);
       this.globalSettings = { ...this.persistentGlobalSettings };
       this.pendingChanges = false;
+      this.refreshPoolUsage();
       return {
         status: {
           affectedCount,
@@ -231,6 +262,32 @@ export class RuntimeMacroHandler {
     return { error: { message: "Not implemented" } };
   }
 
+  // Reconciles this handler's macro list with the custom-settings "macro/"
+  // keyspace after a CreateSetting/DeleteSetting call: new keys become new
+  // (empty) macro slots, and keys that disappeared remove their macro.
+  private syncFromKeyspace() {
+    const entries = this.customSettings.keyspaceEntries(MACRO_KEYSPACE_PREFIX);
+    const namesInKeyspace = new Set(
+      entries.map((entry) => entry.key.slice(MACRO_KEYSPACE_PREFIX.length)),
+    );
+
+    // Remove macros whose keyspace entry is gone (deleted).
+    this.macros = this.macros.filter((macro) =>
+      namesInKeyspace.has(macro.name),
+    );
+
+    // Add a new (empty) macro for any keyspace entry with no matching macro
+    // yet (created).
+    for (const name of namesInKeyspace) {
+      if (!this.macros.some((macro) => macro.name === name)) {
+        this.macros.push(createMacro(this.nextSlot++, name));
+      }
+    }
+
+    this.pendingChanges = true;
+    this.refreshPoolUsage();
+  }
+
   private markChanged(persist: boolean) {
     if (persist) {
       this.persistentMacros = this.macros.map(cloneMacro);
@@ -239,9 +296,10 @@ export class RuntimeMacroHandler {
     } else {
       this.pendingChanges = true;
     }
+    this.refreshPoolUsage();
   }
 
-  private refreshEncodedSize(macro: MacroSlot): Response | null {
+  private refreshEncodedSize(macro: MacroDetail): Response | null {
     const encodedSize =
       macro.steps.length === 0 ? 0 : getRuntimeMacroEncodedSize(macro.steps);
     if (encodedSize > MAX_MACRO_BYTES) {
@@ -249,5 +307,16 @@ export class RuntimeMacroHandler {
     }
     macro.encodedSize = encodedSize;
     return null;
+  }
+
+  private refreshPoolUsage() {
+    const used = this.macros.reduce(
+      (total, macro) => total + macro.encodedSize + macro.name.length,
+      0,
+    );
+    this.globalSettings.poolBytesUsed = Math.min(
+      used,
+      this.globalSettings.poolBytesTotal,
+    );
   }
 }

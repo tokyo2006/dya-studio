@@ -13,9 +13,16 @@ import {
   type GlobalSettings,
   type BehaviorBinding,
   type StatusResponse,
+  type SlowReleaseOverride,
 } from "../proto/cormoran/runtime_combo/runtime_combo";
 
-export type { Combo, GlobalSettings, BehaviorBinding, StatusResponse };
+export type {
+  Combo,
+  GlobalSettings,
+  BehaviorBinding,
+  StatusResponse,
+  SlowReleaseOverride,
+};
 
 export const RUNTIME_COMBO_IDENTIFIER = "cormoran__runtime_combo";
 
@@ -30,6 +37,9 @@ export interface ComboInput {
   behavior: BehaviorBinding;
   layerMask: number;
   enabled: boolean;
+  timeoutMs: number;
+  requirePriorIdleMs: number;
+  slowReleaseOverride: SlowReleaseOverride;
 }
 
 export interface UseRuntimeComboReturn {
@@ -49,8 +59,13 @@ export interface UseRuntimeComboReturn {
     persist?: boolean,
   ) => Promise<boolean>;
   deleteCombo: (index: number, persist?: boolean) => Promise<boolean>;
+  resetCombo: (index: number) => Promise<boolean>;
   setTimeoutMs: (timeoutMs: number, persist?: boolean) => Promise<boolean>;
   setSlowRelease: (slowRelease: boolean, persist?: boolean) => Promise<boolean>;
+  setRequirePriorIdleMs: (
+    requirePriorIdleMs: number,
+    persist?: boolean,
+  ) => Promise<boolean>;
   saveChanges: () => Promise<StatusResponse | null>;
   discardChanges: () => Promise<StatusResponse | null>;
   clearError: () => void;
@@ -169,21 +184,9 @@ export function useRuntimeCombo(): UseRuntimeComboReturn {
           return false;
         }
         if (response?.status) {
-          setCombos((prev) => {
-            const existing = prev.find((item) => item.index === combo.index);
-            const nextCombo: Combo = {
-              index: combo.index,
-              name: existing?.name ?? "",
-              keyPositions: [...combo.keyPositions],
-              behavior: { ...combo.behavior },
-              layerMask: combo.layerMask,
-              enabled: combo.enabled,
-            };
-            return [
-              ...prev.filter((item) => item.index !== combo.index),
-              nextCombo,
-            ].sort((a, b) => a.index - b.index);
-          });
+          // The device derives `source` server-side, so refresh from the
+          // device instead of guessing the resulting Combo locally.
+          await loadCombos();
           if (!persist) {
             setHasPendingChanges(true);
           }
@@ -201,7 +204,7 @@ export function useRuntimeCombo(): UseRuntimeComboReturn {
       }
       return false;
     },
-    [callRuntimeComboRPC],
+    [callRuntimeComboRPC, loadCombos],
   );
 
   const setComboName = useCallback(
@@ -280,6 +283,39 @@ export function useRuntimeCombo(): UseRuntimeComboReturn {
     [callRuntimeComboRPC],
   );
 
+  const resetCombo = useCallback(
+    async (index: number): Promise<boolean> => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await callRuntimeComboRPC(
+          Request.create({ resetCombo: { index } }),
+        );
+        if (response?.error) {
+          return false;
+        }
+        if (response?.status) {
+          // `source` is derived server-side, so refresh from the device
+          // rather than guessing the reset combo's fields locally.
+          await loadCombos();
+          setHasPendingChanges(true);
+          return true;
+        }
+      } catch (err) {
+        console.error("Failed to reset runtime combo:", err);
+        setError(
+          `Failed to reset runtime combo: ${
+            err instanceof Error ? err.message : "Unknown error"
+          }`,
+        );
+      } finally {
+        setIsLoading(false);
+      }
+      return false;
+    },
+    [callRuntimeComboRPC, loadCombos],
+  );
+
   const setTimeoutMs = useCallback(
     async (timeoutMs: number, persist = false): Promise<boolean> => {
       setIsLoading(true);
@@ -295,7 +331,12 @@ export function useRuntimeCombo(): UseRuntimeComboReturn {
           setGlobalSettings((prev) =>
             prev
               ? { ...prev, timeoutMs }
-              : { timeoutMs, slowRelease: false, maxCombo: 0 },
+              : {
+                  timeoutMs,
+                  slowRelease: false,
+                  maxCombo: 0,
+                  requirePriorIdleMs: 0,
+                },
           );
           if (!persist) {
             setHasPendingChanges(true);
@@ -332,7 +373,12 @@ export function useRuntimeCombo(): UseRuntimeComboReturn {
           setGlobalSettings((prev) =>
             prev
               ? { ...prev, slowRelease }
-              : { timeoutMs: 50, slowRelease, maxCombo: 0 },
+              : {
+                  timeoutMs: 50,
+                  slowRelease,
+                  maxCombo: 0,
+                  requirePriorIdleMs: 0,
+                },
           );
           if (!persist) {
             setHasPendingChanges(true);
@@ -343,6 +389,50 @@ export function useRuntimeCombo(): UseRuntimeComboReturn {
         console.error("Failed to set runtime combo slow release:", err);
         setError(
           `Failed to set runtime combo slow release: ${
+            err instanceof Error ? err.message : "Unknown error"
+          }`,
+        );
+      } finally {
+        setIsLoading(false);
+      }
+      return false;
+    },
+    [callRuntimeComboRPC],
+  );
+
+  const setRequirePriorIdleMs = useCallback(
+    async (requirePriorIdleMs: number, persist = false): Promise<boolean> => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await callRuntimeComboRPC(
+          Request.create({
+            setRequirePriorIdleMs: { requirePriorIdleMs, persist },
+          }),
+        );
+        if (response?.error) {
+          return false;
+        }
+        if (response?.status) {
+          setGlobalSettings((prev) =>
+            prev
+              ? { ...prev, requirePriorIdleMs }
+              : {
+                  timeoutMs: 50,
+                  slowRelease: false,
+                  maxCombo: 0,
+                  requirePriorIdleMs,
+                },
+          );
+          if (!persist) {
+            setHasPendingChanges(true);
+          }
+          return true;
+        }
+      } catch (err) {
+        console.error("Failed to set runtime combo require-prior-idle:", err);
+        setError(
+          `Failed to set runtime combo require-prior-idle: ${
             err instanceof Error ? err.message : "Unknown error"
           }`,
         );
@@ -429,8 +519,10 @@ export function useRuntimeCombo(): UseRuntimeComboReturn {
     setCombo,
     setComboName,
     deleteCombo,
+    resetCombo,
     setTimeoutMs,
     setSlowRelease,
+    setRequirePriorIdleMs,
     saveChanges,
     discardChanges,
     clearError: () => setError(null),

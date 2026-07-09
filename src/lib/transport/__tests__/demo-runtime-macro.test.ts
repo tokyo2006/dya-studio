@@ -1,14 +1,24 @@
 import { RuntimeMacroHandler } from "../demo-runtime-macro";
+import {
+  CustomSettingsHandler,
+  MACRO_KEYSPACE_PREFIX,
+} from "../demo-custom-settings";
 import { Request } from "../../../proto/cormoran/runtime_macro/runtime_macro";
+import {
+  Request as CustomSettingsRequest,
+  SettingWriteMode,
+} from "../../../proto/cormoran/zmk/custom_settings/custom_settings";
 
 describe("RuntimeMacroHandler", () => {
+  let customSettings: CustomSettingsHandler;
   let handler: RuntimeMacroHandler;
 
   beforeEach(() => {
-    handler = new RuntimeMacroHandler();
+    customSettings = new CustomSettingsHandler(9);
+    handler = new RuntimeMacroHandler(customSettings);
   });
 
-  it("lists macro slots and global limits", () => {
+  it("lists macros and global limits", () => {
     const response = handler.process(Request.create({ listMacros: {} }));
 
     expect(response.listMacros?.macros.length).toBeGreaterThan(0);
@@ -16,30 +26,33 @@ describe("RuntimeMacroHandler", () => {
     expect(response.listMacros?.maxNameLength).toBe(64);
   });
 
-  it("gets an existing macro slot", () => {
-    const response = handler.process(
-      Request.create({ getMacro: { index: 0 } }),
-    );
+  it("gets an existing macro by slot", () => {
+    const response = handler.process(Request.create({ getMacro: { slot: 0 } }));
 
-    expect(response.getMacro?.macro?.index).toBe(0);
+    expect(response.getMacro?.macro?.slot).toBe(0);
     expect(response.getMacro?.macro?.name).toBe("Hello");
     expect(response.getMacro?.macro?.steps.length).toBeGreaterThan(0);
   });
 
-  it("updates macro name and steps in memory", () => {
-    const nameResponse = handler.process(
-      Request.create({
-        setMacroName: {
-          index: 2,
-          name: "Layer macro",
-          persist: false,
-        },
-      }),
+  it("reports pool usage in global settings", () => {
+    const response = handler.process(
+      Request.create({ getMacroGlobalSettings: {} }),
     );
+
+    expect(response.getMacroGlobalSettings?.settings?.poolBytesTotal).toBe(
+      1024,
+    );
+    expect(
+      response.getMacroGlobalSettings?.settings?.poolBytesUsed,
+    ).toBeGreaterThan(0);
+    expect(response.getMacroGlobalSettings?.settings?.maxEntries).toBe(8);
+  });
+
+  it("updates macro steps in memory", () => {
     const countResponse = handler.process(
       Request.create({
         setMacroStepCount: {
-          index: 2,
+          slot: 0,
           stepCount: 1,
           persist: false,
         },
@@ -48,7 +61,7 @@ describe("RuntimeMacroHandler", () => {
     const stepResponse = handler.process(
       Request.create({
         setMacroStep: {
-          index: 2,
+          slot: 0,
           stepIndex: 0,
           persist: false,
           step: {
@@ -62,24 +75,18 @@ describe("RuntimeMacroHandler", () => {
       }),
     );
     const getResponse = handler.process(
-      Request.create({ getMacro: { index: 2 } }),
+      Request.create({ getMacro: { slot: 0 } }),
     );
 
-    expect(nameResponse.status?.affectedCount).toBe(1);
     expect(countResponse.status?.affectedCount).toBe(1);
     expect(stepResponse.status?.affectedCount).toBe(1);
-    expect(getResponse.getMacro?.macro?.name).toBe("Layer macro");
     expect(getResponse.getMacro?.macro?.steps[0].tap?.param1).toBe(0x29);
   });
 
   it("discards memory-only changes", () => {
     handler.process(
       Request.create({
-        setMacroName: {
-          index: 0,
-          name: "Unsaved",
-          persist: false,
-        },
+        setMacroStepCount: { slot: 0, stepCount: 0, persist: false },
       }),
     );
 
@@ -87,31 +94,68 @@ describe("RuntimeMacroHandler", () => {
       Request.create({ discardMacros: {} }),
     );
     const getResponse = handler.process(
-      Request.create({ getMacro: { index: 0 } }),
+      Request.create({ getMacro: { slot: 0 } }),
     );
 
     expect(discardResponse.status?.affectedCount).toBe(1);
-    expect(getResponse.getMacro?.macro?.name).toBe("Hello");
+    expect(getResponse.getMacro?.macro?.steps.length).toBeGreaterThan(0);
   });
 
   it("persists saved changes", () => {
     handler.process(
       Request.create({
-        setMacroName: {
-          index: 0,
-          name: "Saved",
-          persist: false,
-        },
+        setMacroStepCount: { slot: 0, stepCount: 0, persist: false },
       }),
     );
 
     const saveResponse = handler.process(Request.create({ saveMacros: {} }));
     handler.process(Request.create({ discardMacros: {} }));
     const getResponse = handler.process(
-      Request.create({ getMacro: { index: 0 } }),
+      Request.create({ getMacro: { slot: 0 } }),
     );
 
     expect(saveResponse.status?.affectedCount).toBe(1);
-    expect(getResponse.getMacro?.macro?.name).toBe("Saved");
+    expect(getResponse.getMacro?.macro?.steps.length).toBe(0);
+  });
+
+  it("creates a new macro when the custom-settings keyspace gains a matching entry", () => {
+    const createResponse = customSettings.process(
+      CustomSettingsRequest.create({
+        createSetting: {
+          setting: { key: `${MACRO_KEYSPACE_PREFIX}new-macro` },
+          value: { bytesValue: Uint8Array.from([1]) },
+          mode: SettingWriteMode.SETTING_WRITE_MODE_MEMORY,
+        },
+      }),
+    );
+    expect(createResponse.error).toBeUndefined();
+
+    const listResponse = handler.process(Request.create({ listMacros: {} }));
+    const created = listResponse.listMacros?.macros.find(
+      (macro) => macro.name === "new-macro",
+    );
+    expect(created).toBeDefined();
+    expect(created?.encodedSize).toBe(0);
+  });
+
+  it("removes a macro when its custom-settings keyspace entry is deleted", () => {
+    const before = handler.process(Request.create({ listMacros: {} }));
+    expect(
+      before.listMacros?.macros.some((macro) => macro.name === "Hello"),
+    ).toBe(true);
+
+    const deleteResponse = customSettings.process(
+      CustomSettingsRequest.create({
+        deleteSetting: {
+          setting: { key: `${MACRO_KEYSPACE_PREFIX}Hello` },
+        },
+      }),
+    );
+    expect(deleteResponse.error).toBeUndefined();
+
+    const after = handler.process(Request.create({ listMacros: {} }));
+    expect(
+      after.listMacros?.macros.some((macro) => macro.name === "Hello"),
+    ).toBe(false);
   });
 });
