@@ -9,6 +9,7 @@
     --color-electric: #00d4ff;
     --color-neon: #00ffcc;
     --color-cyber: #8b5cf6;
+    --color-warning: #f59e0b;
 
     /* Dark theme colors (default) */
     --color-bg: #0a0a0a;
@@ -53,6 +54,7 @@
     /* Adjusted accent colors for better contrast on light */
     --color-electric: #0099cc;
     --color-neon: #00b894;
+    --color-warning: #d97706;
   }
 
   * {
@@ -481,6 +483,19 @@
 .language-toggle span {
   display: block;
   line-height: 1;
+}
+
+/* Warning banner — readable in both dark and light themes */
+.warning-banner {
+  border-color: rgba(245, 158, 11, 0.4);
+  background-color: rgba(245, 158, 11, 0.12);
+  color: #fde68a; /* amber-200 */
+}
+
+:root.light .warning-banner {
+  border-color: rgba(180, 120, 10, 0.5);
+  background-color: rgba(245, 158, 11, 0.08);
+  color: #78350f; /* amber-900 */
 }
 
 /* Reduced motion */
