@@ -1,6 +1,7 @@
 import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import {
   IconAlertCircle,
+  IconChevronDown,
   IconDeviceFloppy,
   IconLoader2,
   IconPlus,
@@ -348,6 +349,12 @@ function buildMacroStepRows(
   return rows;
 }
 
+function UnsavedDot() {
+  return (
+    <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-neon)] flex-shrink-0 inline-block" />
+  );
+}
+
 export function MacroPage() {
   const { t } = useLanguage();
   const runtimeMacro = useRuntimeMacro();
@@ -360,12 +367,15 @@ export function MacroPage() {
   const [isDiscarding, setIsDiscarding] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [newMacroName, setNewMacroName] = useState("");
   const [renameDraft, setRenameDraft] = useState("");
   const [stringConversionError, setStringConversionError] = useState<
     string | null
   >(null);
   const [stringDraft, setStringDraft] = useState<StringDraftRow | null>(null);
+  const [isGlobalSettingsExpanded, setIsGlobalSettingsExpanded] =
+    useState(false);
+  const [modifiedSlots, setModifiedSlots] = useState<Set<number>>(new Set());
+  const [globalSettingsModified, setGlobalSettingsModified] = useState(false);
 
   const layersForSelector = useMemo(() => {
     if (!keymap.keymap?.layers) return [];
@@ -508,6 +518,7 @@ export function MacroPage() {
         if (!stepUpdated) return false;
       }
 
+      setModifiedSlots((prev) => new Set([...prev, loadedMacro.slot]));
       setLoadedMacro({ ...loadedMacro, steps });
       await runtimeMacro.loadMacros();
       return true;
@@ -665,31 +676,43 @@ export function MacroPage() {
       if (ok) {
         setSelectedName(null);
         setLoadedMacro(null);
+        setModifiedSlots((prev) => {
+          const next = new Set(prev);
+          next.delete(loadedMacro.slot);
+          return next;
+        });
       }
     } finally {
       setIsDeleting(false);
     }
   }, [loadedMacro, runtimeMacro]);
 
+  const generateMacroName = useCallback((): string => {
+    const existingNames = new Set(runtimeMacro.macros.map((m) => m.name));
+    let n = runtimeMacro.macros.length + 1;
+    while (existingNames.has(`Macro ${n}`)) n++;
+    return `Macro ${n}`;
+  }, [runtimeMacro.macros]);
+
   const handleCreateMacro = useCallback(async () => {
-    const name = newMacroName.trim();
-    if (!name) return;
+    const name = generateMacroName();
     setIsCreating(true);
     try {
       const ok = await runtimeMacro.createMacro(name);
       if (ok) {
-        setNewMacroName("");
         setSelectedName(name);
       }
     } finally {
       setIsCreating(false);
     }
-  }, [newMacroName, runtimeMacro]);
+  }, [generateMacroName, runtimeMacro]);
 
   const handleSave = useCallback(async () => {
     setIsSaving(true);
     try {
       await runtimeMacro.saveMacros();
+      setModifiedSlots(new Set());
+      setGlobalSettingsModified(false);
     } finally {
       setIsSaving(false);
     }
@@ -699,6 +722,8 @@ export function MacroPage() {
     setIsDiscarding(true);
     try {
       await runtimeMacro.discardMacros();
+      setModifiedSlots(new Set());
+      setGlobalSettingsModified(false);
       if (loadedMacro) {
         await loadMacro(loadedMacro.slot);
       }
@@ -709,7 +734,8 @@ export function MacroPage() {
 
   const handleTapMsChange = useCallback(
     async (tapMs: number) => {
-      await runtimeMacro.setTapMs(clampUInt32(tapMs));
+      const ok = await runtimeMacro.setTapMs(clampUInt32(tapMs));
+      if (ok) setGlobalSettingsModified(true);
     },
     [runtimeMacro],
   );
@@ -735,6 +761,9 @@ export function MacroPage() {
     ],
   );
 
+  const loadedMacroHasUnsavedChanges =
+    loadedMacro !== null && modifiedSlots.has(loadedMacro.slot);
+
   return (
     <div className="p-6 h-full overflow-auto">
       <div className="max-w-6xl mx-auto">
@@ -756,8 +785,9 @@ export function MacroPage() {
           {runtimeMacro.isAvailable && (
             <div className="flex items-center gap-2 ml-auto">
               {runtimeMacro.hasUnsavedChanges && (
-                <span className="text-xs text-[var(--color-neon)] mr-2">
-                  {t("● Unsaved changes")}
+                <span className="flex items-center gap-1 text-xs text-[var(--color-neon)] mr-2">
+                  <UnsavedDot />
+                  {t("Unsaved changes")}
                 </span>
               )}
               <button
@@ -840,22 +870,99 @@ export function MacroPage() {
         {runtimeMacro.isAvailable && (
           <div className="grid grid-cols-1 tablet:grid-cols-[240px_1fr] gap-4">
             <div className="space-y-4">
+              {/* Global Settings - collapsible, above Macros */}
+              <div className="glass-card overflow-hidden">
+                <button
+                  className="flex items-center gap-2 w-full p-3 text-left"
+                  onClick={() =>
+                    setIsGlobalSettingsExpanded(!isGlobalSettingsExpanded)
+                  }
+                >
+                  <IconSettings
+                    size={16}
+                    className="text-[var(--color-electric)] flex-shrink-0"
+                  />
+                  <h2 className="text-sm font-medium text-[var(--color-text)] flex-1">
+                    {t("Global Settings")}
+                  </h2>
+                  {globalSettingsModified && <UnsavedDot />}
+                  <IconChevronDown
+                    size={14}
+                    className={`text-[var(--color-text-muted)] flex-shrink-0 transition-transform ${
+                      isGlobalSettingsExpanded ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+                {isGlobalSettingsExpanded && (
+                  <div className="px-3 pb-3 border-t border-[var(--color-border)]">
+                    <div className="mt-3">
+                      <label className="block">
+                        <span className="text-xs text-[var(--color-text-muted)]">
+                          {t("Tap ms")}
+                        </span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={10000}
+                          className="mt-1 w-full px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text)] focus:outline-none focus:border-[var(--color-electric)]/50"
+                          value={runtimeMacro.globalSettings?.tapMs ?? 0}
+                          onChange={(event) =>
+                            void handleTapMsChange(Number(event.target.value))
+                          }
+                        />
+                      </label>
+                      {runtimeMacro.globalSettings &&
+                        runtimeMacro.globalSettings.poolBytesTotal > 0 && (
+                          <p
+                            className={`mt-3 text-xs ${
+                              runtimeMacro.globalSettings.poolBytesUsed >=
+                              runtimeMacro.globalSettings.poolBytesTotal
+                                ? "text-amber-400"
+                                : "text-[var(--color-text-muted)]"
+                            }`}
+                          >
+                            {t("Shared macro pool: {{used}}/{{total}} B", {
+                              used: runtimeMacro.globalSettings.poolBytesUsed,
+                              total: runtimeMacro.globalSettings.poolBytesTotal,
+                            })}
+                          </p>
+                        )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Macros list */}
               <div className="glass-card p-3">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-sm font-medium text-[var(--color-text)]">
                     {t("Macros")}
                   </h2>
-                  {runtimeMacro.isLoading && (
-                    <IconLoader2
-                      size={16}
-                      className="animate-spin text-[var(--color-electric)]"
-                    />
-                  )}
+                  <div className="flex items-center gap-1">
+                    {runtimeMacro.isLoading && (
+                      <IconLoader2
+                        size={14}
+                        className="animate-spin text-[var(--color-electric)]"
+                      />
+                    )}
+                    <button
+                      className="p-1 rounded hover:bg-[var(--color-border)] text-[var(--color-electric)] disabled:opacity-40 transition-colors"
+                      onClick={() => void handleCreateMacro()}
+                      disabled={isCreating || runtimeMacro.isLoading}
+                      title={t("Create macro")}
+                    >
+                      {isCreating ? (
+                        <IconLoader2 size={15} className="animate-spin" />
+                      ) : (
+                        <IconPlus size={15} />
+                      )}
+                    </button>
+                  </div>
                 </div>
                 <div className="space-y-1">
                   {runtimeMacro.macros.length === 0 && (
                     <p className="text-sm text-[var(--color-text-muted)] py-4 text-center">
-                      {t("No macros yet. Create one below.")}
+                      {t("No macros yet. Create one above.")}
                     </p>
                   )}
                   {runtimeMacro.macros.map((macro) => (
@@ -868,10 +975,13 @@ export function MacroPage() {
                       }`}
                       onClick={() => void loadMacro(macro.slot)}
                     >
-                      <span className="block text-sm font-medium truncate">
-                        {macro.name ||
-                          t("Macro {{slot}}", { slot: macro.slot })}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="block text-sm font-medium truncate flex-1">
+                          {macro.name ||
+                            t("Macro {{slot}}", { slot: macro.slot })}
+                        </span>
+                        {modifiedSlots.has(macro.slot) && <UnsavedDot />}
+                      </div>
                       <span className="block text-xs text-[var(--color-text-muted)]">
                         {t("{{encodedSize}}/{{maxMacroBytes}} bytes", {
                           encodedSize: macro.encodedSize,
@@ -881,70 +991,6 @@ export function MacroPage() {
                     </button>
                   ))}
                 </div>
-                <div className="mt-3 flex gap-2">
-                  <input
-                    className="flex-1 min-w-0 px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] text-sm text-[var(--color-text)] focus:outline-none focus:border-[var(--color-electric)]/50"
-                    value={newMacroName}
-                    maxLength={runtimeMacro.maxNameLength}
-                    placeholder={t("New macro name")}
-                    onChange={(event) => setNewMacroName(event.target.value)}
-                  />
-                  <button
-                    className="btn-electric text-sm flex items-center gap-1.5 px-3"
-                    onClick={() => void handleCreateMacro()}
-                    disabled={isCreating || !newMacroName.trim()}
-                  >
-                    {isCreating ? (
-                      <IconLoader2 size={16} className="animate-spin" />
-                    ) : (
-                      <IconPlus size={16} />
-                    )}
-                    {t("Create")}
-                  </button>
-                </div>
-              </div>
-
-              <div className="glass-card p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <IconSettings
-                    size={18}
-                    className="text-[var(--color-electric)]"
-                  />
-                  <h2 className="text-sm font-medium text-[var(--color-text)]">
-                    {t("Global Settings")}
-                  </h2>
-                </div>
-                <label className="block">
-                  <span className="text-xs text-[var(--color-text-muted)]">
-                    {t("Tap ms")}
-                  </span>
-                  <input
-                    type="number"
-                    min={0}
-                    max={10000}
-                    className="mt-1 w-full px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text)] focus:outline-none focus:border-[var(--color-electric)]/50"
-                    value={runtimeMacro.globalSettings?.tapMs ?? 0}
-                    onChange={(event) =>
-                      void handleTapMsChange(Number(event.target.value))
-                    }
-                  />
-                </label>
-                {runtimeMacro.globalSettings &&
-                  runtimeMacro.globalSettings.poolBytesTotal > 0 && (
-                    <p
-                      className={`mt-3 text-xs ${
-                        runtimeMacro.globalSettings.poolBytesUsed >=
-                        runtimeMacro.globalSettings.poolBytesTotal
-                          ? "text-amber-400"
-                          : "text-[var(--color-text-muted)]"
-                      }`}
-                    >
-                      {t("Shared macro pool: {{used}}/{{total}} B", {
-                        used: runtimeMacro.globalSettings.poolBytesUsed,
-                        total: runtimeMacro.globalSettings.poolBytesTotal,
-                      })}
-                    </p>
-                  )}
               </div>
             </div>
 
@@ -953,8 +999,9 @@ export function MacroPage() {
                 <>
                   <div className="flex flex-col tablet:flex-row tablet:items-end gap-3 mb-4">
                     <div className="flex-1 min-w-0">
-                      <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1">
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-[var(--color-text-muted)] mb-1">
                         {t("Name")}
+                        {loadedMacroHasUnsavedChanges && <UnsavedDot />}
                       </label>
                       <input
                         className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text)] focus:outline-none focus:border-[var(--color-electric)]/50"
@@ -985,9 +1032,11 @@ export function MacroPage() {
                   </div>
 
                   <div className="flex items-center justify-between mb-3">
-                    <h2 className="text-sm font-medium text-[var(--color-text)]">
-                      {t("Steps")}
-                    </h2>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-sm font-medium text-[var(--color-text)]">
+                        {t("Steps")}
+                      </h2>
+                    </div>
                     <div className="flex items-center gap-2">
                       <button
                         className="btn-ghost text-sm flex items-center gap-1.5 text-red-400"
