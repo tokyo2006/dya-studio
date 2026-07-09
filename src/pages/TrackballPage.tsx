@@ -8,6 +8,7 @@ import {
 import * as Switch from "@radix-ui/react-switch";
 import { useRuntimeInputProcessor } from "../hooks/useRuntimeInputProcessor";
 import { TrackballAdvancedSettings } from "../components/TrackballAdvancedSettings";
+import { LoadingIndicator } from "../components/LoadingIndicator";
 import { AxisSnapMode } from "../proto/zmk/runtime_input_processor/runtime_input_processor";
 import { useDebouncedSave } from "../hooks/useDebouncedSave";
 import { useLanguage } from "../hooks/useLanguage";
@@ -401,11 +402,10 @@ export function TrackballPage() {
 
         {/* Loading state */}
         {isLoading && !processor && (
-          <div className="mb-6 p-4 rounded-lg bg-[var(--color-border)] border border-[var(--color-border-hover)]">
-            <p className="text-sm text-[var(--color-text-muted)]">
-              {t("Loading trackball settings...")}
-            </p>
-          </div>
+          <LoadingIndicator
+            className="mb-6"
+            label={t("Loading trackball settings...")}
+          />
         )}
 
         {/* No processor found */}

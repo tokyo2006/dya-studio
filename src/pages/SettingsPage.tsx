@@ -6,6 +6,7 @@ import {
   IconAlertTriangleFilled,
 } from "@tabler/icons-react";
 import { AdvancedSettingsSection } from "../components/AdvancedSettingsSection";
+import { LoadingIndicator } from "../components/LoadingIndicator";
 import { useSettings } from "../hooks/useSettings";
 import { useLanguage } from "../hooks/useLanguage";
 
@@ -316,11 +317,7 @@ export function SettingsPage() {
 
         {/* Loading State */}
         {isLoading && !centralSettings && (
-          <div className="glass-card p-6">
-            <p className="text-sm text-[var(--color-text-muted)]">
-              {t("Loading settings...")}
-            </p>
-          </div>
+          <LoadingIndicator label={t("Loading settings...")} />
         )}
 
         {/* Settings Groups */}

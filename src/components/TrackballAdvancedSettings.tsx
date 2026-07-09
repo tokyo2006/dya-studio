@@ -5,6 +5,7 @@ import {
   IconRefresh,
 } from "@tabler/icons-react";
 import { CustomSettingsSectionCard } from "./AdvancedSettingsSection";
+import { LoadingIndicator } from "./LoadingIndicator";
 import { useCustomSettings } from "../hooks/useCustomSettings";
 import { useKeymap } from "../hooks/useKeymap";
 import { useLanguage } from "../hooks/useLanguage";
@@ -98,9 +99,10 @@ export function TrackballAdvancedSettings() {
               )}
             </p>
           ) : customSettings.isLoading && pmw3610Sections.length === 0 ? (
-            <p className="text-sm text-[var(--color-text-muted)]">
-              {t("Loading advanced settings...")}
-            </p>
+            <LoadingIndicator
+              variant="inline"
+              label={t("Loading advanced settings...")}
+            />
           ) : !isSubsystemAvailable ? (
             <p className="text-sm text-[var(--color-text-muted)]">
               {t("No pmw3610 driver settings were reported by the keyboard.")}

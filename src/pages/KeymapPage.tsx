@@ -29,7 +29,8 @@ import { KeyboardLayout } from "../components/KeyboardLayout";
 import { KeycodeSelector } from "../components/KeycodeSelector";
 import { UnlockPrompt } from "../components/UnlockPrompt";
 import { SensorRotationConfig } from "../components/SensorRotationConfig";
-import { useKeymap } from "../hooks/useKeymap";
+import { LoadingIndicator } from "../components/LoadingIndicator";
+import { useKeymap, getKeymapLoadingLabel } from "../hooks/useKeymap";
 import { usePhysicalLayoutModules } from "../hooks/usePhysicalLayoutModules";
 import { useRuntimeSensorRotate } from "../hooks/useRuntimeSensorRotate";
 import { useRuntimeMacro } from "../hooks/useRuntimeMacro";
@@ -344,15 +345,12 @@ export function KeymapPage() {
         )}
         {/* Loading State */}
         {connection.isConnected && keymap.isLoading && (
-          <div className="glass-card p-6 text-center mb-6">
-            <IconLoader2
-              size={24}
-              className="animate-spin mx-auto mb-2 text-[var(--color-electric)]"
-            />
-            <p className="text-sm text-[var(--color-text-muted)]">
-              {t("Loading keymap data...")}
-            </p>
-          </div>
+          <LoadingIndicator
+            className="mb-6"
+            label={getKeymapLoadingLabel(t, keymap.loadingProgress)}
+            current={keymap.loadingProgress?.current}
+            total={keymap.loadingProgress?.total}
+          />
         )}
 
         {/* Main Content */}

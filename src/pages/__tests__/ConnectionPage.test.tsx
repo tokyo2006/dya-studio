@@ -183,7 +183,7 @@ describe("ConnectionPage", () => {
   describe("Connected State (ble-management only)", () => {
     it("should show loading state when loading profiles", () => {
       renderComponent({ isConnected: true }, { isLoading: true, profiles: [] });
-      expect(screen.getByText("⏳ Loading profiles...")).toBeInTheDocument();
+      expect(screen.getByText("Loading profiles...")).toBeInTheDocument();
     });
 
     it("should render profile list when connected", () => {

@@ -17,7 +17,8 @@ import { KeyboardLayoutContext } from "../contexts/KeyboardLayoutContext";
 import { KeyboardLayout } from "../components/KeyboardLayout";
 import { KeycodeSelector } from "../components/KeycodeSelector";
 import { UnlockPrompt } from "../components/UnlockPrompt";
-import { useKeymap } from "../hooks/useKeymap";
+import { LoadingIndicator } from "../components/LoadingIndicator";
+import { useKeymap, getKeymapLoadingLabel } from "../hooks/useKeymap";
 import { useLanguage } from "../hooks/useLanguage";
 import type { BehaviorBinding, BehaviorDefinition } from "../hooks/useKeymap";
 import { useRuntimeCombo } from "../hooks/useRuntimeCombo";
@@ -543,15 +544,20 @@ export function ComboPage() {
           runtimeCombo.isAvailable &&
           (runtimeCombo.isLoading || keymap.isLoading) &&
           !keymap.keymap && (
-            <div className="glass-card p-6 text-center mb-6">
-              <IconLoader2
-                size={24}
-                className="animate-spin mx-auto mb-2 text-[var(--color-electric)]"
-              />
-              <p className="text-sm text-[var(--color-text-muted)]">
-                {t("Loading combo data...")}
-              </p>
-            </div>
+            <LoadingIndicator
+              className="mb-6"
+              label={
+                keymap.isLoading
+                  ? getKeymapLoadingLabel(t, keymap.loadingProgress)
+                  : t("Loading combo data...")
+              }
+              current={
+                keymap.isLoading ? keymap.loadingProgress?.current : undefined
+              }
+              total={
+                keymap.isLoading ? keymap.loadingProgress?.total : undefined
+              }
+            />
           )}
 
         {connection.isConnected &&
