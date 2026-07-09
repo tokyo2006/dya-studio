@@ -92,15 +92,6 @@ function normalizePositions(positions: number[]): number[] {
     .sort((a, b) => a - b);
 }
 
-function parsePositions(value: string): number[] {
-  return normalizePositions(
-    value
-      .split(",")
-      .map((part) => Number.parseInt(part.trim(), 10))
-      .filter((position) => Number.isFinite(position)),
-  );
-}
-
 function positionsToText(positions: number[]): string {
   return positions.join(", ");
 }
