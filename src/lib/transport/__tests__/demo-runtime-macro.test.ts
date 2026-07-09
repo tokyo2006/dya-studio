@@ -9,6 +9,10 @@ import {
   SettingWriteMode,
 } from "../../../proto/cormoran/zmk/custom_settings/custom_settings";
 
+// Keep legacy custom-settings helpers for the backwards-compat test that
+// verifies the keyspace-change path still works when the old firmware path
+// is used.
+
 describe("RuntimeMacroHandler", () => {
   let customSettings: CustomSettingsHandler;
   let handler: RuntimeMacroHandler;
@@ -138,7 +142,65 @@ describe("RuntimeMacroHandler", () => {
     expect(after.getMacro?.macro?.steps[initialCount].delay?.delayMs).toBe(50);
   });
 
-  it("creates a new macro when the custom-settings keyspace gains a matching entry", () => {
+  it("creates a new macro via native createMacro RPC", () => {
+    const createResponse = handler.process(
+      Request.create({ createMacro: { name: "new-macro", persist: false } }),
+    );
+    expect(createResponse.error).toBeUndefined();
+    expect(createResponse.status?.affectedCount).toBe(1);
+
+    const listResponse = handler.process(Request.create({ listMacros: {} }));
+    const created = listResponse.listMacros?.macros.find(
+      (macro) => macro.name === "new-macro",
+    );
+    expect(created).toBeDefined();
+    expect(created?.encodedSize).toBe(0);
+  });
+
+  it("removes a macro via native deleteMacro RPC", () => {
+    const before = handler.process(Request.create({ listMacros: {} }));
+    expect(
+      before.listMacros?.macros.some((macro) => macro.name === "Hello"),
+    ).toBe(true);
+
+    const deleteResponse = handler.process(
+      Request.create({ deleteMacro: { name: "Hello" } }),
+    );
+    expect(deleteResponse.error).toBeUndefined();
+    expect(deleteResponse.status?.affectedCount).toBe(1);
+
+    const after = handler.process(Request.create({ listMacros: {} }));
+    expect(
+      after.listMacros?.macros.some((macro) => macro.name === "Hello"),
+    ).toBe(false);
+  });
+
+  it("renames a macro via native renameMacro RPC preserving steps", () => {
+    const before = handler.process(Request.create({ getMacro: { slot: 0 } }));
+    const stepsBefore = before.getMacro?.macro?.steps.length ?? 0;
+    expect(stepsBefore).toBeGreaterThan(0);
+
+    const renameResponse = handler.process(
+      Request.create({
+        renameMacro: { oldName: "Hello", newName: "Hi", persist: false },
+      }),
+    );
+    expect(renameResponse.error).toBeUndefined();
+    expect(renameResponse.status?.affectedCount).toBe(1);
+
+    const listResponse = handler.process(Request.create({ listMacros: {} }));
+    expect(
+      listResponse.listMacros?.macros.some((m) => m.name === "Hi"),
+    ).toBe(true);
+    expect(
+      listResponse.listMacros?.macros.some((m) => m.name === "Hello"),
+    ).toBe(false);
+
+    const after = handler.process(Request.create({ getMacro: { slot: 0 } }));
+    expect(after.getMacro?.macro?.steps.length).toBe(stepsBefore);
+  });
+
+  it("creates a new macro when the custom-settings keyspace gains a matching entry (legacy path)", () => {
     const createResponse = customSettings.process(
       CustomSettingsRequest.create({
         createSetting: {
@@ -158,7 +220,7 @@ describe("RuntimeMacroHandler", () => {
     expect(created?.encodedSize).toBe(0);
   });
 
-  it("removes a macro when its custom-settings keyspace entry is deleted", () => {
+  it("removes a macro when its custom-settings keyspace entry is deleted (legacy path)", () => {
     const before = handler.process(Request.create({ listMacros: {} }));
     expect(
       before.listMacros?.macros.some((macro) => macro.name === "Hello"),

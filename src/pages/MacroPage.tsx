@@ -464,11 +464,7 @@ export function MacroPage() {
       setRenameDraft(loadedMacro.name);
       return;
     }
-    const ok = await runtimeMacro.renameMacro(
-      loadedMacro.name,
-      trimmedName,
-      loadedMacro.steps,
-    );
+    const ok = await runtimeMacro.renameMacro(loadedMacro.name, trimmedName);
     if (ok) {
       setSelectedName(trimmedName);
       setLoadedMacro({ ...loadedMacro, name: trimmedName });
