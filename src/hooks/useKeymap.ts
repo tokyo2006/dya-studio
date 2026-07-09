@@ -25,9 +25,15 @@ import type {
   PhysicalLayout,
   KeyPhysicalAttrs,
 } from "@zmkfirmware/zmk-studio-ts-client/keymap";
-import type { BehaviorBindingParametersSet } from "@zmkfirmware/zmk-studio-ts-client/behaviors";
 import { ErrorConditions } from "@zmkfirmware/zmk-studio-ts-client/meta";
-import type { TranslationParams } from "../i18n/translations";
+import {
+  useKeymapSource,
+  getKeymapLoadingLabel,
+  isKeymapUnlockRequired,
+  type BehaviorDefinition,
+  type KeymapLoadPhase,
+  type KeymapLoadProgress,
+} from "./useKeymapSource";
 
 // Error response constants for better readability
 const SetLayerBindingResp = {
@@ -47,55 +53,15 @@ export type {
   KeyPhysicalAttrs,
 };
 
-/**
- * Behavior definition loaded from the keyboard
- */
-export interface BehaviorDefinition {
-  id: number;
-  displayName: string;
-  metadata: BehaviorBindingParametersSet[];
-}
-
-/**
- * Phases of {@link UseKeymapReturn.loadKeymapData}. Behaviors are loaded one
- * at a time, so that phase carries a determinate count.
- */
-export type KeymapLoadPhase = "layouts" | "keymap" | "behaviors" | "finalizing";
-
-/**
- * Progress of the current keymap load, or `null` when idle. Used to show the
- * user what is loading and — for the behaviors phase — how far along it is.
- */
-export interface KeymapLoadProgress {
-  phase: KeymapLoadPhase;
-  /** Items loaded so far (behaviors phase only). */
-  current?: number;
-  /** Total items to load (behaviors phase only). */
-  total?: number;
-}
-
-/**
- * Translate a {@link KeymapLoadProgress} into a human-readable label describing
- * what is currently loading. Kept here so every consumer of {@link useKeymap}
- * (keymap tab, combo tab, …) shows consistent wording.
- */
-export function getKeymapLoadingLabel(
-  t: (key: string, params?: TranslationParams) => string,
-  progress: KeymapLoadProgress | null,
-): string {
-  switch (progress?.phase) {
-    case "layouts":
-      return t("Loading physical layouts...");
-    case "keymap":
-      return t("Loading keymap...");
-    case "behaviors":
-      return t("Loading behaviors...");
-    case "finalizing":
-      return t("Finalizing...");
-    default:
-      return t("Loading keymap data...");
-  }
-}
+// Loading (fast-vs-official) and its progress model now live in
+// useKeymapSource; re-export the parts existing importers of "./useKeymap"
+// still reference so their imports keep working.
+export {
+  getKeymapLoadingLabel,
+  type BehaviorDefinition,
+  type KeymapLoadPhase,
+  type KeymapLoadProgress,
+};
 
 /**
  * Original binding stored for comparison and reset
@@ -230,6 +196,11 @@ export function useKeymap(): UseKeymapReturn {
     [zmkApp?.state.connection],
   );
 
+  // Loading is delegated to useKeymapSource, which picks the fast-keymap
+  // subsystem when the device exposes it and the official protocol otherwise.
+  // (Editing below always uses the official protocol.)
+  const { loadKeymapData: loadFromSource } = useKeymapSource();
+
   // Helper to set error with auto-clear timer (5 seconds)
   const setErrorWithAutoClear = useCallback((message: string) => {
     setError(message);
@@ -307,72 +278,6 @@ export function useKeymap(): UseKeymapReturn {
     [connection, clearError, setErrorWithAutoClear],
   );
 
-  // Load physical layouts
-  const loadPhysicalLayouts =
-    useCallback(async (): Promise<PhysicalLayouts | null> => {
-      return callRpc(
-        { keymap: { getPhysicalLayouts: true } },
-        (response) => response.keymap?.getPhysicalLayouts,
-      );
-    }, [callRpc]);
-
-  // Load keymap
-  const loadKeymap = useCallback(async (): Promise<Keymap | null> => {
-    return callRpc(
-      { keymap: { getKeymap: true } },
-      (response) => response.keymap?.getKeymap,
-    );
-  }, [callRpc]);
-
-  // Load all behaviors.
-  //
-  // Behavior details are fetched one at a time over RPC, which is the slowest
-  // part of loading the keymap tab. `onProgress` is invoked with the running
-  // count so the UI can show "N / M" and a percentage.
-  const loadBehaviors = useCallback(
-    async (
-      onProgress?: (current: number, total: number) => void,
-    ): Promise<Map<number, BehaviorDefinition>> => {
-      const behaviorsMap = new Map<number, BehaviorDefinition>();
-
-      // First get list of all behavior IDs
-      const behaviorIds = await callRpc(
-        { behaviors: { listAllBehaviors: true } },
-        (response) => response.behaviors?.listAllBehaviors?.behaviors,
-      );
-
-      if (!behaviorIds) {
-        return behaviorsMap;
-      }
-
-      const total = behaviorIds.length;
-      onProgress?.(0, total);
-
-      // Then get details for each behavior
-      let current = 0;
-      for (const behaviorId of behaviorIds) {
-        const details = await callRpc(
-          { behaviors: { getBehaviorDetails: { behaviorId } } },
-          (response) => response.behaviors?.getBehaviorDetails,
-        );
-
-        if (details) {
-          behaviorsMap.set(behaviorId, {
-            id: details.id,
-            displayName: details.displayName,
-            metadata: details.metadata,
-          });
-        }
-
-        current += 1;
-        onProgress?.(current, total);
-      }
-
-      return behaviorsMap;
-    },
-    [callRpc],
-  );
-
   // Store original bindings from keymap
   const storeOriginalBindings = useCallback((keymap: Keymap) => {
     const bindings = new Map<string, BehaviorBinding>();
@@ -384,7 +289,9 @@ export function useKeymap(): UseKeymapReturn {
     setOriginalBindings(bindings);
   }, []);
 
-  // Load all keymap data
+  // Load all keymap data (layouts + keymap + behaviors) via useKeymapSource,
+  // then check unsaved-changes state through the official keymap subsystem
+  // (an edit-state concern the fast path doesn't own).
   const loadKeymapData = useCallback(async () => {
     if (!connection) {
       setErrorWithAutoClear("Not connected to keyboard");
@@ -397,32 +304,20 @@ export function useKeymap(): UseKeymapReturn {
     setUnlockRequired(false);
 
     try {
-      // Load physical layouts
-      const layouts = await loadPhysicalLayouts();
-      if (layouts) {
-        setPhysicalLayouts(layouts);
+      const data = await loadFromSource((progress) =>
+        setLoadingProgress(progress),
+      );
+
+      setPhysicalLayouts(data.physicalLayouts);
+      setKeymap(data.keymap);
+      // Only store original bindings on first load
+      if (!dataLoadedRef.current) {
+        storeOriginalBindings(data.keymap);
+        dataLoadedRef.current = true;
       }
+      setBehaviors(data.behaviors);
 
-      // Load keymap
-      setLoadingProgress({ phase: "keymap" });
-      const km = await loadKeymap();
-      if (km) {
-        setKeymap(km);
-        // Only store original bindings on first load
-        if (!dataLoadedRef.current) {
-          storeOriginalBindings(km);
-          dataLoadedRef.current = true;
-        }
-      }
-
-      // Load behaviors (slowest phase — report per-item progress)
-      setLoadingProgress({ phase: "behaviors", current: 0, total: 0 });
-      const behaviorMap = await loadBehaviors((current, total) => {
-        setLoadingProgress({ phase: "behaviors", current, total });
-      });
-      setBehaviors(behaviorMap);
-
-      // Check unsaved changes
+      // Check unsaved changes (official protocol — tracks the edit state)
       setLoadingProgress({ phase: "finalizing" });
       const unsaved = await callRpc(
         { keymap: { checkUnsavedChanges: true } },
@@ -430,19 +325,22 @@ export function useKeymap(): UseKeymapReturn {
       );
       setHasUnsavedChanges(unsaved ?? false);
     } catch (err) {
-      console.error("Failed to load keymap data:", err);
-      setErrorWithAutoClear(
-        err instanceof Error ? err.message : "Failed to load keymap data",
-      );
+      if (isKeymapUnlockRequired(err)) {
+        setUnlockRequired(true);
+        setError("Keyboard needs to be unlocked. Please unlock your keyboard.");
+      } else {
+        console.error("Failed to load keymap data:", err);
+        setErrorWithAutoClear(
+          err instanceof Error ? err.message : "Failed to load keymap data",
+        );
+      }
     } finally {
       setIsLoading(false);
       setLoadingProgress(null);
     }
   }, [
     connection,
-    loadPhysicalLayouts,
-    loadKeymap,
-    loadBehaviors,
+    loadFromSource,
     storeOriginalBindings,
     callRpc,
     setErrorWithAutoClear,

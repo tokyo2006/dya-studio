@@ -86,11 +86,17 @@ const mockBehaviorDetails: Record<
 
 // Create a wrapper with ZMKAppContext
 function createWrapper(zmkAppValue: unknown) {
+  // useKeymap now loads via useKeymapSource, which consults the device's
+  // custom subsystems. Default to "no fast-keymap subsystem present" so
+  // loading uses the official protocol these tests mock (a test can override
+  // findSubsystem to exercise the fast path).
+  const value = {
+    findSubsystem: () => null,
+    ...(zmkAppValue as Record<string, unknown>),
+  } as never;
   return function Wrapper({ children }: { children: ReactNode }) {
     return (
-      <ZMKAppContext.Provider value={zmkAppValue as never}>
-        {children}
-      </ZMKAppContext.Provider>
+      <ZMKAppContext.Provider value={value}>{children}</ZMKAppContext.Provider>
     );
   };
 }

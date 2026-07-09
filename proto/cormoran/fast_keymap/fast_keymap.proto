@@ -1,0 +1,221 @@
+syntax = "proto3";
+
+package cormoran.fast_keymap;
+
+// A read-only, fast-loading alternative to ZMK's official `zmk.keymap` /
+// `zmk.behaviors` Studio subsystems. See DESIGN.md for the full rationale.
+//
+// Vendored from cormoran/zmk-feature-fast-keymap
+// (proto/cormoran/fast-keymap/fast_keymap.proto) so dya-studio can talk to the
+// `cormoran__fast_keymap` custom Studio RPC subsystem when a keyboard exposes
+// it, falling back to the official protocol otherwise.
+//
+// Message shapes deliberately mimic the official proto
+// (dependencies/modules/msgs/zmk-studio-messages/proto/zmk/{keymap,behaviors}.proto)
+// -- no bespoke byte packing, no app-level response chunking. `repeated` and
+// `string` fields are left WITHOUT `max_size`/`max_count` on purpose so
+// nanopb generates callback (streaming) field types; see DESIGN.md SS3.
+
+message Request {
+    oneof request_type {
+        bool get_snapshot = 1;
+        ListBehaviorsRequest list_behaviors = 2;
+        GetBehaviorsRequest get_behaviors = 3;              // batch details (miss-repair)
+        GetLayerRequest get_layer = 4;                      // current/effective
+        GetLayerRequest get_default_layer = 5;              // DT stock default
+        GetLayerRequest get_edited_layer = 6;               // diff current vs default
+        GetPhysicalLayoutsRequest get_physical_layouts = 7; // slim summary (+ optional geometry)
+        GetPhysicalLayoutRequest get_physical_layout = 8;   // one layout's geometry
+    }
+}
+
+message Response {
+    oneof response_type {
+        ErrorResponse error = 1;
+        Snapshot snapshot = 2;
+        ListBehaviorsResponse list_behaviors = 3;
+        GetBehaviorsResponse get_behaviors = 4;
+        Layer get_layer = 5;
+        Layer get_default_layer = 6;
+        EditedLayer get_edited_layer = 7;
+        PhysicalLayoutsResponse get_physical_layouts = 8;
+        PhysicalLayoutResponse get_physical_layout = 9;
+    }
+}
+
+message GetLayerRequest { uint32 layer_id = 1; }
+
+enum ErrorCode {
+    ERR_GENERIC = 0;
+    ERR_INVALID_LAYER = 1;
+    ERR_INVALID_BEHAVIOR = 2;
+    ERR_INVALID_LAYOUT = 3;
+}
+
+message ErrorResponse { ErrorCode code = 1; }
+
+// Cheap cache keys for every data group this subsystem serves, so a client
+// with a warm cache can skip re-fetching groups whose fingerprint matches.
+// See DESIGN.md SS4 for the exact canonicalization each fingerprint hashes.
+message Snapshot {
+    uint32 definition_version = 1;
+    uint32 behaviors_fp = 2;
+    uint32 default_keymap_fp = 3;
+    uint32 keymap_fp = 4;
+    uint32 physical_layout_fp = 5;
+    uint32 behavior_count = 6;
+    uint32 max_layer_name_length = 7;
+    uint32 available_layers = 8;
+    uint32 active_layout_index = 9;
+    repeated LayerFingerprint layers = 10;
+}
+
+message LayerFingerprint {
+    uint32 id = 1;
+    string name = 2;
+    uint32 binding_count = 3;
+    uint32 fp = 4;
+    uint32 default_fp = 5;
+    uint32 edited_count = 6;
+}
+
+// enum BehaviorDetailsMode -- see DESIGN.md SS5 for the semantics of each
+// mode.
+enum BehaviorDetailsMode {
+    BEHAVIOR_DETAILS_NONE = 0;   // slim summaries only
+    BEHAVIOR_DETAILS_CUSTOM = 1; // inline details for non-standard behaviors
+    BEHAVIOR_DETAILS_ALL = 2;    // inline details for every behavior
+}
+
+message ListBehaviorsRequest { BehaviorDetailsMode details = 1; }
+
+message ListBehaviorsResponse { repeated BehaviorSummary behaviors = 1; }
+
+// Slim: on the wire this is normally just local_id + def_fp (~10 B);
+// `details` is present only per the request's BehaviorDetailsMode (SS5).
+message BehaviorSummary {
+    uint32 local_id = 1;
+    uint32 def_fp = 2; // content-addressed identity + validator, see SS4
+    BehaviorDetails details = 3;
+}
+
+// The official details tree (zmk.behaviors.GetBehaviorDetailsResponse)
+// factored into a reusable submessage. Deliberately carries NO fingerprint --
+// the client recomputes def_fp from these served fields, guaranteeing both
+// sides agree on the canonicalization (SS4/SS5).
+message BehaviorDetails {
+    string display_name = 1;
+    string alias = 2;
+    repeated BehaviorBindingParametersSet metadata = 3;
+}
+
+// Miss-repair batch fetch (SS5): resolve exactly the behaviors the client
+// couldn't resolve from its bundle/cache, in one round-trip.
+message GetBehaviorsRequest {
+    repeated uint32 behavior_ids = 1; // .options: max_count:32 (fits RX buf)
+}
+
+message GetBehaviorsResponse { repeated BehaviorEntry behaviors = 1; }
+
+message BehaviorEntry {
+    uint32 id = 1;
+    BehaviorDetails details = 2;
+}
+
+// -- The following metadata messages are copied verbatim (names, field
+// numbers, shape) from zmk.behaviors so firmware and the bundled web
+// standard-behavior definitions can share the exact same encoding. --
+
+message BehaviorBindingParametersSet {
+    repeated BehaviorParameterValueDescription param1 = 1;
+    repeated BehaviorParameterValueDescription param2 = 2;
+}
+
+message BehaviorParameterValueDescriptionRange {
+    int32 min = 1;
+    int32 max = 2;
+}
+
+message BehaviorParameterNil {}
+message BehaviorParameterLayerId {}
+message BehaviorParameterHidUsage {
+    uint32 keyboard_max = 1;
+    uint32 consumer_max = 2;
+}
+
+message BehaviorParameterValueDescription {
+    string name = 1;
+
+    oneof value_type {
+        BehaviorParameterNil nil = 2;
+        uint32 constant = 3;
+        BehaviorParameterValueDescriptionRange range = 4;
+        BehaviorParameterHidUsage hid_usage = 5;
+        BehaviorParameterLayerId layer_id = 6;
+    }
+}
+
+// -- Keymap/layer/binding messages: same shape as zmk.keymap's, plus the
+// default/edited-layer extensions. --
+
+message BehaviorBinding {
+    sint32 behavior_id = 1;
+    uint32 param1 = 2;
+    uint32 param2 = 3;
+}
+
+message Layer {
+    uint32 id = 1;
+    string name = 2;
+    repeated BehaviorBinding bindings = 3;
+}
+
+message EditedBinding {
+    uint32 position = 1;
+    BehaviorBinding binding = 2;
+}
+
+message EditedLayer {
+    uint32 id = 1;
+    repeated EditedBinding bindings = 2;
+}
+
+// enum LayoutDetailsMode -- see DESIGN.md SS6 for the semantics of each mode.
+enum LayoutDetailsMode {
+    LAYOUT_DETAILS_NONE = 0; // slim summaries only (no geometry)
+    LAYOUT_DETAILS_ALL = 1;  // inline every layout's geometry
+}
+
+message GetPhysicalLayoutsRequest { LayoutDetailsMode details = 1; }
+
+message GetPhysicalLayoutRequest { uint32 layout_index = 1; }
+
+// Slim summary + on-demand geometry (DESIGN.md SS6): `keys` is populated only
+// in LAYOUT_DETAILS_ALL mode (get_physical_layouts) or a single-layout fetch
+// (get_physical_layout) -- omitted (empty) otherwise, so proto3 drops it for
+// free on the wire.
+message PhysicalLayoutsResponse {
+    uint32 active_layout_index = 1;
+    repeated PhysicalLayoutSummary layouts = 2;
+}
+
+message PhysicalLayoutResponse {
+    uint32 index = 1;
+    PhysicalLayoutSummary layout = 2; // keys always populated
+}
+
+message PhysicalLayoutSummary {
+    string name = 1;
+    uint32 fp = 2; // per-layout fingerprint, device-opaque (SS4/SS6)
+    repeated KeyPhysicalAttrs keys = 3;
+}
+
+message KeyPhysicalAttrs {
+    sint32 width = 1;
+    sint32 height = 2;
+    sint32 x = 3;
+    sint32 y = 4;
+    sint32 r = 5;
+    sint32 rx = 6;
+    sint32 ry = 7;
+}
