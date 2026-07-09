@@ -6,8 +6,47 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import { ZMKAppContext } from "@cormoran/zmk-studio-react-hook";
+import type { ListCustomSubsystemResponse } from "@zmkfirmware/zmk-studio-ts-client/custom";
 import { navigateTo } from "../lib/navigate";
 import { useLanguage } from "../hooks/useLanguage";
+import { SectionCard } from "../components/troubleshooting/SectionCard";
+import { DEVICE_INFO_SUBSYSTEM_IDENTIFIER } from "../hooks/useDeviceInfo";
+import { WATCHDOG_SUBSYSTEM_IDENTIFIER } from "../hooks/useWatchdog";
+import { PMW3610_SUBSYSTEM_IDENTIFIER } from "../hooks/usePmw3610";
+import { CUSTOM_SETTINGS_IDENTIFIER } from "../hooks/useCustomSettings";
+import { INPUT_STREAM_IDENTIFIER } from "../hooks/useInputStream";
+import { PHYSICAL_LAYOUTS_IDENTIFIERS } from "../hooks/usePhysicalLayoutModules";
+import { KSCAN_DIAGNOSTICS_SUBSYSTEM_IDENTIFIER } from "../hooks/useKscanDiagnostics";
+import { RUNTIME_COMBO_IDENTIFIER } from "../hooks/useRuntimeCombo";
+import { RUNTIME_MACRO_SUBSYSTEM_IDENTIFIER } from "../hooks/useRuntimeMacro";
+import { RUNTIME_INPUT_PROCESSOR_SUBSYSTEM_IDENTIFIER } from "../hooks/useRuntimeInputProcessor";
+import { RUNTIME_SENSOR_ROTATE_SUBSYSTEM_IDENTIFIER } from "../hooks/useRuntimeSensorRotate";
+import { DEFAULT_LAYER_SUBSYSTEM_IDENTIFIER } from "../hooks/useDefaultLayer";
+import { SETTINGS_SUBSYSTEM_IDENTIFIER } from "../hooks/useSettings";
+import { BLE_MANAGEMENT_SUBSYSTEM_IDENTIFIER } from "../hooks/useBLEProfiles";
+import { OS_DETECTION_SUBSYSTEM_IDENTIFIER } from "../hooks/useOsDetection";
+
+// Identifiers of subsystems DYA Studio already has a dedicated UI for
+// (mirrors the `*_IDENTIFIER` constants exported by src/hooks/*.ts).
+const SUPPORTED_SUBSYSTEM_IDENTIFIERS = new Set<string>([
+  DEVICE_INFO_SUBSYSTEM_IDENTIFIER,
+  WATCHDOG_SUBSYSTEM_IDENTIFIER,
+  PMW3610_SUBSYSTEM_IDENTIFIER,
+  CUSTOM_SETTINGS_IDENTIFIER,
+  INPUT_STREAM_IDENTIFIER,
+  ...PHYSICAL_LAYOUTS_IDENTIFIERS,
+  KSCAN_DIAGNOSTICS_SUBSYSTEM_IDENTIFIER,
+  RUNTIME_COMBO_IDENTIFIER,
+  RUNTIME_MACRO_SUBSYSTEM_IDENTIFIER,
+  RUNTIME_INPUT_PROCESSOR_SUBSYSTEM_IDENTIFIER,
+  RUNTIME_SENSOR_ROTATE_SUBSYSTEM_IDENTIFIER,
+  DEFAULT_LAYER_SUBSYSTEM_IDENTIFIER,
+  SETTINGS_SUBSYSTEM_IDENTIFIER,
+  BLE_MANAGEMENT_SUBSYSTEM_IDENTIFIER,
+  OS_DETECTION_SUBSYSTEM_IDENTIFIER,
+]);
+
+type Subsystem = ListCustomSubsystemResponse["subsystems"][number];
 
 // LocalStorage key for trusted subsystem UI URLs
 const TRUSTED_URLS_KEY = "dya-studio-trusted-subsystem-urls";
@@ -151,12 +190,73 @@ function ExternalLinkWarningDialog({
   );
 }
 
+interface SubsystemCardProps {
+  subsystem: Subsystem;
+  onLinkClick: (url: string) => void;
+}
+
+function SubsystemCard({ subsystem, onLinkClick }: SubsystemCardProps) {
+  const { t } = useLanguage();
+  return (
+    <div className="glass-card p-5">
+      <div className="flex items-start gap-3 mb-3">
+        <div className="w-8 h-8 rounded-lg bg-[var(--color-cyber)]/10 border border-[var(--color-cyber)]/20 flex items-center justify-center flex-shrink-0">
+          <span className="text-xs font-mono text-[var(--color-cyber)]">
+            {subsystem.index}
+          </span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-[var(--color-text)] font-mono break-all">
+            {subsystem.identifier}
+          </p>
+          <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+            {t("Subsystem index: {{index}}", {
+              index: subsystem.index,
+            })}
+          </p>
+        </div>
+      </div>
+
+      {subsystem.uiUrl.length > 0 ? (
+        <div className="mt-3 space-y-2">
+          <p className="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">
+            {t("Web UI")}
+          </p>
+          {subsystem.uiUrl.map((url, urlIndex) => (
+            <button
+              key={urlIndex}
+              className="flex items-center gap-2 text-sm text-[var(--color-electric)] hover:text-[var(--color-neon)] transition-colors group w-full text-left"
+              onClick={() => onLinkClick(url)}
+            >
+              <IconExternalLink
+                size={14}
+                className="flex-shrink-0 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform"
+              />
+              <span className="underline break-all">{url}</span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-[var(--color-text-muted)] mt-2">
+          {t("No web UI available for this subsystem.")}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function CustomSubsystemsPage() {
   const { t } = useLanguage();
   const zmkApp = useContext(ZMKAppContext);
   const [pendingUrl, setPendingUrl] = useState<string | null>(null);
 
   const subsystems = zmkApp?.state.customSubsystems?.subsystems ?? [];
+  const unsupportedSubsystems = subsystems.filter(
+    (subsystem) => !SUPPORTED_SUBSYSTEM_IDENTIFIERS.has(subsystem.identifier),
+  );
+  const supportedSubsystems = subsystems.filter((subsystem) =>
+    SUPPORTED_SUBSYSTEM_IDENTIFIERS.has(subsystem.identifier),
+  );
 
   const navigate = (url: string) => {
     zmkApp?.disconnect();
@@ -208,54 +308,54 @@ export function CustomSubsystemsPage() {
 
         {/* Subsystem list */}
         {subsystems.length > 0 ? (
-          <div className="space-y-4">
-            {subsystems.map((subsystem) => (
-              <div key={subsystem.index} className="glass-card p-5">
-                <div className="flex items-start gap-3 mb-3">
-                  <div className="w-8 h-8 rounded-lg bg-[var(--color-cyber)]/10 border border-[var(--color-cyber)]/20 flex items-center justify-center flex-shrink-0">
-                    <span className="text-xs font-mono text-[var(--color-cyber)]">
-                      {subsystem.index}
-                    </span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-[var(--color-text)] font-mono break-all">
-                      {subsystem.identifier}
-                    </p>
-                    <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-                      {t("Subsystem index: {{index}}", {
-                        index: subsystem.index,
-                      })}
-                    </p>
-                  </div>
-                </div>
+          <>
+            {unsupportedSubsystems.length > 0 ? (
+              <div className="space-y-4">
+                {unsupportedSubsystems.map((subsystem) => (
+                  <SubsystemCard
+                    key={subsystem.index}
+                    subsystem={subsystem}
+                    onLinkClick={handleLinkClick}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="glass-card p-6">
+                <p className="text-sm text-[var(--color-text-muted)]">
+                  {t(
+                    "All custom subsystems reported by this device are already supported by DYA Studio.",
+                  )}
+                </p>
+              </div>
+            )}
 
-                {subsystem.uiUrl.length > 0 ? (
-                  <div className="mt-3 space-y-2">
-                    <p className="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">
-                      {t("Web UI")}
-                    </p>
-                    {subsystem.uiUrl.map((url, urlIndex) => (
-                      <button
-                        key={urlIndex}
-                        className="flex items-center gap-2 text-sm text-[var(--color-electric)] hover:text-[var(--color-neon)] transition-colors group w-full text-left"
-                        onClick={() => handleLinkClick(url)}
-                      >
-                        <IconExternalLink
-                          size={14}
-                          className="flex-shrink-0 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform"
-                        />
-                        <span className="underline break-all">{url}</span>
-                      </button>
+            {supportedSubsystems.length > 0 && (
+              <div className="mt-4">
+                <SectionCard
+                  icon={
+                    <IconPuzzle
+                      size={20}
+                      className="text-[var(--color-electric)]"
+                    />
+                  }
+                  title={t("Already supported by DYA Studio")}
+                  subtitle={t(
+                    "These subsystems have a dedicated UI elsewhere in DYA Studio",
+                  )}
+                >
+                  <div className="space-y-4">
+                    {supportedSubsystems.map((subsystem) => (
+                      <SubsystemCard
+                        key={subsystem.index}
+                        subsystem={subsystem}
+                        onLinkClick={handleLinkClick}
+                      />
                     ))}
                   </div>
-                ) : (
-                  <p className="text-xs text-[var(--color-text-muted)] mt-2">
-                    {t("No web UI available for this subsystem.")}
-                  </p>
-                )}
+                </SectionCard>
               </div>
-            ))}
-          </div>
+            )}
+          </>
         ) : (
           <div className="glass-card p-6">
             <p className="text-sm text-[var(--color-text-muted)]">

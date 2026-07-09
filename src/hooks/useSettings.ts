@@ -11,7 +11,8 @@ import {
 } from "../proto/zmk/settings/core";
 
 // Subsystem identifier for ZMK settings RPC
-const SUBSYSTEM_IDENTIFIER = "zmk__settings";
+export const SETTINGS_SUBSYSTEM_IDENTIFIER = "zmk__settings";
+const SUBSYSTEM_IDENTIFIER = SETTINGS_SUBSYSTEM_IDENTIFIER;
 
 const CODEC = {
   encode: (request: Request) => Request.encode(request).finish(),

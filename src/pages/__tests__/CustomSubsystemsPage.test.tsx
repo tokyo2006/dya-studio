@@ -59,7 +59,7 @@ describe("CustomSubsystemsPage", () => {
   describe("Subsystem Listing", () => {
     it("should render subsystems with identifier and index", () => {
       const subsystems = createMockSubsystems([
-        { index: 0, identifier: "zmk__settings", uiUrl: [] },
+        { index: 0, identifier: "zmk__unsupported_a", uiUrl: [] },
         { index: 1, identifier: "zmk__battery", uiUrl: [] },
       ]);
       renderComponent({
@@ -72,7 +72,7 @@ describe("CustomSubsystemsPage", () => {
         },
       });
 
-      expect(screen.getByText("zmk__settings")).toBeInTheDocument();
+      expect(screen.getByText("zmk__unsupported_a")).toBeInTheDocument();
       expect(screen.getByText("zmk__battery")).toBeInTheDocument();
     });
 
@@ -95,7 +95,7 @@ describe("CustomSubsystemsPage", () => {
 
     it("should show 'no web UI' message when uiUrl is empty", () => {
       const subsystems = createMockSubsystems([
-        { index: 0, identifier: "zmk__settings", uiUrl: [] },
+        { index: 0, identifier: "zmk__unsupported_b", uiUrl: [] },
       ]);
       renderComponent({
         state: {
@@ -154,6 +154,92 @@ describe("CustomSubsystemsPage", () => {
       expect(screen.getByText("https://example.com/ui")).toBeInTheDocument();
       expect(
         screen.getByText("https://another.example.com/app"),
+      ).toBeInTheDocument();
+    });
+  });
+
+  describe("Supported subsystem grouping", () => {
+    it("should list unsupported subsystems directly and hide already-supported ones inside a collapsed section", () => {
+      const subsystems = createMockSubsystems([
+        { index: 0, identifier: "zmk__unsupported", uiUrl: [] },
+        { index: 1, identifier: "zmk__settings", uiUrl: [] },
+      ]);
+      renderComponent({
+        state: {
+          connection: null,
+          deviceInfo: null,
+          customSubsystems: subsystems,
+          isLoading: false,
+          error: null,
+        },
+      });
+
+      // Unsupported subsystem is visible right away.
+      expect(screen.getByText("zmk__unsupported")).toBeInTheDocument();
+      // Already-supported subsystem is tucked inside a collapsed section.
+      expect(screen.queryByText("zmk__settings")).not.toBeInTheDocument();
+      expect(
+        screen.getByText("Already supported by DYA Studio"),
+      ).toBeInTheDocument();
+    });
+
+    it("should reveal already-supported subsystems when the section is expanded", () => {
+      const subsystems = createMockSubsystems([
+        { index: 0, identifier: "zmk__unsupported", uiUrl: [] },
+        { index: 1, identifier: "zmk__settings", uiUrl: [] },
+      ]);
+      renderComponent({
+        state: {
+          connection: null,
+          deviceInfo: null,
+          customSubsystems: subsystems,
+          isLoading: false,
+          error: null,
+        },
+      });
+
+      fireEvent.click(screen.getByText("Already supported by DYA Studio"));
+
+      expect(screen.getByText("zmk__settings")).toBeInTheDocument();
+    });
+
+    it("should not show the collapsed section when no subsystems are already supported", () => {
+      const subsystems = createMockSubsystems([
+        { index: 0, identifier: "zmk__unsupported", uiUrl: [] },
+      ]);
+      renderComponent({
+        state: {
+          connection: null,
+          deviceInfo: null,
+          customSubsystems: subsystems,
+          isLoading: false,
+          error: null,
+        },
+      });
+
+      expect(
+        screen.queryByText("Already supported by DYA Studio"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("should show a message when every reported subsystem is already supported", () => {
+      const subsystems = createMockSubsystems([
+        { index: 0, identifier: "zmk__settings", uiUrl: [] },
+      ]);
+      renderComponent({
+        state: {
+          connection: null,
+          deviceInfo: null,
+          customSubsystems: subsystems,
+          isLoading: false,
+          error: null,
+        },
+      });
+
+      expect(
+        screen.getByText(
+          "All custom subsystems reported by this device are already supported by DYA Studio.",
+        ),
       ).toBeInTheDocument();
     });
   });

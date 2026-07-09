@@ -9,7 +9,8 @@ import {
 
 // Subsystem identifier for the ZMK OS detection custom protocol.
 // This matches the identifier registered in the zmk-feature-os-detection module.
-const SUBSYSTEM_IDENTIFIER = "cormoran__os_detection";
+export const OS_DETECTION_SUBSYSTEM_IDENTIFIER = "cormoran__os_detection";
+const SUBSYSTEM_IDENTIFIER = OS_DETECTION_SUBSYSTEM_IDENTIFIER;
 
 const CODEC = {
   encode: (request: Request) => Request.encode(request).finish(),

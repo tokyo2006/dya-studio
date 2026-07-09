@@ -8,7 +8,8 @@ import {
 
 // Subsystem identifier for ZMK BLE management custom protocol
 // This matches the identifier registered in the ZMK firmware module
-const SUBSYSTEM_IDENTIFIER = "cormoran_ble";
+export const BLE_MANAGEMENT_SUBSYSTEM_IDENTIFIER = "cormoran_ble";
+const SUBSYSTEM_IDENTIFIER = BLE_MANAGEMENT_SUBSYSTEM_IDENTIFIER;
 
 const CODEC = {
   encode: (request: Request) => Request.encode(request).finish(),
