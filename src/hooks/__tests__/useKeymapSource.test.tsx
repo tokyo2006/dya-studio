@@ -170,7 +170,7 @@ describe("useKeymapSource — fast path", () => {
     expect(result.current.source).toBe("fast");
   });
 
-  it("maps the fast model onto official shapes and fills lazy geometry", async () => {
+  it("maps the fast model onto official shapes without loading non-active geometry", async () => {
     const { result } = renderHook(() => useKeymapSource(), { wrapper });
     const data = await result.current.loadKeymapData();
 
@@ -186,10 +186,25 @@ describe("useKeymapSource — fast path", () => {
     // snapshot-derived limits surfaced
     expect(data.keymap.availableLayers).toBe(8);
     expect(data.keymap.maxLayerNameLength).toBe(20);
-    // the second layout had no eager geometry -> fetched lazily
-    expect(mockLoadPhysicalLayoutGeometry).toHaveBeenCalledTimes(1);
-    expect(data.physicalLayouts.layouts[1].keys).toHaveLength(1);
+    // The load path must NOT fetch non-active layout geometry — that was the
+    // slow "Finalizing" work. Active layout keeps its (empty here) keys; the
+    // non-active layout is left with empty keys until switched to.
+    expect(mockLoadPhysicalLayoutGeometry).not.toHaveBeenCalled();
+    expect(data.physicalLayouts.layouts[1].keys).toEqual([]);
     // the official protocol was not used for loading
     expect(mockCallRpc).not.toHaveBeenCalled();
+  });
+
+  it("fetches one layout's geometry lazily via loadLayoutGeometry", async () => {
+    const { result } = renderHook(() => useKeymapSource(), { wrapper });
+    const keys = await result.current.loadLayoutGeometry(1);
+
+    expect(mockLoadPhysicalLayoutGeometry).toHaveBeenCalledTimes(1);
+    expect(mockLoadPhysicalLayoutGeometry).toHaveBeenCalledWith(
+      expect.any(Function),
+      1,
+      expect.objectContaining({ deviceKey: "kbd" }),
+    );
+    expect(keys).toHaveLength(1);
   });
 });

@@ -200,7 +200,8 @@ export function useKeymap(): UseKeymapReturn {
   // Loading is delegated to useKeymapSource, which picks the fast-keymap
   // subsystem when the device exposes it and the official protocol otherwise.
   // (Editing below always uses the official protocol.)
-  const { loadKeymapData: loadFromSource } = useKeymapSource();
+  const { loadKeymapData: loadFromSource, loadLayoutGeometry } =
+    useKeymapSource();
 
   // Helper to set error with auto-clear timer (5 seconds)
   const setErrorWithAutoClear = useCallback((message: string) => {
@@ -669,9 +670,32 @@ export function useKeymap(): UseKeymapReturn {
 
       if (result?.ok) {
         setKeymap(result.ok);
-        setPhysicalLayouts((prev) =>
-          prev ? { ...prev, activeLayoutIndex: layoutIndex } : prev,
-        );
+
+        // On the fast path, non-active layout geometry is loaded lazily (not
+        // at initial load — that kept "Finalizing" fast). Fetch the geometry
+        // for the layout we're switching to if it hasn't been loaded yet.
+        const target = physicalLayouts?.layouts[layoutIndex];
+        let geometry: KeyPhysicalAttrs[] | null = null;
+        if (target && target.keys.length === 0) {
+          try {
+            geometry = await loadLayoutGeometry(layoutIndex);
+          } catch (err) {
+            console.error("Failed to load layout geometry:", err);
+          }
+        }
+
+        setPhysicalLayouts((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            activeLayoutIndex: layoutIndex,
+            layouts: geometry
+              ? prev.layouts.map((l, i) =>
+                  i === layoutIndex ? { ...l, keys: geometry } : l,
+                )
+              : prev.layouts,
+          };
+        });
         clearError();
         return true;
       }
@@ -683,7 +707,13 @@ export function useKeymap(): UseKeymapReturn {
 
       return false;
     },
-    [callRpc, clearError, setErrorWithAutoClear],
+    [
+      callRpc,
+      physicalLayouts,
+      loadLayoutGeometry,
+      clearError,
+      setErrorWithAutoClear,
+    ],
   );
 
   // Get original binding

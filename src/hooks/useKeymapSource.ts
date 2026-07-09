@@ -155,6 +155,10 @@ export interface UseKeymapSourceReturn {
   loadPhysicalLayouts: () => Promise<PhysicalLayouts>;
   /** Load just the layer names, in keymap order. */
   loadLayerNames: () => Promise<string[]>;
+  /** Fetch one physical layout's key geometry on demand. On the fast path,
+   * non-active layout geometry is loaded lazily (not at initial load) — call
+   * this when switching to a layout whose `keys` are still empty. */
+  loadLayoutGeometry: (index: number) => Promise<KeyPhysicalAttrs[]>;
 }
 
 // -- fast-path helpers ------------------------------------------------------
@@ -189,14 +193,16 @@ function toKeyPhysicalAttrs(keys: KeyPhysicalAttrs[]): KeyPhysicalAttrs[] {
 }
 
 /** Maps a loaded {@link FastKeymapModel} onto the official {@link KeymapData}
- * shapes. `fillGeometry` fetches any non-active layout whose geometry the fast
- * load left lazy, so the resulting PhysicalLayouts is complete (the editor
- * lets the user switch to any layout, which needs its key geometry). */
-async function mapFastModel(
-  model: FastKeymapModel,
-  call: (request: Request) => Promise<Response | null>,
-  deviceKey: string | undefined,
-): Promise<KeymapData> {
+ * shapes. Purely in-memory — no RPCs.
+ *
+ * The fast load only fetches the ACTIVE layout's key geometry; other layouts
+ * come back with `keys === undefined` and are mapped to an empty `keys` array
+ * here. We deliberately DON'T fetch them up front: the editor only renders the
+ * active layout, so pulling every other layout's geometry over BLE at load
+ * time is exactly what made "Finalizing" take seconds. A non-active layout's
+ * geometry is fetched lazily via {@link UseKeymapSourceReturn.loadLayoutGeometry}
+ * only when the user switches to it (see useKeymap.setActiveLayout). */
+function mapFastModel(model: FastKeymapModel): KeymapData {
   const keymap: Keymap = {
     layers: model.layers.map((layer) => ({
       id: layer.id,
@@ -211,17 +217,10 @@ async function mapFastModel(
     maxLayerNameLength: model.maxLayerNameLength,
   };
 
-  // Fill geometry for every layout the fast load left lazy (it only fetches
-  // the active layout's keys up front). Cached, so this is usually free.
-  const layouts: PhysicalLayout[] = [];
-  for (let i = 0; i < model.layouts.length; i++) {
-    const layout = model.layouts[i];
-    let keys = layout.keys;
-    if (keys === undefined) {
-      keys = await loadPhysicalLayoutGeometry(call, i, { deviceKey });
-    }
-    layouts.push({ name: layout.name, keys: toKeyPhysicalAttrs(keys) });
-  }
+  const layouts: PhysicalLayout[] = model.layouts.map((layout) => ({
+    name: layout.name,
+    keys: toKeyPhysicalAttrs(layout.keys ?? []),
+  }));
 
   const physicalLayouts: PhysicalLayouts = {
     activeLayoutIndex: model.activeLayoutIndex,
@@ -297,8 +296,9 @@ export function useKeymapSource(): UseKeymapSourceReturn {
       if (isFastAvailable) {
         onProgress?.({ phase: "keymap" });
         const model = await loadFastKeymap(call, { deviceKey });
-        onProgress?.({ phase: "finalizing" });
-        return mapFastModel(model, call, deviceKey);
+        // Pure mapping, no RPCs — non-active layout geometry is fetched lazily
+        // on layout switch, not here (see mapFastModel).
+        return mapFastModel(model);
       }
 
       // -- official path ----------------------------------------------------
@@ -382,11 +382,31 @@ export function useKeymapSource(): UseKeymapSourceReturn {
     return keymap?.layers.map((layer) => layer.name) ?? [];
   }, [isFastAvailable, call, officialRpc]);
 
+  const loadLayoutGeometry = useCallback(
+    async (index: number): Promise<KeyPhysicalAttrs[]> => {
+      if (isFastAvailable) {
+        const keys = await loadPhysicalLayoutGeometry(call, index, {
+          deviceKey,
+        });
+        return toKeyPhysicalAttrs(keys);
+      }
+      // Official protocol already returns every layout's geometry with the
+      // keymap load, so this is only a fallback (re-fetch the full set).
+      const layouts = await officialRpc(
+        { keymap: { getPhysicalLayouts: true } },
+        (r) => r.keymap?.getPhysicalLayouts,
+      );
+      return layouts?.layouts[index]?.keys ?? [];
+    },
+    [isFastAvailable, call, deviceKey, officialRpc],
+  );
+
   return {
     isFastAvailable,
     source,
     loadKeymapData,
     loadPhysicalLayouts,
     loadLayerNames,
+    loadLayoutGeometry,
   };
 }
