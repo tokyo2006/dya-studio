@@ -459,6 +459,59 @@ const ja: Record<string, string> = {
   Editor: "エディター",
   Status: "状態",
   Item: "項目",
+  "● Unsaved": "● 未保存",
+  "What Source means": "ソースの意味",
+  "Source legend": "ソースの凡例",
+  "Local: the split side you are connected to.":
+    "Local: 現在接続している側（分割キーボードの片側）です。",
+  "Source N: another split side's own independently stored copy.":
+    "Source N: もう一方の側が個別に保持している設定値です。",
+  "All: every split side at once, used for section-wide actions.":
+    "All: 両側をまとめて扱う値で、セクション単位の操作に使われます。",
+  "What Status means": "状態の意味",
+  "Status legend": "状態の凡例",
+  "Current: matches the value persisted on the keyboard.":
+    "Current: キーボードに保存されている値と一致しています。",
+  "In memory: written to RAM; save the section to persist it.":
+    "In memory: RAM には書き込み済みですが、永続化するにはセクションを保存してください。",
+  "Queued: your edit is about to be sent.":
+    "Queued: 変更が送信されるのを待っています。",
+  "Memory...: the edit is being written right now.":
+    "Memory...: 変更を書き込んでいる最中です。",
+  Sensitivity: "感度",
+  "Tracking resolution.": "トラッキングの解像度です。",
+  Orientation: "向き",
+  "Axis mapping for how the sensor is mounted.":
+    "センサーの取り付け方向に応じた軸のマッピングです。",
+  "Power & Rest Mode": "省電力・レストモード",
+  "Idle downshift stages that reduce sensor polling and power use while the trackball is not moving.":
+    "トラックボールが動いていない間にセンサーのポーリング頻度と消費電力を段階的に下げるアイドル設定です。",
+  Reporting: "レポート",
+  "How often motion reports are sent to the host.":
+    "ホストへ動きのレポートを送信する頻度です。",
+  "Sensor resolution in counts per inch. Higher values move the cursor faster for the same physical motion.":
+    "1インチあたりのカウント数（CPI）によるセンサー解像度です。値が大きいほど同じ動きでもカーソルが速く動きます。",
+  "Swap the X and Y axes.": "X軸とY軸を入れ替えます。",
+  "Invert the horizontal movement direction.": "水平方向の動きを反転します。",
+  "Invert the vertical movement direction.": "垂直方向の動きを反転します。",
+  "Keep the sensor fully powered, skipping the rest mode stages below.":
+    "以下のレストモード段階を使わず、センサーを常にフル稼働させます。",
+  "Enable the sensor's adaptive positioning algorithm.":
+    "センサーの適応的な位置検出アルゴリズムを有効にします。",
+  "Time of continuous motion before dropping from Run mode into Rest1.":
+    "Runモードから Rest1 に移行するまでの、動き続ける時間です。",
+  "Time in Rest1 before dropping into Rest2.":
+    "Rest1 から Rest2 に移行するまでの時間です。",
+  "Time in Rest2 before dropping into Rest3.":
+    "Rest2 から Rest3 に移行するまでの時間です。",
+  "Sensor sampling interval while in Rest1.":
+    "Rest1 中のセンサーのサンプリング間隔です。",
+  "Sensor sampling interval while in Rest2.":
+    "Rest2 中のセンサーのサンプリング間隔です。",
+  "Sensor sampling interval while in Rest3, the deepest idle stage.":
+    "最も深いアイドル段階である Rest3 中のセンサーのサンプリング間隔です。",
+  "Minimum time between motion reports sent to the host.":
+    "ホストへ動きのレポートを送信する最小間隔です。",
   "Subsystem {{index}}": "サブシステム {{index}}",
   "Custom settings subsystem is not available":
     "カスタム設定サブシステムを利用できません",
