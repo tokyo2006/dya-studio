@@ -117,6 +117,16 @@ import {
   Response as DefaultLayerResponse,
 } from "../../proto/cormoran/default_layer/default_layer";
 import {
+  Request as FastKeymapRequest,
+  Response as FastKeymapResponse,
+  ErrorCode as FastKeymapErrorCode,
+  LayoutDetailsMode as FastLayoutDetailsMode,
+} from "../../proto/cormoran/fast_keymap/fast_keymap";
+import {
+  FAST_KEYMAP_IDENTIFIER,
+  isDemoSubsystemEnabled,
+} from "./demo-subsystems";
+import {
   ANSI60,
   ORTHO,
   CORNE6,
@@ -250,6 +260,7 @@ class Keyboard {
   private readonly PMW3610_SUBSYSTEM_INDEX = 12;
   private readonly OS_DETECTION_SUBSYSTEM_INDEX = 13;
   private readonly DEFAULT_LAYER_SUBSYSTEM_INDEX = 14;
+  private readonly FAST_KEYMAP_SUBSYSTEM_INDEX = 15;
 
   constructor() {
     this.customSettingsHandler = new CustomSettingsHandler(
@@ -337,6 +348,11 @@ class Keyboard {
     {
       index: this.DEFAULT_LAYER_SUBSYSTEM_INDEX,
       identifier: DEFAULT_LAYER_IDENTIFIER,
+      uiUrl: [],
+    },
+    {
+      index: this.FAST_KEYMAP_SUBSYSTEM_INDEX,
+      identifier: FAST_KEYMAP_IDENTIFIER,
       uiUrl: [],
     },
   ];
@@ -479,9 +495,13 @@ class Keyboard {
       );
       rr.behaviors = { getBehaviorDetails: b || DEMO.behaviors[0] };
     } else if (req.custom?.listCustomSubsystems) {
+      // Honor the demo-mode per-subsystem enable/disable toggles so the app
+      // sees only the subsystems the user turned on (Subsystems tab).
       rr.custom = {
         listCustomSubsystems: {
-          subsystems: this.customSubsystems,
+          subsystems: this.customSubsystems.filter((s) =>
+            isDemoSubsystemEnabled(s.identifier),
+          ),
         },
       };
     } else if (req.custom?.call) {
@@ -637,6 +657,16 @@ class Keyboard {
         } catch (e) {
           console.error("Default Layer subsystem error:", e);
         }
+      } else if (subsystemIndex === this.FAST_KEYMAP_SUBSYSTEM_INDEX) {
+        // Fast Keymap (read-only fast loader) — serves the same keymap /
+        // behaviors / layout data as the official protocol below.
+        try {
+          const fastReq = FastKeymapRequest.decode(data);
+          const fastResp = this.handleFastKeymap(fastReq);
+          responseData = FastKeymapResponse.encode(fastResp).finish();
+        } catch (e) {
+          console.error("Fast Keymap subsystem error:", e);
+        }
       }
 
       if (responseData) {
@@ -659,6 +689,138 @@ class Keyboard {
     }
     console.log("Demo sending response:", rr);
     return { requestResponse: rr };
+  }
+
+  /**
+   * Serve the `cormoran__fast_keymap` read-only subsystem from the same demo
+   * keymap/behaviors/layout data the official protocol uses. Fingerprints are
+   * stable constants: the demo resets to DEMO on every reconnect, so the
+   * web's fingerprint cache stays valid across loads. Behavior details are
+   * always inlined (mode-agnostic) so the web resolves every behavior from the
+   * device without needing a matching bundled def_fp.
+   */
+  private handleFastKeymap(req: FastKeymapRequest): FastKeymapResponse {
+    const km = this.data.keymap;
+    const behaviors = this.data.behaviors;
+    const layoutsData = this.data.layouts;
+
+    const layerFp = (id: number) => 0x1000 + id;
+    const layoutFp = (i: number) => 0x2000 + i;
+    const behaviorDefFp = (id: number) => 0x5000 + id;
+    const detailsOf = (b: (typeof behaviors)[number]) => ({
+      displayName: b.displayName,
+      alias: b.displayName,
+      metadata: b.metadata,
+    });
+    const findLayer = (layerId: number) =>
+      km.layers.find((l) => l.id === layerId);
+
+    if (req.getSnapshot) {
+      return {
+        snapshot: {
+          definitionVersion: 1,
+          behaviorsFp: 0xbeef,
+          defaultKeymapFp: 0x3000,
+          keymapFp: 0x3000,
+          physicalLayoutFp: 0x4000,
+          behaviorCount: behaviors.length,
+          maxLayerNameLength: km.maxLayerNameLength,
+          availableLayers: km.availableLayers,
+          activeLayoutIndex: layoutsData.activeLayoutIndex,
+          // fp === defaultFp per layer (no edits) -> web uses get_layer.
+          layers: km.layers.map((l) => ({
+            id: l.id,
+            name: l.name,
+            bindingCount: l.bindings.length,
+            fp: layerFp(l.id),
+            defaultFp: layerFp(l.id),
+            editedCount: 0,
+          })),
+        },
+      };
+    }
+
+    if (req.listBehaviors) {
+      return {
+        listBehaviors: {
+          behaviors: behaviors.map((b) => ({
+            localId: b.id,
+            defFp: behaviorDefFp(b.id),
+            details: detailsOf(b),
+          })),
+        },
+      };
+    }
+
+    if (req.getBehaviors) {
+      const ids = req.getBehaviors.behaviorIds ?? [];
+      return {
+        getBehaviors: {
+          behaviors: ids.map((id) => {
+            const b = behaviors.find((x) => x.id === id) ?? behaviors[0];
+            return { id, details: detailsOf(b) };
+          }),
+        },
+      };
+    }
+
+    if (req.getLayer) {
+      const l = findLayer(req.getLayer.layerId);
+      return {
+        getLayer: {
+          id: l?.id ?? req.getLayer.layerId,
+          name: l?.name ?? "",
+          bindings: l?.bindings ?? [],
+        },
+      };
+    }
+
+    if (req.getDefaultLayer) {
+      const l = findLayer(req.getDefaultLayer.layerId);
+      return {
+        getDefaultLayer: {
+          id: l?.id ?? req.getDefaultLayer.layerId,
+          name: l?.name ?? "",
+          bindings: l?.bindings ?? [],
+        },
+      };
+    }
+
+    if (req.getEditedLayer) {
+      // Demo keymap has no edits vs. its compiled-in default.
+      return {
+        getEditedLayer: { id: req.getEditedLayer.layerId, bindings: [] },
+      };
+    }
+
+    if (req.getPhysicalLayouts) {
+      const withKeys =
+        req.getPhysicalLayouts.details ===
+        FastLayoutDetailsMode.LAYOUT_DETAILS_ALL;
+      return {
+        getPhysicalLayouts: {
+          activeLayoutIndex: layoutsData.activeLayoutIndex,
+          layouts: layoutsData.layouts.map((l, i) => ({
+            name: l.name,
+            fp: layoutFp(i),
+            keys: withKeys ? l.keys : [],
+          })),
+        },
+      };
+    }
+
+    if (req.getPhysicalLayout) {
+      const i = req.getPhysicalLayout.layoutIndex;
+      const l = layoutsData.layouts[i];
+      return {
+        getPhysicalLayout: {
+          index: i,
+          layout: { name: l?.name ?? "", fp: layoutFp(i), keys: l?.keys ?? [] },
+        },
+      };
+    }
+
+    return { error: { code: FastKeymapErrorCode.ERR_GENERIC } };
   }
 
   notify(callback: (data: Uint8Array) => void) {

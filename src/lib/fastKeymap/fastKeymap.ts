@@ -765,14 +765,27 @@ function writeLayoutGeometryCache(
  * a non-active layout's geometry (e.g. when the user picks a different
  * layout to view) without loadFastKeymap() having to fetch every layout's
  * geometry up front.
+ *
+ * When the caller knows the layout's fingerprint (`options.fp`), a cached
+ * geometry entry with that fp is returned WITHOUT a device round-trip — the
+ * geometry is content-addressed by fp, so a matching cache entry is exactly
+ * what the device would serve. (Local addition to the vendored upstream:
+ * upstream always did the RPC.)
  */
 export async function loadPhysicalLayoutGeometry(
   call: FastKeymapCall,
   index: number,
-  options: LoadFastKeymapOptions = {},
+  options: LoadFastKeymapOptions & { fp?: number } = {},
 ): Promise<FastKeymapLayoutKey[]> {
   const storage = options.storage ?? defaultStorage();
   const deviceKey = options.deviceKey ?? "default-device";
+
+  if (options.fp !== undefined) {
+    const cached = readLayoutGeometryCache(storage, deviceKey, options.fp);
+    if (cached) {
+      return cached.keys;
+    }
+  }
 
   const response = await callChecked(call, {
     getPhysicalLayout: { layoutIndex: index },

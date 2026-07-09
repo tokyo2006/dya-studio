@@ -16,7 +16,7 @@
  * subsystem is read-only, and the official keymap subsystem is what owns the
  * edit/save state. See {@link useKeymap}.
  */
-import { useCallback, useContext, useEffect, useMemo } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef } from "react";
 import {
   ZMKAppContext,
   isUnlockRequiredError,
@@ -253,6 +253,11 @@ export function useKeymapSource(): UseKeymapSourceReturn {
   );
   const deviceKey = zmkApp?.state.deviceInfo?.name;
 
+  // Per-layout fingerprints from the last fast load, indexed by layout index.
+  // Lets loadLayoutGeometry hit the fp-keyed geometry cache without a
+  // round-trip when a cached entry exists (mapFastModel discards the fps).
+  const layoutFpsRef = useRef<number[]>([]);
+
   const { subsystem, call } = useCustomSubsystem(
     FAST_KEYMAP_SUBSYSTEM,
     FAST_KEYMAP_CODEC,
@@ -296,6 +301,9 @@ export function useKeymapSource(): UseKeymapSourceReturn {
       if (isFastAvailable) {
         onProgress?.({ phase: "keymap" });
         const model = await loadFastKeymap(call, { deviceKey });
+        // Remember each layout's fingerprint so a later lazy geometry load can
+        // hit the fp-keyed cache (mapFastModel drops the fps).
+        layoutFpsRef.current = model.layouts.map((l) => l.fp);
         // Pure mapping, no RPCs — non-active layout geometry is fetched lazily
         // on layout switch, not here (see mapFastModel).
         return mapFastModel(model);
@@ -387,6 +395,7 @@ export function useKeymapSource(): UseKeymapSourceReturn {
       if (isFastAvailable) {
         const keys = await loadPhysicalLayoutGeometry(call, index, {
           deviceKey,
+          fp: layoutFpsRef.current[index],
         });
         return toKeyPhysicalAttrs(keys);
       }

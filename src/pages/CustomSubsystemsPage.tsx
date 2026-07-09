@@ -4,10 +4,18 @@ import {
   IconExternalLink,
   IconAlertTriangleFilled,
   IconX,
+  IconFlask,
+  IconRefresh,
 } from "@tabler/icons-react";
 import { ZMKAppContext } from "@cormoran/zmk-studio-react-hook";
 import { navigateTo } from "../lib/navigate";
 import { useLanguage } from "../hooks/useLanguage";
+import { useConnection } from "../hooks/useConnection";
+import {
+  DEMO_SUBSYSTEMS,
+  isDemoSubsystemEnabled,
+  setDemoSubsystemEnabled,
+} from "../lib/transport/demo-subsystems";
 
 // LocalStorage key for trusted subsystem UI URLs
 const TRUSTED_URLS_KEY = "dya-studio-trusted-subsystem-urls";
@@ -151,11 +159,97 @@ function ExternalLinkWarningDialog({
   );
 }
 
+/**
+ * Demo-only panel: toggle each custom subsystem on/off. Changes are persisted
+ * to localStorage and take effect on reconnect (the app fetches the subsystem
+ * list once per connection). Primary use: turn the read-only fast-keymap
+ * subsystem on to exercise the fast keymap-loading path.
+ */
+function DemoSubsystemToggles() {
+  const { t } = useLanguage();
+  const { onConnect } = useConnection();
+  // Local state mirrors localStorage so toggles re-render immediately.
+  const [enabled, setEnabled] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(
+      DEMO_SUBSYSTEMS.map((s) => [
+        s.identifier,
+        isDemoSubsystemEnabled(s.identifier),
+      ]),
+    ),
+  );
+  const [reconnecting, setReconnecting] = useState(false);
+
+  const toggle = (identifier: string) => {
+    const next = !enabled[identifier];
+    setDemoSubsystemEnabled(identifier, next);
+    setEnabled((prev) => ({ ...prev, [identifier]: next }));
+  };
+
+  const reconnect = async () => {
+    setReconnecting(true);
+    try {
+      await onConnect("demo");
+    } finally {
+      setReconnecting(false);
+    }
+  };
+
+  return (
+    <div className="glass-card p-5 mb-6 border border-[var(--color-electric)]/30">
+      <div className="flex items-center gap-3 mb-1">
+        <IconFlask size={18} className="text-[var(--color-electric)]" />
+        <h2 className="text-sm font-medium text-[var(--color-text)]">
+          {t("Demo: Subsystem Toggles")}
+        </h2>
+      </div>
+      <p className="text-xs text-[var(--color-text-muted)] mb-4">
+        {t(
+          "Enable or disable each subsystem the demo keyboard advertises, then reconnect to apply. Turn on Fast Keymap to test the fast keymap-loading path.",
+        )}
+      </p>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
+        {DEMO_SUBSYSTEMS.map((s) => (
+          <label
+            key={s.identifier}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--color-border)] border border-[var(--color-border-hover)] cursor-pointer select-none"
+          >
+            <input
+              type="checkbox"
+              checked={enabled[s.identifier] ?? false}
+              onChange={() => toggle(s.identifier)}
+              className="w-4 h-4 rounded accent-[var(--color-electric)] flex-shrink-0"
+            />
+            <span className="min-w-0">
+              <span className="block text-xs font-medium text-[var(--color-text)] truncate">
+                {s.label}
+              </span>
+              <span className="block text-[10px] font-mono text-[var(--color-text-muted)] truncate">
+                {s.identifier}
+              </span>
+            </span>
+          </label>
+        ))}
+      </div>
+
+      <button
+        className="btn-primary text-sm flex items-center gap-2 disabled:opacity-50"
+        onClick={reconnect}
+        disabled={reconnecting}
+      >
+        <IconRefresh size={16} className={reconnecting ? "animate-spin" : ""} />
+        {reconnecting ? t("Reconnecting...") : t("Reconnect to apply")}
+      </button>
+    </div>
+  );
+}
+
 export function CustomSubsystemsPage() {
   const { t } = useLanguage();
   const zmkApp = useContext(ZMKAppContext);
   const [pendingUrl, setPendingUrl] = useState<string | null>(null);
 
+  const isDemo = zmkApp?.state.connection?.label === "Demo";
   const subsystems = zmkApp?.state.customSubsystems?.subsystems ?? [];
 
   const navigate = (url: string) => {
@@ -205,6 +299,9 @@ export function CustomSubsystemsPage() {
             </p>
           </div>
         </div>
+
+        {/* Demo-only: per-subsystem enable/disable toggles */}
+        {isDemo && <DemoSubsystemToggles />}
 
         {/* Subsystem list */}
         {subsystems.length > 0 ? (
