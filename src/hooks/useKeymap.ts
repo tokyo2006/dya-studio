@@ -108,8 +108,12 @@ export interface UseKeymapReturn extends KeymapState {
   removeLayer: (layerIndex: number) => Promise<boolean>;
   /** Restore a deleted layer */
   restoreLayer: (layerId: number, atIndex: number) => Promise<Layer | null>;
+  /** Set layer name */
+  setLayerName: (layerId: number, name: string) => Promise<boolean>;
   /** Get available layer count (can restore up to this many) */
   availableLayers: number;
+  /** Maximum layer name length */
+  maxLayerNameLength: number;
   /** Save all changes to the keyboard */
   saveChanges: () => Promise<boolean>;
   /** Discard all unsaved changes */
@@ -593,6 +597,42 @@ export function useKeymap(): UseKeymapReturn {
     [callRpc, clearError, setErrorWithAutoClear],
   );
 
+  // Set layer name
+  const setLayerName = useCallback(
+    async (layerId: number, name: string): Promise<boolean> => {
+      const result = await callRpc(
+        { keymap: { setLayerProps: { layerId, name } } },
+        (response) => response.keymap?.setLayerProps,
+      );
+
+      // SET_LAYER_PROPS_RESP_OK = 0
+      if (result === 0) {
+        setKeymap((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            layers: prev.layers.map((layer) =>
+              layer.id === layerId ? { ...layer, name } : layer,
+            ),
+          };
+        });
+        setHasUnsavedChanges(true);
+        clearError();
+        return true;
+      }
+
+      // SET_LAYER_PROPS_RESP_ERR_INVALID_ID = 2
+      if (result === 2) {
+        setErrorWithAutoClear(`Failed to rename layer: invalid layer ID`);
+      } else {
+        setErrorWithAutoClear(`Failed to rename layer`);
+      }
+
+      return false;
+    },
+    [callRpc, clearError, setErrorWithAutoClear],
+  );
+
   // Save changes
   const saveChanges = useCallback(async (): Promise<boolean> => {
     const result = await callRpc(
@@ -823,7 +863,9 @@ export function useKeymap(): UseKeymapReturn {
     addLayer,
     removeLayer,
     restoreLayer,
+    setLayerName,
     availableLayers: keymap?.availableLayers ?? 0,
+    maxLayerNameLength: keymap?.maxLayerNameLength ?? 0,
     removedLayerIds,
     saveChanges,
     discardChanges,
