@@ -2,20 +2,17 @@ syntax = "proto3";
 
 package cormoran.runtime_macro;
 
-// Raw create/delete/rename of a macro entry is intentionally NOT duplicated
-// here: it is already covered by the generic zmk-feature-custom-settings
-// Studio RPC (CreateSetting/DeleteSetting, subsystem "cormoran__runtime_macro",
-// key "macro/<name>"). This subsystem only carries macro-domain operations
-// that the generic RPC cannot express: structured step-level editing, slot
-// resolution, and playback-adjacent global settings.
+// Runtime macro Studio RPC subsystem ("cormoran__runtime_macro").
+//
+// Lifecycle operations (create/delete/rename) are native to this subsystem
+// since zmk-feature-runtime-macro#13 - the earlier approach of routing them
+// through the generic cormoran_custom_settings RPC had a keyspace-lookup bug.
 //
 // Every operational RPC below (get/set-step-count/set-step/append-step)
 // addresses a macro by its `slot` number, not its name - the same numeric
 // index the keymap behavior binding uses to play it. A macro's slot is only
 // known for certain by reading its `slot` field from ListMacrosResponse or
-// MacroDetail (e.g. right after creating it via the generic CreateSetting
-// RPC). Renaming/creating/deleting a macro still goes through the
-// name-keyed generic CreateSetting/DeleteSetting RPC, unaffected by this.
+// MacroDetail (e.g. right after creating it via CreateMacroRequest).
 
 message ListMacrosRequest {}
 
@@ -84,9 +81,22 @@ message SaveMacrosRequest {}
 
 message DiscardMacrosRequest {}
 
+message CreateMacroRequest {
+    string name = 1;
+    bool persist = 2;
+}
+
+message DeleteMacroRequest { string name = 1; }
+
+message RenameMacroRequest {
+    string old_name = 1;
+    string new_name = 2;
+    bool persist = 3;
+}
+
 message Request {
     reserved 3,
-        8; // formerly set_macro_name, delete_macro - see generic CreateSetting/DeleteSetting
+        8; // formerly set_macro_name, delete_macro
     oneof request_type {
         ListMacrosRequest list_macros = 1;
         GetMacroRequest get_macro = 2;
@@ -97,6 +107,9 @@ message Request {
         SaveMacrosRequest save_macros = 9;
         DiscardMacrosRequest discard_macros = 10;
         AppendMacroStepRequest append_macro_step = 11;
+        CreateMacroRequest create_macro = 12;
+        DeleteMacroRequest delete_macro = 13;
+        RenameMacroRequest rename_macro = 14;
     }
 }
 

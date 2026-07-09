@@ -84,6 +84,21 @@ export interface SaveMacrosRequest {
 export interface DiscardMacrosRequest {
 }
 
+export interface CreateMacroRequest {
+  name: string;
+  persist: boolean;
+}
+
+export interface DeleteMacroRequest {
+  name: string;
+}
+
+export interface RenameMacroRequest {
+  oldName: string;
+  newName: string;
+  persist: boolean;
+}
+
 export interface Request {
   listMacros?: ListMacrosRequest | undefined;
   getMacro?: GetMacroRequest | undefined;
@@ -94,6 +109,9 @@ export interface Request {
   saveMacros?: SaveMacrosRequest | undefined;
   discardMacros?: DiscardMacrosRequest | undefined;
   appendMacroStep?: AppendMacroStepRequest | undefined;
+  createMacro?: CreateMacroRequest | undefined;
+  deleteMacro?: DeleteMacroRequest | undefined;
+  renameMacro?: RenameMacroRequest | undefined;
 }
 
 export interface ErrorResponse {
@@ -1017,6 +1035,180 @@ export const DiscardMacrosRequest: MessageFns<DiscardMacrosRequest> = {
   },
 };
 
+function createBaseCreateMacroRequest(): CreateMacroRequest {
+  return { name: "", persist: false };
+}
+
+export const CreateMacroRequest: MessageFns<CreateMacroRequest> = {
+  encode(message: CreateMacroRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.name !== "") {
+      writer.uint32(10).string(message.name);
+    }
+    if (message.persist !== false) {
+      writer.uint32(16).bool(message.persist);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): CreateMacroRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCreateMacroRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.name = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.persist = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<CreateMacroRequest>): CreateMacroRequest {
+    return CreateMacroRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<CreateMacroRequest>): CreateMacroRequest {
+    const message = createBaseCreateMacroRequest();
+    message.name = object.name ?? "";
+    message.persist = object.persist ?? false;
+    return message;
+  },
+};
+
+function createBaseDeleteMacroRequest(): DeleteMacroRequest {
+  return { name: "" };
+}
+
+export const DeleteMacroRequest: MessageFns<DeleteMacroRequest> = {
+  encode(message: DeleteMacroRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.name !== "") {
+      writer.uint32(10).string(message.name);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DeleteMacroRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDeleteMacroRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.name = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<DeleteMacroRequest>): DeleteMacroRequest {
+    return DeleteMacroRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<DeleteMacroRequest>): DeleteMacroRequest {
+    const message = createBaseDeleteMacroRequest();
+    message.name = object.name ?? "";
+    return message;
+  },
+};
+
+function createBaseRenameMacroRequest(): RenameMacroRequest {
+  return { oldName: "", newName: "", persist: false };
+}
+
+export const RenameMacroRequest: MessageFns<RenameMacroRequest> = {
+  encode(message: RenameMacroRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.oldName !== "") {
+      writer.uint32(10).string(message.oldName);
+    }
+    if (message.newName !== "") {
+      writer.uint32(18).string(message.newName);
+    }
+    if (message.persist !== false) {
+      writer.uint32(24).bool(message.persist);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): RenameMacroRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseRenameMacroRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.oldName = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.newName = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.persist = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<RenameMacroRequest>): RenameMacroRequest {
+    return RenameMacroRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<RenameMacroRequest>): RenameMacroRequest {
+    const message = createBaseRenameMacroRequest();
+    message.oldName = object.oldName ?? "";
+    message.newName = object.newName ?? "";
+    message.persist = object.persist ?? false;
+    return message;
+  },
+};
+
 function createBaseRequest(): Request {
   return {
     listMacros: undefined,
@@ -1028,6 +1220,9 @@ function createBaseRequest(): Request {
     saveMacros: undefined,
     discardMacros: undefined,
     appendMacroStep: undefined,
+    createMacro: undefined,
+    deleteMacro: undefined,
+    renameMacro: undefined,
   };
 }
 
@@ -1059,6 +1254,15 @@ export const Request: MessageFns<Request> = {
     }
     if (message.appendMacroStep !== undefined) {
       AppendMacroStepRequest.encode(message.appendMacroStep, writer.uint32(90).fork()).join();
+    }
+    if (message.createMacro !== undefined) {
+      CreateMacroRequest.encode(message.createMacro, writer.uint32(98).fork()).join();
+    }
+    if (message.deleteMacro !== undefined) {
+      DeleteMacroRequest.encode(message.deleteMacro, writer.uint32(106).fork()).join();
+    }
+    if (message.renameMacro !== undefined) {
+      RenameMacroRequest.encode(message.renameMacro, writer.uint32(114).fork()).join();
     }
     return writer;
   },
@@ -1142,6 +1346,30 @@ export const Request: MessageFns<Request> = {
           message.appendMacroStep = AppendMacroStepRequest.decode(reader, reader.uint32());
           continue;
         }
+        case 12: {
+          if (tag !== 98) {
+            break;
+          }
+
+          message.createMacro = CreateMacroRequest.decode(reader, reader.uint32());
+          continue;
+        }
+        case 13: {
+          if (tag !== 106) {
+            break;
+          }
+
+          message.deleteMacro = DeleteMacroRequest.decode(reader, reader.uint32());
+          continue;
+        }
+        case 14: {
+          if (tag !== 114) {
+            break;
+          }
+
+          message.renameMacro = RenameMacroRequest.decode(reader, reader.uint32());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1183,6 +1411,15 @@ export const Request: MessageFns<Request> = {
       : undefined;
     message.appendMacroStep = (object.appendMacroStep !== undefined && object.appendMacroStep !== null)
       ? AppendMacroStepRequest.fromPartial(object.appendMacroStep)
+      : undefined;
+    message.createMacro = (object.createMacro !== undefined && object.createMacro !== null)
+      ? CreateMacroRequest.fromPartial(object.createMacro)
+      : undefined;
+    message.deleteMacro = (object.deleteMacro !== undefined && object.deleteMacro !== null)
+      ? DeleteMacroRequest.fromPartial(object.deleteMacro)
+      : undefined;
+    message.renameMacro = (object.renameMacro !== undefined && object.renameMacro !== null)
+      ? RenameMacroRequest.fromPartial(object.renameMacro)
       : undefined;
     return message;
   },

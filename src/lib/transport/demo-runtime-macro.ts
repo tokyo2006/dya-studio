@@ -232,6 +232,45 @@ export class RuntimeMacroHandler {
       return { status: { affectedCount: 1, message: "Macro step appended" } };
     }
 
+    if (request.createMacro !== undefined) {
+      const { name, persist } = request.createMacro;
+      if (this.macros.some((m) => m.name === name)) {
+        return { error: { message: `Macro already exists: ${name}` } };
+      }
+      this.macros.push(createMacro(this.nextSlot++, name));
+      this.refreshPoolUsage();
+      this.markChanged(persist);
+      return { status: { affectedCount: 1, message: "Macro created" } };
+    }
+
+    if (request.deleteMacro !== undefined) {
+      const { name } = request.deleteMacro;
+      const index = this.macros.findIndex((m) => m.name === name);
+      if (index === -1) {
+        return { error: { message: `Macro not found: ${name}` } };
+      }
+      this.macros.splice(index, 1);
+      this.refreshPoolUsage();
+      this.markChanged(false);
+      return { status: { affectedCount: 1, message: "Macro deleted" } };
+    }
+
+    if (request.renameMacro !== undefined) {
+      const { oldName, newName, persist } = request.renameMacro;
+      const macro = this.macros.find((m) => m.name === oldName);
+      if (!macro) {
+        return { error: { message: `Macro not found: ${oldName}` } };
+      }
+      if (this.macros.some((m) => m.name === newName)) {
+        return {
+          error: { message: `Macro already exists: ${newName}` },
+        };
+      }
+      macro.name = newName;
+      this.markChanged(persist);
+      return { status: { affectedCount: 1, message: "Macro renamed" } };
+    }
+
     if (request.saveMacros !== undefined) {
       const affectedCount = this.pendingChanges ? 1 : 0;
       this.persistentMacros = this.macros.map(cloneMacro);

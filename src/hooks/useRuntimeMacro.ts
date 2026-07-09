@@ -9,19 +9,10 @@ import {
   type MacroSummary,
   type StatusResponse,
 } from "../proto/cormoran/runtime_macro/runtime_macro";
-import { SettingWriteMode } from "../proto/cormoran/zmk/custom_settings/custom_settings";
-import { encodeRuntimeMacroSteps } from "../lib/runtimeMacroCodec";
-import { useCustomSettings } from "./useCustomSettings";
 
 export type { MacroDetail, MacroGlobalSettings, MacroStep, MacroSummary };
 
 export const RUNTIME_MACRO_SUBSYSTEM_IDENTIFIER = "cormoran__runtime_macro";
-
-// The custom-settings keyspace prefix for runtime macro entries. Raw
-// create/delete/rename go through the generic custom-settings
-// CreateSetting/DeleteSetting RPC (subsystem "cormoran_custom_settings"),
-// not a runtime-macro-specific request - the firmware routes by key prefix.
-export const MACRO_KEY_PREFIX = "macro/";
 
 const CODEC = {
   encode: (request: Request) => Request.encode(request).finish(),
@@ -42,11 +33,7 @@ export interface UseRuntimeMacroReturn {
   getMacro: (slot: number) => Promise<MacroDetail | null>;
   createMacro: (name: string) => Promise<boolean>;
   deleteMacro: (name: string) => Promise<boolean>;
-  renameMacro: (
-    oldName: string,
-    newName: string,
-    steps: MacroStep[],
-  ) => Promise<boolean>;
+  renameMacro: (oldName: string, newName: string) => Promise<boolean>;
   setMacroStepCount: (
     slot: number,
     stepCount: number,
@@ -73,7 +60,6 @@ export function useRuntimeMacro(): UseRuntimeMacroReturn {
     RUNTIME_MACRO_SUBSYSTEM_IDENTIFIER,
     CODEC,
   );
-  const customSettings = useCustomSettings();
   const [macros, setMacros] = useState<MacroSummary[]>([]);
   const [globalSettings, setGlobalSettings] =
     useState<MacroGlobalSettings | null>(null);
@@ -268,112 +254,49 @@ export function useRuntimeMacro(): UseRuntimeMacroReturn {
     [runMutation],
   );
 
-  // Raw create/delete/rename go through the generic custom-settings
-  // CreateSetting/DeleteSetting RPC (subsystem "cormoran_custom_settings"),
-  // not a runtime-macro-specific request.
   const createMacro = useCallback(
     async (name: string): Promise<boolean> => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const response = await customSettings.createSetting(
-          MACRO_KEY_PREFIX + name,
-          { bytesValue: Uint8Array.from([1]) }, // format version, no steps
-          SettingWriteMode.SETTING_WRITE_MODE_MEMORY,
-        );
-        if (response.error) {
-          setError(response.error.message);
-          return false;
-        }
+      const status = await runMutation(
+        Request.create({ createMacro: { name, persist: false } }),
+        false,
+      );
+      if (status !== null) {
         await loadMacros();
         return true;
-      } catch (err) {
-        console.error("Failed to create runtime macro:", err);
-        setError(
-          `Failed to create runtime macro: ${
-            err instanceof Error ? err.message : "Unknown error"
-          }`,
-        );
-        return false;
-      } finally {
-        setIsLoading(false);
       }
+      return false;
     },
-    [customSettings, loadMacros],
+    [runMutation, loadMacros],
   );
 
   const deleteMacro = useCallback(
     async (name: string): Promise<boolean> => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const response = await customSettings.deleteSetting(
-          MACRO_KEY_PREFIX + name,
-        );
-        if (response.error) {
-          setError(response.error.message);
-          return false;
-        }
+      const status = await runMutation(
+        Request.create({ deleteMacro: { name } }),
+        false,
+      );
+      if (status !== null) {
         await loadMacros();
         return true;
-      } catch (err) {
-        console.error("Failed to delete runtime macro:", err);
-        setError(
-          `Failed to delete runtime macro: ${
-            err instanceof Error ? err.message : "Unknown error"
-          }`,
-        );
-        return false;
-      } finally {
-        setIsLoading(false);
       }
+      return false;
     },
-    [customSettings, loadMacros],
+    [runMutation, loadMacros],
   );
 
   const renameMacro = useCallback(
-    async (
-      oldName: string,
-      newName: string,
-      steps: MacroStep[],
-    ): Promise<boolean> => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const encoded = encodeRuntimeMacroSteps(steps);
-        // Create the new name first (carrying the current body), then delete
-        // the old one - so a failure never loses data.
-        const createResponse = await customSettings.createSetting(
-          MACRO_KEY_PREFIX + newName,
-          { bytesValue: encoded },
-          SettingWriteMode.SETTING_WRITE_MODE_MEMORY,
-        );
-        if (createResponse.error) {
-          setError(createResponse.error.message);
-          return false;
-        }
-        const deleteResponse = await customSettings.deleteSetting(
-          MACRO_KEY_PREFIX + oldName,
-        );
-        if (deleteResponse.error) {
-          setError(deleteResponse.error.message);
-          return false;
-        }
+    async (oldName: string, newName: string): Promise<boolean> => {
+      const status = await runMutation(
+        Request.create({ renameMacro: { oldName, newName, persist: false } }),
+        false,
+      );
+      if (status !== null) {
         await loadMacros();
         return true;
-      } catch (err) {
-        console.error("Failed to rename runtime macro:", err);
-        setError(
-          `Failed to rename runtime macro: ${
-            err instanceof Error ? err.message : "Unknown error"
-          }`,
-        );
-        return false;
-      } finally {
-        setIsLoading(false);
       }
+      return false;
     },
-    [customSettings, loadMacros],
+    [runMutation, loadMacros],
   );
 
   const saveMacros = useCallback(async (): Promise<boolean> => {
