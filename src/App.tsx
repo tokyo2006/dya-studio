@@ -1,4 +1,4 @@
-import { useState, useContext, useCallback, useEffect } from "react";
+import { useContext, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   IconHome,
@@ -34,6 +34,7 @@ import { SettingsPage } from "./pages/SettingsPage";
 import { CustomSubsystemsPage } from "./pages/CustomSubsystemsPage";
 import { TroubleshootingPage } from "./pages/TroubleshootingPage";
 import { useLanguage } from "./hooks/useLanguage";
+import { useUrlTab, pathnameFromTabId } from "./hooks/useUrlTab";
 
 function getTabs(t: (key: string) => string): TabItem[] {
   return [
@@ -111,8 +112,16 @@ function App() {
 function AppContent() {
   const connection = useContext(ConnectionContext);
   const { t } = useLanguage();
-  const [activeTab, setActiveTab] = useState("home");
+  const [urlTab, navigateToTab] = useUrlTab();
   const tabs = getTabs(t);
+  const activeTab = tabs.some((tab) => tab.id === urlTab) ? urlTab : "home";
+
+  useEffect(() => {
+    // Canonicalize unknown paths (e.g. a stale/typo'd link) to the home tab.
+    if (urlTab !== activeTab && window.location.pathname !== "/") {
+      window.history.replaceState(null, "", "/");
+    }
+  }, [urlTab, activeTab]);
 
   const setActiveTabWithTracking = useCallback(
     (tabId: string) => {
@@ -120,12 +129,12 @@ function AppContent() {
       if (window.gtag) {
         window.gtag("event", "page_view", {
           page_title: tabs.find((tab) => tab.id === tabId)?.label || "Unknown",
-          page_path: `/${tabId}`,
+          page_path: pathnameFromTabId(tabId),
         });
       }
-      setActiveTab(tabId);
+      navigateToTab(tabId);
     },
-    [setActiveTab, tabs],
+    [navigateToTab, tabs],
   );
   useEffect(() => {
     if (connection.deviceName && window.gtag) {
