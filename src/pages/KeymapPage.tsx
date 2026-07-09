@@ -673,7 +673,7 @@ export function KeymapPage() {
 
             {/* Sensor Rotation Configuration */}
             {!sensorRotate.isAvailable && (
-              <div className="glass-card p-4 mb-4 border-yellow-500/20 bg-yellow-500/10 flex items-center gap-3">
+              <div className="glass-card p-4 mt-6 mb-4 border-yellow-500/20 bg-yellow-500/10 flex items-center gap-3">
                 <div className="p-2">
                   <IconAlertTriangle size={24} />
                 </div>

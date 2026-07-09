@@ -1,9 +1,20 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
+import * as Tooltip from "@radix-ui/react-tooltip";
 import {
   IconAlertTriangleFilled,
+  IconChevronDown,
+  IconChevronRight,
   IconCode,
   IconDeviceFloppy,
+  IconInfoCircle,
   IconRefresh,
   IconRotateClockwise,
   IconX,
@@ -27,6 +38,158 @@ import {
 type ValueKind = "bytes" | "int32" | "bool" | "string" | "behavior" | "unknown";
 
 const MEMORY_WRITE_DEBOUNCE_MS = 500;
+
+// Custom subsystem identifier registered by the pmw3610 driver's settings
+// module (see src/settings/pmw3610_settings.c in the driver repository).
+export const PMW3610_CUSTOM_SETTINGS_IDENTIFIER = "cormoran__pmw3610";
+
+interface SettingGroupDef {
+  title: string;
+  description: string;
+  // Field name is the setting key without its "@<device-id>" suffix.
+  fields: string[];
+}
+
+// Groups + light descriptions for the pmw3610 driver's own settings (see
+// PMW3610_DEFINE_INST_SETTINGS in that repo's pmw3610_settings.c), so the
+// per-field keys below stay in sync with the driver's field names.
+const PMW3610_SETTING_GROUPS: SettingGroupDef[] = [
+  {
+    title: "Sensitivity",
+    description: "Tracking resolution.",
+    fields: ["cpi"],
+  },
+  {
+    title: "Orientation",
+    description: "Axis mapping for how the sensor is mounted.",
+    fields: ["swap_xy", "invert_x", "invert_y"],
+  },
+  {
+    title: "Power & Rest Mode",
+    description:
+      "Idle downshift stages that reduce sensor polling and power use while the trackball is not moving.",
+    fields: [
+      "force_awake",
+      "smart_algorithm",
+      "run_downshift_ms",
+      "rest1_downshift_ms",
+      "rest2_downshift_ms",
+      "rest1_sample_ms",
+      "rest2_sample_ms",
+      "rest3_sample_ms",
+    ],
+  },
+  {
+    title: "Reporting",
+    description: "How often motion reports are sent to the host.",
+    fields: ["report_interval_min_ms"],
+  },
+];
+
+const PMW3610_FIELD_DESCRIPTIONS: Record<string, string> = {
+  cpi: "Sensor resolution in counts per inch. Higher values move the cursor faster for the same physical motion.",
+  swap_xy: "Swap the X and Y axes.",
+  invert_x: "Invert the horizontal movement direction.",
+  invert_y: "Invert the vertical movement direction.",
+  force_awake:
+    "Keep the sensor fully powered, skipping the rest mode stages below.",
+  smart_algorithm: "Enable the sensor's adaptive positioning algorithm.",
+  run_downshift_ms:
+    "Time of continuous motion before dropping from Run mode into Rest1.",
+  rest1_downshift_ms: "Time in Rest1 before dropping into Rest2.",
+  rest2_downshift_ms: "Time in Rest2 before dropping into Rest3.",
+  rest1_sample_ms: "Sensor sampling interval while in Rest1.",
+  rest2_sample_ms: "Sensor sampling interval while in Rest2.",
+  rest3_sample_ms:
+    "Sensor sampling interval while in Rest3, the deepest idle stage.",
+  report_interval_min_ms:
+    "Minimum time between motion reports sent to the host.",
+};
+
+// Setting keys are unique per pmw3610 device instance ("<field>@<id>"); the
+// grouping/description lookups above only care about the field name.
+function fieldName(key: string): string {
+  const at = key.indexOf("@");
+  return at === -1 ? key : key.slice(0, at);
+}
+
+function findScrollableAncestor(el: Element | null): Element | null {
+  let node = el?.parentElement ?? null;
+  while (node) {
+    const style = window.getComputedStyle(node);
+    if (
+      /(auto|scroll)/.test(style.overflowY) &&
+      node.scrollHeight > node.clientHeight
+    ) {
+      return node;
+    }
+    node = node.parentElement;
+  }
+  return null;
+}
+
+interface ScrollPin {
+  container: Element;
+  scrollTop: number;
+}
+
+// Discard/Reset toggle the shared `isLoading` flag, which disables (and can
+// blur) buttons across the whole settings list; that re-render can shift the
+// scroll position. Pin it back via useLayoutEffect (runs synchronously after
+// every commit, unlike requestAnimationFrame) on each isLoading flip so the
+// list doesn't visibly jump.
+function useScrollPin(isLoading: boolean) {
+  const pinRef = useRef<ScrollPin | null>(null);
+
+  useLayoutEffect(() => {
+    if (pinRef.current) {
+      pinRef.current.container.scrollTop = pinRef.current.scrollTop;
+    }
+  }, [isLoading]);
+
+  return function withScrollPin<T>(
+    triggerElement: Element | null,
+    action: () => Promise<T>,
+  ): Promise<T> {
+    const container = findScrollableAncestor(triggerElement);
+    if (container) {
+      pinRef.current = { container, scrollTop: container.scrollTop };
+    }
+    return action().finally(() => {
+      pinRef.current = null;
+    });
+  };
+}
+
+interface InfoTooltipProps {
+  label: string;
+  children: ReactNode;
+}
+
+function InfoTooltip({ label, children }: InfoTooltipProps) {
+  return (
+    <Tooltip.Provider delayDuration={200}>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <IconInfoCircle
+            size={14}
+            className="cursor-help text-[var(--color-text-muted)]"
+            aria-label={label}
+          />
+        </Tooltip.Trigger>
+        <Tooltip.Portal>
+          <Tooltip.Content
+            className="px-3 py-2 rounded bg-[var(--color-surface-elevated)] border border-[var(--color-border)] text-xs text-[var(--color-text-secondary)] shadow-lg z-50 max-w-xs"
+            sideOffset={5}
+          >
+            {children}
+            <Tooltip.Arrow className="fill-[var(--color-surface-elevated)]" />
+          </Tooltip.Content>
+        </Tooltip.Portal>
+      </Tooltip.Root>
+    </Tooltip.Provider>
+  );
+}
 
 function scalarValue(setting: Setting): SettingScalarValue | undefined {
   return setting.value?.arrayValue?.value ?? setting.value;
@@ -567,24 +730,37 @@ function SettingEditor({
   );
 }
 
+// Shared between the header row and each SettingRow so columns line up.
+// Setting gets most of the room; Editor is capped well below its old
+// 22rem max so it doesn't dominate the row on wide screens.
+const SETTINGS_TABLE_GRID_COLS =
+  "md:grid-cols-[minmax(10rem,1.6fr)_6rem_minmax(9rem,12rem)_7rem_6rem]";
+
 interface SettingRowProps {
   setting: Setting;
+  description?: string;
   layers: { id: number; name: string }[];
   behaviors: Map<number, BehaviorDefinition>;
   isLoading: boolean;
   onWrite: (setting: Setting, value: SettingValue) => Promise<void>;
   onDiscard: (setting: Setting) => Promise<void>;
   onReset: (setting: Setting) => Promise<void>;
+  withScrollPin: <T>(
+    triggerElement: Element | null,
+    action: () => Promise<T>,
+  ) => Promise<T>;
 }
 
 function SettingRow({
   setting,
+  description,
   layers,
   behaviors,
   isLoading,
   onWrite,
   onDiscard,
   onReset,
+  withScrollPin,
 }: SettingRowProps) {
   const { t } = useLanguage();
   const [saveState, setSaveState] = useState<"idle" | "queued" | "saving">(
@@ -612,21 +788,30 @@ function SettingRow({
   };
 
   return (
-    <div className="grid gap-3 border-t border-[var(--color-border)] py-4 md:grid-cols-[minmax(0,1fr)_7rem_minmax(14rem,22rem)_8rem_7rem] md:items-center">
+    <div
+      className={`grid gap-3 border-t border-[var(--color-border)] py-4 md:items-center ${SETTINGS_TABLE_GRID_COLS}`}
+    >
       <div className="min-w-0">
         <div className="flex items-center gap-2">
           <p className="truncate text-sm font-medium text-[var(--color-text)]">
             {settingLabel(setting)}
           </p>
           {setting.hasUnsavedValue && (
-            <span className="rounded border border-[var(--color-neon)]/30 bg-[var(--color-neon)]/10 px-2 py-0.5 text-[10px] font-medium text-[var(--color-neon)]">
-              {t("Unsaved")}
-            </span>
+            <span
+              className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-[var(--color-neon)]"
+              title={t("Unsaved")}
+              aria-label={t("Unsaved")}
+            />
           )}
         </div>
         <p className="mt-1 truncate font-mono text-xs text-[var(--color-text-muted)]">
           {formatValue(setting, t)}
         </p>
+        {description && (
+          <p className="mt-1 text-[11px] leading-snug text-[var(--color-text-muted)]">
+            {description}
+          </p>
+        )}
       </div>
 
       <span className="text-xs text-[var(--color-text-muted)]">
@@ -655,7 +840,9 @@ function SettingRow({
           type="button"
           className="theme-toggle h-9 w-9"
           disabled={isLoading}
-          onClick={() => onDiscard(setting)}
+          onClick={(event) =>
+            void withScrollPin(event.currentTarget, () => onDiscard(setting))
+          }
           title={t("Discard item changes")}
         >
           <IconRefresh size={17} />
@@ -664,7 +851,9 @@ function SettingRow({
           type="button"
           className="theme-toggle h-9 w-9"
           disabled={isLoading}
-          onClick={() => onReset(setting)}
+          onClick={(event) =>
+            void withScrollPin(event.currentTarget, () => onReset(setting))
+          }
           title={t("Reset item to default")}
         >
           <IconRotateClockwise size={17} />
@@ -682,6 +871,51 @@ export interface CustomSettingsSectionCardProps {
   keymapLoading?: boolean;
 }
 
+interface SettingRowListProps {
+  settings: Setting[];
+  layers: { id: number; name: string }[];
+  behaviors: Map<number, BehaviorDefinition>;
+  customSettings: UseCustomSettingsReturn;
+  withScrollPin: <T>(
+    triggerElement: Element | null,
+    action: () => Promise<T>,
+  ) => Promise<T>;
+  describeField?: (field: string) => string | undefined;
+}
+
+function SettingRowList({
+  settings,
+  layers,
+  behaviors,
+  customSettings,
+  withScrollPin,
+  describeField,
+}: SettingRowListProps) {
+  return (
+    <>
+      {settings.map((setting) => (
+        <SettingRow
+          key={[
+            setting.customSubsystemIndex,
+            setting.key,
+            setting.source,
+            setting.value?.arrayValue?.index ?? "scalar",
+          ].join(":")}
+          setting={setting}
+          description={describeField?.(fieldName(setting.key))}
+          layers={layers}
+          behaviors={behaviors}
+          isLoading={customSettings.isLoading}
+          onWrite={customSettings.writeSettingToMemory}
+          onDiscard={customSettings.discardSetting}
+          onReset={customSettings.resetSetting}
+          withScrollPin={withScrollPin}
+        />
+      ))}
+    </>
+  );
+}
+
 export function CustomSettingsSectionCard({
   section,
   layers,
@@ -690,6 +924,8 @@ export function CustomSettingsSectionCard({
   keymapLoading = false,
 }: CustomSettingsSectionCardProps) {
   const { t } = useLanguage();
+  const [isExpanded, setIsExpanded] = useState(true);
+  const withScrollPin = useScrollPin(customSettings.isLoading);
   const hasUnsavedChanges = section.settings.some(
     (setting) => setting.hasUnsavedValue,
   );
@@ -697,27 +933,70 @@ export function CustomSettingsSectionCard({
     settingSortValue(a).localeCompare(settingSortValue(b)),
   );
 
+  const isPmw3610 = section.identifier === PMW3610_CUSTOM_SETTINGS_IDENTIFIER;
+  const groups = isPmw3610
+    ? PMW3610_SETTING_GROUPS.map((group) => ({
+        ...group,
+        settings: sortedSettings
+          .filter((setting) => group.fields.includes(fieldName(setting.key)))
+          .sort(
+            (a, b) =>
+              group.fields.indexOf(fieldName(a.key)) -
+              group.fields.indexOf(fieldName(b.key)),
+          ),
+      })).filter((group) => group.settings.length > 0)
+    : null;
+  const groupedKeys = new Set(groups?.flatMap((group) => group.settings));
+  const ungroupedSettings = groups
+    ? sortedSettings.filter((setting) => !groupedKeys.has(setting))
+    : sortedSettings;
+
   return (
     <section className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
       <div className="flex flex-col gap-3 border-b border-[var(--color-border)] p-4 md:flex-row md:items-center md:justify-between">
-        <div className="min-w-0">
-          <h4 className="truncate text-sm font-medium text-[var(--color-text)]">
-            {section.identifier}
-          </h4>
-          <p className="text-xs text-[var(--color-text-muted)]">
-            {t("{{count}} settings", {
-              count: section.settings.length,
-            })}
-            {keymapLoading ? t(" - loading layer and behavior names") : ""}
-          </p>
-        </div>
-        <div className="flex flex-wrap justify-end gap-2">
+        <button
+          type="button"
+          className="flex min-w-0 items-center gap-2 text-left"
+          onClick={() => setIsExpanded((expanded) => !expanded)}
+          aria-expanded={isExpanded}
+        >
+          {isExpanded ? (
+            <IconChevronDown
+              size={18}
+              className="flex-shrink-0 text-[var(--color-text-muted)]"
+            />
+          ) : (
+            <IconChevronRight
+              size={18}
+              className="flex-shrink-0 text-[var(--color-text-muted)]"
+            />
+          )}
+          <div className="min-w-0">
+            <h4 className="truncate text-sm font-medium text-[var(--color-text)]">
+              {section.identifier}
+            </h4>
+            <p className="text-xs text-[var(--color-text-muted)]">
+              {t("{{count}} settings", {
+                count: section.settings.length,
+              })}
+              {keymapLoading ? t(" - loading layer and behavior names") : ""}
+            </p>
+          </div>
+        </button>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {hasUnsavedChanges && (
+            <span className="text-xs text-[var(--color-neon)]">
+              {t("● Unsaved")}
+            </span>
+          )}
           <button
             type="button"
             className="btn-electric flex items-center gap-2 px-3 py-2 text-sm"
             disabled={customSettings.isLoading || !hasUnsavedChanges}
-            onClick={() =>
-              customSettings.saveSection(section.customSubsystemIndex)
+            onClick={(event) =>
+              void withScrollPin(event.currentTarget, () =>
+                customSettings.saveSection(section.customSubsystemIndex),
+              )
             }
           >
             <IconDeviceFloppy size={16} />
@@ -727,8 +1006,10 @@ export function CustomSettingsSectionCard({
             type="button"
             className="btn-ghost flex items-center gap-2 border border-[var(--color-border)] text-sm"
             disabled={customSettings.isLoading}
-            onClick={() =>
-              customSettings.discardSection(section.customSubsystemIndex)
+            onClick={(event) =>
+              void withScrollPin(event.currentTarget, () =>
+                customSettings.discardSection(section.customSubsystemIndex),
+              )
             }
           >
             <IconRefresh size={16} />
@@ -738,7 +1019,7 @@ export function CustomSettingsSectionCard({
             type="button"
             className="btn-ghost flex items-center gap-2 border border-red-500/30 text-sm text-red-400"
             disabled={customSettings.isLoading}
-            onClick={() => {
+            onClick={(event) => {
               if (
                 window.confirm(
                   t("Reset all settings in {{identifier}}?", {
@@ -746,7 +1027,9 @@ export function CustomSettingsSectionCard({
                   }),
                 )
               ) {
-                void customSettings.resetSection(section.customSubsystemIndex);
+                void withScrollPin(event.currentTarget, () =>
+                  customSettings.resetSection(section.customSubsystemIndex),
+                );
               }
             }}
           >
@@ -756,38 +1039,101 @@ export function CustomSettingsSectionCard({
         </div>
       </div>
 
-      <div className="px-4">
-        <div className="hidden grid-cols-[minmax(0,1fr)_7rem_minmax(14rem,22rem)_8rem_7rem] gap-3 py-3 text-xs font-medium uppercase text-[var(--color-text-muted)] md:grid">
-          <span>{t("Setting")}</span>
-          <span>{t("Source")}</span>
-          <span>{t("Editor")}</span>
-          <span>{t("Status")}</span>
-          <span className="text-right">{t("Item")}</span>
+      {isExpanded && (
+        <div className="px-4 pb-2">
+          <div
+            className={`hidden gap-3 py-3 text-xs font-medium uppercase text-[var(--color-text-muted)] md:grid ${SETTINGS_TABLE_GRID_COLS}`}
+          >
+            <span>{t("Setting")}</span>
+            <span className="flex items-center gap-1">
+              {t("Source")}
+              <InfoTooltip label={t("What Source means")}>
+                <div className="mb-1 font-semibold text-[var(--color-electric)]">
+                  {t("Source legend")}
+                </div>
+                <ul className="list-disc space-y-1 pl-4">
+                  <li>{t("Local: the split side you are connected to.")}</li>
+                  <li>
+                    {t(
+                      "Source N: another split side's own independently stored copy.",
+                    )}
+                  </li>
+                  <li>
+                    {t(
+                      "All: every split side at once, used for section-wide actions.",
+                    )}
+                  </li>
+                </ul>
+              </InfoTooltip>
+            </span>
+            <span>{t("Editor")}</span>
+            <span className="flex items-center gap-1">
+              {t("Status")}
+              <InfoTooltip label={t("What Status means")}>
+                <div className="mb-1 font-semibold text-[var(--color-electric)]">
+                  {t("Status legend")}
+                </div>
+                <ul className="list-disc space-y-1 pl-4">
+                  <li>
+                    {t("Current: matches the value persisted on the keyboard.")}
+                  </li>
+                  <li>
+                    {t(
+                      "In memory: written to RAM; save the section to persist it.",
+                    )}
+                  </li>
+                  <li>{t("Queued: your edit is about to be sent.")}</li>
+                  <li>
+                    {t("Memory...: the edit is being written right now.")}
+                  </li>
+                </ul>
+              </InfoTooltip>
+            </span>
+            <span className="text-right">{t("Item")}</span>
+          </div>
+
+          {groups?.map((group) => (
+            <div key={group.title}>
+              <div className="pt-3 pb-1">
+                <h5 className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
+                  {t(group.title)}
+                </h5>
+                <p className="text-[11px] text-[var(--color-text-muted)]">
+                  {t(group.description)}
+                </p>
+              </div>
+              <SettingRowList
+                settings={group.settings}
+                layers={layers}
+                behaviors={behaviors}
+                customSettings={customSettings}
+                withScrollPin={withScrollPin}
+                describeField={(field) => {
+                  const description = PMW3610_FIELD_DESCRIPTIONS[field];
+                  return description ? t(description) : undefined;
+                }}
+              />
+            </div>
+          ))}
+
+          {ungroupedSettings.length > 0 && (
+            <SettingRowList
+              settings={ungroupedSettings}
+              layers={layers}
+              behaviors={behaviors}
+              customSettings={customSettings}
+              withScrollPin={withScrollPin}
+            />
+          )}
         </div>
-        {sortedSettings.map((setting) => (
-          <SettingRow
-            key={[
-              setting.customSubsystemIndex,
-              setting.key,
-              setting.source,
-              setting.value?.arrayValue?.index ?? "scalar",
-            ].join(":")}
-            setting={setting}
-            layers={layers}
-            behaviors={behaviors}
-            isLoading={customSettings.isLoading}
-            onWrite={customSettings.writeSettingToMemory}
-            onDiscard={customSettings.discardSetting}
-            onReset={customSettings.resetSetting}
-          />
-        ))}
-      </div>
+      )}
     </section>
   );
 }
 
 export function AdvancedSettingsSection() {
   const { t } = useLanguage();
+  const [isExpanded, setIsExpanded] = useState(false);
   const customSettings = useCustomSettings();
   const { keymap, behaviors, isLoading: keymapLoading } = useKeymap();
 
@@ -801,8 +1147,13 @@ export function AdvancedSettingsSection() {
   );
 
   return (
-    <div className="glass-card p-6">
-      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+    <div className="glass-card overflow-hidden">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between gap-3 p-6 text-left"
+        onClick={() => setIsExpanded((expanded) => !expanded)}
+        aria-expanded={isExpanded}
+      >
         <div>
           <h3 className="text-sm font-medium text-[var(--color-text)]">
             {t("Advanced Settings")}
@@ -813,59 +1164,80 @@ export function AdvancedSettingsSection() {
             )}
           </p>
         </div>
-        <button
-          type="button"
-          className="btn-ghost flex items-center gap-2 border border-[var(--color-border)] text-sm"
-          onClick={customSettings.loadSettings}
-          disabled={customSettings.isLoading}
-        >
-          <IconRefresh size={16} />
-          {t("Reload")}
-        </button>
-      </div>
+        {isExpanded ? (
+          <IconChevronDown
+            size={20}
+            className="flex-shrink-0 text-[var(--color-text-muted)]"
+          />
+        ) : (
+          <IconChevronRight
+            size={20}
+            className="flex-shrink-0 text-[var(--color-text-muted)]"
+          />
+        )}
+      </button>
 
-      <div className="mb-4 flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
-        <IconAlertTriangleFilled
-          size={18}
-          className="mt-0.5 flex-shrink-0 text-amber-400"
-        />
-        <p className="text-xs leading-relaxed text-[var(--color-text-secondary)]">
-          {t(
-            "Advanced settings can change firmware behavior immediately. Incorrect values may make the keyboard hard to use; discard or reset a section if the device starts behaving unexpectedly.",
-          )}
-        </p>
-      </div>
+      {isExpanded && (
+        <div className="space-y-4 border-t border-[var(--color-border)] p-6 pt-4">
+          <div className="flex justify-end">
+            <button
+              type="button"
+              className="btn-ghost flex flex-shrink-0 items-center gap-2 border border-[var(--color-border)] text-sm"
+              onClick={customSettings.loadSettings}
+              disabled={customSettings.isLoading}
+            >
+              <IconRefresh size={16} />
+              {t("Reload")}
+            </button>
+          </div>
 
-      {!customSettings.isAvailable ? (
-        <p className="text-sm text-[var(--color-text-muted)]">
-          {t("Custom settings subsystem is not available for this keyboard.")}
-        </p>
-      ) : customSettings.isLoading && customSettings.sections.length === 0 ? (
-        <p className="text-sm text-[var(--color-text-muted)]">
-          {t("Loading advanced settings...")}
-        </p>
-      ) : customSettings.sections.length === 0 ? (
-        <p className="text-sm text-[var(--color-text-muted)]">
-          {t("No advanced settings were reported by the keyboard.")}
-        </p>
-      ) : (
-        <div className="space-y-6">
-          {customSettings.sections.map((section) => (
-            <CustomSettingsSectionCard
-              key={section.customSubsystemIndex}
-              section={section}
-              layers={layers}
-              behaviors={behaviors}
-              customSettings={customSettings}
-              keymapLoading={keymapLoading}
+          <div className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+            <IconAlertTriangleFilled
+              size={18}
+              className="mt-0.5 flex-shrink-0 text-amber-400"
             />
-          ))}
-        </div>
-      )}
+            <p className="text-xs leading-relaxed text-[var(--color-text-secondary)]">
+              {t(
+                "Advanced settings can change firmware behavior immediately. Incorrect values may make the keyboard hard to use; discard or reset a section if the device starts behaving unexpectedly.",
+              )}
+            </p>
+          </div>
 
-      {customSettings.error && (
-        <div className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3">
-          <p className="text-sm text-red-400">{customSettings.error}</p>
+          {!customSettings.isAvailable ? (
+            <p className="text-sm text-[var(--color-text-muted)]">
+              {t(
+                "Custom settings subsystem is not available for this keyboard.",
+              )}
+            </p>
+          ) : customSettings.isLoading &&
+            customSettings.sections.length === 0 ? (
+            <p className="text-sm text-[var(--color-text-muted)]">
+              {t("Loading advanced settings...")}
+            </p>
+          ) : customSettings.sections.length === 0 ? (
+            <p className="text-sm text-[var(--color-text-muted)]">
+              {t("No advanced settings were reported by the keyboard.")}
+            </p>
+          ) : (
+            <div className="space-y-6">
+              {customSettings.sections.map((section) => (
+                <CustomSettingsSectionCard
+                  key={section.customSubsystemIndex}
+                  section={section}
+                  layers={layers}
+                  behaviors={behaviors}
+                  customSettings={customSettings}
+                  keymapLoading={keymapLoading}
+                />
+              ))}
+            </div>
+          )}
+
+          {customSettings.error && (
+            <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3">
+              <p className="text-sm text-red-400">{customSettings.error}</p>
+            </div>
+          )}
         </div>
       )}
     </div>

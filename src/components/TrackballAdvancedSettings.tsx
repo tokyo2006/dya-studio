@@ -4,17 +4,17 @@ import {
   IconChevronRight,
   IconRefresh,
 } from "@tabler/icons-react";
-import { CustomSettingsSectionCard } from "./AdvancedSettingsSection";
+import {
+  CustomSettingsSectionCard,
+  PMW3610_CUSTOM_SETTINGS_IDENTIFIER,
+} from "./AdvancedSettingsSection";
 import { LoadingIndicator } from "./LoadingIndicator";
 import { useCustomSettings } from "../hooks/useCustomSettings";
 import { useKeymap } from "../hooks/useKeymap";
 import { useLanguage } from "../hooks/useLanguage";
 
-// Custom subsystem identifier registered by the pmw3610 driver's settings
-// module (see src/settings/pmw3610_settings.c in the driver repository).
 // Frame capture/streaming lives in a separate, dedicated RPC subsystem and
 // is intentionally not surfaced here.
-const PMW3610_CUSTOM_SETTINGS_IDENTIFIER = "cormoran__pmw3610";
 
 export function TrackballAdvancedSettings() {
   const { t } = useLanguage();
