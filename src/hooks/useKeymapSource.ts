@@ -20,8 +20,8 @@ import { useCallback, useContext, useEffect, useMemo, useRef } from "react";
 import {
   ZMKAppContext,
   isUnlockRequiredError,
-  useCustomSubsystem,
 } from "@cormoran/zmk-studio-react-hook";
+import { useCustomSubsystem } from "./useCustomSubsystem";
 import { call_rpc } from "@zmkfirmware/zmk-studio-ts-client";
 import type {
   Keymap,
@@ -49,17 +49,6 @@ import type { TranslationParams } from "../i18n/translations";
 
 /** Identifier the fast-keymap module registers on the device. */
 const FAST_KEYMAP_SUBSYSTEM = "cormoran__fast_keymap";
-
-/**
- * Per-call timeout for fast-keymap RPCs, overriding useCustomSubsystem's 5s
- * default. Custom-subsystem calls are wrapped in a timeout (official call_rpc
- * is not); when one fires over slow BLE it abandons the shared RPC mutex
- * mid-read, desyncing the response stream and cascading into "No response"
- * errors across the app. A full keymap load issues several such calls (and a
- * behavior list / layer geometry can be a few KB over BLE), so 5s is too
- * tight — give them generous headroom instead.
- */
-const FAST_KEYMAP_RPC_TIMEOUT_MS = 30_000;
 
 /** ts-proto codec for the fast_keymap Request/Response wire messages. */
 const FAST_KEYMAP_CODEC = {
@@ -274,14 +263,6 @@ export function useKeymapSource(): UseKeymapSourceReturn {
     FAST_KEYMAP_CODEC,
   );
   const isFastAvailable = subsystem !== null;
-
-  // All fast-keymap RPCs go through this wrapper so they get the extended
-  // timeout (see FAST_KEYMAP_RPC_TIMEOUT_MS) rather than the 5s default.
-  const fastCall = useCallback(
-    (request: Request) =>
-      call(request, { timeout: FAST_KEYMAP_RPC_TIMEOUT_MS }),
-    [call],
-  );
   const source: KeymapSource = isFastAvailable ? "fast" : "official";
 
   // Keep the app-wide official-RPC guard in sync: once fast-keymap is
@@ -319,7 +300,7 @@ export function useKeymapSource(): UseKeymapSourceReturn {
     async (onProgress?: KeymapLoadProgressCallback): Promise<KeymapData> => {
       if (isFastAvailable) {
         onProgress?.({ phase: "keymap" });
-        const model = await loadFastKeymap(fastCall, { deviceKey });
+        const model = await loadFastKeymap(call, { deviceKey });
         // Remember each layout's fingerprint so a later lazy geometry load can
         // hit the fp-keyed cache (mapFastModel drops the fps).
         layoutFpsRef.current = model.layouts.map((l) => l.fp);
@@ -369,14 +350,14 @@ export function useKeymapSource(): UseKeymapSourceReturn {
 
       return { physicalLayouts, keymap, behaviors, source: "official" };
     },
-    [isFastAvailable, fastCall, deviceKey, officialRpc],
+    [isFastAvailable, call, deviceKey, officialRpc],
   );
 
   const loadPhysicalLayouts =
     useCallback(async (): Promise<PhysicalLayouts> => {
       if (isFastAvailable) {
         // One round-trip with every layout's geometry inline (ALL mode).
-        const response = await fastCallChecked(fastCall, {
+        const response = await fastCallChecked(call, {
           getPhysicalLayouts: { details: LayoutDetailsMode.LAYOUT_DETAILS_ALL },
         });
         const data = response.getPhysicalLayouts;
@@ -394,12 +375,12 @@ export function useKeymapSource(): UseKeymapSourceReturn {
           (r) => r.keymap?.getPhysicalLayouts,
         )) ?? { activeLayoutIndex: 0, layouts: [] }
       );
-    }, [isFastAvailable, fastCall, officialRpc]);
+    }, [isFastAvailable, call, officialRpc]);
 
   const loadLayerNames = useCallback(async (): Promise<string[]> => {
     if (isFastAvailable) {
       // Layer names come free from the snapshot's per-layer fingerprints.
-      const response = await fastCallChecked(fastCall, { getSnapshot: true });
+      const response = await fastCallChecked(call, { getSnapshot: true });
       return (response.snapshot?.layers ?? []).map((l) => l.name);
     }
     const keymap = await officialRpc(
@@ -407,12 +388,12 @@ export function useKeymapSource(): UseKeymapSourceReturn {
       (r) => r.keymap?.getKeymap,
     );
     return keymap?.layers.map((layer) => layer.name) ?? [];
-  }, [isFastAvailable, fastCall, officialRpc]);
+  }, [isFastAvailable, call, officialRpc]);
 
   const loadLayoutGeometry = useCallback(
     async (index: number): Promise<KeyPhysicalAttrs[]> => {
       if (isFastAvailable) {
-        const keys = await loadPhysicalLayoutGeometry(fastCall, index, {
+        const keys = await loadPhysicalLayoutGeometry(call, index, {
           deviceKey,
           fp: layoutFpsRef.current[index],
         });
@@ -426,7 +407,7 @@ export function useKeymapSource(): UseKeymapSourceReturn {
       );
       return layouts?.layouts[index]?.keys ?? [];
     },
-    [isFastAvailable, fastCall, deviceKey, officialRpc],
+    [isFastAvailable, call, deviceKey, officialRpc],
   );
 
   return {

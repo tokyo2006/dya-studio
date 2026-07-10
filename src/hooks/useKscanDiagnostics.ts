@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useCustomSubsystem } from "@cormoran/zmk-studio-react-hook";
+import { useCustomSubsystem } from "./useCustomSubsystem";
 import type { UseCustomSubsystemTypedReturn } from "@cormoran/zmk-studio-react-hook";
 import {
   GpioLineKind,

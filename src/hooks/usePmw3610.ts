@@ -2,8 +2,8 @@ import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import {
   ZMKAppContext,
   isUnlockRequiredError,
-  useCustomSubsystem,
 } from "@cormoran/zmk-studio-react-hook";
+import { useCustomSubsystem } from "./useCustomSubsystem";
 import {
   Notification as Pmw3610Notification,
   PixelFormat,

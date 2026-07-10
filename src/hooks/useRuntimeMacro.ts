@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useCustomSubsystem } from "@cormoran/zmk-studio-react-hook";
+import { useCustomSubsystem } from "./useCustomSubsystem";
 import {
   Request,
   Response,
@@ -224,7 +224,11 @@ export function useRuntimeMacro(): UseRuntimeMacroReturn {
   );
 
   const appendMacroStep = useCallback(
-    async (slot: number, step: MacroStep, persist = false): Promise<boolean> => {
+    async (
+      slot: number,
+      step: MacroStep,
+      persist = false,
+    ): Promise<boolean> => {
       const status = await runMutation(
         Request.create({ appendMacroStep: { slot, step, persist } }),
         persist,
