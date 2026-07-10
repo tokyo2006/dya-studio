@@ -12,3 +12,8 @@
 # (decoded from the small RX buffer, CONFIG_ZMK_STUDIO_RPC_RX_BUF_SIZE=128),
 # so it must be a bounded array, NOT a callback -- see DESIGN.md SS5/SS7.
 cormoran.fast_keymap.GetBehaviorsRequest.behavior_ids max_count:32
+
+# GetLayersRequest.layer_ids: same rationale -- a REQUEST field, so a bounded
+# plain array, not a callback. Layer ids are small (0..layers-1); 32 fits the
+# RX buffer with room to spare (chunk any larger set on the web side).
+cormoran.fast_keymap.GetLayersRequest.layer_ids max_count:32

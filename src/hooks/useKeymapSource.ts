@@ -77,7 +77,17 @@ export interface KeymapData {
   keymap: Keymap;
   behaviors: Map<number, BehaviorDefinition>;
   source: KeymapSource;
+  /** Ids of layers whose bindings are still loading in the background (fast
+   * incremental load): they come back with empty `bindings` in `keymap` and
+   * are filled in via the `onLayersLoaded` callback. Empty for the official
+   * path and for single-layer / warm-cache fast loads. */
+  pendingLayerIds: number[];
 }
+
+/** Called when the background load of the deferred layers completes, with the
+ * full set of layers (real bindings). Only fires when a fast incremental load
+ * left layers pending. */
+export type OnLayersLoadedCallback = (layers: Keymap["layers"]) => void;
 
 /**
  * Phases of a full keymap-data load. Behaviors are loaded one at a time on the
@@ -147,9 +157,16 @@ export interface UseKeymapSourceReturn {
   isFastAvailable: boolean;
   /** Which protocol the next load will use. */
   source: KeymapSource;
-  /** Load layouts + keymap + behaviors as one uniform {@link KeymapData}. */
+  /** Load layouts + keymap + behaviors as one uniform {@link KeymapData}.
+   *
+   * On the fast path this returns as soon as the FIRST layer is ready (other
+   * layers come back as empty placeholders listed in
+   * {@link KeymapData.pendingLayerIds}); the remaining layers load in the
+   * background and arrive via `onLayersLoaded`. On the official path everything
+   * is loaded before returning and `onLayersLoaded` never fires. */
   loadKeymapData: (
     onProgress?: KeymapLoadProgressCallback,
+    onLayersLoaded?: OnLayersLoadedCallback,
   ) => Promise<KeymapData>;
   /** Load just the physical layouts (with full geometry for every layout). */
   loadPhysicalLayouts: () => Promise<PhysicalLayouts>;
@@ -236,7 +253,13 @@ function mapFastModel(model: FastKeymapModel): KeymapData {
     });
   }
 
-  return { physicalLayouts, keymap, behaviors, source: "fast" };
+  return {
+    physicalLayouts,
+    keymap,
+    behaviors,
+    source: "fast",
+    pendingLayerIds: model.pendingLayerIds,
+  };
 }
 
 /**
@@ -297,16 +320,36 @@ export function useKeymapSource(): UseKeymapSourceReturn {
   );
 
   const loadKeymapData = useCallback(
-    async (onProgress?: KeymapLoadProgressCallback): Promise<KeymapData> => {
+    async (
+      onProgress?: KeymapLoadProgressCallback,
+      onLayersLoaded?: OnLayersLoadedCallback,
+    ): Promise<KeymapData> => {
       if (isFastAvailable) {
         onProgress?.({ phase: "keymap" });
-        const model = await loadFastKeymap(call, { deviceKey });
+        // Phase 1: fetch only the FIRST layer so the UI can render immediately;
+        // behaviors + layouts are fully loaded here too. Other uncached layers
+        // come back as empty placeholders (model.pendingLayerIds).
+        const model = await loadFastKeymap(call, {
+          deviceKey,
+          firstLayerOnly: true,
+        });
         // Remember each layout's fingerprint so a later lazy geometry load can
         // hit the fp-keyed cache (mapFastModel drops the fps).
         layoutFpsRef.current = model.layouts.map((l) => l.fp);
-        // Pure mapping, no RPCs — non-active layout geometry is fetched lazily
-        // on layout switch, not here (see mapFastModel).
-        return mapFastModel(model);
+        const data = mapFastModel(model);
+
+        // Phase 2 (background): load the deferred layers. behaviors/layouts and
+        // the first layer are cache-warm now, so this fetches only the pending
+        // layers (one batched get_layers round-trip) and hands them back.
+        if (data.pendingLayerIds.length > 0 && onLayersLoaded) {
+          void loadFastKeymap(call, { deviceKey })
+            .then((full) => onLayersLoaded(mapFastModel(full).keymap.layers))
+            .catch((err) => {
+              console.error("Background layer load failed:", err);
+            });
+        }
+
+        return data;
       }
 
       // -- official path ----------------------------------------------------
@@ -348,7 +391,13 @@ export function useKeymapSource(): UseKeymapSourceReturn {
         onProgress?.({ phase: "behaviors", current, total });
       }
 
-      return { physicalLayouts, keymap, behaviors, source: "official" };
+      return {
+        physicalLayouts,
+        keymap,
+        behaviors,
+        source: "official",
+        pendingLayerIds: [],
+      };
     },
     [isFastAvailable, call, deviceKey, officialRpc],
   );

@@ -8,7 +8,9 @@ package cormoran.fast_keymap;
 // Vendored from cormoran/zmk-feature-fast-keymap
 // (proto/cormoran/fast-keymap/fast_keymap.proto) so dya-studio can talk to the
 // `cormoran__fast_keymap` custom Studio RPC subsystem when a keyboard exposes
-// it, falling back to the official protocol otherwise.
+// it, falling back to the official protocol otherwise. Kept in sync with
+// upstream (currently reflects PR #2: 16-bit / adaptive-width fingerprints,
+// batched get_layers, physical-layout size hoist, opt-in alias/display_name).
 //
 // Message shapes deliberately mimic the official proto
 // (dependencies/modules/msgs/zmk-studio-messages/proto/zmk/{keymap,behaviors}.proto)
@@ -26,6 +28,7 @@ message Request {
         GetLayerRequest get_edited_layer = 6;               // diff current vs default
         GetPhysicalLayoutsRequest get_physical_layouts = 7; // slim summary (+ optional geometry)
         GetPhysicalLayoutRequest get_physical_layout = 8;   // one layout's geometry
+        GetLayersRequest get_layers = 9;                    // batch current/effective (cold load)
     }
 }
 
@@ -40,10 +43,22 @@ message Response {
         EditedLayer get_edited_layer = 7;
         PhysicalLayoutsResponse get_physical_layouts = 8;
         PhysicalLayoutResponse get_physical_layout = 9;
+        GetLayersResponse get_layers = 10;
     }
 }
 
 message GetLayerRequest { uint32 layer_id = 1; }
+
+// Batch fetch of several layers' current/effective bindings in one round-trip
+// (DESIGN.md SS7). On a cold load a client wants every layer at once, and one
+// get_layer per layer is more round-trips than the whole keymap needs -- this
+// collapses them. Unknown/invalid ids are skipped (like get_behaviors), not an
+// error. `layer_ids` is bounded (max_count:32, fits the RX buffer); chunk more.
+message GetLayersRequest {
+    repeated uint32 layer_ids = 1;
+}
+
+message GetLayersResponse { repeated Layer layers = 1; }
 
 enum ErrorCode {
     ERR_GENERIC = 0;
@@ -68,6 +83,11 @@ message Snapshot {
     uint32 available_layers = 8;
     uint32 active_layout_index = 9;
     repeated LayerFingerprint layers = 10;
+    // Width (bits) def_fp is served at on this device: the smallest of 16/24/32
+    // at which every behavior's def_fp stays distinct (SS4). The web masks its
+    // bundle/cache def_fp keys to this width. 0 is treated as 16 for backward
+    // compatibility.
+    uint32 def_fp_bits = 11;
 }
 
 message LayerFingerprint {
@@ -87,22 +107,37 @@ enum BehaviorDetailsMode {
     BEHAVIOR_DETAILS_ALL = 2;    // inline details for every behavior
 }
 
-message ListBehaviorsRequest { BehaviorDetailsMode details = 1; }
+message ListBehaviorsRequest {
+    BehaviorDetailsMode details = 1;
+    // Include BehaviorDetails.alias in any inlined details. Off by default:
+    // the alias is only needed to render/export a behavior's `&<alias>` token,
+    // and for standard behaviors the client already has it from its bundle
+    // (def_fp still hashes the true alias either way, SS4/SS5). A client that
+    // doesn't render aliases leaves this false to save those bytes.
+    bool include_alias = 2;
+    // BehaviorDetails.display_name is included by default (opt-out): set this
+    // to omit it when the client doesn't render a behavior's human name. As
+    // with alias, def_fp still hashes the true display_name regardless.
+    bool exclude_display_name = 3;
+}
 
 message ListBehaviorsResponse { repeated BehaviorSummary behaviors = 1; }
 
-// Slim: on the wire this is normally just local_id + def_fp (~10 B);
-// `details` is present only per the request's BehaviorDetailsMode (SS5).
+// Slim: on the wire this is normally just local_id + def_fp (~7-8 B; def_fp
+// is truncated to 16 bits -- see SS4/docs/protocol.md); `details` is present
+// only per the request's BehaviorDetailsMode (SS5).
 message BehaviorSummary {
     uint32 local_id = 1;
-    uint32 def_fp = 2; // content-addressed identity + validator, see SS4
+    uint32 def_fp = 2; // content-addressed identity + validator (low 16 bits), see SS4
     BehaviorDetails details = 3;
 }
 
 // The official details tree (zmk.behaviors.GetBehaviorDetailsResponse)
-// factored into a reusable submessage. Deliberately carries NO fingerprint --
-// the client recomputes def_fp from these served fields, guaranteeing both
-// sides agree on the canonicalization (SS4/SS5).
+// factored into a reusable submessage. Carries NO fingerprint (the client uses
+// BehaviorSummary.def_fp, SS4/SS5). `display_name` is present by default and
+// `alias` only when requested (see ListBehaviorsRequest.include_alias /
+// exclude_display_name); an omitted field is proto3's default "". def_fp still
+// hashes the true alias + display_name regardless of what is served here.
 message BehaviorDetails {
     string display_name = 1;
     string alias = 2;
@@ -112,7 +147,9 @@ message BehaviorDetails {
 // Miss-repair batch fetch (SS5): resolve exactly the behaviors the client
 // couldn't resolve from its bundle/cache, in one round-trip.
 message GetBehaviorsRequest {
-    repeated uint32 behavior_ids = 1; // .options: max_count:32 (fits RX buf)
+    repeated uint32 behavior_ids = 1;   // .options: max_count:32 (fits RX buf)
+    bool include_alias = 2;             // see ListBehaviorsRequest.include_alias
+    bool exclude_display_name = 3;      // see ListBehaviorsRequest.exclude_display_name
 }
 
 message GetBehaviorsResponse { repeated BehaviorEntry behaviors = 1; }
@@ -208,6 +245,17 @@ message PhysicalLayoutSummary {
     string name = 1;
     uint32 fp = 2; // per-layout fingerprint, device-opaque (SS4/SS6)
     repeated KeyPhysicalAttrs keys = 3;
+
+    // Almost every key on a board shares one width/height (e.g. 100x100), so
+    // the firmware hoists the common size here and omits each key's
+    // width/height when it matches -- a KeyPhysicalAttrs with width/height 0
+    // means "use these defaults" (a real key is never 0-sized). Saves ~6 B
+    // per key on a uniform board (SS6). Only populated alongside `keys`
+    // (LAYOUT_DETAILS_ALL / get_physical_layout); the fp still hashes each
+    // key's true width/height, so this is a pure wire encoding, not a data
+    // change.
+    sint32 default_width = 4;
+    sint32 default_height = 5;
 }
 
 message KeyPhysicalAttrs {

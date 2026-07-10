@@ -46,12 +46,14 @@ import type {
   BehaviorBindingParametersSet,
   BehaviorParameterValueDescription,
 } from "../../proto/cormoran/fast_keymap/fast_keymap";
-import { defFp } from "./fingerprint";
+import { defFp, maskDefFp } from "./fingerprint";
 
 /** Mirrors the firmware's `FK_DEFINITION_VERSION` (src/fingerprint.h). Bump
- * both together if the canonical fingerprint byte layout below ever
- * changes. */
-export const FK_DEFINITION_VERSION = 1;
+ * both together if the canonical fingerprint byte layout below ever changes.
+ * v2: fingerprints truncated on the wire -- opaque fps to 16 bits, def_fp to
+ * the device-adaptive Snapshot.def_fp_bits width (defFp() stays full 32-bit;
+ * maskDefFp() applies the width at comparison time). */
+export const FK_DEFINITION_VERSION = 2;
 
 // -- best-effort, board-dependent constants (see file header, exception 1) --
 const BUNDLED_HID_KEYBOARD_MAX_USAGE = 0xff; // ZMK_HID_REPORT_TYPE_HKRO default
@@ -306,31 +308,55 @@ export const STANDARD_BEHAVIORS: Record<string, StandardBehaviorDef> = {
   },
 };
 
-/** Lazily-built, memoized `def_fp -> StandardBehaviorDef` index (DESIGN.md
- * SS5: the web indexes its standard-behavior bundle by def_fp, not alias).
- * Built once on first use since computing every entry's def_fp is cheap but
- * unnecessary work to repeat per lookup. */
-let bundleByDefFp: Map<number, StandardBehaviorDef> | null = null;
+/** Lazily-built, memoized `masked def_fp -> StandardBehaviorDef` indexes, one
+ * per served width (DESIGN.md SS5: the web indexes its standard-behavior
+ * bundle by def_fp, not alias). The device serves def_fp at a per-device
+ * width (Snapshot.def_fp_bits), so the bundle is keyed by the full def_fp
+ * masked to that same width; the maps are memoized per width since a device
+ * uses one width for a whole session. */
+// `null` marks a masked key that two DIFFERENT bundle definitions collide on
+// at this width -- resolving it would be a guess, so bundledByDefFp() reports
+// a miss and the caller fetches instead. (The current bundle has no such
+// collisions at 16/24/32 bits; this just keeps a future addition safe.)
+const bundleByDefFpForBits = new Map<
+  number,
+  Map<number, StandardBehaviorDef | null>
+>();
 
-function getBundleByDefFp(): Map<number, StandardBehaviorDef> {
-  if (!bundleByDefFp) {
-    const map = new Map<number, StandardBehaviorDef>();
+function getBundleByDefFp(
+  bits: number,
+): Map<number, StandardBehaviorDef | null> {
+  let map = bundleByDefFpForBits.get(bits);
+  if (!map) {
+    map = new Map<number, StandardBehaviorDef | null>();
+    const fullByKey = new Map<number, number>();
     for (const def of Object.values(STANDARD_BEHAVIORS)) {
-      map.set(defFp(def.alias, def.displayName, def.metadata), def);
+      const full = defFp(def.alias, def.displayName, def.metadata);
+      const key = maskDefFp(full, bits);
+      if (!map.has(key)) {
+        map.set(key, def);
+        fullByKey.set(key, full);
+      } else if (fullByKey.get(key) !== full) {
+        // Distinct content colliding on this masked key -> ambiguous.
+        map.set(key, null);
+      }
+      // Identical content (same full def_fp) -> keep the existing entry.
     }
-    bundleByDefFp = map;
+    bundleByDefFpForBits.set(bits, map);
   }
-  return bundleByDefFp;
+  return map;
 }
 
-/** Resolves a device-reported `def_fp` (BehaviorSummary.def_fp) to its
- * bundled definition, or `undefined` on a miss (unbundled behavior, or a
- * bundled alias whose device-side alias/display_name/metadata no longer
- * matches this bundle -- e.g. a board-dependent HID usage max, SS5's
- * exception 1). A miss is always safe: the caller falls back to
- * `get_behaviors`, never wrong data, just not fast for that one behavior. */
+/** Resolves a device-reported `def_fp` (BehaviorSummary.def_fp, already
+ * masked to `bits` = Snapshot.def_fp_bits) to its bundled definition, or
+ * `undefined` on a miss (unbundled behavior, or a bundled alias whose
+ * device-side alias/display_name/metadata no longer matches this bundle --
+ * e.g. a board-dependent HID usage max, SS5's exception 1). A miss is always
+ * safe: the caller falls back to `get_behaviors`, never wrong data, just not
+ * fast for that one behavior. */
 export function bundledByDefFp(
   defFpValue: number,
+  bits: number,
 ): StandardBehaviorDef | undefined {
-  return getBundleByDefFp().get(defFpValue);
+  return getBundleByDefFp(bits).get(defFpValue) ?? undefined;
 }

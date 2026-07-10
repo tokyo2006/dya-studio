@@ -1,4 +1,4 @@
-import { renderHook } from "@testing-library/react";
+import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { ZMKAppContext } from "@cormoran/zmk-studio-react-hook";
 import { useKeymapSource } from "../useKeymapSource";
@@ -141,6 +141,7 @@ describe("useKeymapSource — fast path", () => {
     activeLayoutIndex: 0,
     availableLayers: 8,
     maxLayerNameLength: 20,
+    pendingLayerIds: [],
     stats: {
       behaviorsFromCache: false,
       behaviorsBundled: 1,
@@ -195,6 +196,47 @@ describe("useKeymapSource — fast path", () => {
     expect(data.physicalLayouts.layouts[1].keys).toEqual([]);
     // the official protocol was not used for loading
     expect(mockCallRpc).not.toHaveBeenCalled();
+  });
+
+  it("returns the first layer immediately and fills the rest via onLayersLoaded", async () => {
+    const baseLayer = fastModel.layers[0];
+    const placeholder = {
+      id: 2,
+      name: "raise",
+      bindingCount: 1,
+      editedCount: 0,
+      bindings: [],
+      loadedFromCache: false,
+    };
+    const filled = {
+      ...placeholder,
+      bindings: [{ behaviorId: 9, param1: 0, param2: 0 }],
+    };
+    // Phase 1 (firstLayerOnly) defers layer 2; phase 2 (full) fills it.
+    mockLoadFastKeymap.mockImplementation(
+      async (_call: unknown, opts: { firstLayerOnly?: boolean }) =>
+        opts?.firstLayerOnly
+          ? {
+              ...fastModel,
+              layers: [baseLayer, placeholder],
+              pendingLayerIds: [2],
+            }
+          : { ...fastModel, layers: [baseLayer, filled], pendingLayerIds: [] },
+    );
+
+    const onLayersLoaded = jest.fn();
+    const { result } = renderHook(() => useKeymapSource(), { wrapper });
+    const data = await result.current.loadKeymapData(undefined, onLayersLoaded);
+
+    // Phase 1 returns with layer 2 still an empty placeholder.
+    expect(data.pendingLayerIds).toEqual([2]);
+    expect(data.keymap.layers[1].bindings).toEqual([]);
+
+    // Phase 2 fires with the full layers.
+    await waitFor(() => expect(onLayersLoaded).toHaveBeenCalledTimes(1));
+    const fullLayers = onLayersLoaded.mock.calls[0][0];
+    expect(fullLayers[1].bindings).toHaveLength(1);
+    expect(mockLoadFastKeymap).toHaveBeenCalledTimes(2);
   });
 
   it("fetches one layout's geometry lazily via loadLayoutGeometry", async () => {

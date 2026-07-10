@@ -188,6 +188,9 @@ export function useKeymap(): UseKeymapReturn {
 
   // Ref to track if data has been loaded
   const dataLoadedRef = useRef(false);
+  // Monotonic id per loadKeymapData call, so a background (incremental) layer
+  // update from a superseded load is ignored.
+  const loadIdRef = useRef(0);
   // Timer for auto-clearing errors
   const errorTimerRef = useRef<number | null>(null);
 
@@ -310,6 +313,50 @@ export function useKeymap(): UseKeymapReturn {
     setError(null);
     setUnlockRequired(false);
 
+    // Guard for the background (incremental) layer load: a load that has been
+    // superseded (reconnect/reload) must not apply its late layer update.
+    const loadId = ++loadIdRef.current;
+    const isFirstLoad = !dataLoadedRef.current;
+    // Populated after the initial (phase-1) load returns; read by the
+    // background callback, which fires later.
+    let pendingLayerIds: number[] = [];
+
+    // Called when the fast path finishes loading the layers it deferred (see
+    // useKeymapSource's incremental load): fill their bindings into the keymap
+    // and record their original bindings (first load only).
+    const applyBackgroundLayers = (fullLayers: Layer[]) => {
+      if (loadIdRef.current !== loadId) return;
+      const pending = new Set(pendingLayerIds);
+      if (pending.size === 0) return;
+      const bindingsById = new Map(fullLayers.map((l) => [l.id, l.bindings]));
+
+      setKeymap((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          layers: prev.layers.map((layer) =>
+            pending.has(layer.id) && bindingsById.has(layer.id)
+              ? { ...layer, bindings: bindingsById.get(layer.id)! }
+              : layer,
+          ),
+        };
+      });
+
+      if (isFirstLoad) {
+        setOriginalBindings((prev) => {
+          const next = new Map(prev);
+          for (const layer of fullLayers) {
+            if (!pending.has(layer.id)) continue;
+            layer.bindings.forEach((binding, position) => {
+              const key = bindingKey(layer.id, position);
+              if (!next.has(key)) next.set(key, { ...binding });
+            });
+          }
+          return next;
+        });
+      }
+    };
+
     try {
       // Load the keymap data. Only a failure HERE means unlock is actually
       // required: the fast-keymap subsystem is unsecured and loads while the
@@ -317,14 +364,16 @@ export function useKeymap(): UseKeymapReturn {
       // read — either way, this is the call whose unlock error should surface.
       let loaded = false;
       try {
-        const data = await loadFromSource((progress) =>
-          setLoadingProgress(progress),
+        const data = await loadFromSource(
+          (progress) => setLoadingProgress(progress),
+          applyBackgroundLayers,
         );
+        pendingLayerIds = data.pendingLayerIds;
 
         setPhysicalLayouts(data.physicalLayouts);
         setKeymap(data.keymap);
         // Only store original bindings on first load
-        if (!dataLoadedRef.current) {
+        if (isFirstLoad) {
           storeOriginalBindings(data.keymap);
           dataLoadedRef.current = true;
         }

@@ -93,7 +93,11 @@ export interface Request {
     | GetPhysicalLayoutsRequest
     | undefined;
   /** one layout's geometry */
-  getPhysicalLayout?: GetPhysicalLayoutRequest | undefined;
+  getPhysicalLayout?:
+    | GetPhysicalLayoutRequest
+    | undefined;
+  /** batch current/effective (cold load) */
+  getLayers?: GetLayersRequest | undefined;
 }
 
 export interface Response {
@@ -106,10 +110,26 @@ export interface Response {
   getEditedLayer?: EditedLayer | undefined;
   getPhysicalLayouts?: PhysicalLayoutsResponse | undefined;
   getPhysicalLayout?: PhysicalLayoutResponse | undefined;
+  getLayers?: GetLayersResponse | undefined;
 }
 
 export interface GetLayerRequest {
   layerId: number;
+}
+
+/**
+ * Batch fetch of several layers' current/effective bindings in one round-trip
+ * (DESIGN.md SS7). On a cold load a client wants every layer at once, and one
+ * get_layer per layer is more round-trips than the whole keymap needs -- this
+ * collapses them. Unknown/invalid ids are skipped (like get_behaviors), not an
+ * error. `layer_ids` is bounded (max_count:32, fits the RX buffer); chunk more.
+ */
+export interface GetLayersRequest {
+  layerIds: number[];
+}
+
+export interface GetLayersResponse {
+  layers: Layer[];
 }
 
 export interface ErrorResponse {
@@ -132,6 +152,13 @@ export interface Snapshot {
   availableLayers: number;
   activeLayoutIndex: number;
   layers: LayerFingerprint[];
+  /**
+   * Width (bits) def_fp is served at on this device: the smallest of 16/24/32
+   * at which every behavior's def_fp stays distinct (SS4). The web masks its
+   * bundle/cache def_fp keys to this width. 0 is treated as 16 for backward
+   * compatibility.
+   */
+  defFpBits: number;
 }
 
 export interface LayerFingerprint {
@@ -145,6 +172,20 @@ export interface LayerFingerprint {
 
 export interface ListBehaviorsRequest {
   details: BehaviorDetailsMode;
+  /**
+   * Include BehaviorDetails.alias in any inlined details. Off by default:
+   * the alias is only needed to render/export a behavior's `&<alias>` token,
+   * and for standard behaviors the client already has it from its bundle
+   * (def_fp still hashes the true alias either way, SS4/SS5). A client that
+   * doesn't render aliases leaves this false to save those bytes.
+   */
+  includeAlias: boolean;
+  /**
+   * BehaviorDetails.display_name is included by default (opt-out): set this
+   * to omit it when the client doesn't render a behavior's human name. As
+   * with alias, def_fp still hashes the true display_name regardless.
+   */
+  excludeDisplayName: boolean;
 }
 
 export interface ListBehaviorsResponse {
@@ -152,21 +193,24 @@ export interface ListBehaviorsResponse {
 }
 
 /**
- * Slim: on the wire this is normally just local_id + def_fp (~10 B);
- * `details` is present only per the request's BehaviorDetailsMode (SS5).
+ * Slim: on the wire this is normally just local_id + def_fp (~7-8 B; def_fp
+ * is truncated to 16 bits -- see SS4/docs/protocol.md); `details` is present
+ * only per the request's BehaviorDetailsMode (SS5).
  */
 export interface BehaviorSummary {
   localId: number;
-  /** content-addressed identity + validator, see SS4 */
+  /** content-addressed identity + validator (low 16 bits), see SS4 */
   defFp: number;
   details: BehaviorDetails | undefined;
 }
 
 /**
  * The official details tree (zmk.behaviors.GetBehaviorDetailsResponse)
- * factored into a reusable submessage. Deliberately carries NO fingerprint --
- * the client recomputes def_fp from these served fields, guaranteeing both
- * sides agree on the canonicalization (SS4/SS5).
+ * factored into a reusable submessage. Carries NO fingerprint (the client uses
+ * BehaviorSummary.def_fp, SS4/SS5). `display_name` is present by default and
+ * `alias` only when requested (see ListBehaviorsRequest.include_alias /
+ * exclude_display_name); an omitted field is proto3's default "". def_fp still
+ * hashes the true alias + display_name regardless of what is served here.
  */
 export interface BehaviorDetails {
   displayName: string;
@@ -181,6 +225,10 @@ export interface BehaviorDetails {
 export interface GetBehaviorsRequest {
   /** .options: max_count:32 (fits RX buf) */
   behaviorIds: number[];
+  /** see ListBehaviorsRequest.include_alias */
+  includeAlias: boolean;
+  /** see ListBehaviorsRequest.exclude_display_name */
+  excludeDisplayName: boolean;
 }
 
 export interface GetBehaviorsResponse {
@@ -274,6 +322,18 @@ export interface PhysicalLayoutSummary {
   /** per-layout fingerprint, device-opaque (SS4/SS6) */
   fp: number;
   keys: KeyPhysicalAttrs[];
+  /**
+   * Almost every key on a board shares one width/height (e.g. 100x100), so
+   * the firmware hoists the common size here and omits each key's
+   * width/height when it matches -- a KeyPhysicalAttrs with width/height 0
+   * means "use these defaults" (a real key is never 0-sized). Saves ~6 B
+   * per key on a uniform board (SS6). Only populated alongside `keys`
+   * (LAYOUT_DETAILS_ALL / get_physical_layout); the fp still hashes each
+   * key's true width/height, so this is a pure wire encoding, not a data
+   * change.
+   */
+  defaultWidth: number;
+  defaultHeight: number;
 }
 
 export interface KeyPhysicalAttrs {
@@ -296,6 +356,7 @@ function createBaseRequest(): Request {
     getEditedLayer: undefined,
     getPhysicalLayouts: undefined,
     getPhysicalLayout: undefined,
+    getLayers: undefined,
   };
 }
 
@@ -324,6 +385,9 @@ export const Request: MessageFns<Request> = {
     }
     if (message.getPhysicalLayout !== undefined) {
       GetPhysicalLayoutRequest.encode(message.getPhysicalLayout, writer.uint32(66).fork()).join();
+    }
+    if (message.getLayers !== undefined) {
+      GetLayersRequest.encode(message.getLayers, writer.uint32(74).fork()).join();
     }
     return writer;
   },
@@ -399,6 +463,14 @@ export const Request: MessageFns<Request> = {
           message.getPhysicalLayout = GetPhysicalLayoutRequest.decode(reader, reader.uint32());
           continue;
         }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.getLayers = GetLayersRequest.decode(reader, reader.uint32());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -435,6 +507,9 @@ export const Request: MessageFns<Request> = {
     message.getPhysicalLayout = (object.getPhysicalLayout !== undefined && object.getPhysicalLayout !== null)
       ? GetPhysicalLayoutRequest.fromPartial(object.getPhysicalLayout)
       : undefined;
+    message.getLayers = (object.getLayers !== undefined && object.getLayers !== null)
+      ? GetLayersRequest.fromPartial(object.getLayers)
+      : undefined;
     return message;
   },
 };
@@ -450,6 +525,7 @@ function createBaseResponse(): Response {
     getEditedLayer: undefined,
     getPhysicalLayouts: undefined,
     getPhysicalLayout: undefined,
+    getLayers: undefined,
   };
 }
 
@@ -481,6 +557,9 @@ export const Response: MessageFns<Response> = {
     }
     if (message.getPhysicalLayout !== undefined) {
       PhysicalLayoutResponse.encode(message.getPhysicalLayout, writer.uint32(74).fork()).join();
+    }
+    if (message.getLayers !== undefined) {
+      GetLayersResponse.encode(message.getLayers, writer.uint32(82).fork()).join();
     }
     return writer;
   },
@@ -564,6 +643,14 @@ export const Response: MessageFns<Response> = {
           message.getPhysicalLayout = PhysicalLayoutResponse.decode(reader, reader.uint32());
           continue;
         }
+        case 10: {
+          if (tag !== 82) {
+            break;
+          }
+
+          message.getLayers = GetLayersResponse.decode(reader, reader.uint32());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -604,6 +691,9 @@ export const Response: MessageFns<Response> = {
       : undefined;
     message.getPhysicalLayout = (object.getPhysicalLayout !== undefined && object.getPhysicalLayout !== null)
       ? PhysicalLayoutResponse.fromPartial(object.getPhysicalLayout)
+      : undefined;
+    message.getLayers = (object.getLayers !== undefined && object.getLayers !== null)
+      ? GetLayersResponse.fromPartial(object.getLayers)
       : undefined;
     return message;
   },
@@ -651,6 +741,110 @@ export const GetLayerRequest: MessageFns<GetLayerRequest> = {
   fromPartial(object: DeepPartial<GetLayerRequest>): GetLayerRequest {
     const message = createBaseGetLayerRequest();
     message.layerId = object.layerId ?? 0;
+    return message;
+  },
+};
+
+function createBaseGetLayersRequest(): GetLayersRequest {
+  return { layerIds: [] };
+}
+
+export const GetLayersRequest: MessageFns<GetLayersRequest> = {
+  encode(message: GetLayersRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    writer.uint32(10).fork();
+    for (const v of message.layerIds) {
+      writer.uint32(v);
+    }
+    writer.join();
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetLayersRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetLayersRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag === 8) {
+            message.layerIds.push(reader.uint32());
+
+            continue;
+          }
+
+          if (tag === 10) {
+            const end2 = reader.uint32() + reader.pos;
+            while (reader.pos < end2) {
+              message.layerIds.push(reader.uint32());
+            }
+
+            continue;
+          }
+
+          break;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<GetLayersRequest>): GetLayersRequest {
+    return GetLayersRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetLayersRequest>): GetLayersRequest {
+    const message = createBaseGetLayersRequest();
+    message.layerIds = object.layerIds?.map((e) => e) || [];
+    return message;
+  },
+};
+
+function createBaseGetLayersResponse(): GetLayersResponse {
+  return { layers: [] };
+}
+
+export const GetLayersResponse: MessageFns<GetLayersResponse> = {
+  encode(message: GetLayersResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.layers) {
+      Layer.encode(v!, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetLayersResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetLayersResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.layers.push(Layer.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<GetLayersResponse>): GetLayersResponse {
+    return GetLayersResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetLayersResponse>): GetLayersResponse {
+    const message = createBaseGetLayersResponse();
+    message.layers = object.layers?.map((e) => Layer.fromPartial(e)) || [];
     return message;
   },
 };
@@ -713,6 +907,7 @@ function createBaseSnapshot(): Snapshot {
     availableLayers: 0,
     activeLayoutIndex: 0,
     layers: [],
+    defFpBits: 0,
   };
 }
 
@@ -747,6 +942,9 @@ export const Snapshot: MessageFns<Snapshot> = {
     }
     for (const v of message.layers) {
       LayerFingerprint.encode(v!, writer.uint32(82).fork()).join();
+    }
+    if (message.defFpBits !== 0) {
+      writer.uint32(88).uint32(message.defFpBits);
     }
     return writer;
   },
@@ -838,6 +1036,14 @@ export const Snapshot: MessageFns<Snapshot> = {
           message.layers.push(LayerFingerprint.decode(reader, reader.uint32()));
           continue;
         }
+        case 11: {
+          if (tag !== 88) {
+            break;
+          }
+
+          message.defFpBits = reader.uint32();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -862,6 +1068,7 @@ export const Snapshot: MessageFns<Snapshot> = {
     message.availableLayers = object.availableLayers ?? 0;
     message.activeLayoutIndex = object.activeLayoutIndex ?? 0;
     message.layers = object.layers?.map((e) => LayerFingerprint.fromPartial(e)) || [];
+    message.defFpBits = object.defFpBits ?? 0;
     return message;
   },
 };
@@ -973,13 +1180,19 @@ export const LayerFingerprint: MessageFns<LayerFingerprint> = {
 };
 
 function createBaseListBehaviorsRequest(): ListBehaviorsRequest {
-  return { details: 0 };
+  return { details: 0, includeAlias: false, excludeDisplayName: false };
 }
 
 export const ListBehaviorsRequest: MessageFns<ListBehaviorsRequest> = {
   encode(message: ListBehaviorsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.details !== 0) {
       writer.uint32(8).int32(message.details);
+    }
+    if (message.includeAlias !== false) {
+      writer.uint32(16).bool(message.includeAlias);
+    }
+    if (message.excludeDisplayName !== false) {
+      writer.uint32(24).bool(message.excludeDisplayName);
     }
     return writer;
   },
@@ -999,6 +1212,22 @@ export const ListBehaviorsRequest: MessageFns<ListBehaviorsRequest> = {
           message.details = reader.int32() as any;
           continue;
         }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.includeAlias = reader.bool();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.excludeDisplayName = reader.bool();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1014,6 +1243,8 @@ export const ListBehaviorsRequest: MessageFns<ListBehaviorsRequest> = {
   fromPartial(object: DeepPartial<ListBehaviorsRequest>): ListBehaviorsRequest {
     const message = createBaseListBehaviorsRequest();
     message.details = object.details ?? 0;
+    message.includeAlias = object.includeAlias ?? false;
+    message.excludeDisplayName = object.excludeDisplayName ?? false;
     return message;
   },
 };
@@ -1207,7 +1438,7 @@ export const BehaviorDetails: MessageFns<BehaviorDetails> = {
 };
 
 function createBaseGetBehaviorsRequest(): GetBehaviorsRequest {
-  return { behaviorIds: [] };
+  return { behaviorIds: [], includeAlias: false, excludeDisplayName: false };
 }
 
 export const GetBehaviorsRequest: MessageFns<GetBehaviorsRequest> = {
@@ -1217,6 +1448,12 @@ export const GetBehaviorsRequest: MessageFns<GetBehaviorsRequest> = {
       writer.uint32(v);
     }
     writer.join();
+    if (message.includeAlias !== false) {
+      writer.uint32(16).bool(message.includeAlias);
+    }
+    if (message.excludeDisplayName !== false) {
+      writer.uint32(24).bool(message.excludeDisplayName);
+    }
     return writer;
   },
 
@@ -1245,6 +1482,22 @@ export const GetBehaviorsRequest: MessageFns<GetBehaviorsRequest> = {
 
           break;
         }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.includeAlias = reader.bool();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.excludeDisplayName = reader.bool();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1260,6 +1513,8 @@ export const GetBehaviorsRequest: MessageFns<GetBehaviorsRequest> = {
   fromPartial(object: DeepPartial<GetBehaviorsRequest>): GetBehaviorsRequest {
     const message = createBaseGetBehaviorsRequest();
     message.behaviorIds = object.behaviorIds?.map((e) => e) || [];
+    message.includeAlias = object.includeAlias ?? false;
+    message.excludeDisplayName = object.excludeDisplayName ?? false;
     return message;
   },
 };
@@ -2195,7 +2450,7 @@ export const PhysicalLayoutResponse: MessageFns<PhysicalLayoutResponse> = {
 };
 
 function createBasePhysicalLayoutSummary(): PhysicalLayoutSummary {
-  return { name: "", fp: 0, keys: [] };
+  return { name: "", fp: 0, keys: [], defaultWidth: 0, defaultHeight: 0 };
 }
 
 export const PhysicalLayoutSummary: MessageFns<PhysicalLayoutSummary> = {
@@ -2208,6 +2463,12 @@ export const PhysicalLayoutSummary: MessageFns<PhysicalLayoutSummary> = {
     }
     for (const v of message.keys) {
       KeyPhysicalAttrs.encode(v!, writer.uint32(26).fork()).join();
+    }
+    if (message.defaultWidth !== 0) {
+      writer.uint32(32).sint32(message.defaultWidth);
+    }
+    if (message.defaultHeight !== 0) {
+      writer.uint32(40).sint32(message.defaultHeight);
     }
     return writer;
   },
@@ -2243,6 +2504,22 @@ export const PhysicalLayoutSummary: MessageFns<PhysicalLayoutSummary> = {
           message.keys.push(KeyPhysicalAttrs.decode(reader, reader.uint32()));
           continue;
         }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.defaultWidth = reader.sint32();
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.defaultHeight = reader.sint32();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2260,6 +2537,8 @@ export const PhysicalLayoutSummary: MessageFns<PhysicalLayoutSummary> = {
     message.name = object.name ?? "";
     message.fp = object.fp ?? 0;
     message.keys = object.keys?.map((e) => KeyPhysicalAttrs.fromPartial(e)) || [];
+    message.defaultWidth = object.defaultWidth ?? 0;
+    message.defaultHeight = object.defaultHeight ?? 0;
     return message;
   },
 };

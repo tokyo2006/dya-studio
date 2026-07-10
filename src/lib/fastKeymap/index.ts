@@ -36,7 +36,7 @@ export {
   type StandardBehaviorDef,
 } from "./standardBehaviors";
 
-export { crc32Update, crcStrU16len, defFp } from "./fingerprint";
+export { crc32Update, crcStrU16len, defFp, maskDefFp } from "./fingerprint";
 
 export {
   Request,

@@ -176,5 +176,19 @@ export function defFp(
   let seed = crcMetadata(0, metadata);
   seed = crcStrU16len(seed, alias);
   seed = crcStrU16len(seed, displayName);
-  return seed;
+  // The FULL 32-bit value. The device serves def_fp truncated to a
+  // per-device width (Snapshot.def_fp_bits, the firmware's fk_def_fp_bits()),
+  // so callers mask the value they compare against summary.def_fp with
+  // maskDefFp() below -- the mask is applied at comparison time, not baked
+  // into this canonical value.
+  return seed >>> 0;
+}
+
+/** Masks a full def_fp to the device's served width (Snapshot.def_fp_bits,
+ * one of 16/24/32; 0 is treated as 16 for backward compatibility), mirroring
+ * the firmware's `fk_fp_behavior_def_full() & fk_def_fp_mask()`. */
+export function maskDefFp(fullDefFp: number, bits: number): number {
+  const w = bits && bits >= 16 ? bits : 16;
+  if (w >= 32) return fullDefFp >>> 0;
+  return (fullDefFp & ((1 << w) - 1)) >>> 0;
 }

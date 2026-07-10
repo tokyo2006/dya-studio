@@ -28,6 +28,11 @@ import { FK_DEFINITION_VERSION, bundledByDefFp } from "./standardBehaviors";
  * multiple `get_behaviors` round-trips of at most this many ids each. */
 const GET_BEHAVIORS_CHUNK_SIZE = 32;
 
+/** Batch size for `get_layers` (DESIGN.md SS7): `GetLayersRequest.layer_ids`
+ * is bounded `max_count:32` on the firmware for the same RX-buffer reason as
+ * `get_behaviors`, so chunk any larger set of layers to fetch. */
+const GET_LAYERS_CHUNK_SIZE = 32;
+
 /** Matches `useCustomSubsystem(...).call` -- see web/src/App.tsx. */
 export type FastKeymapCall = (request: Request) => Promise<Response | null>;
 
@@ -115,8 +120,9 @@ export interface FastKeymapLoadStats {
   /** Layers whose whole effective binding list came from the cache (`fp`
    * match, zero RPCs). */
   layersFromCache: number;
-  /** Layers fetched whole via `get_layer` (no edits vs. default, or no
-   * usable default cache -- see loadLayers()). */
+  /** Layers whose whole effective bindings were fetched (no usable default
+   * cache to diff against) -- pulled together in one batched `get_layers`
+   * round-trip on a cold load; see loadLayers(). */
   layersFetchedFull: number;
   /** Layers assembled from a (possibly cached) default layer plus a
    * `get_edited_layer` diff. */
@@ -140,6 +146,12 @@ export interface FastKeymapModel {
    * rename input in editors. NOTE: local addition to the vendored upstream
    * model, sourced straight from `Snapshot.max_layer_name_length`. */
   maxLayerNameLength: number;
+  /** Ids of layers whose bindings were NOT fetched this load (empty `bindings`
+   * placeholders), because `firstLayerOnly` deferred them. Empty on a normal
+   * (full) load. NOTE: local addition to the vendored upstream model, used to
+   * drive incremental "show the first layer, load the rest in the background"
+   * loading. */
+  pendingLayerIds: number[];
   stats: FastKeymapLoadStats;
 }
 
@@ -153,6 +165,26 @@ export interface LoadFastKeymapOptions {
   /** Defaults to `window.localStorage`. Overridable for tests / for
    * environments without a global localStorage. */
   storage?: Storage;
+  /** Whether to ask the device to inline each behavior's `alias` (the
+   * `&<alias>` token) in `list_behaviors`/`get_behaviors` (DESIGN.md SS5).
+   * Defaults to `true` so the returned model can render/export tokens. Set
+   * `false` to save those bytes on a cold load when the consumer never shows
+   * a behavior's alias -- standard behaviors still get their alias from the
+   * bundle, but device-only (custom) behaviors will have an empty `alias`. */
+  includeAliases?: boolean;
+  /** Whether to ask the device to inline each behavior's human `display_name`
+   * (DESIGN.md SS5). Defaults to `true` (opt-out): set `false` to save those
+   * bytes on a cold load when the consumer never shows a behavior's name.
+   * Standard behaviors still get their name from the bundle; device-only
+   * (custom) behaviors will have an empty `displayName`. */
+  includeDisplayNames?: boolean;
+  /** When `true`, only the FIRST layer's bindings are fetched (plus any layer
+   * already in cache); every other uncached layer comes back as an empty
+   * `bindings` placeholder whose id is listed in `FastKeymapModel.pendingLayerIds`.
+   * Lets a consumer show the first layer immediately and load the rest in the
+   * background with a second (cache-warm) load. NOTE: local addition to the
+   * vendored upstream loader. */
+  firstLayerOnly?: boolean;
 }
 
 function defaultStorage(): Storage | undefined {
@@ -197,6 +229,8 @@ export async function loadFastKeymap(
 ): Promise<FastKeymapModel> {
   const storage = options.storage ?? defaultStorage();
   const deviceKey = options.deviceKey ?? "default-device";
+  const includeAliases = options.includeAliases ?? true;
+  const includeDisplayNames = options.includeDisplayNames ?? true;
 
   const snapshotResponse = await callChecked(call, { getSnapshot: true });
   const snapshot = snapshotResponse.snapshot;
@@ -217,8 +251,16 @@ export async function loadFastKeymap(
     deviceKey,
     snapshot,
     bundleTrusted,
+    includeAliases,
+    includeDisplayNames,
   );
-  const layersResult = await loadLayers(call, storage, deviceKey, snapshot);
+  const layersResult = await loadLayers(
+    call,
+    storage,
+    deviceKey,
+    snapshot,
+    options.firstLayerOnly ?? false,
+  );
   const layoutsResult = await loadPhysicalLayouts(
     call,
     storage,
@@ -234,6 +276,7 @@ export async function loadFastKeymap(
     activeLayoutIndex: layoutsResult.activeLayoutIndex,
     availableLayers: snapshot.availableLayers,
     maxLayerNameLength: snapshot.maxLayerNameLength,
+    pendingLayerIds: layersResult.pendingLayerIds,
     stats: {
       behaviorsFromCache: behaviorsResult.fromCache,
       behaviorsBundled: behaviorsResult.bundledCount,
@@ -380,6 +423,8 @@ async function loadBehaviors(
   deviceKey: string,
   snapshot: Snapshot,
   bundleTrusted: boolean,
+  includeAlias: boolean,
+  includeDisplayName: boolean,
 ): Promise<{
   behaviors: FastKeymapBehavior[];
   fromCache: boolean;
@@ -387,11 +432,17 @@ async function loadBehaviors(
   cachedCount: number;
   fetchedCount: number;
 }> {
+  const excludeDisplayName = !includeDisplayName;
+  // The width (bits) the device serves def_fp at this session (SS4). Bundle
+  // and cache def_fp keys are masked to it; 0/absent means legacy 16-bit.
+  const servedBits = snapshot.defFpBits || 16;
+
   const cacheKey = FastKeymapCacheKeys.behaviors(deviceKey);
-  const cached = readCache<{ fp: number; behaviors: unknown[] }>(
-    storage,
-    cacheKey,
-  );
+  const cached = readCache<{
+    fp: number;
+    defFpBits?: number;
+    behaviors: unknown[];
+  }>(storage, cacheKey);
   const cachedBehaviors = (cached?.behaviors ?? []).filter(
     isSerializedBehavior,
   );
@@ -421,10 +472,16 @@ async function loadBehaviors(
   // Per-behavior cache lookup, independent of whether the OVERALL
   // behaviors_fp still matches -- a single changed/added/removed behavior
   // shouldn't cost every other behavior its cache hit (DESIGN.md SS5's
-  // resolution ladder step 2).
+  // resolution ladder step 2). Only trustworthy when the cache was written at
+  // the same def_fp width as this session serves: a cached def_fp masked to a
+  // different width could false-match a different behavior's summary def_fp.
+  // (The whole-set fast path above is inherently width-safe: behaviors_fp
+  // hashes the served def_fps, so a width change already changes it.)
   const cacheByDefFp = new Map<number, SerializedBehavior>();
-  for (const b of cachedBehaviors) {
-    cacheByDefFp.set(b.defFp, b);
+  if ((cached?.defFpBits || 16) === servedBits) {
+    for (const b of cachedBehaviors) {
+      cacheByDefFp.set(b.defFp, b);
+    }
   }
 
   // Mode selection (DESIGN.md SS5): an untrusted bundle (definition_version
@@ -441,7 +498,7 @@ async function loadBehaviors(
       : BehaviorDetailsMode.BEHAVIOR_DETAILS_NONE;
 
   const listResponse = await callChecked(call, {
-    listBehaviors: { details: mode },
+    listBehaviors: { details: mode, includeAlias, excludeDisplayName },
   });
   const summaries = listResponse.listBehaviors?.behaviors ?? [];
 
@@ -474,7 +531,9 @@ async function loadBehaviors(
       return;
     }
 
-    const bundled = bundleTrusted ? bundledByDefFp(summary.defFp) : undefined;
+    const bundled = bundleTrusted
+      ? bundledByDefFp(summary.defFp, servedBits)
+      : undefined;
     if (bundled) {
       bundledCount++;
       behaviors[index] = {
@@ -497,7 +556,7 @@ async function loadBehaviors(
   const missLocalIds = [...missIndexByLocalId.keys()];
   for (const idsChunk of chunk(missLocalIds, GET_BEHAVIORS_CHUNK_SIZE)) {
     const batchResponse = await callChecked(call, {
-      getBehaviors: { behaviorIds: idsChunk },
+      getBehaviors: { behaviorIds: idsChunk, includeAlias, excludeDisplayName },
     });
     for (const entry of batchResponse.getBehaviors?.behaviors ?? []) {
       const index = missIndexByLocalId.get(entry.id);
@@ -527,6 +586,7 @@ async function loadBehaviors(
 
   writeCache(storage, cacheKey, {
     fp: snapshot.behaviorsFp,
+    defFpBits: servedBits,
     behaviors: behaviors.map(serializeBehavior),
   });
 
@@ -573,90 +633,137 @@ async function loadLayers(
   storage: Storage | undefined,
   deviceKey: string,
   snapshot: Snapshot,
+  // Local addition (see LoadFastKeymapOptions.firstLayerOnly): defer every
+  // uncached layer except the first to an empty placeholder.
+  firstLayerOnly: boolean,
 ): Promise<{
   layers: FastKeymapLayer[];
   fromCacheCount: number;
   fetchedFullCount: number;
   fetchedDiffCount: number;
+  pendingLayerIds: number[];
 }> {
-  const layers: FastKeymapLayer[] = [];
+  const layers: FastKeymapLayer[] = new Array(snapshot.layers.length);
   let fromCacheCount = 0;
   let fetchedFullCount = 0;
   let fetchedDiffCount = 0;
+  const pendingLayerIds: number[] = [];
 
-  for (const layerFingerprint of snapshot.layers) {
-    const layerKey = FastKeymapCacheKeys.layer(deviceKey, layerFingerprint.fp);
+  const makeLayer = (
+    lf: Snapshot["layers"][number],
+    bindings: FastKeymapBinding[],
+    loadedFromCache: boolean,
+  ): FastKeymapLayer => ({
+    id: lf.id,
+    name: lf.name,
+    bindingCount: lf.bindingCount,
+    editedCount: lf.editedCount,
+    bindings,
+    loadedFromCache,
+  });
+
+  // Layers that couldn't be resolved from a cache and so need a full
+  // effective-binding fetch -- collected here and pulled in ONE batched
+  // `get_layers` round-trip (chunked) instead of one `get_layer` each, which
+  // matters most on a cold load where every layer lands here (DESIGN.md SS7).
+  const pending: { index: number; lf: Snapshot["layers"][number] }[] = [];
+
+  for (let index = 0; index < snapshot.layers.length; index++) {
+    const lf = snapshot.layers[index];
+    const layerKey = FastKeymapCacheKeys.layer(deviceKey, lf.fp);
     const defaultKey = FastKeymapCacheKeys.defaultLayer(
       deviceKey,
-      layerFingerprint.defaultFp,
+      lf.defaultFp,
     );
 
     const cachedCurrent = readCache<FastKeymapBinding[]>(storage, layerKey);
     if (cachedCurrent) {
       fromCacheCount++;
-      layers.push({
-        id: layerFingerprint.id,
-        name: layerFingerprint.name,
-        bindingCount: layerFingerprint.bindingCount,
-        editedCount: layerFingerprint.editedCount,
-        bindings: cachedCurrent,
-        loadedFromCache: true,
-      });
+      layers[index] = makeLayer(lf, cachedCurrent, true);
       continue;
     }
 
-    let bindings: FastKeymapBinding[];
-
-    if (layerFingerprint.fp === layerFingerprint.defaultFp) {
-      // Current == default content (no edits on this layer): a cached
-      // default (possibly written while loading a different layer that
-      // shares the same default_fp) can serve directly; otherwise a single
-      // get_layer call is cheaper than get_default_layer + get_edited_layer.
-      const cachedDefault = readCache<FastKeymapBinding[]>(storage, defaultKey);
-      if (cachedDefault) {
-        bindings = cachedDefault;
-      } else {
-        const response = await callChecked(call, {
-          getLayer: { layerId: layerFingerprint.id },
-        });
-        bindings = toFastBindings(response.getLayer?.bindings ?? []);
-        writeCache(storage, defaultKey, bindings);
-        fetchedFullCount++;
-      }
-    } else {
-      let defaultBindings = readCache<FastKeymapBinding[]>(storage, defaultKey);
-      if (!defaultBindings) {
-        const response = await callChecked(call, {
-          getDefaultLayer: { layerId: layerFingerprint.id },
-        });
-        defaultBindings = toFastBindings(
-          response.getDefaultLayer?.bindings ?? [],
-        );
-        writeCache(storage, defaultKey, defaultBindings);
-      }
-
-      const editedResponse = await callChecked(call, {
-        getEditedLayer: { layerId: layerFingerprint.id },
-      });
-      bindings = overlayEdits(
-        defaultBindings,
-        editedResponse.getEditedLayer?.bindings ?? [],
-      );
-      fetchedDiffCount++;
+    // firstLayerOnly (local addition): show the first layer immediately and
+    // defer every other uncached layer to an empty placeholder -- a later full
+    // load (cache-warm) fetches these in one batched get_layers round-trip.
+    if (firstLayerOnly && index !== 0) {
+      pendingLayerIds.push(lf.id);
+      layers[index] = makeLayer(lf, [], false);
+      continue;
     }
 
-    writeCache(storage, layerKey, bindings);
-    layers.push({
-      id: layerFingerprint.id,
-      name: layerFingerprint.name,
-      bindingCount: layerFingerprint.bindingCount,
-      editedCount: layerFingerprint.editedCount,
-      bindings,
-      loadedFromCache: false,
-    });
+    // A cached default (from a prior load, possibly written while loading a
+    // sibling layer sharing this default_fp) lets us avoid the batch fetch:
+    // an unedited layer reuses it directly, an edited one overlays a small
+    // `get_edited_layer` diff. Without one, fall through to the batch.
+    const cachedDefault = readCache<FastKeymapBinding[]>(storage, defaultKey);
+    if (cachedDefault) {
+      if (lf.fp === lf.defaultFp) {
+        writeCache(storage, layerKey, cachedDefault);
+        layers[index] = makeLayer(lf, cachedDefault, false);
+        continue;
+      }
+      const editedResponse = await callChecked(call, {
+        getEditedLayer: { layerId: lf.id },
+      });
+      const bindings = overlayEdits(
+        cachedDefault,
+        editedResponse.getEditedLayer?.bindings ?? [],
+      );
+      writeCache(storage, layerKey, bindings);
+      fetchedDiffCount++;
+      layers[index] = makeLayer(lf, bindings, false);
+      continue;
+    }
+
+    pending.push({ index, lf });
   }
 
-  return { layers, fromCacheCount, fetchedFullCount, fetchedDiffCount };
+  // Batch-fetch every remaining layer's effective bindings. `get_layers`
+  // returns current bindings directly, so on a cold load (no cached default
+  // to diff against) this is both fewer round-trips AND fewer than the old
+  // get_default_layer + get_edited_layer pair per edited layer.
+  for (const group of chunk(pending, GET_LAYERS_CHUNK_SIZE)) {
+    const response = await callChecked(call, {
+      getLayers: { layerIds: group.map((p) => p.lf.id) },
+    });
+    const bindingsById = new Map(
+      (response.getLayers?.layers ?? []).map((l) => [
+        l.id,
+        toFastBindings(l.bindings),
+      ]),
+    );
+
+    for (const { index, lf } of group) {
+      // A layer the device didn't return (shouldn't happen -- ids come from
+      // the snapshot) falls back to empty rather than leaving a hole.
+      const bindings = bindingsById.get(lf.id) ?? [];
+      writeCache(
+        storage,
+        FastKeymapCacheKeys.layer(deviceKey, lf.fp),
+        bindings,
+      );
+      // Unedited layer: its effective bindings ARE the default, so seed the
+      // default cache too (lets a sibling / a later edit reuse it).
+      if (lf.fp === lf.defaultFp) {
+        writeCache(
+          storage,
+          FastKeymapCacheKeys.defaultLayer(deviceKey, lf.defaultFp),
+          bindings,
+        );
+      }
+      fetchedFullCount++;
+      layers[index] = makeLayer(lf, bindings, false);
+    }
+  }
+
+  return {
+    layers,
+    fromCacheCount,
+    fetchedFullCount,
+    fetchedDiffCount,
+    pendingLayerIds,
+  };
 }
 
 // -- physical layouts (slim summary + on-demand geometry, DESIGN.md SS6) ---
@@ -722,10 +829,19 @@ function isSerializedLayoutGeometry(
   );
 }
 
-function toLayoutKeys(keys: KeyPhysicalAttrs[]): FastKeymapLayoutKey[] {
-  return keys.map((k) => ({
-    width: k.width,
-    height: k.height,
+/** Reconstructs a layout's keys, restoring each key's width/height from the
+ * summary's `defaultWidth`/`defaultHeight` when the firmware omitted them
+ * (encoded 0) because they matched the common size -- see the proto's
+ * PhysicalLayoutSummary.default_* / DESIGN.md SS6. A real key is never
+ * 0-sized, so `0` unambiguously means "use the default". */
+function toLayoutKeys(layout: {
+  keys: KeyPhysicalAttrs[];
+  defaultWidth: number;
+  defaultHeight: number;
+}): FastKeymapLayoutKey[] {
+  return layout.keys.map((k) => ({
+    width: k.width === 0 ? layout.defaultWidth : k.width,
+    height: k.height === 0 ? layout.defaultHeight : k.height,
     x: k.x,
     y: k.y,
     r: k.r,
@@ -767,7 +883,7 @@ function writeLayoutGeometryCache(
  * geometry up front.
  *
  * When the caller knows the layout's fingerprint (`options.fp`), a cached
- * geometry entry with that fp is returned WITHOUT a device round-trip — the
+ * geometry entry with that fp is returned WITHOUT a device round-trip -- the
  * geometry is content-addressed by fp, so a matching cache entry is exactly
  * what the device would serve. (Local addition to the vendored upstream:
  * upstream always did the RPC.)
@@ -795,7 +911,7 @@ export async function loadPhysicalLayoutGeometry(
     throw new Error(`get_physical_layout(${index}): device returned no layout`);
   }
 
-  const keys = toLayoutKeys(layout.keys);
+  const keys = toLayoutKeys(layout);
   writeLayoutGeometryCache(storage, deviceKey, {
     name: layout.name,
     fp: layout.fp,
@@ -864,7 +980,7 @@ async function loadPhysicalLayouts(
     });
     const activeData = activeResponse.getPhysicalLayout?.layout;
     if (activeData) {
-      const keys = toLayoutKeys(activeData.keys);
+      const keys = toLayoutKeys(activeData);
       activeLayout.name = activeData.name;
       activeLayout.fp = activeData.fp;
       activeLayout.keys = keys;
