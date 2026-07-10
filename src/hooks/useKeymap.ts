@@ -311,35 +311,57 @@ export function useKeymap(): UseKeymapReturn {
     setUnlockRequired(false);
 
     try {
-      const data = await loadFromSource((progress) =>
-        setLoadingProgress(progress),
-      );
-
-      setPhysicalLayouts(data.physicalLayouts);
-      setKeymap(data.keymap);
-      // Only store original bindings on first load
-      if (!dataLoadedRef.current) {
-        storeOriginalBindings(data.keymap);
-        dataLoadedRef.current = true;
-      }
-      setBehaviors(data.behaviors);
-
-      // Check unsaved changes (official protocol — tracks the edit state)
-      setLoadingProgress({ phase: "finalizing" });
-      const unsaved = await callRpc(
-        { keymap: { checkUnsavedChanges: true } },
-        (response) => response.keymap?.checkUnsavedChanges,
-      );
-      setHasUnsavedChanges(unsaved ?? false);
-    } catch (err) {
-      if (isKeymapUnlockRequired(err)) {
-        setUnlockRequired(true);
-        setError("Keyboard needs to be unlocked. Please unlock your keyboard.");
-      } else {
-        console.error("Failed to load keymap data:", err);
-        setErrorWithAutoClear(
-          err instanceof Error ? err.message : "Failed to load keymap data",
+      // Load the keymap data. Only a failure HERE means unlock is actually
+      // required: the fast-keymap subsystem is unsecured and loads while the
+      // keyboard is locked, whereas the official protocol needs unlock even to
+      // read — either way, this is the call whose unlock error should surface.
+      let loaded = false;
+      try {
+        const data = await loadFromSource((progress) =>
+          setLoadingProgress(progress),
         );
+
+        setPhysicalLayouts(data.physicalLayouts);
+        setKeymap(data.keymap);
+        // Only store original bindings on first load
+        if (!dataLoadedRef.current) {
+          storeOriginalBindings(data.keymap);
+          dataLoadedRef.current = true;
+        }
+        setBehaviors(data.behaviors);
+        loaded = true;
+      } catch (err) {
+        if (isKeymapUnlockRequired(err)) {
+          setUnlockRequired(true);
+          setError(
+            "Keyboard needs to be unlocked. Please unlock your keyboard.",
+          );
+        } else {
+          console.error("Failed to load keymap data:", err);
+          setErrorWithAutoClear(
+            err instanceof Error ? err.message : "Failed to load keymap data",
+          );
+        }
+      }
+
+      if (loaded) {
+        // checkUnsavedChanges uses the official (secured) keymap subsystem, so
+        // it fails with unlock-required when the keymap was loaded read-only
+        // via the unsecured fast path while locked. The keymap is already
+        // viewable, so don't promote that to an unlock prompt — best-effort:
+        // assume no unsaved changes when we can't read it. Editing a binding
+        // still prompts for unlock at that point.
+        setLoadingProgress({ phase: "finalizing" });
+        try {
+          if (connection) {
+            const response = await call_rpc(connection, {
+              keymap: { checkUnsavedChanges: true },
+            });
+            setHasUnsavedChanges(response.keymap?.checkUnsavedChanges ?? false);
+          }
+        } catch {
+          setHasUnsavedChanges(false);
+        }
       }
     } finally {
       setIsLoading(false);
@@ -349,7 +371,6 @@ export function useKeymap(): UseKeymapReturn {
     connection,
     loadFromSource,
     storeOriginalBindings,
-    callRpc,
     setErrorWithAutoClear,
   ]);
 
