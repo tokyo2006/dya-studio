@@ -153,10 +153,12 @@ describe("useKeymapSource — fast path", () => {
     },
   };
 
+  let mockCall: jest.Mock;
   beforeEach(() => {
+    mockCall = jest.fn().mockResolvedValue(null);
     mockUseCustomSubsystem.mockReturnValue({
       subsystem: { index: 3, identifier: "cormoran__fast_keymap" },
-      call: jest.fn(),
+      call: mockCall,
     });
     mockLoadFastKeymap.mockResolvedValue(fastModel);
     mockLoadPhysicalLayoutGeometry.mockResolvedValue([
@@ -206,5 +208,23 @@ describe("useKeymapSource — fast path", () => {
       expect.objectContaining({ deviceKey: "kbd" }),
     );
     expect(keys).toHaveLength(1);
+  });
+
+  it("issues fast RPCs with an extended timeout (not the 5s default)", async () => {
+    const { result } = renderHook(() => useKeymapSource(), { wrapper });
+    await result.current.loadKeymapData();
+
+    // loadFastKeymap is called with a wrapped `call` — invoking it must pass a
+    // longer timeout to the underlying subsystem call so slow-BLE RPCs don't
+    // spuriously time out and desync the RPC stream.
+    const wrappedCall = mockLoadFastKeymap.mock.calls[0][0] as (
+      request: unknown,
+    ) => Promise<unknown>;
+    await wrappedCall({ getSnapshot: true });
+
+    expect(mockCall).toHaveBeenCalledWith(
+      { getSnapshot: true },
+      { timeout: 30000 },
+    );
   });
 });
