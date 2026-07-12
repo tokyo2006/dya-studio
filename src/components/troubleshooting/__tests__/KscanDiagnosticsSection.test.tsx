@@ -53,6 +53,10 @@ function baseKscan(
     isLoadingTopology: false,
     topologyError: null,
     loadTopology: jest.fn(),
+    peripheralTopologies: new Map(),
+    isLoadingPeripheralTopologies: false,
+    peripheralTopologyErrors: new Map(),
+    loadPeripheralTopologies: jest.fn(),
     ...overrides,
   };
 }
@@ -130,16 +134,22 @@ describe("KscanDiagnosticsSection", () => {
     expect(loadTopology).not.toHaveBeenCalled();
   });
 
-  it("calls loadTopology and the official layouts loader on first expand", async () => {
+  it("calls loadTopology, loadPeripheralTopologies, and the official layouts loader on first expand", async () => {
     const loadTopology = jest.fn();
+    const loadPeripheralTopologies = jest.fn();
     const load = jest.fn();
     mockOfficialLayoutsReturn({ load });
 
-    render(<KscanDiagnosticsSection kscan={baseKscan({ loadTopology })} />);
+    render(
+      <KscanDiagnosticsSection
+        kscan={baseKscan({ loadTopology, loadPeripheralTopologies })}
+      />,
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Key Switches" }));
 
     await waitFor(() => expect(loadTopology).toHaveBeenCalledTimes(1));
+    expect(loadPeripheralTopologies).toHaveBeenCalledTimes(1);
     expect(load).toHaveBeenCalledTimes(1);
   });
 
