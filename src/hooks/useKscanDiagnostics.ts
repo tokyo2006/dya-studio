@@ -1,4 +1,10 @@
-import { type Context, useCallback, useContext, useEffect, useState } from "react";
+import {
+  type Context,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 import { ZMKAppContext } from "@cormoran/zmk-studio-react-hook";
 import { useCustomSubsystem } from "./useCustomSubsystem";
 import type { UseCustomSubsystemTypedReturn } from "@cormoran/zmk-studio-react-hook";
@@ -65,6 +71,10 @@ export interface UseKscanDiagnosticsReturn {
   peripheralTopologies: Map<number, Topology>;
   isLoadingPeripheralTopologies: boolean;
   peripheralTopologyErrors: Map<number, string>;
+  /** Set when QueryPeripheral was supported but no peripheral responded within
+   * the discovery timeout. Null when not yet loaded or when the feature is
+   * unsupported (firmware without QueryPeripheral). */
+  peripheralDiscoveryError: string | null;
   /** Discover peripherals and fetch their topologies via QueryPeripheral. */
   loadPeripheralTopologies: () => Promise<void>;
 }
@@ -277,7 +287,7 @@ async function queryPeripheral(
   innerRequest: Request,
   filterSource?: number,
   timeout: number = PERIPHERAL_DISCOVERY_TIMEOUT_MS,
-): Promise<Map<number, Response>> {
+): Promise<{ responses: Map<number, Response>; supported: boolean }> {
   const reqId = nextPeripheralReqId();
   const responses = new Map<number, Response>();
 
@@ -307,6 +317,7 @@ async function queryPeripheral(
     },
   });
 
+  let supported = false;
   try {
     const result = await call(
       Request.create({
@@ -318,6 +329,7 @@ async function queryPeripheral(
     );
 
     if (result && !result.error) {
+      supported = true;
       await Promise.race([
         targetArrived,
         new Promise<void>((r) => setTimeout(r, timeout)),
@@ -327,7 +339,7 @@ async function queryPeripheral(
     unsubscribe();
   }
 
-  return responses;
+  return { responses, supported };
 }
 
 /**
@@ -340,7 +352,7 @@ async function fetchPeripheralTopology(
   subsystemIndex: number,
   source: number,
 ): Promise<Topology> {
-  const infoMap = await queryPeripheral(
+  const { responses: infoMap } = await queryPeripheral(
     call,
     zmkApp,
     subsystemIndex,
@@ -356,7 +368,7 @@ async function fetchPeripheralTopology(
 
   const layouts: KscanLayout[] = [];
   for (let i = 0; i < info.layoutCount; i++) {
-    const layoutMap = await queryPeripheral(
+    const { responses: layoutMap } = await queryPeripheral(
       call,
       zmkApp,
       subsystemIndex,
@@ -392,7 +404,7 @@ async function fetchPeripheralTopology(
 
   const devices: KscanDevice[] = [];
   for (let i = 0; i < info.deviceCount; i++) {
-    const devMap = await queryPeripheral(
+    const { responses: devMap } = await queryPeripheral(
       call,
       zmkApp,
       subsystemIndex,
@@ -447,7 +459,7 @@ async function fetchPeripheralPositionMap(
   const cells: (number | null)[] = [];
   let offset = 0;
   for (let page = 0; page < MAX_PAGES; page++) {
-    const map = await queryPeripheral(
+    const { responses: map } = await queryPeripheral(
       call,
       zmkApp,
       subsystemIndex,
@@ -477,7 +489,7 @@ async function fetchPeripheralGpioPinsOfKind(
   const pins: GpioPin[] = [];
   let offset = 0;
   for (let page = 0; page < MAX_PAGES; page++) {
-    const map = await queryPeripheral(
+    const { responses: map } = await queryPeripheral(
       call,
       zmkApp,
       subsystemIndex,
@@ -613,6 +625,9 @@ export function useKscanDiagnostics(): UseKscanDiagnosticsReturn {
   const [peripheralTopologyErrors, setPeripheralTopologyErrors] = useState<
     Map<number, string>
   >(() => new Map());
+  const [peripheralDiscoveryError, setPeripheralDiscoveryError] = useState<
+    string | null
+  >(null);
 
   const subsystemIndex = subsystem?.index;
 
@@ -621,17 +636,28 @@ export function useKscanDiagnostics(): UseKscanDiagnosticsReturn {
     setIsLoadingPeripheralTopologies(true);
     setPeripheralTopologies(new Map());
     setPeripheralTopologyErrors(new Map());
+    setPeripheralDiscoveryError(null);
 
     // Discovery: send GetInfo to all peripherals, collect responses within timeout.
     let discoveredSources: number[];
     try {
-      const infoMap = await queryPeripheral(
+      const { responses: infoMap, supported } = await queryPeripheral(
         call,
         zmkApp,
         subsystemIndex,
         Request.create({ getInfo: {} }),
       );
+      if (!supported) {
+        // Firmware doesn't support QueryPeripheral — silently skip.
+        setIsLoadingPeripheralTopologies(false);
+        return;
+      }
       discoveredSources = [...infoMap.keys()];
+      if (discoveredSources.length === 0) {
+        setPeripheralDiscoveryError(
+          "No peripheral responded within the discovery timeout.",
+        );
+      }
     } catch {
       setIsLoadingPeripheralTopologies(false);
       return;
@@ -672,6 +698,7 @@ export function useKscanDiagnostics(): UseKscanDiagnosticsReturn {
     peripheralTopologies,
     isLoadingPeripheralTopologies,
     peripheralTopologyErrors,
+    peripheralDiscoveryError,
     loadPeripheralTopologies,
   };
 }

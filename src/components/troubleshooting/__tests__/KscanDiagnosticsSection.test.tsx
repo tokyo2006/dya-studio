@@ -56,6 +56,7 @@ function baseKscan(
     peripheralTopologies: new Map(),
     isLoadingPeripheralTopologies: false,
     peripheralTopologyErrors: new Map(),
+    peripheralDiscoveryError: null,
     loadPeripheralTopologies: jest.fn(),
     ...overrides,
   };

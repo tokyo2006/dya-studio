@@ -64,6 +64,7 @@ export function KscanDiagnosticsSection({
     peripheralTopologies,
     isLoadingPeripheralTopologies,
     peripheralTopologyErrors,
+    peripheralDiscoveryError,
     loadPeripheralTopologies,
   } = kscan;
   const [showResetConfirm, setShowResetConfirm] = useState(false);
@@ -223,6 +224,9 @@ export function KscanDiagnosticsSection({
               className="mb-4"
               label={t("Loading peripheral wiring…")}
             />
+          )}
+          {peripheralDiscoveryError && (
+            <SectionError message={t(peripheralDiscoveryError)} />
           )}
           {[...peripheralTopologyErrors.entries()].map(([src, msg]) => (
             <SectionError
