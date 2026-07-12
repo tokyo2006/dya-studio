@@ -21,6 +21,7 @@ import type {
   DeviceInfo as Pmw3610Device,
   ReadDiagnosticsResponse,
 } from "../proto/cormoran/pmw3610/pmw3610";
+import type { ResolvedAddress } from "./elfAnalysis";
 
 /** State of one troubleshooting section as fed into the report. */
 export interface ReportSection<T> {
@@ -32,9 +33,18 @@ export interface ReportSection<T> {
   error?: string | null;
 }
 
+export interface ElfResolvedIncident {
+  id: number;
+  pc: ResolvedAddress & { address: number };
+  lr: ResolvedAddress & { address: number };
+}
+
 export interface WatchdogReportData {
   status: StatusResponse | null;
   incidents: Incident[];
+  /** Present when user uploaded a debug ELF for symbol resolution. */
+  elfFileName?: string | null;
+  elfResolved?: ElfResolvedIncident[];
 }
 
 export interface KscanReportData {
@@ -115,6 +125,30 @@ export function buildSupportReport(input: SupportReportInput): string {
         );
       }
       body.push(jsonBlock(data.incidents));
+      if (data.elfResolved && data.elfResolved.length > 0) {
+        body.push("");
+        body.push(
+          `### ELF Symbol Resolution (${data.elfFileName ?? "unknown"})`,
+        );
+        for (const ri of data.elfResolved) {
+          const fmt = (
+            r: ElfResolvedIncident["pc"] | ElfResolvedIncident["lr"],
+          ): string => {
+            let s = `0x${r.address.toString(16).padStart(8, "0")}`;
+            if (r.functionName) {
+              s += ` → ${r.functionName}`;
+              if (r.offset) s += `+0x${r.offset.toString(16)}`;
+              if (r.file) {
+                const parts = r.file.replace(/\\/g, "/").split("/");
+                const shortFile = parts.slice(-3).join("/");
+                s += ` (${shortFile}${r.line ? `:${r.line}` : ""})`;
+              }
+            }
+            return s;
+          };
+          body.push(`- Incident #${ri.id}: PC ${fmt(ri.pc)}, LR ${fmt(ri.lr)}`);
+        }
+      }
       return body;
     }),
     "",

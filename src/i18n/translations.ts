@@ -794,6 +794,17 @@ const ja: Record<string, string> = {
   thread: "スレッド",
   "Unknown fault": "不明な障害",
 
+  // ELF analysis
+  "Upload ELF to resolve PC/LR symbols":
+    "ELFをアップロードしてPC/LRシンボルを解決",
+  "Upload ELF": "ELFをアップロード",
+  "Change ELF": "ELFを変更",
+  "Remove ELF": "ELFを削除",
+  "Loading…": "読み込み中…",
+  "ELF: {{name}}": "ELF: {{name}}",
+  "{{n}} symbols, line info": "{{n}} シンボル（行情報あり）",
+  "{{n}} symbols": "{{n}} シンボル",
+
   // Reset cause bits (Zephyr hwinfo)
   "External Pin": "外部ピン",
   Software: "ソフトウェア",
