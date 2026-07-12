@@ -1,4 +1,4 @@
-import { useContext, useCallback, useEffect } from "react";
+import { useContext, useCallback, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   IconHome,
@@ -35,6 +35,8 @@ import { CustomSubsystemsPage } from "./pages/CustomSubsystemsPage";
 import { TroubleshootingPage } from "./pages/TroubleshootingPage";
 import { useLanguage } from "./hooks/useLanguage";
 import { useUrlTab, pathnameFromTabId } from "./hooks/useUrlTab";
+import { useDevtool } from "./hooks/useDevtool";
+import { DevtoolWindow } from "./components/DevtoolWindow";
 
 function getTabs(t: (key: string) => string): TabItem[] {
   return [
@@ -114,6 +116,8 @@ function AppContent() {
   const { t } = useLanguage();
   const [urlTab, navigateToTab] = useUrlTab();
   const tabs = getTabs(t);
+  const { isAvailable: isDevtoolAvailable } = useDevtool();
+  const [devtoolOpen, setDevtoolOpen] = useState(false);
   const activeTab = tabs.some((tab) => tab.id === urlTab) ? urlTab : "home";
 
   useEffect(() => {
@@ -191,6 +195,21 @@ function AppContent() {
             />
           </AppLayout>
         </motion.div>
+      )}
+
+      {connection.isConnected && isDevtoolAvailable && (
+        <button
+          className="fixed bottom-5 right-5 z-[9998] w-10 h-10 rounded-full border border-[var(--color-border)] bg-[var(--color-surface-elevated)] text-[var(--color-text-muted)] hover:text-[var(--color-electric)] hover:border-[var(--color-electric)] hover:shadow-glow-electric-sm transition-all duration-200 flex items-center justify-center text-[10px] font-mono font-bold tracking-tighter"
+          onClick={() => setDevtoolOpen((v) => !v)}
+          title="Devtool"
+          aria-label="Toggle Devtool window"
+        >
+          DT
+        </button>
+      )}
+
+      {connection.isConnected && isDevtoolAvailable && devtoolOpen && (
+        <DevtoolWindow onClose={() => setDevtoolOpen(false)} />
       )}
     </>
   );
