@@ -203,6 +203,27 @@ message LogStreamNotification {
     uint32 dropped_count = 2;
 }
 
+// --- Stack usage (per-thread stack high-water inspection). Requires firmware
+// built with CONFIG_ZMK_DEVTOOL_STACK_USAGE (from zmk-module-devtool PR #9). ---
+
+message StackInfo {
+    string name = 1;
+    uint32 size = 2;
+    // Peak bytes used since boot (high-water mark). 0 if the running kernel
+    // could not measure it. Free headroom = size - used.
+    uint32 used = 3;
+}
+
+// Cursor-based pagination: start with cursor 0, pass back next_cursor until
+// it comes back 0. Same shape as get_logs / get_events in the firmware.
+message GetStackUsageRequest { uint32 cursor = 1; }
+
+message GetStackUsageResponse {
+    repeated StackInfo stacks = 1;
+    uint32 next_cursor = 2;
+    uint32 total = 3;
+}
+
 message Request {
     oneof request_type {
         SetStudioLockStateRequest set_studio_lock_state = 1;
@@ -221,6 +242,7 @@ message Request {
         ClearLogsRequest clear_logs = 14;
         SetLogCaptureFilterRequest set_log_capture_filter = 15;
         SetLogStreamingRequest set_log_streaming = 16;
+        GetStackUsageRequest get_stack_usage = 17;
     }
 }
 
@@ -245,6 +267,7 @@ message Response {
         ClearLogsResponse clear_logs = 15;
         SetLogCaptureFilterResponse set_log_capture_filter = 16;
         SetLogStreamingResponse set_log_streaming = 17;
+        GetStackUsageResponse get_stack_usage = 18;
     }
 }
 
