@@ -282,6 +282,30 @@ export interface LogStreamNotification {
   droppedCount: number;
 }
 
+export interface StackInfo {
+  name: string;
+  size: number;
+  /**
+   * Peak bytes used since boot (high-water mark). 0 if the running kernel
+   * could not measure it. Free headroom = size - used.
+   */
+  used: number;
+}
+
+/**
+ * Cursor-based pagination: start with cursor 0, pass back next_cursor until
+ * it comes back 0. Same shape as get_logs / get_events in the firmware.
+ */
+export interface GetStackUsageRequest {
+  cursor: number;
+}
+
+export interface GetStackUsageResponse {
+  stacks: StackInfo[];
+  nextCursor: number;
+  total: number;
+}
+
 export interface Request {
   setStudioLockState?: SetStudioLockStateRequest | undefined;
   enterBootloader?: EnterBootloaderRequest | undefined;
@@ -299,6 +323,7 @@ export interface Request {
   clearLogs?: ClearLogsRequest | undefined;
   setLogCaptureFilter?: SetLogCaptureFilterRequest | undefined;
   setLogStreaming?: SetLogStreamingRequest | undefined;
+  getStackUsage?: GetStackUsageRequest | undefined;
 }
 
 export interface ErrorResponse {
@@ -323,6 +348,7 @@ export interface Response {
   clearLogs?: ClearLogsResponse | undefined;
   setLogCaptureFilter?: SetLogCaptureFilterResponse | undefined;
   setLogStreaming?: SetLogStreamingResponse | undefined;
+  getStackUsage?: GetStackUsageResponse | undefined;
 }
 
 /**
@@ -2324,6 +2350,192 @@ export const LogStreamNotification: MessageFns<LogStreamNotification> = {
   },
 };
 
+function createBaseStackInfo(): StackInfo {
+  return { name: "", size: 0, used: 0 };
+}
+
+export const StackInfo: MessageFns<StackInfo> = {
+  encode(message: StackInfo, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.name !== "") {
+      writer.uint32(10).string(message.name);
+    }
+    if (message.size !== 0) {
+      writer.uint32(16).uint32(message.size);
+    }
+    if (message.used !== 0) {
+      writer.uint32(24).uint32(message.used);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): StackInfo {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseStackInfo();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.name = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.size = reader.uint32();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.used = reader.uint32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<StackInfo>): StackInfo {
+    return StackInfo.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<StackInfo>): StackInfo {
+    const message = createBaseStackInfo();
+    message.name = object.name ?? "";
+    message.size = object.size ?? 0;
+    message.used = object.used ?? 0;
+    return message;
+  },
+};
+
+function createBaseGetStackUsageRequest(): GetStackUsageRequest {
+  return { cursor: 0 };
+}
+
+export const GetStackUsageRequest: MessageFns<GetStackUsageRequest> = {
+  encode(message: GetStackUsageRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.cursor !== 0) {
+      writer.uint32(8).uint32(message.cursor);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetStackUsageRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetStackUsageRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.cursor = reader.uint32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<GetStackUsageRequest>): GetStackUsageRequest {
+    return GetStackUsageRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetStackUsageRequest>): GetStackUsageRequest {
+    const message = createBaseGetStackUsageRequest();
+    message.cursor = object.cursor ?? 0;
+    return message;
+  },
+};
+
+function createBaseGetStackUsageResponse(): GetStackUsageResponse {
+  return { stacks: [], nextCursor: 0, total: 0 };
+}
+
+export const GetStackUsageResponse: MessageFns<GetStackUsageResponse> = {
+  encode(message: GetStackUsageResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.stacks) {
+      StackInfo.encode(v!, writer.uint32(10).fork()).join();
+    }
+    if (message.nextCursor !== 0) {
+      writer.uint32(16).uint32(message.nextCursor);
+    }
+    if (message.total !== 0) {
+      writer.uint32(24).uint32(message.total);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetStackUsageResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetStackUsageResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.stacks.push(StackInfo.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.nextCursor = reader.uint32();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.total = reader.uint32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<GetStackUsageResponse>): GetStackUsageResponse {
+    return GetStackUsageResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetStackUsageResponse>): GetStackUsageResponse {
+    const message = createBaseGetStackUsageResponse();
+    message.stacks = object.stacks?.map((e) => StackInfo.fromPartial(e)) || [];
+    message.nextCursor = object.nextCursor ?? 0;
+    message.total = object.total ?? 0;
+    return message;
+  },
+};
+
 function createBaseRequest(): Request {
   return {
     setStudioLockState: undefined,
@@ -2342,6 +2554,7 @@ function createBaseRequest(): Request {
     clearLogs: undefined,
     setLogCaptureFilter: undefined,
     setLogStreaming: undefined,
+    getStackUsage: undefined,
   };
 }
 
@@ -2394,6 +2607,9 @@ export const Request: MessageFns<Request> = {
     }
     if (message.setLogStreaming !== undefined) {
       SetLogStreamingRequest.encode(message.setLogStreaming, writer.uint32(130).fork()).join();
+    }
+    if (message.getStackUsage !== undefined) {
+      GetStackUsageRequest.encode(message.getStackUsage, writer.uint32(138).fork()).join();
     }
     return writer;
   },
@@ -2533,6 +2749,14 @@ export const Request: MessageFns<Request> = {
           message.setLogStreaming = SetLogStreamingRequest.decode(reader, reader.uint32());
           continue;
         }
+        case 17: {
+          if (tag !== 138) {
+            break;
+          }
+
+          message.getStackUsage = GetStackUsageRequest.decode(reader, reader.uint32());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2594,6 +2818,9 @@ export const Request: MessageFns<Request> = {
       : undefined;
     message.setLogStreaming = (object.setLogStreaming !== undefined && object.setLogStreaming !== null)
       ? SetLogStreamingRequest.fromPartial(object.setLogStreaming)
+      : undefined;
+    message.getStackUsage = (object.getStackUsage !== undefined && object.getStackUsage !== null)
+      ? GetStackUsageRequest.fromPartial(object.getStackUsage)
       : undefined;
     return message;
   },
@@ -2664,6 +2891,7 @@ function createBaseResponse(): Response {
     clearLogs: undefined,
     setLogCaptureFilter: undefined,
     setLogStreaming: undefined,
+    getStackUsage: undefined,
   };
 }
 
@@ -2719,6 +2947,9 @@ export const Response: MessageFns<Response> = {
     }
     if (message.setLogStreaming !== undefined) {
       SetLogStreamingResponse.encode(message.setLogStreaming, writer.uint32(138).fork()).join();
+    }
+    if (message.getStackUsage !== undefined) {
+      GetStackUsageResponse.encode(message.getStackUsage, writer.uint32(146).fork()).join();
     }
     return writer;
   },
@@ -2866,6 +3097,14 @@ export const Response: MessageFns<Response> = {
           message.setLogStreaming = SetLogStreamingResponse.decode(reader, reader.uint32());
           continue;
         }
+        case 18: {
+          if (tag !== 146) {
+            break;
+          }
+
+          message.getStackUsage = GetStackUsageResponse.decode(reader, reader.uint32());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2930,6 +3169,9 @@ export const Response: MessageFns<Response> = {
       : undefined;
     message.setLogStreaming = (object.setLogStreaming !== undefined && object.setLogStreaming !== null)
       ? SetLogStreamingResponse.fromPartial(object.setLogStreaming)
+      : undefined;
+    message.getStackUsage = (object.getStackUsage !== undefined && object.getStackUsage !== null)
+      ? GetStackUsageResponse.fromPartial(object.getStackUsage)
       : undefined;
     return message;
   },

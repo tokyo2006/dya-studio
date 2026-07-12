@@ -951,6 +951,18 @@ const ja: Record<string, string> = {
   "Capture time": "キャプチャ時間",
   "FPS (streaming)": "FPS（ストリーミング中）",
   "Debug Tool": "デバッグツール",
+
+  "Stack Usage": "スタック使用量",
+  "Per-thread stack high-water usage (zmk-module-devtool)":
+    "スレッドごとのスタック最高水位使用量（zmk-module-devtool）",
+  "Refresh stack usage": "スタック使用量を更新",
+  "Auto-refresh": "自動更新",
+  Requires: "必須：",
+  "in your firmware. Without it the RPC returns an error below.":
+    "がファームウェアで有効になっている必要があります。有効でない場合、下に RPC エラーが表示されます。",
+  "{{count}} thread(s) · sorted by usage": "{{count}} スレッド · 使用率順",
+  "No stack data yet — press Refresh or enable Auto-refresh.":
+    "まだデータがありません。「更新」ボタンを押すか「自動更新」を有効にしてください。",
 };
 
 const dictionaries: Record<Language, Record<string, string>> = {

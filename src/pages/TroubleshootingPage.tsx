@@ -13,10 +13,12 @@ import { useWatchdog } from "../hooks/useWatchdog";
 import { useKscanDiagnostics } from "../hooks/useKscanDiagnostics";
 import { usePmw3610 } from "../hooks/usePmw3610";
 import { useElfAnalysis } from "../hooks/useElfAnalysis";
+import { useDevtoolStackUsage } from "../hooks/useDevtoolStackUsage";
 import { DeviceInfoSection } from "../components/troubleshooting/DeviceInfoSection";
 import { WatchdogSection } from "../components/troubleshooting/WatchdogSection";
 import { KscanDiagnosticsSection } from "../components/troubleshooting/KscanDiagnosticsSection";
 import { Pmw3610Section } from "../components/troubleshooting/Pmw3610Section";
+import { DevtoolStackUsageSection } from "../components/troubleshooting/DevtoolStackUsageSection";
 import { buildSupportReport } from "../lib/troubleshootingReport";
 
 const COPIED_FEEDBACK_MS = 2000;
@@ -29,6 +31,7 @@ export function TroubleshootingPage() {
   const kscan = useKscanDiagnostics();
   const pmw3610 = usePmw3610();
   const elfAnalysis = useElfAnalysis();
+  const stackUsage = useDevtoolStackUsage();
   const [copied, setCopied] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -37,6 +40,7 @@ export function TroubleshootingPage() {
     if (watchdog.isAvailable) void watchdog.refresh();
     if (kscan.isAvailable) void kscan.refresh();
     if (pmw3610.isAvailable) void pmw3610.refresh();
+    if (stackUsage.isAvailable) void stackUsage.refresh();
   };
 
   const copySupportReport = async () => {
@@ -174,6 +178,7 @@ export function TroubleshootingPage() {
           <WatchdogSection watchdog={watchdog} elfAnalysis={elfAnalysis} />
           <KscanDiagnosticsSection kscan={kscan} />
           <Pmw3610Section pmw3610={pmw3610} />
+          <DevtoolStackUsageSection stackUsage={stackUsage} />
         </div>
       </div>
     </div>
