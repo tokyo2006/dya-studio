@@ -19,7 +19,9 @@ import {
   IconAlertTriangle,
   IconInfoCircle,
   IconPencil,
+  IconLock,
 } from "@tabler/icons-react";
+import { useStudioLockState } from "@cormoran/zmk-studio-react-hook";
 import * as Tooltip from "@radix-ui/react-tooltip";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Switch from "@radix-ui/react-switch";
@@ -48,8 +50,14 @@ export function KeymapPage() {
   const sensorRotate = useRuntimeSensorRotate();
   const runtimeMacro = useRuntimeMacro();
   const inputStream = useInputStream();
+  // Proactive lock state: the fast-keymap subsystem is unsecured, so the keymap
+  // is viewable while Studio is locked. We use this to (a) show a lock badge in
+  // place of Save/Reset and (b) prompt for unlock the moment the user tries to
+  // edit — rather than letting the edit fail and then reacting.
+  const { locked } = useStudioLockState();
 
   // Local UI state
+  const [showUnlockPrompt, setShowUnlockPrompt] = useState(false);
   const [selectedLayerIndex, setSelectedLayerIndex] = useState(0);
   const [selectedKeyPosition, setSelectedKeyPosition] = useState<number | null>(
     null,
@@ -87,30 +95,49 @@ export function KeymapPage() {
     return currentLayer.bindings[selectedKeyPosition] ?? null;
   }, [selectedKeyPosition, currentLayer]);
 
+  // Guard an edit action: if Studio is locked, open the unlock prompt instead
+  // of performing the edit (and let the caller bail out). Returns false when
+  // blocked. `unknown` lock state is treated as unlocked (optimistic) — a rare
+  // edit during that brief window still surfaces the prompt via the reactive
+  // unlockRequired fallback.
+  const requireUnlocked = useCallback((): boolean => {
+    if (locked) {
+      setShowUnlockPrompt(true);
+      return false;
+    }
+    return true;
+  }, [locked]);
+
   // Handle key click
-  const handleKeyClick = useCallback((keyPosition: number) => {
-    setSelectedKeyPosition(keyPosition);
-    setShowKeycodeSelector(true);
-  }, []);
+  const handleKeyClick = useCallback(
+    (keyPosition: number) => {
+      if (!requireUnlocked()) return;
+      setSelectedKeyPosition(keyPosition);
+      setShowKeycodeSelector(true);
+    },
+    [requireUnlocked],
+  );
 
   // Handle key reset
   const handleKeyReset = useCallback(
     async (keyPosition: number) => {
+      if (!requireUnlocked()) return;
       if (!currentLayer) return;
       await keymap.resetBinding(currentLayer.id, keyPosition);
     },
-    [currentLayer, keymap],
+    [currentLayer, keymap, requireUnlocked],
   );
 
   // Handle binding selection
   const handleBindingSelect = useCallback(
     async (binding: BehaviorBinding) => {
+      if (!requireUnlocked()) return;
       if (!currentLayer || selectedKeyPosition === null) return;
       await keymap.setBinding(currentLayer.id, selectedKeyPosition, binding);
       setShowKeycodeSelector(false);
       setSelectedKeyPosition(null);
     },
-    [currentLayer, selectedKeyPosition, keymap],
+    [currentLayer, selectedKeyPosition, keymap, requireUnlocked],
   );
 
   // Handle save
@@ -136,6 +163,7 @@ export function KeymapPage() {
 
   // Handle layer move up
   const handleMoveLayerUp = useCallback(async () => {
+    if (!requireUnlocked()) return;
     if (selectedLayerIndex <= 0) return;
     const success = await keymap.moveLayer(
       selectedLayerIndex,
@@ -144,10 +172,11 @@ export function KeymapPage() {
     if (success) {
       setSelectedLayerIndex(selectedLayerIndex - 1);
     }
-  }, [selectedLayerIndex, keymap]);
+  }, [selectedLayerIndex, keymap, requireUnlocked]);
 
   // Handle layer move down
   const handleMoveLayerDown = useCallback(async () => {
+    if (!requireUnlocked()) return;
     if (!keymap.keymap?.layers) return;
     if (selectedLayerIndex >= keymap.keymap.layers.length - 1) return;
     const success = await keymap.moveLayer(
@@ -157,19 +186,21 @@ export function KeymapPage() {
     if (success) {
       setSelectedLayerIndex(selectedLayerIndex + 1);
     }
-  }, [selectedLayerIndex, keymap]);
+  }, [selectedLayerIndex, keymap, requireUnlocked]);
 
   // Handle add layer
   const handleAddLayer = useCallback(async () => {
+    if (!requireUnlocked()) return;
     const result = await keymap.addLayer();
     if (result) {
       // Select the new layer
       setSelectedLayerIndex(result.index);
     }
-  }, [keymap]);
+  }, [keymap, requireUnlocked]);
 
   // Handle delete layer
   const handleDeleteLayer = useCallback(async () => {
+    if (!requireUnlocked()) return;
     if (!keymap.keymap?.layers || keymap.keymap.layers.length <= 1) return;
     if (!confirm(t("Are you sure you want to delete this layer?"))) return;
 
@@ -180,10 +211,11 @@ export function KeymapPage() {
         setSelectedLayerIndex(Math.max(0, selectedLayerIndex - 1));
       }
     }
-  }, [selectedLayerIndex, keymap, t]);
+  }, [selectedLayerIndex, keymap, t, requireUnlocked]);
 
   // Handle restore layer
   const handleRestoreLayer = useCallback(async () => {
+    if (!requireUnlocked()) return;
     if (keymap.removedLayerIds.length === 0) return;
 
     // Restore the most recently removed layer at the end
@@ -195,16 +227,17 @@ export function KeymapPage() {
       // Select the restored layer
       setSelectedLayerIndex(atIndex);
     }
-  }, [keymap]);
+  }, [keymap, requireUnlocked]);
 
   // Handle open rename dialog
   const handleOpenRenameDialog = useCallback(() => {
+    if (!requireUnlocked()) return;
     if (!keymap.keymap?.layers) return;
     const layer = keymap.keymap.layers[selectedLayerIndex];
     if (!layer) return;
     setRenameValue(layer.name);
     setShowRenameDialog(true);
-  }, [keymap.keymap?.layers, selectedLayerIndex]);
+  }, [keymap.keymap?.layers, selectedLayerIndex, requireUnlocked]);
 
   // Handle rename confirm
   const handleRenameConfirm = useCallback(async () => {
@@ -220,11 +253,25 @@ export function KeymapPage() {
     }
   }, [keymap, selectedLayerIndex, renameValue]);
 
-  // Handle unlock retry
+  // Close the unlock prompt (both the proactive edit prompt and the reactive
+  // load-time one).
+  const handleUnlockClose = useCallback(() => {
+    setShowUnlockPrompt(false);
+    keymap.clearUnlockRequired();
+  }, [keymap]);
+
+  // Handle unlock retry: dismiss the prompt and re-load (the reactive path
+  // needs a reload; the proactive path is harmless to reload).
   const handleUnlockRetry = useCallback(() => {
+    setShowUnlockPrompt(false);
     keymap.clearUnlockRequired();
     keymap.loadKeymapData();
   }, [keymap]);
+
+  // Auto-dismiss the unlock prompt once Studio is actually unlocked.
+  useEffect(() => {
+    if (!locked) setShowUnlockPrompt(false);
+  }, [locked]);
 
   useEffect(() => {
     if (
@@ -262,11 +309,6 @@ export function KeymapPage() {
           {/* Action Buttons */}
           {connection.isConnected && keymap.keymap && (
             <div className="flex items-center gap-2 ml-auto">
-              {keymap.hasUnsavedChanges && (
-                <span className="text-xs text-[var(--color-neon)] mr-2">
-                  {t("● Unsaved changes")}
-                </span>
-              )}
               {inputStream.isAvailable && (
                 <div className="flex items-center gap-2 px-2 py-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
                   <span className="text-xs text-[var(--color-text-muted)]">
@@ -283,34 +325,57 @@ export function KeymapPage() {
                   </Switch.Root>
                 </div>
               )}
-              <button
-                className="btn-ghost text-sm flex items-center gap-1.5 flex-shrink-0"
-                onClick={handleDiscard}
-                disabled={
-                  isDiscarding || !keymap.hasUnsavedChanges || keymap.isLoading
-                }
-              >
-                {isDiscarding ? (
-                  <IconLoader2 size={16} className="animate-spin" />
-                ) : (
-                  <IconRestore size={16} />
-                )}
-                {t("Reset All")}
-              </button>
-              <button
-                className="btn-electric text-sm flex items-center gap-1.5"
-                onClick={handleSave}
-                disabled={
-                  isSaving || !keymap.hasUnsavedChanges || keymap.isLoading
-                }
-              >
-                {isSaving ? (
-                  <IconLoader2 size={16} className="animate-spin" />
-                ) : (
-                  <IconDeviceFloppy size={16} />
-                )}
-                {t("Save")}
-              </button>
+              {/* When Studio is locked, editing is disabled — show a lock badge
+                  (click to unlock) instead of the Save / Reset controls. */}
+              {locked ? (
+                <button
+                  type="button"
+                  onClick={() => setShowUnlockPrompt(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium flex-shrink-0 border border-[var(--color-warning)]/40 bg-[var(--color-warning)]/10 text-[var(--color-warning)] hover:bg-[var(--color-warning)]/20 transition-colors"
+                  title={t("Studio is locked — click to unlock")}
+                >
+                  <IconLock size={16} />
+                  {t("Locked")}
+                </button>
+              ) : (
+                <>
+                  {keymap.hasUnsavedChanges && (
+                    <span className="text-xs text-[var(--color-neon)] mr-2">
+                      {t("● Unsaved changes")}
+                    </span>
+                  )}
+                  <button
+                    className="btn-ghost text-sm flex items-center gap-1.5 flex-shrink-0"
+                    onClick={handleDiscard}
+                    disabled={
+                      isDiscarding ||
+                      !keymap.hasUnsavedChanges ||
+                      keymap.isLoading
+                    }
+                  >
+                    {isDiscarding ? (
+                      <IconLoader2 size={16} className="animate-spin" />
+                    ) : (
+                      <IconRestore size={16} />
+                    )}
+                    {t("Reset All")}
+                  </button>
+                  <button
+                    className="btn-electric text-sm flex items-center gap-1.5"
+                    onClick={handleSave}
+                    disabled={
+                      isSaving || !keymap.hasUnsavedChanges || keymap.isLoading
+                    }
+                  >
+                    {isSaving ? (
+                      <IconLoader2 size={16} className="animate-spin" />
+                    ) : (
+                      <IconDeviceFloppy size={16} />
+                    )}
+                    {t("Save")}
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -789,10 +854,11 @@ export function KeymapPage() {
         runtimeMacros={runtimeMacro.macros}
       />
 
-      {/* Unlock Prompt */}
+      {/* Unlock Prompt — shown proactively when the user tries to edit while
+          locked, or reactively if a load actually required unlock. */}
       <UnlockPrompt
-        open={keymap.unlockRequired}
-        onClose={() => keymap.clearUnlockRequired()}
+        open={showUnlockPrompt || keymap.unlockRequired}
+        onClose={handleUnlockClose}
         onRetry={handleUnlockRetry}
       />
     </div>

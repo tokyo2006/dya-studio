@@ -29,10 +29,20 @@ jest.mock("../../hooks/useKeymap", () => ({
   useKeymap: jest.fn(),
 }));
 jest.mock("../../hooks/usePhysicalLayoutModules");
+// Control the proactive lock state the page reads; default to unlocked so the
+// existing tests (which expect Save/Reset) keep passing.
+jest.mock("@cormoran/zmk-studio-react-hook", () => ({
+  ...jest.requireActual("@cormoran/zmk-studio-react-hook"),
+  useStudioLockState: jest.fn(() => ({ locked: false, lockState: "unlocked" })),
+}));
 import { useKeymap } from "../../hooks/useKeymap";
 import { usePhysicalLayoutModules } from "../../hooks/usePhysicalLayoutModules";
+import { useStudioLockState } from "@cormoran/zmk-studio-react-hook";
 
 const mockUseKeymap = useKeymap as jest.MockedFunction<typeof useKeymap>;
+const mockUseStudioLockState = useStudioLockState as jest.MockedFunction<
+  typeof useStudioLockState
+>;
 const mockUsePhysicalLayoutModules =
   usePhysicalLayoutModules as jest.MockedFunction<
     typeof usePhysicalLayoutModules
@@ -96,6 +106,12 @@ describe("KeymapPage", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+
+    // Default to unlocked; locked-specific tests override this.
+    mockUseStudioLockState.mockReturnValue({
+      locked: false,
+      lockState: "unlocked",
+    });
 
     // Set default mock return value for useKeymap
     mockUseKeymap.mockReturnValue({
@@ -272,6 +288,47 @@ describe("KeymapPage", () => {
 
       expect(screen.getByText("Save")).toBeInTheDocument();
       expect(screen.getByText("Reset All")).toBeInTheDocument();
+    });
+
+    it("shows a Locked badge instead of Save/Reset when Studio is locked", () => {
+      mockUseStudioLockState.mockReturnValue({
+        locked: true,
+        lockState: "locked",
+      });
+      renderComponent(
+        { isConnected: true },
+        {
+          keymap: mockKeymap,
+          physicalLayouts: mockPhysicalLayouts,
+          behaviors: mockBehaviors,
+        },
+      );
+
+      expect(screen.getByText("Locked")).toBeInTheDocument();
+      expect(screen.queryByText("Save")).not.toBeInTheDocument();
+      expect(screen.queryByText("Reset All")).not.toBeInTheDocument();
+    });
+
+    it("opens the unlock prompt when the Locked badge is clicked", async () => {
+      const user = userEvent.setup();
+      mockUseStudioLockState.mockReturnValue({
+        locked: true,
+        lockState: "locked",
+      });
+      renderComponent(
+        { isConnected: true },
+        {
+          keymap: mockKeymap,
+          physicalLayouts: mockPhysicalLayouts,
+          behaviors: mockBehaviors,
+        },
+      );
+
+      expect(
+        screen.queryByText("Keyboard Unlock Required"),
+      ).not.toBeInTheDocument();
+      await user.click(screen.getByText("Locked"));
+      expect(screen.getByText("Keyboard Unlock Required")).toBeInTheDocument();
     });
 
     it("should show stream mode toggle when input stream subsystem is available", () => {
