@@ -126,6 +126,27 @@ message ResetStats {}
 
 message Ok {}
 
+// Relay a query to the split peripheral half/halves. `payload` is an encoded
+// Request that the peripheral runs against its own topology/stats tables; the
+// result comes back asynchronously as a PeripheralEvent notification, not in
+// this call's Response (which is just an Ok, or Error if this build is not a
+// split central). The query is broadcast to all connected peripherals and each
+// replies with its `source` stamped; the client correlates by (source, req_id).
+message QueryPeripheral {
+    uint32 req_id = 1;
+    bytes payload = 2;
+}
+
+// Firmware-initiated notification carrying one peripheral's reply to a
+// QueryPeripheral. `source` is the peripheral index (1-based; central is 0),
+// `req_id` echoes the triggering QueryPeripheral, and `payload` is an encoded
+// Response produced by that peripheral's query dispatch.
+message PeripheralEvent {
+    uint32 source = 1;
+    uint32 req_id = 2;
+    bytes payload = 3;
+}
+
 message Request {
     oneof request_type {
         GetInfo get_info = 1;
@@ -135,6 +156,7 @@ message Request {
         GetPositionMap get_position_map = 5;
         GetStats get_stats = 6;
         ResetStats reset_stats = 7;
+        QueryPeripheral query_peripheral = 8;
     }
 }
 

@@ -172,6 +172,31 @@ export interface ResetStats {
 export interface Ok {
 }
 
+/**
+ * Relay a query to the split peripheral half/halves. `payload` is an encoded
+ * Request that the peripheral runs against its own topology/stats tables; the
+ * result comes back asynchronously as a PeripheralEvent notification, not in
+ * this call's Response (which is just an Ok, or Error if this build is not a
+ * split central). The query is broadcast to all connected peripherals and each
+ * replies with its `source` stamped; the client correlates by (source, req_id).
+ */
+export interface QueryPeripheral {
+  reqId: number;
+  payload: Uint8Array;
+}
+
+/**
+ * Firmware-initiated notification carrying one peripheral's reply to a
+ * QueryPeripheral. `source` is the peripheral index (1-based; central is 0),
+ * `req_id` echoes the triggering QueryPeripheral, and `payload` is an encoded
+ * Response produced by that peripheral's query dispatch.
+ */
+export interface PeripheralEvent {
+  source: number;
+  reqId: number;
+  payload: Uint8Array;
+}
+
 export interface Request {
   getInfo?: GetInfo | undefined;
   getLayout?: GetLayout | undefined;
@@ -180,6 +205,7 @@ export interface Request {
   getPositionMap?: GetPositionMap | undefined;
   getStats?: GetStats | undefined;
   resetStats?: ResetStats | undefined;
+  queryPeripheral?: QueryPeripheral | undefined;
 }
 
 export interface Response {
@@ -1581,6 +1607,134 @@ export const Ok: MessageFns<Ok> = {
   },
 };
 
+function createBaseQueryPeripheral(): QueryPeripheral {
+  return { reqId: 0, payload: new Uint8Array(0) };
+}
+
+export const QueryPeripheral: MessageFns<QueryPeripheral> = {
+  encode(message: QueryPeripheral, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.reqId !== 0) {
+      writer.uint32(8).uint32(message.reqId);
+    }
+    if (message.payload.length !== 0) {
+      writer.uint32(18).bytes(message.payload);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): QueryPeripheral {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseQueryPeripheral();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.reqId = reader.uint32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.payload = reader.bytes();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<QueryPeripheral>): QueryPeripheral {
+    return QueryPeripheral.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<QueryPeripheral>): QueryPeripheral {
+    const message = createBaseQueryPeripheral();
+    message.reqId = object.reqId ?? 0;
+    message.payload = object.payload ?? new Uint8Array(0);
+    return message;
+  },
+};
+
+function createBasePeripheralEvent(): PeripheralEvent {
+  return { source: 0, reqId: 0, payload: new Uint8Array(0) };
+}
+
+export const PeripheralEvent: MessageFns<PeripheralEvent> = {
+  encode(message: PeripheralEvent, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.source !== 0) {
+      writer.uint32(8).uint32(message.source);
+    }
+    if (message.reqId !== 0) {
+      writer.uint32(16).uint32(message.reqId);
+    }
+    if (message.payload.length !== 0) {
+      writer.uint32(26).bytes(message.payload);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): PeripheralEvent {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBasePeripheralEvent();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.source = reader.uint32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.reqId = reader.uint32();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.payload = reader.bytes();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<PeripheralEvent>): PeripheralEvent {
+    return PeripheralEvent.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<PeripheralEvent>): PeripheralEvent {
+    const message = createBasePeripheralEvent();
+    message.source = object.source ?? 0;
+    message.reqId = object.reqId ?? 0;
+    message.payload = object.payload ?? new Uint8Array(0);
+    return message;
+  },
+};
+
 function createBaseRequest(): Request {
   return {
     getInfo: undefined,
@@ -1590,6 +1744,7 @@ function createBaseRequest(): Request {
     getPositionMap: undefined,
     getStats: undefined,
     resetStats: undefined,
+    queryPeripheral: undefined,
   };
 }
 
@@ -1615,6 +1770,9 @@ export const Request: MessageFns<Request> = {
     }
     if (message.resetStats !== undefined) {
       ResetStats.encode(message.resetStats, writer.uint32(58).fork()).join();
+    }
+    if (message.queryPeripheral !== undefined) {
+      QueryPeripheral.encode(message.queryPeripheral, writer.uint32(66).fork()).join();
     }
     return writer;
   },
@@ -1682,6 +1840,14 @@ export const Request: MessageFns<Request> = {
           message.resetStats = ResetStats.decode(reader, reader.uint32());
           continue;
         }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.queryPeripheral = QueryPeripheral.decode(reader, reader.uint32());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1716,6 +1882,9 @@ export const Request: MessageFns<Request> = {
       : undefined;
     message.resetStats = (object.resetStats !== undefined && object.resetStats !== null)
       ? ResetStats.fromPartial(object.resetStats)
+      : undefined;
+    message.queryPeripheral = (object.queryPeripheral !== undefined && object.queryPeripheral !== null)
+      ? QueryPeripheral.fromPartial(object.queryPeripheral)
       : undefined;
     return message;
   },
