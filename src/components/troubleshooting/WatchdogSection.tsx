@@ -1,14 +1,17 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   IconAlertTriangle,
   IconCircleCheck,
   IconHeartRateMonitor,
   IconRefresh,
   IconTrash,
+  IconUpload,
+  IconX,
 } from "@tabler/icons-react";
 import type { Incident } from "../../proto/cormoran/watchdog/watchdog";
 import { IncidentType } from "../../proto/cormoran/watchdog/watchdog";
 import type { UseWatchdogReturn } from "../../hooks/useWatchdog";
+import type { UseElfAnalysisReturn } from "../../hooks/useElfAnalysis";
 import { useLanguage } from "../../hooks/useLanguage";
 import {
   formatFatalReason,
@@ -78,7 +81,102 @@ function incidentDetail(
   return "";
 }
 
-export function WatchdogSection({ watchdog }: { watchdog: UseWatchdogReturn }) {
+/** Format a resolved address as "funcName+0x4 (path/to/file.c:42)". */
+function formatResolved(
+  resolve: UseElfAnalysisReturn["resolve"],
+  rawAddr: number,
+  label: string,
+): string | null {
+  const r = resolve(rawAddr);
+  if (!r?.functionName) return null;
+  let s = `${label} → ${r.functionName}`;
+  if (r.offset !== undefined && r.offset > 0)
+    s += `+0x${r.offset.toString(16)}`;
+  if (r.file) {
+    const parts = r.file.replace(/\\/g, "/").split("/");
+    const shortFile = parts.slice(-3).join("/");
+    s += ` (${shortFile}${r.line !== undefined ? `:${r.line}` : ""})`;
+  }
+  return s;
+}
+
+function ElfUploadBar({
+  elfAnalysis,
+  t,
+}: {
+  elfAnalysis: UseElfAnalysisReturn;
+  t: (key: string, params?: Record<string, string | number>) => string;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) void elfAnalysis.loadFile(file);
+    e.target.value = "";
+  };
+
+  return (
+    <div className="mb-4 p-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
+      <div className="flex items-center gap-2 flex-wrap">
+        <IconUpload
+          size={14}
+          className="text-[var(--color-text-muted)] flex-shrink-0"
+        />
+        {elfAnalysis.hasElf ? (
+          <>
+            <span className="text-xs text-[var(--color-text-secondary)] flex-1 min-w-0 truncate">
+              {t("ELF: {{name}}", { name: elfAnalysis.fileName! })}
+              {elfAnalysis.hasLineInfo
+                ? ` (${t("{{n}} symbols, line info", { n: elfAnalysis.symbolCount })})`
+                : ` (${t("{{n}} symbols", { n: elfAnalysis.symbolCount })})`}
+            </span>
+            <button
+              onClick={() => elfAnalysis.clear()}
+              className="btn-ghost p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+              aria-label={t("Remove ELF")}
+            >
+              <IconX size={14} />
+            </button>
+          </>
+        ) : (
+          <span className="text-xs text-[var(--color-text-muted)] flex-1">
+            {t("Upload ELF to resolve PC/LR symbols")}
+          </span>
+        )}
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".elf,application/octet-stream"
+          className="hidden"
+          onChange={handleChange}
+          disabled={elfAnalysis.isLoading}
+        />
+        <button
+          onClick={() => inputRef.current?.click()}
+          disabled={elfAnalysis.isLoading}
+          className="btn-ghost text-xs px-2 py-1 text-[var(--color-electric)] border border-[var(--color-electric)]/30 rounded"
+        >
+          {elfAnalysis.isLoading
+            ? t("Loading…")
+            : elfAnalysis.hasElf
+              ? t("Change ELF")
+              : t("Upload ELF")}
+        </button>
+      </div>
+      {elfAnalysis.error && (
+        <p className="mt-2 text-xs text-red-400">{elfAnalysis.error}</p>
+      )}
+    </div>
+  );
+}
+
+export function WatchdogSection({
+  watchdog,
+  elfAnalysis,
+}: {
+  watchdog: UseWatchdogReturn;
+  elfAnalysis?: UseElfAnalysisReturn;
+}) {
   const { t } = useLanguage();
   const {
     isAvailable,
@@ -98,6 +196,8 @@ export function WatchdogSection({ watchdog }: { watchdog: UseWatchdogReturn }) {
     setShowDeleteAllConfirm(false);
     await deleteAll();
   };
+
+  const hasFatalIncidents = incidents.some((i) => i.fatal);
 
   return (
     <SectionCard
@@ -204,6 +304,11 @@ export function WatchdogSection({ watchdog }: { watchdog: UseWatchdogReturn }) {
             </div>
           )}
 
+          {/* ELF upload — shown when there are crash incidents */}
+          {hasFatalIncidents && elfAnalysis && (
+            <ElfUploadBar elfAnalysis={elfAnalysis} t={t} />
+          )}
+
           {/* Incident table / empty state */}
           {incidents.length === 0 ? (
             <div className="p-4 rounded-lg border border-dashed border-[var(--color-border)] flex items-center gap-2">
@@ -228,40 +333,64 @@ export function WatchdogSection({ watchdog }: { watchdog: UseWatchdogReturn }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {incidents.map((incident) => (
-                      <tr
-                        key={incident.id}
-                        className="border-b border-[var(--color-border)] last:border-b-0"
-                      >
-                        <td className="py-2 pr-3 font-mono">{incident.id}</td>
-                        <td className="py-2 pr-3">
-                          <span
-                            className={`inline-block px-2 py-0.5 rounded border ${incidentTypeBadgeClass(incident.type)}`}
-                          >
-                            {incidentTypeLabel(incident.type, t)}
-                          </span>
-                        </td>
-                        <td className="py-2 pr-3 font-mono">
-                          #{incident.bootOrdinal} @{" "}
-                          {formatUptime(incident.uptimeS * 1000)}
-                        </td>
-                        <td className="py-2 pr-3 text-[var(--color-text-secondary)] break-all">
-                          {incidentDetail(incident, t)}
-                        </td>
-                        <td className="py-2 text-right">
-                          <button
-                            onClick={() => void deleteOne(incident.id)}
-                            disabled={isLoading}
-                            className="btn-ghost p-1 text-red-400 hover:text-red-300"
-                            aria-label={t("Delete incident {{id}}", {
-                              id: incident.id,
-                            })}
-                          >
-                            <IconTrash size={14} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {incidents.map((incident) => {
+                      const hasElfData = elfAnalysis?.hasElf && incident.fatal;
+                      const resolvedPc = hasElfData
+                        ? formatResolved(
+                            elfAnalysis!.resolve,
+                            incident.fatal!.pc,
+                            "PC",
+                          )
+                        : null;
+                      const resolvedLr = hasElfData
+                        ? formatResolved(
+                            elfAnalysis!.resolve,
+                            incident.fatal!.lr,
+                            "LR",
+                          )
+                        : null;
+
+                      return (
+                        <tr
+                          key={incident.id}
+                          className="border-b border-[var(--color-border)] last:border-b-0"
+                        >
+                          <td className="py-2 pr-3 font-mono">{incident.id}</td>
+                          <td className="py-2 pr-3">
+                            <span
+                              className={`inline-block px-2 py-0.5 rounded border ${incidentTypeBadgeClass(incident.type)}`}
+                            >
+                              {incidentTypeLabel(incident.type, t)}
+                            </span>
+                          </td>
+                          <td className="py-2 pr-3 font-mono">
+                            #{incident.bootOrdinal} @{" "}
+                            {formatUptime(incident.uptimeS * 1000)}
+                          </td>
+                          <td className="py-2 pr-3 text-[var(--color-text-secondary)] break-all">
+                            <div>{incidentDetail(incident, t)}</div>
+                            {(resolvedPc || resolvedLr) && (
+                              <div className="mt-1 font-mono text-[10px] text-[var(--color-electric)] space-y-0.5">
+                                {resolvedPc && <div>{resolvedPc}</div>}
+                                {resolvedLr && <div>{resolvedLr}</div>}
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-2 text-right">
+                            <button
+                              onClick={() => void deleteOne(incident.id)}
+                              disabled={isLoading}
+                              className="btn-ghost p-1 text-red-400 hover:text-red-300"
+                              aria-label={t("Delete incident {{id}}", {
+                                id: incident.id,
+                              })}
+                            >
+                              <IconTrash size={14} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

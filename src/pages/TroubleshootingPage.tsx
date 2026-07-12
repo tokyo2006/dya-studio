@@ -12,6 +12,7 @@ import { useDeviceInfo } from "../hooks/useDeviceInfo";
 import { useWatchdog } from "../hooks/useWatchdog";
 import { useKscanDiagnostics } from "../hooks/useKscanDiagnostics";
 import { usePmw3610 } from "../hooks/usePmw3610";
+import { useElfAnalysis } from "../hooks/useElfAnalysis";
 import { DeviceInfoSection } from "../components/troubleshooting/DeviceInfoSection";
 import { WatchdogSection } from "../components/troubleshooting/WatchdogSection";
 import { KscanDiagnosticsSection } from "../components/troubleshooting/KscanDiagnosticsSection";
@@ -27,6 +28,7 @@ export function TroubleshootingPage() {
   const watchdog = useWatchdog();
   const kscan = useKscanDiagnostics();
   const pmw3610 = usePmw3610();
+  const elfAnalysis = useElfAnalysis();
   const [copied, setCopied] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -38,6 +40,21 @@ export function TroubleshootingPage() {
   };
 
   const copySupportReport = async () => {
+    // Resolve PC/LR for all fatal incidents when an ELF is loaded
+    const elfResolved = elfAnalysis.hasElf
+      ? watchdog.incidents
+          .filter((i) => i.fatal)
+          .map((i) => {
+            const pcR = elfAnalysis.resolve(i.fatal!.pc);
+            const lrR = elfAnalysis.resolve(i.fatal!.lr);
+            return {
+              id: i.id,
+              pc: { address: i.fatal!.pc, ...pcR },
+              lr: { address: i.fatal!.lr, ...lrR },
+            };
+          })
+      : undefined;
+
     const report = buildSupportReport({
       generatedAt: new Date().toISOString(),
       deviceName: zmkApp?.state.deviceInfo?.name ?? null,
@@ -51,7 +68,12 @@ export function TroubleshootingPage() {
       watchdog: {
         available: watchdog.isAvailable,
         data: watchdog.status
-          ? { status: watchdog.status, incidents: watchdog.incidents }
+          ? {
+              status: watchdog.status,
+              incidents: watchdog.incidents,
+              elfFileName: elfAnalysis.fileName,
+              elfResolved,
+            }
           : null,
         error: watchdog.error,
       },
@@ -149,7 +171,7 @@ export function TroubleshootingPage() {
         {/* Section cards */}
         <div className="space-y-6">
           <DeviceInfoSection deviceInfo={deviceInfo} />
-          <WatchdogSection watchdog={watchdog} />
+          <WatchdogSection watchdog={watchdog} elfAnalysis={elfAnalysis} />
           <KscanDiagnosticsSection kscan={kscan} />
           <Pmw3610Section pmw3610={pmw3610} />
         </div>
