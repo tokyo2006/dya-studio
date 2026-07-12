@@ -61,6 +61,10 @@ export function KscanDiagnosticsSection({
     isLoadingTopology,
     topologyError,
     loadTopology,
+    peripheralTopologies,
+    isLoadingPeripheralTopologies,
+    peripheralTopologyErrors,
+    loadPeripheralTopologies,
   } = kscan;
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [hasRequestedTopology, setHasRequestedTopology] = useState(false);
@@ -81,6 +85,7 @@ export function KscanDiagnosticsSection({
     if (hasRequestedTopology) return;
     setHasRequestedTopology(true);
     void loadTopology();
+    void loadPeripheralTopologies();
     void officialLayouts.load();
   };
 
@@ -210,6 +215,55 @@ export function KscanDiagnosticsSection({
               />
             </div>
           )}
+
+          {/* Peripheral halves */}
+          {isLoadingPeripheralTopologies && peripheralTopologies.size === 0 && (
+            <LoadingIndicator
+              variant="inline"
+              className="mb-4"
+              label={t("Loading peripheral wiring…")}
+            />
+          )}
+          {[...peripheralTopologyErrors.entries()].map(([src, msg]) => (
+            <SectionError
+              key={src}
+              message={t("Peripheral {{src}}: {{msg}}", { src, msg })}
+            />
+          ))}
+          {[...peripheralTopologies.entries()].map(([src, periph]) => {
+            const peripheralActiveLayout =
+              periph.layouts.find(
+                (l) => l.layoutIndex === periph.selectedLayout,
+              ) ??
+              periph.layouts[0] ??
+              null;
+            const peripheralWiring = peripheralActiveLayout
+              ? buildWiringMap(periph, peripheralActiveLayout)
+              : new Map();
+            return (
+              <div key={src} className="mb-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-[var(--color-text-muted)] mb-2">
+                  {t("Peripheral {{src}}", { src })}
+                  {peripheralActiveLayout && (
+                    <span className="ml-2 normal-case font-normal">
+                      — {peripheralActiveLayout.displayName}
+                    </span>
+                  )}
+                </p>
+                {physicalLayout && peripheralActiveLayout ? (
+                  <KscanKeyboardView
+                    layout={physicalLayout}
+                    wiring={peripheralWiring}
+                    statsByPosition={new Map()}
+                  />
+                ) : (
+                  <p className="text-xs text-[var(--color-text-muted)]">
+                    {t("Wiring info received — no matching physical layout.")}
+                  </p>
+                )}
+              </div>
+            );
+          })}
 
           {/* Driver info + suspect-key stats table, collapsed by default */}
           <details className="mt-2">

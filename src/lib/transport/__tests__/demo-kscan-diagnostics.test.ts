@@ -5,7 +5,9 @@
 import { KscanDiagnosticsHandler } from "../demo-kscan-diagnostics";
 import {
   GpioLineKind,
+  PeripheralEvent,
   Request,
+  Response,
 } from "../../../proto/cormoran/kscan_diagnostics/kscan_diagnostics";
 
 describe("KscanDiagnosticsHandler", () => {
@@ -201,6 +203,55 @@ describe("KscanDiagnosticsHandler", () => {
     it("returns an error for an empty request", () => {
       const response = handler.process(Request.create({}));
       expect(response.error).toBeDefined();
+    });
+  });
+
+  describe("queryPeripheral", () => {
+    it("returns ok and delivers a PeripheralEvent notification", async () => {
+      const notifications: Uint8Array[] = [];
+      handler.notify((data) => notifications.push(data));
+
+      const innerRequest = Request.create({ getInfo: {} });
+      const response = handler.process(
+        Request.create({
+          queryPeripheral: {
+            reqId: 42,
+            payload: Request.encode(innerRequest).finish(),
+          },
+        }),
+      );
+
+      expect(response.ok).toBeDefined();
+
+      // Wait for the async notification (50ms delay in the handler).
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(notifications).toHaveLength(1);
+
+      const event = PeripheralEvent.decode(notifications[0]);
+      expect(event.source).toBe(1);
+      expect(event.reqId).toBe(42);
+
+      const innerResponse = Response.decode(event.payload);
+      expect(innerResponse.info).toBeDefined();
+      expect(innerResponse.info?.deviceCount).toBe(1);
+    });
+
+    it("echoes req_id in the PeripheralEvent", async () => {
+      const notifications: Uint8Array[] = [];
+      handler.notify((data) => notifications.push(data));
+
+      handler.process(
+        Request.create({
+          queryPeripheral: {
+            reqId: 7,
+            payload: Request.encode(Request.create({ getInfo: {} })).finish(),
+          },
+        }),
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const event = PeripheralEvent.decode(notifications[0]);
+      expect(event.reqId).toBe(7);
     });
   });
 });

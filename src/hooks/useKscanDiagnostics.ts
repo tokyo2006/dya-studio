@@ -1,8 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useContext, useEffect, useState } from "react";
+import { ZMKAppContext } from "@cormoran/zmk-studio-react-hook";
 import { useCustomSubsystem } from "./useCustomSubsystem";
 import type { UseCustomSubsystemTypedReturn } from "@cormoran/zmk-studio-react-hook";
+import type { CustomNotification } from "@zmkfirmware/zmk-studio-ts-client/custom";
 import {
   GpioLineKind,
+  PeripheralEvent,
   Request,
   Response,
   type Device,
@@ -25,6 +28,21 @@ type Caller = UseCustomSubsystemTypedReturn<Request, Response>["call"];
 // Safety valve against a misbehaving firmware paginating forever.
 const MAX_PAGES = 2000;
 
+// After QueryPeripheral returns Ok, wait this long for PeripheralEvent
+// notifications before giving up on additional peripheral responses.
+const PERIPHERAL_DISCOVERY_TIMEOUT_MS = 3000;
+
+// When fetching topology for a known source, stop waiting once that source's
+// response arrives (or after this fallback timeout).
+const PERIPHERAL_RESPONSE_TIMEOUT_MS = 3000;
+
+// Monotonic counter for QueryPeripheral req_id — correlates PeripheralEvent
+// notifications to the request that triggered them.
+let _nextPeripheralReqId = 1;
+function nextPeripheralReqId(): number {
+  return _nextPeripheralReqId++;
+}
+
 export interface UseKscanDiagnosticsReturn {
   isAvailable: boolean;
   info: Info | null;
@@ -42,6 +60,13 @@ export interface UseKscanDiagnosticsReturn {
   isLoadingTopology: boolean;
   topologyError: string | null;
   loadTopology: () => Promise<void>;
+  /** Topology for each split peripheral (source 1, 2, …). Keyed by source
+   * index. Populated by `loadPeripheralTopologies()`. */
+  peripheralTopologies: Map<number, Topology>;
+  isLoadingPeripheralTopologies: boolean;
+  peripheralTopologyErrors: Map<number, string>;
+  /** Discover peripherals and fetch their topologies via QueryPeripheral. */
+  loadPeripheralTopologies: () => Promise<void>;
 }
 
 async function callRpc(call: Caller, request: Request): Promise<Response> {
@@ -233,7 +258,269 @@ async function fetchTopology(call: Caller): Promise<Topology> {
   };
 }
 
+type ZmkApp = ReturnType<typeof useContext<typeof ZMKAppContext>>;
+
+/**
+ * Send a QueryPeripheral request wrapping `innerRequest` and collect
+ * PeripheralEvent notification responses. When `filterSource` is provided the
+ * promise resolves as soon as that source's response arrives; otherwise it
+ * waits for `timeout` ms after the RPC returns Ok, collecting all responses.
+ */
+async function queryPeripheral(
+  call: Caller,
+  zmkApp: ZmkApp,
+  subsystemIndex: number,
+  innerRequest: Request,
+  filterSource?: number,
+  timeout: number = PERIPHERAL_DISCOVERY_TIMEOUT_MS,
+): Promise<Map<number, Response>> {
+  const reqId = nextPeripheralReqId();
+  const responses = new Map<number, Response>();
+
+  // Resolves as soon as filterSource's response arrives (used by Promise.race
+  // below). In discovery mode (filterSource undefined) it never resolves and
+  // the timeout side of the race always wins.
+  let resolveTarget!: () => void;
+  const targetArrived = new Promise<void>((r) => {
+    resolveTarget = r;
+  });
+
+  const unsubscribe = zmkApp!.onNotification({
+    type: "custom",
+    subsystemIndex,
+    callback: (customNotification: CustomNotification) => {
+      try {
+        const event = PeripheralEvent.decode(customNotification.payload);
+        if (event.reqId !== reqId) return;
+        const innerResponse = Response.decode(event.payload);
+        responses.set(event.source, innerResponse);
+        if (filterSource !== undefined && event.source === filterSource) {
+          resolveTarget();
+        }
+      } catch {
+        // ignore decode errors from unrelated notifications
+      }
+    },
+  });
+
+  try {
+    const result = await call(
+      Request.create({
+        queryPeripheral: {
+          reqId,
+          payload: Request.encode(innerRequest).finish(),
+        },
+      }),
+    );
+
+    if (result && !result.error) {
+      await Promise.race([
+        targetArrived,
+        new Promise<void>((r) => setTimeout(r, timeout)),
+      ]);
+    }
+  } finally {
+    unsubscribe();
+  }
+
+  return responses;
+}
+
+/**
+ * Fetch full topology for one split peripheral by relaying each inner request
+ * via QueryPeripheral and awaiting the matching PeripheralEvent notification.
+ */
+async function fetchPeripheralTopology(
+  call: Caller,
+  zmkApp: ZmkApp,
+  subsystemIndex: number,
+  source: number,
+): Promise<Topology> {
+  const infoMap = await queryPeripheral(
+    call,
+    zmkApp,
+    subsystemIndex,
+    Request.create({ getInfo: {} }),
+    source,
+    PERIPHERAL_RESPONSE_TIMEOUT_MS,
+  );
+  const infoResp = infoMap.get(source);
+  if (!infoResp?.info) {
+    throw new Error(`No response from peripheral ${source}`);
+  }
+  const info = infoResp.info;
+
+  const layouts: KscanLayout[] = [];
+  for (let i = 0; i < info.layoutCount; i++) {
+    const layoutMap = await queryPeripheral(
+      call,
+      zmkApp,
+      subsystemIndex,
+      Request.create({ getLayout: { layoutIndex: i } }),
+      source,
+      PERIPHERAL_RESPONSE_TIMEOUT_MS,
+    );
+    const layoutResp = layoutMap.get(source)?.layout;
+    if (!layoutResp)
+      throw new Error(`No Layout[${i}] from peripheral ${source}`);
+
+    const posMap = await fetchPeripheralPositionMap(
+      call,
+      zmkApp,
+      subsystemIndex,
+      source,
+      i,
+    );
+    layouts.push({
+      layoutIndex: layoutResp.layoutIndex,
+      displayName: layoutResp.displayName,
+      rows: layoutResp.rows,
+      columns: layoutResp.columns,
+      keyCount: layoutResp.keyCount,
+      deviceIndices: layoutResp.deviceIndices.map((d) => ({
+        leafIndex: d.leafIndex,
+        rowOffset: d.rowOffset,
+        colOffset: d.colOffset,
+      })),
+      positionMap: posMap,
+    });
+  }
+
+  const devices: KscanDevice[] = [];
+  for (let i = 0; i < info.deviceCount; i++) {
+    const devMap = await queryPeripheral(
+      call,
+      zmkApp,
+      subsystemIndex,
+      Request.create({ getDevice: { deviceIndex: i } }),
+      source,
+      PERIPHERAL_RESPONSE_TIMEOUT_MS,
+    );
+    const d = devMap.get(source)?.device;
+    if (!d) throw new Error(`No Device[${i}] from peripheral ${source}`);
+    const gpioLinesByKind = await fetchPeripheralGpioLinesByKind(
+      call,
+      zmkApp,
+      subsystemIndex,
+      source,
+      i,
+    );
+    devices.push({
+      deviceIndex: d.deviceIndex,
+      nodeName: d.nodeName,
+      type: d.type,
+      rows: d.rows,
+      columns: d.columns,
+      inputs: d.inputs,
+      debouncePressMs: d.debouncePressMs,
+      debounceReleaseMs: d.debounceReleaseMs,
+      debounceScanPeriodMs: d.debounceScanPeriodMs,
+      pollPeriodMs: d.pollPeriodMs,
+      diodeRow2col: d.diodeRow2col,
+      toggleMode: d.toggleMode,
+      gpioLinesByKind,
+    });
+  }
+
+  return {
+    protoVersion: info.protoVersion,
+    selectedLayout: info.selectedLayout,
+    statsEnabled: info.statsEnabled,
+    maxPositions: info.maxPositions,
+    uptimeMs: info.uptimeMs,
+    devices,
+    layouts,
+  };
+}
+
+async function fetchPeripheralPositionMap(
+  call: Caller,
+  zmkApp: ZmkApp,
+  subsystemIndex: number,
+  source: number,
+  layoutIndex: number,
+): Promise<(number | null)[]> {
+  const cells: (number | null)[] = [];
+  let offset = 0;
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const map = await queryPeripheral(
+      call,
+      zmkApp,
+      subsystemIndex,
+      Request.create({ getPositionMap: { layoutIndex, offset } }),
+      source,
+      PERIPHERAL_RESPONSE_TIMEOUT_MS,
+    );
+    const chunk = map.get(source)?.positionMap;
+    if (!chunk) throw new Error(`No PositionMap from peripheral ${source}`);
+    for (const cell of chunk.cells) {
+      cells.push(cell === 0 ? null : cell - 1);
+    }
+    offset = chunk.offset + chunk.cells.length;
+    if (chunk.cells.length === 0 || offset >= chunk.total) break;
+  }
+  return cells;
+}
+
+async function fetchPeripheralGpioPinsOfKind(
+  call: Caller,
+  zmkApp: ZmkApp,
+  subsystemIndex: number,
+  source: number,
+  deviceIndex: number,
+  kind: GpioLineKind,
+): Promise<GpioPin[]> {
+  const pins: GpioPin[] = [];
+  let offset = 0;
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const map = await queryPeripheral(
+      call,
+      zmkApp,
+      subsystemIndex,
+      Request.create({ getGpioPins: { deviceIndex, kind, offset } }),
+      source,
+      PERIPHERAL_RESPONSE_TIMEOUT_MS,
+    );
+    const chunk = map.get(source)?.gpioPins;
+    if (!chunk) throw new Error(`No GpioPins from peripheral ${source}`);
+    pins.push(...chunk.pins);
+    offset = chunk.offset + chunk.pins.length;
+    if (chunk.pins.length === 0 || offset >= chunk.total) break;
+  }
+  return pins;
+}
+
+async function fetchPeripheralGpioLinesByKind(
+  call: Caller,
+  zmkApp: ZmkApp,
+  subsystemIndex: number,
+  source: number,
+  deviceIndex: number,
+): Promise<Record<GpioLineKind, GpioPin[]>> {
+  const kinds: GpioLineKind[] = [
+    GpioLineKind.ROW,
+    GpioLineKind.COL,
+    GpioLineKind.INPUT,
+    GpioLineKind.OUTPUT,
+    GpioLineKind.CHARLIE,
+  ];
+  const result = {} as Record<GpioLineKind, GpioPin[]>;
+  result[GpioLineKind.KIND_UNKNOWN] = [];
+  for (const kind of kinds) {
+    result[kind] = await fetchPeripheralGpioPinsOfKind(
+      call,
+      zmkApp,
+      subsystemIndex,
+      source,
+      deviceIndex,
+      kind,
+    );
+  }
+  return result;
+}
+
 export function useKscanDiagnostics(): UseKscanDiagnosticsReturn {
+  const zmkApp = useContext(ZMKAppContext);
   const { subsystem, ready, call } = useCustomSubsystem(
     KSCAN_DIAGNOSTICS_SUBSYSTEM_IDENTIFIER,
     CODEC,
@@ -314,6 +601,57 @@ export function useKscanDiagnostics(): UseKscanDiagnosticsReturn {
     }
   }, [ready, call]);
 
+  const [peripheralTopologies, setPeripheralTopologies] = useState<
+    Map<number, Topology>
+  >(() => new Map());
+  const [isLoadingPeripheralTopologies, setIsLoadingPeripheralTopologies] =
+    useState(false);
+  const [peripheralTopologyErrors, setPeripheralTopologyErrors] = useState<
+    Map<number, string>
+  >(() => new Map());
+
+  const subsystemIndex = subsystem?.index;
+
+  const loadPeripheralTopologies = useCallback(async () => {
+    if (!ready || !zmkApp || subsystemIndex === undefined) return;
+    setIsLoadingPeripheralTopologies(true);
+    setPeripheralTopologies(new Map());
+    setPeripheralTopologyErrors(new Map());
+
+    // Discovery: send GetInfo to all peripherals, collect responses within timeout.
+    let discoveredSources: number[];
+    try {
+      const infoMap = await queryPeripheral(
+        call,
+        zmkApp,
+        subsystemIndex,
+        Request.create({ getInfo: {} }),
+      );
+      discoveredSources = [...infoMap.keys()];
+    } catch {
+      setIsLoadingPeripheralTopologies(false);
+      return;
+    }
+
+    // Fetch topology for each discovered peripheral.
+    for (const source of discoveredSources) {
+      try {
+        const t = await fetchPeripheralTopology(
+          call,
+          zmkApp,
+          subsystemIndex,
+          source,
+        );
+        setPeripheralTopologies((prev) => new Map(prev).set(source, t));
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Unknown error";
+        setPeripheralTopologyErrors((prev) => new Map(prev).set(source, msg));
+      }
+    }
+
+    setIsLoadingPeripheralTopologies(false);
+  }, [ready, zmkApp, subsystemIndex, call]);
+
   return {
     isAvailable: subsystem !== null,
     info,
@@ -327,5 +665,9 @@ export function useKscanDiagnostics(): UseKscanDiagnosticsReturn {
     isLoadingTopology,
     topologyError,
     loadTopology,
+    peripheralTopologies,
+    isLoadingPeripheralTopologies,
+    peripheralTopologyErrors,
+    loadPeripheralTopologies,
   };
 }

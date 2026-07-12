@@ -949,6 +949,21 @@ class Keyboard {
         }).finish(),
       );
     });
+
+    this.kscanDiagnosticsHandler.notify((payload: Uint8Array) => {
+      callback(
+        Response.encode({
+          notification: {
+            custom: {
+              customNotification: {
+                subsystemIndex: this.KSCAN_DIAGNOSTICS_SUBSYSTEM_INDEX,
+                payload: payload,
+              },
+            },
+          },
+        }).finish(),
+      );
+    });
   }
 
   /** Stop any demo-side background activity (e.g. the pmw3610 frame
