@@ -939,6 +939,7 @@ const ja: Record<string, string> = {
   Complete: "完了",
   "Capture time": "キャプチャ時間",
   "FPS (streaming)": "FPS（ストリーミング中）",
+  "Debug Tool": "デバッグツール",
 };
 
 const dictionaries: Record<Language, Record<string, string>> = {

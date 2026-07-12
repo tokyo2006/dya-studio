@@ -6,6 +6,9 @@ import {
   IconLockOpen,
   IconTrash,
   IconRefresh,
+  IconPower,
+  IconCpu,
+  IconDownload,
 } from "@tabler/icons-react";
 import {
   LogLevel,
@@ -69,7 +72,12 @@ function levelColor(level: LogLevel): string {
   return LOG_LEVEL_COLORS[level] ?? "text-[var(--color-text-muted)]";
 }
 
-const MAX_RECORDS = 500;
+function formatRecordText(r: LogRecord): string {
+  return `[${r.timestampMs}ms] <${levelLabel(r.level)}> ${r.source}: ${r.message}`;
+}
+
+const MAX_RECORDS = 2000;
+const FILTER_DEBOUNCE_MS = 200;
 
 export function DevtoolWindow({ onClose }: DevtoolWindowProps) {
   const { ready, call, subsystemIndex, zmkApp } = useDevtool();
@@ -96,7 +104,12 @@ export function DevtoolWindow({ onClose }: DevtoolWindowProps) {
   const onDragStart = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest("button")) return;
     e.preventDefault();
-    dragOrigin.current = { mx: e.clientX, my: e.clientY, ox: pos.x, oy: pos.y };
+    dragOrigin.current = {
+      mx: e.clientX,
+      my: e.clientY,
+      ox: pos.x,
+      oy: pos.y,
+    };
   };
 
   const onResizeStart = (e: React.MouseEvent) => {
@@ -194,6 +207,24 @@ export function DevtoolWindow({ onClose }: DevtoolWindowProps) {
     }
   };
 
+  // --- Device actions (reboot / bootloader) ---
+  const [deviceBusy, setDeviceBusy] = useState(false);
+  const [deviceError, setDeviceError] = useState<string | null>(null);
+
+  const runDeviceAction = async (request: Request) => {
+    if (!ready || deviceBusy) return;
+    setDeviceBusy(true);
+    setDeviceError(null);
+    try {
+      const resp = await call(request);
+      if (resp?.error) setDeviceError(resp.error.message);
+    } catch (err) {
+      setDeviceError(err instanceof Error ? err.message : "Failed");
+    } finally {
+      setDeviceBusy(false);
+    }
+  };
+
   // --- Log streaming ---
   const [records, setRecords] = useState<LogRecord[]>([]);
   const [droppedTotal, setDroppedTotal] = useState(0);
@@ -201,7 +232,9 @@ export function DevtoolWindow({ onClose }: DevtoolWindowProps) {
   const [filterLevel, setFilterLevel] = useState<LogLevel>(
     LogLevel.LOG_LEVEL_UNSPECIFIED,
   );
+  // Raw text input — debounced into appliedFilterText before filtering.
   const [filterText, setFilterText] = useState("");
+  const [appliedFilterText, setAppliedFilterText] = useState("");
   const logEndRef = useRef<HTMLDivElement>(null);
   const callRef = useRef(call);
   const readyRef = useRef(ready);
@@ -212,6 +245,15 @@ export function DevtoolWindow({ onClose }: DevtoolWindowProps) {
   useEffect(() => {
     readyRef.current = ready;
   }, [ready]);
+
+  // Debounce the text filter to avoid filtering on every keystroke.
+  useEffect(() => {
+    const timer = setTimeout(
+      () => setAppliedFilterText(filterText),
+      FILTER_DEBOUNCE_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [filterText]);
 
   // Auto-start streaming on mount, auto-stop on unmount.
   useEffect(() => {
@@ -247,6 +289,7 @@ export function DevtoolWindow({ onClose }: DevtoolWindowProps) {
         }
         const ls = parsed.logStream;
         if (!ls) return;
+        // Append new records, dropping oldest when over the cap.
         setRecords((prev) => [...prev, ...ls.records].slice(-MAX_RECORDS));
         if (ls.droppedCount > 0) {
           setDroppedTotal((t) => t + ls.droppedCount);
@@ -272,7 +315,18 @@ export function DevtoolWindow({ onClose }: DevtoolWindowProps) {
     }
   };
 
-  // Client-side filtered view.
+  const exportLogs = () => {
+    const text = records.map(formatRecordText).join("\n");
+    const blob = new Blob([text], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "devtool-logs.txt";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Client-side filtered view (uses debounced text).
   const visibleRecords = records.filter((r) => {
     if (
       filterLevel !== LogLevel.LOG_LEVEL_UNSPECIFIED &&
@@ -280,8 +334,8 @@ export function DevtoolWindow({ onClose }: DevtoolWindowProps) {
     ) {
       return false;
     }
-    if (filterText) {
-      const needle = filterText.toLowerCase();
+    if (appliedFilterText) {
+      const needle = appliedFilterText.toLowerCase();
       return (
         r.source.toLowerCase().includes(needle) ||
         r.message.toLowerCase().includes(needle)
@@ -324,10 +378,11 @@ export function DevtoolWindow({ onClose }: DevtoolWindowProps) {
 
       {/* Body */}
       <div className="flex flex-col flex-1 overflow-hidden p-2 gap-2 select-text">
-        {/* Lock section */}
-        <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-[var(--color-surface-elevated)] border border-[var(--color-border)] flex-shrink-0">
-          <span className="text-[var(--color-text-muted)] text-[10px] uppercase tracking-widest mr-auto">
-            Studio Lock
+        {/* Device controls: lock + reboot + bootloader */}
+        <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-[var(--color-surface-elevated)] border border-[var(--color-border)] flex-shrink-0 flex-wrap">
+          {/* Lock status + toggle */}
+          <span className="text-[var(--color-text-muted)] text-[10px] uppercase tracking-widest">
+            Lock
           </span>
           {lockState === StudioLockState.STUDIO_LOCK_STATE_UNSPECIFIED && (
             <span className="text-[var(--color-text-muted)]">—</span>
@@ -366,12 +421,42 @@ export function DevtoolWindow({ onClose }: DevtoolWindowProps) {
           >
             <IconRefresh size={12} />
           </button>
-          {lockError && (
-            <span className="text-red-400 text-[10px]">{lockError}</span>
+
+          {/* Divider */}
+          <span className="text-[var(--color-border)] select-none">│</span>
+
+          {/* Reboot */}
+          <button
+            className="btn-ghost py-0.5 px-2 text-[10px] border border-[var(--color-border)] rounded flex items-center gap-1"
+            onClick={() => void runDeviceAction(Request.create({ reboot: {} }))}
+            disabled={deviceBusy || !ready}
+            title="Reboot device"
+          >
+            <IconPower size={11} />
+            Reboot
+          </button>
+
+          {/* Enter bootloader */}
+          <button
+            className="btn-ghost py-0.5 px-2 text-[10px] border border-[var(--color-border)] rounded flex items-center gap-1"
+            onClick={() =>
+              void runDeviceAction(Request.create({ enterBootloader: {} }))
+            }
+            disabled={deviceBusy || !ready}
+            title="Enter bootloader (DFU mode)"
+          >
+            <IconCpu size={11} />
+            Bootloader
+          </button>
+
+          {(lockError ?? deviceError) && (
+            <span className="text-red-400 text-[10px] w-full">
+              {lockError ?? deviceError}
+            </span>
           )}
         </div>
 
-        {/* Log filters */}
+        {/* Log toolbar: level filter + text filter (debounced) + export + clear */}
         <div className="flex items-center gap-1.5 flex-shrink-0">
           <select
             className="select-field text-[10px] py-0.5 px-1.5 rounded"
@@ -388,10 +473,18 @@ export function DevtoolWindow({ onClose }: DevtoolWindowProps) {
           <input
             type="text"
             className="input-field text-[10px] py-0.5 px-1.5 rounded flex-1 min-w-0"
-            placeholder="filter source / message..."
+            placeholder="filter source / message…"
             value={filterText}
             onChange={(e) => setFilterText(e.target.value)}
           />
+          <button
+            className="btn-ghost p-0.5 rounded flex-shrink-0"
+            onClick={exportLogs}
+            disabled={records.length === 0}
+            title="Export logs to file"
+          >
+            <IconDownload size={12} />
+          </button>
           <button
             className="btn-ghost p-0.5 rounded flex-shrink-0"
             onClick={() => void clearLogs()}
@@ -410,7 +503,7 @@ export function DevtoolWindow({ onClose }: DevtoolWindowProps) {
 
         {droppedTotal > 0 && (
           <div className="text-yellow-400 text-[10px] px-1 flex-shrink-0">
-            {droppedTotal} record(s) dropped (buffer overflow)
+            {droppedTotal} record(s) dropped (firmware buffer overflow)
           </div>
         )}
 
@@ -440,6 +533,16 @@ export function DevtoolWindow({ onClose }: DevtoolWindowProps) {
             ))
           )}
           <div ref={logEndRef} />
+        </div>
+
+        {/* Record count hint */}
+        <div className="text-[var(--color-text-muted)] text-[9px] px-1 flex-shrink-0 flex justify-between">
+          <span>
+            {visibleRecords.length !== records.length
+              ? `${visibleRecords.length} / ${records.length} records`
+              : `${records.length} records`}
+          </span>
+          <span>max {MAX_RECORDS}</span>
         </div>
       </div>
 

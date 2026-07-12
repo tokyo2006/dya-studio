@@ -199,12 +199,12 @@ function AppContent() {
 
       {connection.isConnected && isDevtoolAvailable && (
         <button
-          className="fixed bottom-5 right-5 z-[9998] w-10 h-10 rounded-full border border-[var(--color-border)] bg-[var(--color-surface-elevated)] text-[var(--color-text-muted)] hover:text-[var(--color-electric)] hover:border-[var(--color-electric)] hover:shadow-glow-electric-sm transition-all duration-200 flex items-center justify-center text-[10px] font-mono font-bold tracking-tighter"
+          className="fixed bottom-5 right-5 z-[9998] h-8 px-3 rounded-full border border-[var(--color-border)] bg-[var(--color-surface-elevated)] text-[var(--color-text-muted)] hover:text-[var(--color-electric)] hover:border-[var(--color-electric)] hover:shadow-glow-electric-sm transition-all duration-200 flex items-center justify-center text-[10px] font-sans font-medium tracking-wide"
           onClick={() => setDevtoolOpen((v) => !v)}
-          title="Devtool"
-          aria-label="Toggle Devtool window"
+          title={t("Debug Tool")}
+          aria-label={t("Debug Tool")}
         >
-          DT
+          {t("Debug Tool")}
         </button>
       )}
 
