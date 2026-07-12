@@ -268,11 +268,6 @@ export function KeymapPage() {
     keymap.loadKeymapData();
   }, [keymap]);
 
-  // Auto-dismiss the unlock prompt once Studio is actually unlocked.
-  useEffect(() => {
-    if (!locked) setShowUnlockPrompt(false);
-  }, [locked]);
-
   useEffect(() => {
     if (
       inputStream.activeLayerIndex === null ||
@@ -857,7 +852,7 @@ export function KeymapPage() {
       {/* Unlock Prompt — shown proactively when the user tries to edit while
           locked, or reactively if a load actually required unlock. */}
       <UnlockPrompt
-        open={showUnlockPrompt || keymap.unlockRequired}
+        open={(showUnlockPrompt && locked) || keymap.unlockRequired}
         onClose={handleUnlockClose}
         onRetry={handleUnlockRetry}
       />

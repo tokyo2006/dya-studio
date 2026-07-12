@@ -5,6 +5,7 @@ import {
   IconCommand,
   IconDeviceFloppy,
   IconLoader2,
+  IconLock,
   IconPlus,
   IconRefresh,
   IconRestore,
@@ -18,6 +19,7 @@ import { KeyboardLayout } from "../components/KeyboardLayout";
 import { KeycodeSelector } from "../components/KeycodeSelector";
 import { UnlockPrompt } from "../components/UnlockPrompt";
 import { LoadingIndicator } from "../components/LoadingIndicator";
+import { useStudioLockState } from "@cormoran/zmk-studio-react-hook";
 import { useKeymap, getKeymapLoadingLabel } from "../hooks/useKeymap";
 import { useLanguage } from "../hooks/useLanguage";
 import type { BehaviorBinding, BehaviorDefinition } from "../hooks/useKeymap";
@@ -196,7 +198,12 @@ export function ComboPage() {
   const keymap = useKeymap();
   const runtimeCombo = useRuntimeCombo();
   const runtimeMacro = useRuntimeMacro();
+  // Proactive lock state: prompt for unlock the moment the user tries to edit,
+  // and show a lock badge in place of Save/Discard, instead of letting the edit
+  // fail first.
+  const { locked } = useStudioLockState();
 
+  const [showUnlockPrompt, setShowUnlockPrompt] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [draft, setDraft] = useState<ComboDraft>(() =>
     createDraft([], undefined, new Map()),
@@ -263,9 +270,26 @@ export function ComboPage() {
     [setDraft],
   );
 
+  // Guard an edit action: if Studio is locked, open the unlock prompt instead
+  // of performing the edit (and let the caller bail out).
+  const requireUnlocked = useCallback((): boolean => {
+    if (locked) {
+      setShowUnlockPrompt(true);
+      return false;
+    }
+    return true;
+  }, [locked]);
+
   const handleNewCombo = useCallback(() => {
+    if (!requireUnlocked()) return;
     selectDraft(createDraft(runtimeCombo.combos, maxCombo, keymap.behaviors));
-  }, [keymap.behaviors, maxCombo, runtimeCombo.combos, selectDraft]);
+  }, [
+    keymap.behaviors,
+    maxCombo,
+    runtimeCombo.combos,
+    selectDraft,
+    requireUnlocked,
+  ]);
 
   const handlePositionToggle = useCallback((position: number) => {
     setDraft((prev) => {
@@ -310,6 +334,7 @@ export function ComboPage() {
   }, [draft, maxCombo, t]);
 
   const handleSaveCombo = useCallback(async () => {
+    if (!requireUnlocked()) return;
     if (validationError) return;
     setStatusMessage(null);
     const comboSaved = await runtimeCombo.setCombo({
@@ -330,9 +355,10 @@ export function ComboPage() {
       setModifiedIndices((prev) => new Set([...prev, draft.index]));
       setStatusMessage(t("Combo changes are pending."));
     }
-  }, [draft, runtimeCombo, t, validationError]);
+  }, [draft, runtimeCombo, t, validationError, requireUnlocked]);
 
   const handleDeleteCombo = useCallback(async () => {
+    if (!requireUnlocked()) return;
     const deleted = await runtimeCombo.deleteCombo(draft.index);
     if (deleted) {
       const remaining = runtimeCombo.combos.filter(
@@ -349,9 +375,18 @@ export function ComboPage() {
       selectDraft(nextDraft);
       setStatusMessage(t("Combo deletion is pending."));
     }
-  }, [draft.index, keymap.behaviors, maxCombo, runtimeCombo, selectDraft, t]);
+  }, [
+    draft.index,
+    keymap.behaviors,
+    maxCombo,
+    runtimeCombo,
+    selectDraft,
+    t,
+    requireUnlocked,
+  ]);
 
   const handleResetCombo = useCallback(async () => {
+    if (!requireUnlocked()) return;
     const resetIndex = draft.index;
     const reset = await runtimeCombo.resetCombo(resetIndex);
     if (reset) {
@@ -364,9 +399,18 @@ export function ComboPage() {
       selectDraft(nextDraft);
       setStatusMessage(t("Combo reset to default is pending."));
     }
-  }, [draft.index, keymap.behaviors, maxCombo, runtimeCombo, selectDraft, t]);
+  }, [
+    draft.index,
+    keymap.behaviors,
+    maxCombo,
+    runtimeCombo,
+    selectDraft,
+    t,
+    requireUnlocked,
+  ]);
 
   const handleApplyGlobalSettings = useCallback(async () => {
+    if (!requireUnlocked()) return;
     setStatusMessage(null);
     const current = runtimeCombo.globalSettings;
     let ok = true;
@@ -395,9 +439,11 @@ export function ComboPage() {
     displayTimeoutMs,
     runtimeCombo,
     t,
+    requireUnlocked,
   ]);
 
   const handleSavePending = useCallback(async () => {
+    if (!requireUnlocked()) return;
     const status = await runtimeCombo.saveChanges();
     if (status) {
       setModifiedIndices(new Set());
@@ -407,9 +453,10 @@ export function ComboPage() {
         }),
       );
     }
-  }, [runtimeCombo, t]);
+  }, [runtimeCombo, t, requireUnlocked]);
 
   const handleDiscardPending = useCallback(async () => {
+    if (!requireUnlocked()) return;
     const status = await runtimeCombo.discardChanges();
     if (status) {
       setModifiedIndices(new Set());
@@ -420,7 +467,7 @@ export function ComboPage() {
       );
       setSelectedIndex(null);
     }
-  }, [runtimeCombo, t]);
+  }, [runtimeCombo, t, requireUnlocked]);
 
   const selectedComboExists = runtimeCombo.combos.some(
     (combo) => combo.index === draft.index,
@@ -451,12 +498,6 @@ export function ComboPage() {
 
           {connection.isConnected && runtimeCombo.isAvailable && (
             <div className="flex items-center gap-2 ml-auto flex-wrap">
-              {runtimeCombo.hasPendingChanges && (
-                <span className="flex items-center gap-1 text-xs text-[var(--color-neon)] mr-2">
-                  <PendingDot />
-                  {t("Pending changes")}
-                </span>
-              )}
               <button
                 className="btn-ghost text-sm flex items-center gap-1.5"
                 onClick={() => void runtimeCombo.reload()}
@@ -465,26 +506,46 @@ export function ComboPage() {
                 <IconRefresh size={16} />
                 {t("Refresh")}
               </button>
-              <button
-                className="btn-ghost text-sm flex items-center gap-1.5"
-                onClick={handleDiscardPending}
-                disabled={
-                  runtimeCombo.isLoading || !runtimeCombo.hasPendingChanges
-                }
-              >
-                <IconRestore size={16} />
-                {t("Discard")}
-              </button>
-              <button
-                className="btn-electric text-sm flex items-center gap-1.5"
-                onClick={handleSavePending}
-                disabled={
-                  runtimeCombo.isLoading || !runtimeCombo.hasPendingChanges
-                }
-              >
-                <IconDeviceFloppy size={16} />
-                {t("Save")}
-              </button>
+              {locked ? (
+                <button
+                  type="button"
+                  onClick={() => setShowUnlockPrompt(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-[var(--color-warning)]/40 bg-[var(--color-warning)]/10 text-[var(--color-warning)] hover:bg-[var(--color-warning)]/20 transition-colors"
+                  title={t("Studio is locked — click to unlock")}
+                >
+                  <IconLock size={16} />
+                  {t("Locked")}
+                </button>
+              ) : (
+                <>
+                  {runtimeCombo.hasPendingChanges && (
+                    <span className="flex items-center gap-1 text-xs text-[var(--color-neon)] mr-2">
+                      <PendingDot />
+                      {t("Pending changes")}
+                    </span>
+                  )}
+                  <button
+                    className="btn-ghost text-sm flex items-center gap-1.5"
+                    onClick={handleDiscardPending}
+                    disabled={
+                      runtimeCombo.isLoading || !runtimeCombo.hasPendingChanges
+                    }
+                  >
+                    <IconRestore size={16} />
+                    {t("Discard")}
+                  </button>
+                  <button
+                    className="btn-electric text-sm flex items-center gap-1.5"
+                    onClick={handleSavePending}
+                    disabled={
+                      runtimeCombo.isLoading || !runtimeCombo.hasPendingChanges
+                    }
+                  >
+                    <IconDeviceFloppy size={16} />
+                    {t("Save")}
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -1105,9 +1166,16 @@ export function ComboPage() {
       />
 
       <UnlockPrompt
-        open={keymap.unlockRequired}
-        onClose={() => keymap.clearUnlockRequired()}
-        onRetry={keymap.loadKeymapData}
+        open={(showUnlockPrompt && locked) || keymap.unlockRequired}
+        onClose={() => {
+          setShowUnlockPrompt(false);
+          keymap.clearUnlockRequired();
+        }}
+        onRetry={() => {
+          setShowUnlockPrompt(false);
+          keymap.clearUnlockRequired();
+          keymap.loadKeymapData();
+        }}
       />
     </div>
   );

@@ -4,6 +4,7 @@ import {
   IconChevronDown,
   IconDeviceFloppy,
   IconLoader2,
+  IconLock,
   IconPlus,
   IconRefresh,
   IconRestore,
@@ -14,6 +15,7 @@ import {
 import { KeycodeSelector } from "../components/KeycodeSelector";
 import { UnlockPrompt } from "../components/UnlockPrompt";
 import { KeyboardLayoutContext } from "../contexts/KeyboardLayoutContext";
+import { useStudioLockState } from "@cormoran/zmk-studio-react-hook";
 import { useKeymap } from "../hooks/useKeymap";
 import { useLanguage } from "../hooks/useLanguage";
 import { useRuntimeMacro } from "../hooks/useRuntimeMacro";
@@ -360,6 +362,10 @@ export function MacroPage() {
   const runtimeMacro = useRuntimeMacro();
   const keymap = useKeymap();
   const keyboardLayoutContext = useContext(KeyboardLayoutContext);
+  // Proactive lock state: prompt for unlock on edit intent and show a lock
+  // badge in place of Save/Reset, instead of letting the edit fail first.
+  const { locked } = useStudioLockState();
+  const [showUnlockPrompt, setShowUnlockPrompt] = useState(false);
   const [selectedName, setSelectedName] = useState<string | null>(null);
   const [loadedMacro, setLoadedMacro] = useState<MacroDetail | null>(null);
   const [editingStepIndex, setEditingStepIndex] = useState<number | null>(null);
@@ -483,8 +489,19 @@ export function MacroPage() {
     }
   }, [loadedMacro, renameDraft, runtimeMacro]);
 
+  // Guard an edit action: if Studio is locked, open the unlock prompt instead
+  // of performing the edit (and let the caller bail out).
+  const requireUnlocked = useCallback((): boolean => {
+    if (locked) {
+      setShowUnlockPrompt(true);
+      return false;
+    }
+    return true;
+  }, [locked]);
+
   const commitSteps = useCallback(
     async (steps: MacroStep[]) => {
+      if (!requireUnlocked()) return false;
       if (!loadedMacro) return false;
       if (!canCommitSteps(steps)) {
         return false;
@@ -519,7 +536,7 @@ export function MacroPage() {
       await runtimeMacro.loadMacros();
       return true;
     },
-    [loadedMacro, runtimeMacro],
+    [loadedMacro, runtimeMacro, requireUnlocked],
   );
 
   const updateStep = useCallback(
@@ -653,6 +670,7 @@ export function MacroPage() {
   );
 
   const handleAddStep = useCallback(async () => {
+    if (!requireUnlocked()) return;
     if (!loadedMacro) return;
     const steps = [...loadedMacro.steps, DEFAULT_STEP];
     try {
@@ -662,7 +680,10 @@ export function MacroPage() {
       return;
     }
     setStringDraft(null);
-    const ok = await runtimeMacro.appendMacroStep(loadedMacro.slot, DEFAULT_STEP);
+    const ok = await runtimeMacro.appendMacroStep(
+      loadedMacro.slot,
+      DEFAULT_STEP,
+    );
     if (ok) {
       setLoadedMacro({
         ...loadedMacro,
@@ -671,9 +692,10 @@ export function MacroPage() {
       });
       await runtimeMacro.loadMacros();
     }
-  }, [loadedMacro, runtimeMacro]);
+  }, [loadedMacro, runtimeMacro, requireUnlocked]);
 
   const handleDeleteMacro = useCallback(async () => {
+    if (!requireUnlocked()) return;
     if (!loadedMacro) return;
     setIsDeleting(true);
     try {
@@ -690,7 +712,7 @@ export function MacroPage() {
     } finally {
       setIsDeleting(false);
     }
-  }, [loadedMacro, runtimeMacro]);
+  }, [loadedMacro, runtimeMacro, requireUnlocked]);
 
   const generateMacroName = useCallback((): string => {
     const existingNames = new Set(runtimeMacro.macros.map((m) => m.name));
@@ -700,6 +722,7 @@ export function MacroPage() {
   }, [runtimeMacro.macros]);
 
   const handleCreateMacro = useCallback(async () => {
+    if (!requireUnlocked()) return;
     const name = generateMacroName();
     setIsCreating(true);
     try {
@@ -710,9 +733,10 @@ export function MacroPage() {
     } finally {
       setIsCreating(false);
     }
-  }, [generateMacroName, runtimeMacro]);
+  }, [generateMacroName, runtimeMacro, requireUnlocked]);
 
   const handleSave = useCallback(async () => {
+    if (!requireUnlocked()) return;
     setIsSaving(true);
     try {
       await runtimeMacro.saveMacros();
@@ -721,9 +745,10 @@ export function MacroPage() {
     } finally {
       setIsSaving(false);
     }
-  }, [runtimeMacro]);
+  }, [runtimeMacro, requireUnlocked]);
 
   const handleDiscard = useCallback(async () => {
+    if (!requireUnlocked()) return;
     setIsDiscarding(true);
     try {
       await runtimeMacro.discardMacros();
@@ -735,14 +760,15 @@ export function MacroPage() {
     } finally {
       setIsDiscarding(false);
     }
-  }, [loadMacro, loadedMacro, runtimeMacro]);
+  }, [loadMacro, loadedMacro, runtimeMacro, requireUnlocked]);
 
   const handleTapMsChange = useCallback(
     async (tapMs: number) => {
+      if (!requireUnlocked()) return;
       const ok = await runtimeMacro.setTapMs(clampUInt32(tapMs));
       if (ok) setGlobalSettingsModified(true);
     },
-    [runtimeMacro],
+    [runtimeMacro, requireUnlocked],
   );
 
   const getStepDisplayName = useCallback(
@@ -789,12 +815,6 @@ export function MacroPage() {
 
           {runtimeMacro.isAvailable && (
             <div className="flex items-center gap-2 ml-auto">
-              {runtimeMacro.hasUnsavedChanges && (
-                <span className="flex items-center gap-1 text-xs text-[var(--color-neon)] mr-2">
-                  <UnsavedDot />
-                  {t("Unsaved changes")}
-                </span>
-              )}
               <button
                 className="btn-ghost text-sm flex items-center gap-1.5"
                 onClick={() => void runtimeMacro.loadMacros()}
@@ -803,39 +823,59 @@ export function MacroPage() {
                 <IconRefresh size={16} />
                 {t("Refresh")}
               </button>
-              <button
-                className="btn-ghost text-sm flex items-center gap-1.5"
-                onClick={handleDiscard}
-                disabled={
-                  isDiscarding ||
-                  runtimeMacro.isLoading ||
-                  !runtimeMacro.hasUnsavedChanges
-                }
-              >
-                {isDiscarding ? (
-                  <IconLoader2 size={16} className="animate-spin" />
-                ) : (
-                  <IconRestore size={16} />
-                )}
-                {t("Reset")}
-              </button>
-              <button
-                className="btn-electric text-sm flex items-center gap-1.5"
-                onClick={handleSave}
-                disabled={
-                  isSaving ||
-                  runtimeMacro.isLoading ||
-                  !runtimeMacro.hasUnsavedChanges ||
-                  Boolean(encodedSizeError)
-                }
-              >
-                {isSaving ? (
-                  <IconLoader2 size={16} className="animate-spin" />
-                ) : (
-                  <IconDeviceFloppy size={16} />
-                )}
-                {t("Save")}
-              </button>
+              {locked ? (
+                <button
+                  type="button"
+                  onClick={() => setShowUnlockPrompt(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-[var(--color-warning)]/40 bg-[var(--color-warning)]/10 text-[var(--color-warning)] hover:bg-[var(--color-warning)]/20 transition-colors"
+                  title={t("Studio is locked — click to unlock")}
+                >
+                  <IconLock size={16} />
+                  {t("Locked")}
+                </button>
+              ) : (
+                <>
+                  {runtimeMacro.hasUnsavedChanges && (
+                    <span className="flex items-center gap-1 text-xs text-[var(--color-neon)] mr-2">
+                      <UnsavedDot />
+                      {t("Unsaved changes")}
+                    </span>
+                  )}
+                  <button
+                    className="btn-ghost text-sm flex items-center gap-1.5"
+                    onClick={handleDiscard}
+                    disabled={
+                      isDiscarding ||
+                      runtimeMacro.isLoading ||
+                      !runtimeMacro.hasUnsavedChanges
+                    }
+                  >
+                    {isDiscarding ? (
+                      <IconLoader2 size={16} className="animate-spin" />
+                    ) : (
+                      <IconRestore size={16} />
+                    )}
+                    {t("Reset")}
+                  </button>
+                  <button
+                    className="btn-electric text-sm flex items-center gap-1.5"
+                    onClick={handleSave}
+                    disabled={
+                      isSaving ||
+                      runtimeMacro.isLoading ||
+                      !runtimeMacro.hasUnsavedChanges ||
+                      Boolean(encodedSizeError)
+                    }
+                  >
+                    {isSaving ? (
+                      <IconLoader2 size={16} className="animate-spin" />
+                    ) : (
+                      <IconDeviceFloppy size={16} />
+                    )}
+                    {t("Save")}
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -1196,9 +1236,16 @@ export function MacroPage() {
       />
 
       <UnlockPrompt
-        open={keymap.unlockRequired}
-        onClose={() => keymap.clearUnlockRequired()}
-        onRetry={() => keymap.loadKeymapData()}
+        open={(showUnlockPrompt && locked) || keymap.unlockRequired}
+        onClose={() => {
+          setShowUnlockPrompt(false);
+          keymap.clearUnlockRequired();
+        }}
+        onRetry={() => {
+          setShowUnlockPrompt(false);
+          keymap.clearUnlockRequired();
+          keymap.loadKeymapData();
+        }}
       />
     </div>
   );
