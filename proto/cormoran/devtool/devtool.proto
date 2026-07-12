@@ -1,0 +1,256 @@
+syntax = "proto3";
+
+package cormoran.devtool;
+
+enum StudioLockState {
+    STUDIO_LOCK_STATE_UNSPECIFIED = 0;
+    STUDIO_LOCK_STATE_LOCKED = 1;
+    STUDIO_LOCK_STATE_UNLOCKED = 2;
+}
+
+message SetStudioLockStateRequest { StudioLockState state = 1; }
+
+message SetStudioLockStateResponse { StudioLockState state = 1; }
+
+message GetStudioLockStateRequest {}
+
+message GetStudioLockStateResponse { StudioLockState state = 1; }
+
+message EnterBootloaderRequest {}
+
+message EnterBootloaderResponse {}
+
+message RebootRequest {}
+
+message RebootResponse {}
+
+// --- Layer state (runtime layer inspection/control; layer definitions
+// themselves are edited through the official Studio keymap RPC). ---
+
+// Get the currently active layers. Mirrors zmk_keymap_layer_state().
+message GetLayerStateRequest {}
+
+message GetLayerStateResponse {
+    // Bitmask, bit N set means layer id N is active.
+    uint32 active_layers = 1;
+    // zmk_keymap_highest_layer_active(); ZMK_KEYMAP_LAYER_ID_INVAL (0xFF) if none.
+    uint32 highest_active_layer = 2;
+}
+
+// Momentary activate/deactivate a layer, mirrors &mo / &to style behaviors
+// invoked directly instead of through a keymap binding.
+message SetLayerStateRequest {
+    uint32 layer = 1;
+    bool active = 2;
+    bool locking = 3;
+}
+
+message SetLayerStateResponse { uint32 active_layers = 1; }
+
+message ToggleLayerRequest {
+    uint32 layer = 1;
+    bool locking = 2;
+}
+
+message ToggleLayerResponse { uint32 active_layers = 1; }
+
+// --- Key injection (raises the same zmk_position_state_changed event a
+// real matrix scan would, so combos/hold-taps/behaviors all see it). ---
+
+message InjectKeyRequest {
+    uint32 position = 1;
+    bool pressed = 2;
+}
+
+message InjectKeyResponse {}
+
+// Press then schedule a release after hold_ms. Only one tap can be pending
+// at a time; a second tap_key request while one is in flight is rejected.
+message TapKeyRequest {
+    uint32 position = 1;
+    uint32 hold_ms = 2;
+}
+
+message TapKeyResponse {}
+
+// --- Event tap (poll-based observation of runtime ZMK events, so an agent
+// can verify what an injected key actually did). Disabled (empty mask)
+// until subscribe_events is called; the ring buffer only fills for
+// subscribed event types. ---
+
+enum DevtoolEventType {
+    DEVTOOL_EVENT_TYPE_UNSPECIFIED = 0;
+    DEVTOOL_EVENT_TYPE_POSITION_STATE_CHANGED = 1;
+    DEVTOOL_EVENT_TYPE_KEYCODE_STATE_CHANGED = 2;
+    DEVTOOL_EVENT_TYPE_LAYER_STATE_CHANGED = 3;
+    DEVTOOL_EVENT_TYPE_MODIFIERS_STATE_CHANGED = 4;
+}
+
+message PositionStateChangedData {
+    uint32 position = 1;
+    bool pressed = 2;
+}
+
+message KeycodeStateChangedData {
+    uint32 usage_page = 1;
+    uint32 keycode = 2;
+    bool pressed = 3;
+    uint32 implicit_modifiers = 4;
+    uint32 explicit_modifiers = 5;
+}
+
+message LayerStateChangedData {
+    uint32 layer = 1;
+    bool active = 2;
+    bool locked = 3;
+}
+
+message ModifiersStateChangedData {
+    uint32 modifiers = 1;
+    bool pressed = 2;
+}
+
+message DevtoolEvent {
+    uint32 timestamp_ms = 1;
+    DevtoolEventType type = 2;
+    oneof data {
+        PositionStateChangedData position_state_changed = 3;
+        KeycodeStateChangedData keycode_state_changed = 4;
+        LayerStateChangedData layer_state_changed = 5;
+        ModifiersStateChangedData modifiers_state_changed = 6;
+    }
+}
+
+// Bitmask of (1 << DevtoolEventType value) for the event types to capture.
+// 0 disables the tap and drops the buffered content.
+message SubscribeEventsRequest { uint32 event_type_mask = 1; }
+
+message SubscribeEventsResponse { uint32 event_type_mask = 1; }
+
+// Cursor based, same shape as GetLogsRequest/Response: pass back the
+// previous response's next_cursor to continue draining without gaps
+// (bar dropped_count when the buffer wrapped between polls).
+message GetEventsRequest { uint32 cursor = 1; }
+
+message GetEventsResponse {
+    repeated DevtoolEvent events = 1;
+    uint32 next_cursor = 2;
+    uint32 dropped_count = 3;
+}
+
+message ClearEventsRequest {}
+
+message ClearEventsResponse {}
+
+// --- Log capture (poll-based Zephyr log retrieval; see README for the
+// self-feedback-loop mitigation this depends on). ---
+
+enum LogLevel {
+    LOG_LEVEL_UNSPECIFIED = 0;
+    LOG_LEVEL_ERR = 1;
+    LOG_LEVEL_WRN = 2;
+    LOG_LEVEL_INF = 3;
+    LOG_LEVEL_DBG = 4;
+}
+
+message LogRecord {
+    uint32 timestamp_ms = 1;
+    LogLevel level = 2;
+    string source = 3;
+    string message = 4;
+}
+
+message GetLogsRequest { uint32 cursor = 1; }
+
+message GetLogsResponse {
+    repeated LogRecord records = 1;
+    uint32 next_cursor = 2;
+    uint32 dropped_count = 3;
+}
+
+message ClearLogsRequest {}
+
+message ClearLogsResponse {}
+
+// Runtime override of the capture backend's minimum level, either globally
+// (source empty) or for one log source (e.g. "my_driver"). Does not affect
+// what other backends (RTT/UART console) show.
+message SetLogCaptureFilterRequest {
+    string source = 1;
+    LogLevel min_level = 2;
+}
+
+message SetLogCaptureFilterResponse {}
+
+// --- Streaming log notifications (push instead of poll). When enabled, the
+// firmware periodically drains new records on ZMK's low-priority work queue
+// and sends a LogStreamNotification, so a client does not have to poll
+// get_logs. That work (notification + protobuf encoding + transmit) never
+// runs on the logging subsystem's own thread. Uses the same capture
+// backend/filter as the poll path, so set_log_capture_filter still applies.
+// get_logs and streaming can be used together (each has its own independent
+// cursor). ---
+message SetLogStreamingRequest { bool enabled = 1; }
+
+message SetLogStreamingResponse { bool enabled = 1; }
+
+// Same record shape as GetLogsResponse, minus next_cursor (the stream keeps
+// its own cursor firmware-side).
+message LogStreamNotification {
+    repeated LogRecord records = 1;
+    // Records lost because the ring buffer wrapped before they could be sent
+    // (the client fell behind or the transport was saturated).
+    uint32 dropped_count = 2;
+}
+
+message Request {
+    oneof request_type {
+        SetStudioLockStateRequest set_studio_lock_state = 1;
+        EnterBootloaderRequest enter_bootloader = 2;
+        RebootRequest reboot = 3;
+        GetStudioLockStateRequest get_studio_lock_state = 4;
+        GetLayerStateRequest get_layer_state = 5;
+        SetLayerStateRequest set_layer_state = 6;
+        ToggleLayerRequest toggle_layer = 7;
+        InjectKeyRequest inject_key = 8;
+        TapKeyRequest tap_key = 9;
+        SubscribeEventsRequest subscribe_events = 10;
+        GetEventsRequest get_events = 11;
+        ClearEventsRequest clear_events = 12;
+        GetLogsRequest get_logs = 13;
+        ClearLogsRequest clear_logs = 14;
+        SetLogCaptureFilterRequest set_log_capture_filter = 15;
+        SetLogStreamingRequest set_log_streaming = 16;
+    }
+}
+
+message ErrorResponse { string message = 1; }
+
+message Response {
+    oneof response_type {
+        ErrorResponse error = 1;
+        SetStudioLockStateResponse set_studio_lock_state = 2;
+        EnterBootloaderResponse enter_bootloader = 3;
+        RebootResponse reboot = 4;
+        GetStudioLockStateResponse get_studio_lock_state = 5;
+        GetLayerStateResponse get_layer_state = 6;
+        SetLayerStateResponse set_layer_state = 7;
+        ToggleLayerResponse toggle_layer = 8;
+        InjectKeyResponse inject_key = 9;
+        TapKeyResponse tap_key = 10;
+        SubscribeEventsResponse subscribe_events = 11;
+        GetEventsResponse get_events = 12;
+        ClearEventsResponse clear_events = 13;
+        GetLogsResponse get_logs = 14;
+        ClearLogsResponse clear_logs = 15;
+        SetLogCaptureFilterResponse set_log_capture_filter = 16;
+        SetLogStreamingResponse set_log_streaming = 17;
+    }
+}
+
+// Custom-subsystem notification payload (the bytes carried in a Studio
+// CustomNotification for this subsystem). Decoded client-side to receive
+// streamed log records.
+message Notification {
+    oneof notification_type { LogStreamNotification log_stream = 1; }
+}
