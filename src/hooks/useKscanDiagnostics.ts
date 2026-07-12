@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useState } from "react";
+import { type Context, useCallback, useContext, useEffect, useState } from "react";
 import { ZMKAppContext } from "@cormoran/zmk-studio-react-hook";
 import { useCustomSubsystem } from "./useCustomSubsystem";
 import type { UseCustomSubsystemTypedReturn } from "@cormoran/zmk-studio-react-hook";
@@ -258,7 +258,11 @@ async function fetchTopology(call: Caller): Promise<Topology> {
   };
 }
 
-type ZmkApp = ReturnType<typeof useContext<typeof ZMKAppContext>>;
+// Extract the value type from the context (what useContext(ZMKAppContext) returns),
+// then strip null so helpers can assert they receive a connected app instance.
+type ZmkApp = NonNullable<
+  typeof ZMKAppContext extends Context<infer V> ? V : never
+>;
 
 /**
  * Send a QueryPeripheral request wrapping `innerRequest` and collect
