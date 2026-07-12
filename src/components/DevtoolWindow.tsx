@@ -76,7 +76,8 @@ function formatRecordText(r: LogRecord): string {
   return `[${r.timestampMs}ms] <${levelLabel(r.level)}> ${r.source}: ${r.message}`;
 }
 
-const MAX_RECORDS = 2000;
+const MAX_RECORDS_DEFAULT = 10_000;
+const MAX_RECORDS_OPTIONS = [1_000, 2_000, 5_000, 10_000, 20_000, 50_000];
 const FILTER_DEBOUNCE_MS = 200;
 
 export function DevtoolWindow({ onClose }: DevtoolWindowProps) {
@@ -235,6 +236,8 @@ export function DevtoolWindow({ onClose }: DevtoolWindowProps) {
   // Raw text input — debounced into appliedFilterText before filtering.
   const [filterText, setFilterText] = useState("");
   const [appliedFilterText, setAppliedFilterText] = useState("");
+  const [maxRecords, setMaxRecords] = useState(MAX_RECORDS_DEFAULT);
+  const maxRecordsRef = useRef(maxRecords);
   const logEndRef = useRef<HTMLDivElement>(null);
   const callRef = useRef(call);
   const readyRef = useRef(ready);
@@ -245,6 +248,9 @@ export function DevtoolWindow({ onClose }: DevtoolWindowProps) {
   useEffect(() => {
     readyRef.current = ready;
   }, [ready]);
+  useEffect(() => {
+    maxRecordsRef.current = maxRecords;
+  }, [maxRecords]);
 
   // Debounce the text filter to avoid filtering on every keystroke.
   useEffect(() => {
@@ -254,6 +260,13 @@ export function DevtoolWindow({ onClose }: DevtoolWindowProps) {
     );
     return () => clearTimeout(timer);
   }, [filterText]);
+
+  // Trim existing records immediately when the cap is lowered.
+  useEffect(() => {
+    setRecords((prev) =>
+      prev.length > maxRecords ? prev.slice(-maxRecords) : prev,
+    );
+  }, [maxRecords]);
 
   // Auto-start streaming on mount, auto-stop on unmount.
   useEffect(() => {
@@ -290,7 +303,9 @@ export function DevtoolWindow({ onClose }: DevtoolWindowProps) {
         const ls = parsed.logStream;
         if (!ls) return;
         // Append new records, dropping oldest when over the cap.
-        setRecords((prev) => [...prev, ...ls.records].slice(-MAX_RECORDS));
+        setRecords((prev) =>
+          [...prev, ...ls.records].slice(-maxRecordsRef.current),
+        );
         if (ls.droppedCount > 0) {
           setDroppedTotal((t) => t + ls.droppedCount);
         }
@@ -535,14 +550,28 @@ export function DevtoolWindow({ onClose }: DevtoolWindowProps) {
           <div ref={logEndRef} />
         </div>
 
-        {/* Record count hint */}
-        <div className="text-[var(--color-text-muted)] text-[9px] px-1 flex-shrink-0 flex justify-between">
+        {/* Record count + max selector */}
+        <div className="text-[var(--color-text-muted)] text-[9px] px-1 flex-shrink-0 flex items-center justify-between gap-2">
           <span>
             {visibleRecords.length !== records.length
               ? `${visibleRecords.length} / ${records.length} records`
               : `${records.length} records`}
           </span>
-          <span>max {MAX_RECORDS}</span>
+          <label className="flex items-center gap-1 flex-shrink-0">
+            <span>max</span>
+            <select
+              className="select-field text-[9px] py-0 px-1 rounded"
+              value={maxRecords}
+              onChange={(e) => setMaxRecords(Number(e.target.value))}
+              style={{ paddingRight: "1.25rem", backgroundSize: "10px 10px" }}
+            >
+              {MAX_RECORDS_OPTIONS.map((n) => (
+                <option key={n} value={n}>
+                  {n.toLocaleString()}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
       </div>
 
