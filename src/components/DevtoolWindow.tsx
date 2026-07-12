@@ -321,7 +321,7 @@ export function DevtoolWindow({ onClose }: DevtoolWindowProps) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "devtool-logs.txt";
+    a.download = `devtool-logs-${new Date().toISOString().replace(/[:.]/g, "-")}.txt`;
     a.click();
     URL.revokeObjectURL(url);
   };
