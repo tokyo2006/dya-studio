@@ -1,8 +1,6 @@
 import { useCallback, useContext, useEffect, useMemo, useState } from "react";
-import {
-  ZMKAppContext,
-  useCustomSubsystem,
-} from "@cormoran/zmk-studio-react-hook";
+import { ZMKAppContext } from "@cormoran/zmk-studio-react-hook";
+import { useCustomSubsystem } from "./useCustomSubsystem";
 import {
   Notification,
   Request,

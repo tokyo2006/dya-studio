@@ -1,14 +1,15 @@
 import { useState, useEffect, useCallback, useContext } from "react";
 import { ZMKAppContext } from "@cormoran/zmk-studio-react-hook";
-import { call_rpc } from "@zmkfirmware/zmk-studio-ts-client";
+import { useKeymapSource } from "./useKeymapSource";
 
 /**
  * Lightweight hook returning layer names in keymap order (index === layer
  * index used by the default-layer proto's `value` field, NOT the layer id).
  *
  * Intentionally does not reuse `useKeymap` - that hook is heavy/stateful
- * (tracks dirty state, editing, etc.) and this is only used to render
- * human-readable labels for layer-index selects.
+ * (tracks dirty state, editing, etc.). It loads names through the shared
+ * {@link useKeymapSource} (fast-keymap subsystem when available, official
+ * protocol otherwise) so it stays consistent with the keymap editor.
  */
 export interface UseLayerNamesReturn {
   layerNames: string[];
@@ -19,6 +20,7 @@ export interface UseLayerNamesReturn {
 export function useLayerNames(): UseLayerNamesReturn {
   const zmkApp = useContext(ZMKAppContext);
   const connection = zmkApp?.state.connection;
+  const { loadLayerNames } = useKeymapSource();
   const [layerNames, setLayerNames] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -27,19 +29,13 @@ export function useLayerNames(): UseLayerNamesReturn {
 
     setIsLoading(true);
     try {
-      const response = await call_rpc(connection, {
-        keymap: { getKeymap: true },
-      });
-      const keymap = response.keymap?.getKeymap;
-      if (keymap) {
-        setLayerNames(keymap.layers.map((layer) => layer.name));
-      }
+      setLayerNames(await loadLayerNames());
     } catch (err) {
       console.error("Failed to load layer names:", err);
     } finally {
       setIsLoading(false);
     }
-  }, [connection]);
+  }, [connection, loadLayerNames]);
 
   useEffect(() => {
     if (connection) {

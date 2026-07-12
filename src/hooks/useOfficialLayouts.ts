@@ -1,19 +1,17 @@
 /**
- * Wraps the official ZMK Studio protocol's `keymap.getPhysicalLayouts` call
- * — the same data zmk.studio uses to render the keyboard — so
- * KscanKeyboardView can draw physical key geometry without duplicating
- * layout knowledge or depending on the app's own keymap-editing hook.
+ * Loads physical key geometry the same way the keymap editor does — through
+ * {@link useKeymapSource}, so it uses the fast-keymap subsystem when the
+ * device exposes it and the official `keymap.getPhysicalLayouts` call
+ * otherwise. Lets KscanKeyboardView draw physical key geometry without
+ * duplicating layout knowledge or depending on the heavy keymap-editing hook.
  *
  * Ported from cormoran/zmk-feature-kscan-diagnostics's
  * web/src/useOfficialKeymap.ts, trimmed to just physical layouts.
  */
 import { useCallback, useContext, useState } from "react";
-import { call_rpc } from "@zmkfirmware/zmk-studio-ts-client";
 import type { PhysicalLayouts } from "@zmkfirmware/zmk-studio-ts-client/keymap";
-import {
-  ZMKAppContext,
-  isUnlockRequiredError,
-} from "@cormoran/zmk-studio-react-hook";
+import { ZMKAppContext } from "@cormoran/zmk-studio-react-hook";
+import { useKeymapSource, isKeymapUnlockRequired } from "./useKeymapSource";
 
 export interface UseOfficialLayoutsReturn {
   physicalLayouts: PhysicalLayouts | null;
@@ -27,6 +25,7 @@ export interface UseOfficialLayoutsReturn {
 export function useOfficialLayouts(): UseOfficialLayoutsReturn {
   const zmkApp = useContext(ZMKAppContext);
   const connection = zmkApp?.state.connection ?? null;
+  const { loadPhysicalLayouts } = useKeymapSource();
 
   const [physicalLayouts, setPhysicalLayouts] =
     useState<PhysicalLayouts | null>(null);
@@ -39,15 +38,11 @@ export function useOfficialLayouts(): UseOfficialLayoutsReturn {
     setIsLoading(true);
     setError(null);
     try {
-      const resp = await call_rpc(connection, {
-        keymap: { getPhysicalLayouts: true },
-      });
+      const layouts = await loadPhysicalLayouts();
       setUnlockRequired(false);
-      if (resp.keymap?.getPhysicalLayouts) {
-        setPhysicalLayouts(resp.keymap.getPhysicalLayouts);
-      }
+      setPhysicalLayouts(layouts);
     } catch (e) {
-      if (isUnlockRequiredError(e)) {
+      if (isKeymapUnlockRequired(e)) {
         setUnlockRequired(true);
       } else {
         setError(e instanceof Error ? e.message : "Unknown error");
@@ -55,7 +50,7 @@ export function useOfficialLayouts(): UseOfficialLayoutsReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [connection]);
+  }, [connection, loadPhysicalLayouts]);
 
   return { physicalLayouts, isLoading, unlockRequired, error, load };
 }

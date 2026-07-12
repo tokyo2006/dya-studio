@@ -32,7 +32,7 @@ jest.mock("@zmkfirmware/zmk-studio-ts-client/meta", () => ({
   },
 }));
 
-import { call_rpc } from "@zmkfirmware/zmk-studio-ts-client";
+import { call_rpc, MetaError } from "@zmkfirmware/zmk-studio-ts-client";
 
 const mockCallRpc = call_rpc as jest.MockedFunction<typeof call_rpc>;
 
@@ -86,11 +86,17 @@ const mockBehaviorDetails: Record<
 
 // Create a wrapper with ZMKAppContext
 function createWrapper(zmkAppValue: unknown) {
+  // useKeymap now loads via useKeymapSource, which consults the device's
+  // custom subsystems. Default to "no fast-keymap subsystem present" so
+  // loading uses the official protocol these tests mock (a test can override
+  // findSubsystem to exercise the fast path).
+  const value = {
+    findSubsystem: () => null,
+    ...(zmkAppValue as Record<string, unknown>),
+  } as never;
   return function Wrapper({ children }: { children: ReactNode }) {
     return (
-      <ZMKAppContext.Provider value={zmkAppValue as never}>
-        {children}
-      </ZMKAppContext.Provider>
+      <ZMKAppContext.Provider value={value}>{children}</ZMKAppContext.Provider>
     );
   };
 }
@@ -190,6 +196,56 @@ describe("useKeymap", () => {
       });
 
       expect(result.current.error).toContain("unlock");
+    });
+
+    it("shows the keymap without unlock when only checkUnsavedChanges is locked", async () => {
+      // Mirrors the fast-keymap case: the data loads fine (unsecured), but the
+      // secured checkUnsavedChanges fails with unlock-required. The keymap must
+      // still be viewable — no unlock prompt.
+      const mockConnection = { label: "test" };
+      const zmkApp = {
+        state: { connection: mockConnection },
+        onNotification: jest.fn(() => jest.fn()),
+      };
+
+      mockCallRpc.mockImplementation(async (_conn, req) => {
+        if (req.keymap?.getPhysicalLayouts) {
+          return {
+            keymap: { getPhysicalLayouts: mockPhysicalLayouts },
+          } as never;
+        }
+        if (req.keymap?.getKeymap) {
+          return { keymap: { getKeymap: mockKeymap } } as never;
+        }
+        if (req.behaviors?.listAllBehaviors) {
+          return {
+            behaviors: { listAllBehaviors: { behaviors: mockBehaviors } },
+          } as never;
+        }
+        if (req.behaviors?.getBehaviorDetails) {
+          const id = req.behaviors.getBehaviorDetails.behaviorId;
+          return {
+            behaviors: { getBehaviorDetails: mockBehaviorDetails[id] },
+          } as never;
+        }
+        if (req.keymap?.checkUnsavedChanges) {
+          // Secured RPC while locked — real call_rpc throws on the meta error.
+          throw new MetaError(1); // UNLOCK_REQUIRED
+        }
+        return {} as never;
+      });
+
+      const { result } = renderHook(() => useKeymap(), {
+        wrapper: createWrapper(zmkApp),
+      });
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      expect(result.current.keymap).toEqual(mockKeymap);
+      expect(result.current.unlockRequired).toBe(false);
+      expect(result.current.hasUnsavedChanges).toBe(false);
     });
   });
 

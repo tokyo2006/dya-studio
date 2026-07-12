@@ -14,7 +14,10 @@ jest.mock("@zmkfirmware/zmk-studio-ts-client", () => ({
 
 function createWrapper() {
   const zmkAppValue = {
-    state: { connection: {} },
+    // No custom subsystems -> useKeymapSource falls back to the official
+    // keymap protocol, which is what these tests exercise.
+    state: { connection: {}, deviceInfo: null },
+    findSubsystem: () => null,
   };
   return function Wrapper({ children }: { children: ReactNode }) {
     return (

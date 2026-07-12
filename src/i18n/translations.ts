@@ -100,6 +100,9 @@ const ja: Record<string, string> = {
   Stream: "ストリーム",
   "Toggle stream mode": "ストリームモードを切り替え",
   "Reset All": "すべてリセット",
+  Locked: "ロック中",
+  "Studio is locked — click to unlock":
+    "Studio はロックされています — クリックしてロック解除",
   "Connect your keyboard to edit keymaps":
     "キーマップを編集するにはキーボードを接続してください",
   "Loading keymap data...": "キーマップデータを読み込み中...",

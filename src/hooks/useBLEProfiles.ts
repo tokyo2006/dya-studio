@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useCustomSubsystem } from "@cormoran/zmk-studio-react-hook";
+import { useCustomSubsystem } from "./useCustomSubsystem";
 import {
   Request,
   Response,
