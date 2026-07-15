@@ -21,6 +21,7 @@ import {
   type UseCustomSubsystemReturn,
   type UseCustomSubsystemTypedReturn,
 } from "@cormoran/zmk-studio-react-hook";
+import { logRpc } from "../lib/rpcLogging";
 
 /** Default per-RPC timeout (ms) applied to every custom-subsystem call. */
 export const DEFAULT_CUSTOM_SUBSYSTEM_TIMEOUT_MS = 30_000;
@@ -49,20 +50,24 @@ export function useCustomSubsystem<TReq, TRes>(
 
   const callRPC = useCallback<UseCustomSubsystemReturn["callRPC"]>(
     (payload, options) =>
-      baseCallRPC(payload, {
-        timeout: DEFAULT_CUSTOM_SUBSYSTEM_TIMEOUT_MS,
-        ...options,
-      }),
-    [baseCallRPC],
+      logRpc(`custom:${identifier}`, payload, () =>
+        baseCallRPC(payload, {
+          timeout: DEFAULT_CUSTOM_SUBSYSTEM_TIMEOUT_MS,
+          ...options,
+        }),
+      ),
+    [baseCallRPC, identifier],
   );
 
   const call = useCallback(
     (request: TReq, options?: { timeout?: number }) =>
-      baseCall!(request, {
-        timeout: DEFAULT_CUSTOM_SUBSYSTEM_TIMEOUT_MS,
-        ...options,
-      }),
-    [baseCall],
+      logRpc(`custom:${identifier}`, request, () =>
+        baseCall!(request, {
+          timeout: DEFAULT_CUSTOM_SUBSYSTEM_TIMEOUT_MS,
+          ...options,
+        }),
+      ),
+    [baseCall, identifier],
   );
 
   return baseCall

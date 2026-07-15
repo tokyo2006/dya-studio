@@ -16,7 +16,8 @@ import {
   ZMKAppContext,
   isUnlockRequiredError,
 } from "@cormoran/zmk-studio-react-hook";
-import { call_rpc } from "@zmkfirmware/zmk-studio-ts-client";
+import type { call_rpc } from "@zmkfirmware/zmk-studio-ts-client";
+import { loggedCallRpc } from "../lib/rpcLogging";
 import type {
   Keymap,
   Layer,
@@ -248,7 +249,7 @@ export function useKeymap(): UseKeymapReturn {
         // rather than silently pay for a slow official round-trip. Edits and
         // checkUnsavedChanges are not forbidden reads, so they pass through.
         assertOfficialKeymapRpcAllowed(request);
-        const response = await call_rpc(connection, request);
+        const response = await loggedCallRpc(connection, request);
 
         // Check for meta errors
         if (response.meta?.simpleError !== undefined) {
@@ -403,7 +404,7 @@ export function useKeymap(): UseKeymapReturn {
         setLoadingProgress({ phase: "finalizing" });
         try {
           if (connection) {
-            const response = await call_rpc(connection, {
+            const response = await loggedCallRpc(connection, {
               keymap: { checkUnsavedChanges: true },
             });
             setHasUnsavedChanges(response.keymap?.checkUnsavedChanges ?? false);

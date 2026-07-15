@@ -18,6 +18,9 @@ const config: Config = {
       "<rootDir>/node_modules/@cormoran/zmk-studio-react-hook/lib/testing/index.js",
     "^@cormoran/zmk-studio-react-hook$":
       "<rootDir>/node_modules/@cormoran/zmk-studio-react-hook/lib/index.js",
+    // viteEnv reads `import.meta.env`, which the CommonJS test runtime can't
+    // parse; swap it for the stub in src/lib/__mocks__/viteEnv.ts.
+    "^\\./viteEnv$": "<rootDir>/src/lib/__mocks__/viteEnv.ts",
     // Mock CSS imports
     "\\.(css|less|scss|sass)$": "identity-obj-proxy",
     "\\.(jpg|jpeg|png|gif|svg)$": "<rootDir>/src/__mocks__/fileMock.ts",
