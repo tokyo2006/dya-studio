@@ -8,12 +8,14 @@
  * duration to the console — invaluable when debugging slow BLE round-trips or a
  * desynced response stream.
  *
- * All of this is gated behind `import.meta.env.DEV`, so production builds get
- * neither the log noise nor the (tiny) timing overhead: `logRpc` returns the
- * bare `invoke()` promise and Vite tree-shakes the logging branch away.
+ * All of this is gated behind {@link RPC_LOG_ENABLED} (local dev and the
+ * dev/preview Cloudflare deployments; off for the production release), so the
+ * release bundle gets neither the log noise nor the (tiny) timing overhead:
+ * `logRpc` returns the bare `invoke()` promise and Vite tree-shakes the logging
+ * branch away.
  */
 import { call_rpc } from "@zmkfirmware/zmk-studio-ts-client";
-import { IS_DEV } from "./viteEnv";
+import { RPC_LOG_ENABLED } from "./viteEnv";
 
 /** Monotonic id so a request line and its response line can be matched even
  * when several BLE calls are in flight at once. */
@@ -22,9 +24,9 @@ let rpcSeq = 0;
 /**
  * Wrap a single RPC round-trip with request/response/duration logging.
  *
- * In production (`import.meta.env.DEV` false) this is a no-op passthrough that
- * just returns `invoke()`. In dev it logs `→` when the call starts and `←`
- * (or `✗` on throw) with the elapsed milliseconds when it settles.
+ * When logging is disabled (the production release) this is a no-op passthrough
+ * that just returns `invoke()`. Otherwise it logs `→` when the call starts and
+ * `←` (or `✗` on throw) with the elapsed milliseconds when it settles.
  *
  * @param label - Human-readable RPC name, e.g. `keymap.getKeymap` or `custom:cormoran__fast_keymap`
  * @param request - The request payload/message, logged as-is
@@ -35,7 +37,7 @@ export async function logRpc<T>(
   request: unknown,
   invoke: () => Promise<T>,
 ): Promise<T> {
-  if (!IS_DEV) return invoke();
+  if (!RPC_LOG_ENABLED) return invoke();
 
   const id = ++rpcSeq;
   const start = performance.now();
