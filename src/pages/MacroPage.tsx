@@ -473,7 +473,18 @@ export function MacroPage() {
     selectedName,
   ]);
 
+  // Guard an edit action: if Studio is locked, open the unlock prompt instead
+  // of performing the edit (and let the caller bail out).
+  const requireUnlocked = useCallback((): boolean => {
+    if (locked) {
+      setShowUnlockPrompt(true);
+      return false;
+    }
+    return true;
+  }, [locked]);
+
   const commitRename = useCallback(async () => {
+    if (!requireUnlocked()) return;
     if (!loadedMacro) return;
     const trimmedName = renameDraft.slice(0, runtimeMacro.maxNameLength).trim();
     if (!trimmedName || trimmedName === loadedMacro.name) {
@@ -487,17 +498,7 @@ export function MacroPage() {
     } else {
       setRenameDraft(loadedMacro.name);
     }
-  }, [loadedMacro, renameDraft, runtimeMacro]);
-
-  // Guard an edit action: if Studio is locked, open the unlock prompt instead
-  // of performing the edit (and let the caller bail out).
-  const requireUnlocked = useCallback((): boolean => {
-    if (locked) {
-      setShowUnlockPrompt(true);
-      return false;
-    }
-    return true;
-  }, [locked]);
+  }, [loadedMacro, renameDraft, runtimeMacro, requireUnlocked]);
 
   const commitSteps = useCallback(
     async (steps: MacroStep[]) => {
@@ -900,17 +901,18 @@ export function MacroPage() {
         {(runtimeMacro.error ||
           encodedSizeError ||
           stringConversionError ||
-          keymap.error) && (
-          <div className="glass-card p-4 mb-4 border-red-500/20 bg-red-500/10 flex items-center gap-3">
-            <IconAlertCircle size={20} className="text-red-400" />
-            <p className="text-sm text-red-400">
-              {runtimeMacro.error ||
-                encodedSizeError ||
-                stringConversionError ||
-                keymap.error}
-            </p>
-          </div>
-        )}
+          keymap.error) &&
+          !((showUnlockPrompt && locked) || keymap.unlockRequired) && (
+            <div className="glass-card p-4 mb-4 border-red-500/20 bg-red-500/10 flex items-center gap-3">
+              <IconAlertCircle size={20} className="text-red-400" />
+              <p className="text-sm text-red-400">
+                {runtimeMacro.error ||
+                  encodedSizeError ||
+                  stringConversionError ||
+                  keymap.error}
+              </p>
+            </div>
+          )}
 
         {runtimeMacro.isAvailable && (
           <div className="grid grid-cols-1 tablet:grid-cols-[240px_1fr] gap-4">
