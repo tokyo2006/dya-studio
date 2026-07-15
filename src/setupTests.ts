@@ -4,6 +4,11 @@
 // learn more: https://github.com/testing-library/jest-dom
 import "@testing-library/jest-dom";
 import { TextEncoder, TextDecoder } from "util";
+import {
+  ReadableStream,
+  WritableStream,
+  TransformStream,
+} from "stream/web";
 
 // Polyfill TextEncoder and TextDecoder for protobuf support
 global.TextEncoder = TextEncoder;
@@ -16,37 +21,15 @@ Object.defineProperty(navigator, "serial", {
   value: undefined,
 });
 
-// Mock ReadableStream and WritableStream for Web Serial API
-if (typeof global.ReadableStream === "undefined") {
-  global.ReadableStream = class ReadableStream {
-    getReader() {
-      return {
-        read: jest.fn().mockResolvedValue({ done: true, value: undefined }),
-        releaseLock: jest.fn(),
-        cancel: jest.fn(),
-      };
-    }
-    cancel() {
-      return Promise.resolve();
-    }
-  } as unknown as ReadableStream;
-}
-
-if (typeof global.WritableStream === "undefined") {
-  global.WritableStream = class WritableStream {
-    getWriter() {
-      return {
-        write: jest.fn().mockResolvedValue(undefined),
-        close: jest.fn().mockResolvedValue(undefined),
-        releaseLock: jest.fn(),
-        abort: jest.fn(),
-      };
-    }
-    abort() {
-      return Promise.resolve();
-    }
-  } as unknown as WritableStream;
-}
+// Provide the WHATWG stream implementations for the Web Serial API and for the
+// zmk-studio-react-hook connect flow, which pipes `transport.readable` through
+// a `TransformStream` to track packet activity. jsdom does not expose these
+// globals (and lacks `TransformStream` entirely), so pull the real ones from
+// Node's `stream/web` to get proper `pipeThrough` support.
+global.ReadableStream = ReadableStream as unknown as typeof global.ReadableStream;
+global.WritableStream = WritableStream as unknown as typeof global.WritableStream;
+global.TransformStream =
+  TransformStream as unknown as typeof global.TransformStream;
 
 // Mock window.matchMedia
 Object.defineProperty(window, "matchMedia", {

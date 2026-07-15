@@ -82,7 +82,16 @@ function createMockSerialPort(overrides: Record<string, unknown> = {}) {
     getInfo: jest
       .fn()
       .mockReturnValue({ usbVendorId: 0x1234, usbProductId: 0x5678 }),
-    readable: { cancel: jest.fn().mockResolvedValue(undefined) },
+    // A real ReadableStream so the connect flow can `pipeThrough` it to track
+    // packet activity (the serial transport forwards `port.readable` verbatim).
+    // `cancel` is stubbed: once the connect flow pipes this stream it becomes
+    // locked, and the serial transport's abort handler awaits
+    // `port.readable.cancel()` during teardown -- which on a locked stream
+    // rejects. In production `create_rpc_connection` drains the pipe so the
+    // lock clears; here it's mocked, so keep teardown a graceful no-op.
+    readable: Object.assign(new ReadableStream(), {
+      cancel: jest.fn().mockResolvedValue(undefined),
+    }),
     writable: { close: jest.fn().mockResolvedValue(undefined) },
     ...overrides,
   };
@@ -106,6 +115,20 @@ describe("DeviceConnection", () => {
     mocks = setupZMKMocks();
     // Auto-reconnect remembers ports in sessionStorage; start each test clean.
     window.sessionStorage.clear();
+
+    // The connect flow now wraps `transport.readable` in a TransformStream to
+    // track packet activity, so a connect function must resolve to a transport
+    // with a real readable stream. Default the app-level transport connectors
+    // to the library's mock transport (which exposes a real ReadableStream);
+    // individual tests override these to simulate failures.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require("../../lib/transport/usb").connect.mockResolvedValue(
+      mocks.mockTransport,
+    );
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require("@zmkfirmware/zmk-studio-ts-client/transport/gatt").connect.mockResolvedValue(
+      mocks.mockTransport,
+    );
   });
 
   afterEach(() => {
