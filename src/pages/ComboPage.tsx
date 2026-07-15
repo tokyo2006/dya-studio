@@ -26,7 +26,11 @@ import type { BehaviorBinding, BehaviorDefinition } from "../hooks/useKeymap";
 import { useRuntimeCombo } from "../hooks/useRuntimeCombo";
 import { useRuntimeMacro } from "../hooks/useRuntimeMacro";
 import type { Combo } from "../hooks/useRuntimeCombo";
-import { formatBehaviorBinding } from "../lib/behaviorMetadata";
+import {
+  formatBehaviorBinding,
+  findBehaviorByPredicate,
+} from "../lib/behaviorMetadata";
+import { createHidUsage, HID_USAGE_PAGE_KEYBOARD } from "../lib/keycodes";
 import type { KeyboardLayoutType } from "../lib/keyboardLayouts";
 import {
   ComboSource,
@@ -36,6 +40,12 @@ import {
 const MAX_POSITIONS_PER_COMBO = 16;
 const MAX_NAME_LENGTH = 64;
 const DEFAULT_TIMEOUT_MS = 50;
+
+// Defaults applied when creating a new combo from the Add button.
+const DEFAULT_COMBO_POSITIONS = [0, 1];
+// `&kp a` — HID keyboard usage for the "A" key (matches what the keycode
+// selector produces when the user picks "A").
+const DEFAULT_COMBO_KEYCODE = createHidUsage(HID_USAGE_PAGE_KEYBOARD, 0x04);
 
 interface ComboDraft {
   index: number;
@@ -77,9 +87,12 @@ function comboSourceLabel(
 function defaultBehaviorBinding(
   behaviors: Map<number, BehaviorDefinition>,
 ): BehaviorBinding {
+  // Match the "Key Press" (kp) behavior specifically — several behaviors share
+  // the "keypress" category, so key off its short code instead.
   const keyPressBehavior =
-    Array.from(behaviors.values()).find(
-      (behavior) => behavior.displayName === "kp",
+    findBehaviorByPredicate(
+      behaviors,
+      (metadata) => metadata?.shortCode === "KP",
     ) ?? Array.from(behaviors.values()).at(0);
 
   return {
@@ -280,15 +293,41 @@ export function ComboPage() {
     return true;
   }, [locked]);
 
-  const handleNewCombo = useCallback(() => {
+  const handleNewCombo = useCallback(async () => {
     if (!requireUnlocked()) return;
-    selectDraft(createDraft(runtimeCombo.combos, maxCombo, keymap.behaviors));
+    const base = createDraft(runtimeCombo.combos, maxCombo, keymap.behaviors);
+    const newCombo: ComboDraft = {
+      ...base,
+      name: t("Combo {{index}}", { index: base.index }),
+      keyPositions: [...DEFAULT_COMBO_POSITIONS],
+      behavior: {
+        ...defaultBehaviorBinding(keymap.behaviors),
+        param1: DEFAULT_COMBO_KEYCODE,
+      },
+    };
+    setStatusMessage(null);
+    const comboSaved = await runtimeCombo.setCombo({
+      index: newCombo.index,
+      keyPositions: newCombo.keyPositions,
+      behavior: newCombo.behavior,
+      layerMask: newCombo.layerMask,
+      enabled: newCombo.enabled,
+      timeoutMs: newCombo.timeoutMs,
+      requirePriorIdleMs: newCombo.requirePriorIdleMs,
+      slowReleaseOverride: newCombo.slowReleaseOverride,
+    });
+    if (!comboSaved) return;
+    await runtimeCombo.setComboName(newCombo.index, newCombo.name);
+    setModifiedIndices((prev) => new Set([...prev, newCombo.index]));
+    selectDraft(newCombo);
+    setStatusMessage(t("Combo changes are pending."));
   }, [
     keymap.behaviors,
     maxCombo,
-    runtimeCombo.combos,
+    runtimeCombo,
     selectDraft,
     requireUnlocked,
+    t,
   ]);
 
   const handlePositionToggle = useCallback((position: number) => {
