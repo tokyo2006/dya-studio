@@ -617,6 +617,64 @@ describe("DeviceConnection", () => {
       expect(screen.queryByTestId("device-name")).not.toBeInTheDocument();
     });
 
+    test("cancelling while the reconnect is awaiting the RPC handshake resets the loading state instead of leaving the connect screen stuck", async () => {
+      const user = userEvent.setup();
+      const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation();
+      const consoleWarnSpy = jest.spyOn(console, "warn").mockImplementation();
+
+      const mockPort = createMockSerialPort();
+      setPairedSerialPorts([mockPort]);
+
+      // The port opens fine, so the reconnect flow reaches `zmkApp.connect()`
+      // (which sets `isLoading`) and hangs on the RPC handshake -- `call_rpc`
+      // only settles once the connection's AbortSignal fires. This mirrors a
+      // real paired-but-unresponsive device sitting in the handshake.
+      let capturedSignal: AbortSignal | undefined;
+      mocks.create_rpc_connection.mockImplementation(
+        (_transport: unknown, opts: { signal: AbortSignal }) => {
+          capturedSignal = opts.signal;
+          return mocks.mockConnection;
+        },
+      );
+      mocks.call_rpc.mockReset();
+      mocks.call_rpc.mockImplementation(
+        () =>
+          new Promise((_resolve, reject) => {
+            capturedSignal?.addEventListener("abort", () =>
+              reject(capturedSignal?.reason ?? new Error("aborted")),
+            );
+          }),
+      );
+
+      render(
+        <DeviceConnectionProvider reconnectMinDisplayMs={0}>
+          <TestComponent />
+        </DeviceConnectionProvider>,
+      );
+
+      // Wait until the handshake is in flight: reconnecting + loading are both
+      // shown while `zmkApp.connect()` awaits `call_rpc`.
+      await waitFor(() => {
+        expect(screen.getByTestId("loading")).toBeInTheDocument();
+      });
+      expect(screen.getByTestId("reconnecting")).toBeInTheDocument();
+
+      await user.click(screen.getByTestId("cancel-reconnect-button"));
+
+      // Cancelling must abort the in-flight connect so neither the reconnecting
+      // overlay nor the connect screen's loading state lingers.
+      expect(screen.queryByTestId("reconnecting")).not.toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.queryByTestId("loading")).not.toBeInTheDocument();
+      });
+      expect(screen.getByTestId("connection-status")).toHaveTextContent(
+        "Disconnected",
+      );
+
+      consoleErrorSpy.mockRestore();
+      consoleWarnSpy.mockRestore();
+    });
+
     test("keeps the reconnecting indicator visible for at least reconnectMinDisplayMs even on an instant success", async () => {
       mocks.mockSuccessfulConnection({ deviceName: "Fast Reconnect" });
       const mockPort = createMockSerialPort();
