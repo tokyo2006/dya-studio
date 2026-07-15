@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   IconAlertCircle,
   IconChevronDown,
@@ -473,13 +473,22 @@ export function MacroPage() {
     selectedName,
   ]);
 
-  // Show unlock modal immediately when the tab is opened while locked, because
-  // even loading macros (listMacros RPC) requires the studio to be unlocked.
+  // listMacros RPC requires unlock, so we manage loading around lock state:
+  // - While locked: show the unlock modal and suppress the error from the
+  //   failed initial load attempt (useRuntimeMacro fires loadMacros on mount
+  //   before we know the studio is locked).
+  // - On locked→unlocked transition: reload macros so data appears immediately
+  //   without requiring the user to manually retry.
+  const prevLockedRef = useRef(locked);
   useEffect(() => {
     if (locked) {
       setShowUnlockPrompt(true);
+      runtimeMacro.clearError();
+    } else if (prevLockedRef.current) {
+      void runtimeMacro.loadMacros();
     }
-  }, [locked]);
+    prevLockedRef.current = locked;
+  }, [locked, runtimeMacro]);
 
   // Guard an edit action: if Studio is locked, open the unlock prompt instead
   // of performing the edit (and let the caller bail out).
