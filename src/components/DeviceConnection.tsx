@@ -170,7 +170,13 @@ export function DeviceConnectionProvider({
 
   const handleCancelReconnect = useCallback(() => {
     cancelReconnectRef.current();
-  }, []);
+    // If the cancel lands while the auto-reconnect is already awaiting the
+    // RPC handshake, `zmkApp.connect()` has set `isLoading` and won't clear it
+    // until the connect-timeout watchdog fires. Abort that in-flight attempt so
+    // the connect screen doesn't stay stuck in the loading state; `disconnect`
+    // also resets `isLoading`/`error` back to the idle disconnected state.
+    zmkApp.disconnect();
+  }, [zmkApp]);
 
   const connectionValue: ConnectionContextValue = {
     isConnected: zmkApp.isConnected,
