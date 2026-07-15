@@ -473,6 +473,14 @@ export function MacroPage() {
     selectedName,
   ]);
 
+  // Show unlock modal immediately when the tab is opened while locked, because
+  // even loading macros (listMacros RPC) requires the studio to be unlocked.
+  useEffect(() => {
+    if (locked) {
+      setShowUnlockPrompt(true);
+    }
+  }, [locked]);
+
   // Guard an edit action: if Studio is locked, open the unlock prompt instead
   // of performing the edit (and let the caller bail out).
   const requireUnlocked = useCallback((): boolean => {
@@ -1247,6 +1255,7 @@ export function MacroPage() {
           setShowUnlockPrompt(false);
           keymap.clearUnlockRequired();
           keymap.loadKeymapData();
+          void runtimeMacro.loadMacros();
         }}
       />
     </div>
