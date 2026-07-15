@@ -36,7 +36,7 @@ export function LayerSelect({
       aria-label={ariaLabel}
       onChange={(event) => onChange(Number.parseInt(event.target.value, 10))}
     >
-      <option value={LAYER_UNSET}>{t("Not set (leave as is)")}</option>
+      <option value={LAYER_UNSET}>{t("Not set")}</option>
       {allowOsDetection && (
         <option value={LAYER_OS_DETECTION}>{t("Follow OS detection")}</option>
       )}

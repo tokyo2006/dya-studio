@@ -669,42 +669,30 @@ export function ConnectionPage() {
                                     )}
                                   />
                                 </p>
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <select
-                                    className="select-field text-sm w-full tablet:w-56"
-                                    value={osProfile.override}
-                                    disabled={osDetection.isLoading}
-                                    aria-label={t(
-                                      "{{connection}} OS override",
-                                      { connection: card.label },
-                                    )}
-                                    onChange={(e) =>
-                                      osDetection.setBleOverride(
-                                        profile.index,
-                                        Number.parseInt(
-                                          e.target.value,
-                                          10,
-                                        ) as Os,
-                                      )
-                                    }
-                                  >
-                                    {OVERRIDE_OPTIONS.map((os) => (
-                                      <option key={os} value={os}>
-                                        {os === Os.OS_UNSPECIFIED
-                                          ? t("Auto (use detected OS)")
-                                          : t(osLabel(os))}
-                                      </option>
-                                    ))}
-                                  </select>
-                                  <OsBadge os={osProfile.effective} />
-                                </div>
-                                {osProfile.override !== Os.OS_UNSPECIFIED && (
-                                  <p className="text-xs text-[var(--color-text-muted)] mt-1">
-                                    {t("detected: {{os}}", {
-                                      os: t(osLabel(osProfile.detected)),
-                                    })}
-                                  </p>
-                                )}
+                                <select
+                                  className="select-field text-sm w-full tablet:w-56"
+                                  value={osProfile.override}
+                                  disabled={osDetection.isLoading}
+                                  aria-label={t("{{connection}} OS override", {
+                                    connection: card.label,
+                                  })}
+                                  onChange={(e) =>
+                                    osDetection.setBleOverride(
+                                      profile.index,
+                                      Number.parseInt(e.target.value, 10) as Os,
+                                    )
+                                  }
+                                >
+                                  {OVERRIDE_OPTIONS.map((os) => (
+                                    <option key={os} value={os}>
+                                      {os === Os.OS_UNSPECIFIED
+                                        ? t("Auto: {{os}}", {
+                                            os: t(osLabel(osProfile.detected)),
+                                          })
+                                        : t(osLabel(os))}
+                                    </option>
+                                  ))}
+                                </select>
                               </div>
                             )}
                         </div>

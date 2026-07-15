@@ -19,7 +19,7 @@ export function InfoTip({ text }: InfoTipProps) {
         <Tooltip.Trigger asChild>
           <button
             type="button"
-            className="btn-ghost p-0.5 opacity-60 hover:opacity-100 align-middle"
+            className="inline-flex items-center p-px opacity-60 hover:opacity-100 transition-opacity cursor-pointer align-middle"
             aria-label={t("More info")}
           >
             <IconInfoCircle size={14} />
