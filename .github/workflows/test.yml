@@ -25,6 +25,9 @@ jobs:
         run: npm run build
         env:
           VITE_BASE: /
+          # Dev and PR preview deployments keep RPC debug logging on; the
+          # production release build (release.yml) leaves this unset.
+          VITE_ENABLE_RPC_LOG: "true"
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:

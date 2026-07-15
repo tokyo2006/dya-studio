@@ -22,7 +22,8 @@ import {
   isUnlockRequiredError,
 } from "@cormoran/zmk-studio-react-hook";
 import { useCustomSubsystem } from "./useCustomSubsystem";
-import { call_rpc } from "@zmkfirmware/zmk-studio-ts-client";
+import type { call_rpc } from "@zmkfirmware/zmk-studio-ts-client";
+import { loggedCallRpc } from "../lib/rpcLogging";
 import type {
   Keymap,
   PhysicalLayouts,
@@ -307,7 +308,7 @@ export function useKeymapSource(): UseKeymapSourceReturn {
         throw new Error("Not connected to keyboard");
       }
       assertOfficialKeymapRpcAllowed(request);
-      const response = await call_rpc(connection, request);
+      const response = await loggedCallRpc(connection, request);
       if (response.meta?.simpleError !== undefined) {
         if (response.meta.simpleError === ErrorConditions.UNLOCK_REQUIRED) {
           throw new KeymapUnlockRequiredError();

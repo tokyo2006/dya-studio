@@ -155,11 +155,15 @@ describe("useKeymapSource — fast path", () => {
   };
 
   let mockCall: jest.Mock;
+  let mockCallRPC: jest.Mock;
   beforeEach(() => {
     mockCall = jest.fn().mockResolvedValue(null);
+    // The typed call() encodes then delegates to callRPC() under the hood.
+    mockCallRPC = jest.fn().mockResolvedValue(null);
     mockUseCustomSubsystem.mockReturnValue({
       subsystem: { index: 3, identifier: "cormoran__fast_keymap" },
       call: mockCall,
+      callRPC: mockCallRPC,
     });
     mockLoadFastKeymap.mockResolvedValue(fastModel);
     mockLoadPhysicalLayoutGeometry.mockResolvedValue([
@@ -264,9 +268,10 @@ describe("useKeymapSource — fast path", () => {
     ) => Promise<unknown>;
     await wrappedCall({ getSnapshot: true });
 
-    expect(mockCall).toHaveBeenCalledWith(
-      { getSnapshot: true },
-      { timeout: 30000 },
-    );
+    // call() encodes the request and delegates to callRPC(), which must carry
+    // the extended timeout so slow-BLE RPCs don't spuriously time out.
+    expect(mockCallRPC).toHaveBeenCalledWith(expect.any(Uint8Array), {
+      timeout: 30000,
+    });
   });
 });

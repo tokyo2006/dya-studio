@@ -21,6 +21,7 @@ import {
   type UseCustomSubsystemReturn,
   type UseCustomSubsystemTypedReturn,
 } from "@cormoran/zmk-studio-react-hook";
+import { logRpc } from "../lib/rpcLogging";
 
 /** Default per-RPC timeout (ms) applied to every custom-subsystem call. */
 export const DEFAULT_CUSTOM_SUBSYSTEM_TIMEOUT_MS = 30_000;
@@ -49,20 +50,50 @@ export function useCustomSubsystem<TReq, TRes>(
 
   const callRPC = useCallback<UseCustomSubsystemReturn["callRPC"]>(
     (payload, options) =>
-      baseCallRPC(payload, {
-        timeout: DEFAULT_CUSTOM_SUBSYSTEM_TIMEOUT_MS,
-        ...options,
-      }),
-    [baseCallRPC],
+      logRpc(
+        `custom:${identifier}`,
+        payload,
+        () =>
+          baseCallRPC(payload, {
+            timeout: DEFAULT_CUSTOM_SUBSYSTEM_TIMEOUT_MS,
+            ...options,
+          }),
+        {
+          request: () => payload.byteLength,
+          response: (res) => res?.byteLength,
+        },
+      ),
+    [baseCallRPC, identifier],
   );
 
   const call = useCallback(
-    (request: TReq, options?: { timeout?: number }) =>
-      baseCall!(request, {
-        timeout: DEFAULT_CUSTOM_SUBSYSTEM_TIMEOUT_MS,
-        ...options,
-      }),
-    [baseCall],
+    (request: TReq, options?: { timeout?: number }) => {
+      // Reimplement the library's typed call (encode → callRPC → decode)
+      // ourselves rather than delegating to `base.call`, so we can log the
+      // exact request/response payload sizes; the encode below is the same work
+      // `base.call` would do internally, not extra overhead.
+      const payload = codec!.encode(request);
+      let responseBytes: number | undefined;
+      return logRpc(
+        `custom:${identifier}`,
+        request,
+        async () => {
+          const responsePayload = await baseCallRPC(payload, {
+            timeout: DEFAULT_CUSTOM_SUBSYSTEM_TIMEOUT_MS,
+            ...options,
+          });
+          responseBytes = responsePayload?.byteLength;
+          return responsePayload === null
+            ? null
+            : codec!.decode(responsePayload);
+        },
+        {
+          request: () => payload.byteLength,
+          response: () => responseBytes,
+        },
+      );
+    },
+    [baseCallRPC, codec, identifier],
   );
 
   return baseCall
