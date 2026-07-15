@@ -373,7 +373,7 @@ describe("ConnectionPage", () => {
       });
     });
 
-    it("shows the detected OS caption when an override is set", () => {
+    it("shows the detected OS in the Auto option even when an override is set", () => {
       renderComponent(
         { isConnected: true },
         { profiles: mockProfiles },
@@ -405,7 +405,11 @@ describe("ConnectionPage", () => {
         },
       );
 
-      expect(screen.getByText(/detected: Windows/)).toBeInTheDocument();
+      const select = screen.getByLabelText("Home PC OS override");
+      const options = Array.from(select.querySelectorAll("option")).map(
+        (o) => o.textContent,
+      );
+      expect(options).toContain("Auto: Windows");
     });
   });
 
@@ -579,7 +583,7 @@ describe("ConnectionPage", () => {
       const options = Array.from(usbSelect.querySelectorAll("option")).map(
         (o) => o.textContent,
       );
-      expect(options).toContain("Not set (leave as is)");
+      expect(options).toContain("Not set");
       expect(options).toContain("Follow OS detection");
     });
 
