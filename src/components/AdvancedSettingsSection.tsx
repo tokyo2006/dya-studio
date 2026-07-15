@@ -4,6 +4,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type InputHTMLAttributes,
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
@@ -37,7 +38,54 @@ import {
 
 type ValueKind = "bytes" | "int32" | "bool" | "string" | "behavior" | "unknown";
 
-const MEMORY_WRITE_DEBOUNCE_MS = 500;
+const MEMORY_WRITE_DEBOUNCE_MS = 1500;
+
+// Input that keeps its own local value while focused so that parent-driven
+// updates (e.g. after a debounced memory write completes) don't reset the
+// cursor or steal focus mid-edit.
+//
+// Uses React's derived-state pattern (react.dev/learn/you-might-not-need-an-effect
+// #adjusting-some-state-when-a-prop-changes): prevProp tracks the last seen
+// prop value; when it changes and the field is not focused, local is updated
+// synchronously during render without going through an effect.
+function RetainedInput({
+  value,
+  onChange,
+  ...rest
+}: Omit<InputHTMLAttributes<HTMLInputElement>, "value" | "onChange"> & {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [local, setLocal] = useState(value);
+  const [prevProp, setPrevProp] = useState(value);
+  const [focused, setFocused] = useState(false);
+
+  if (prevProp !== value) {
+    setPrevProp(value);
+    if (!focused) {
+      setLocal(value);
+    }
+  }
+
+  return (
+    <input
+      {...rest}
+      value={local}
+      onFocus={(e) => {
+        setFocused(true);
+        rest.onFocus?.(e);
+      }}
+      onBlur={(e) => {
+        setFocused(false);
+        rest.onBlur?.(e);
+      }}
+      onChange={(e) => {
+        setLocal(e.target.value);
+        onChange(e.target.value);
+      }}
+    />
+  );
+}
 
 // Custom subsystem identifier registered by the pmw3610 driver's settings
 // module (see src/settings/pmw3610_settings.c in the driver repository).
@@ -639,19 +687,14 @@ function SettingEditor({
     const min = range?.min?.int32Value;
     const max = range?.max?.int32Value;
     return (
-      <input
+      <RetainedInput
         className="input-field max-w-xs text-sm"
         type="number"
         min={min}
         max={max}
         value={currentValue}
-        onChange={(event) =>
-          onChange(
-            scalarToSettingValue(
-              "int32",
-              Number.parseInt(event.target.value, 10),
-            ),
-          )
+        onChange={(val) =>
+          onChange(scalarToSettingValue("int32", Number.parseInt(val, 10)))
         }
       />
     );
@@ -693,27 +736,27 @@ function SettingEditor({
             </option>
           )}
         </select>
-        <input
+        <RetainedInput
           className="input-field w-20 text-sm"
           type="number"
           title={t("Param 1")}
           placeholder={t("Param 1")}
-          value={behaviorValue.param1}
-          onChange={(event) =>
+          value={`${behaviorValue.param1}`}
+          onChange={(val) =>
             emitBehaviorValue({
-              param1: Number.parseInt(event.target.value, 10) || 0,
+              param1: Number.parseInt(val, 10) || 0,
             })
           }
         />
-        <input
+        <RetainedInput
           className="input-field w-20 text-sm"
           type="number"
           title={t("Param 2")}
           placeholder={t("Param 2")}
-          value={behaviorValue.param2}
-          onChange={(event) =>
+          value={`${behaviorValue.param2}`}
+          onChange={(val) =>
             emitBehaviorValue({
-              param2: Number.parseInt(event.target.value, 10) || 0,
+              param2: Number.parseInt(val, 10) || 0,
             })
           }
         />
@@ -722,10 +765,10 @@ function SettingEditor({
   }
 
   return (
-    <input
+    <RetainedInput
       className="input-field max-w-xs text-sm"
       value={currentValue}
-      onChange={(event) => onChange({ stringValue: event.target.value })}
+      onChange={(val) => onChange({ stringValue: val })}
     />
   );
 }
