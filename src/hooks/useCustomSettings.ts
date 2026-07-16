@@ -121,7 +121,17 @@ async function withTimeout<T>(
   }
 }
 
-export function useCustomSettings(): UseCustomSettingsReturn {
+export interface UseCustomSettingsOptions {
+  // When false, settings are not fetched on mount; the caller drives the
+  // initial load by calling loadSettings() (e.g. when a collapsed section is
+  // expanded). Defaults to true.
+  autoLoad?: boolean;
+}
+
+export function useCustomSettings(
+  options?: UseCustomSettingsOptions,
+): UseCustomSettingsReturn {
+  const { autoLoad = true } = options ?? {};
   const { t } = useLanguage();
   const zmkApp = useContext(ZMKAppContext);
   const { subsystem, ready, call } = useCustomSubsystem(
@@ -433,8 +443,11 @@ export function useCustomSettings(): UseCustomSettingsReturn {
   }, [settings, subsystemIdentifierForIndex]);
 
   useEffect(() => {
+    if (!autoLoad) {
+      return;
+    }
     void loadSettings();
-  }, [loadSettings]);
+  }, [autoLoad, loadSettings]);
 
   return {
     isAvailable: subsystem !== null,
