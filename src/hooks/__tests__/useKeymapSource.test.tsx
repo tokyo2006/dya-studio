@@ -142,6 +142,7 @@ describe("useKeymapSource — fast path", () => {
     availableLayers: 8,
     maxLayerNameLength: 20,
     pendingLayerIds: [],
+    behaviorsDeferred: false,
     stats: {
       behaviorsFromCache: false,
       behaviorsBundled: 1,
@@ -240,6 +241,54 @@ describe("useKeymapSource — fast path", () => {
     await waitFor(() => expect(onLayersLoaded).toHaveBeenCalledTimes(1));
     const fullLayers = onLayersLoaded.mock.calls[0][0];
     expect(fullLayers[1].bindings).toHaveLength(1);
+    expect(mockLoadFastKeymap).toHaveBeenCalledTimes(2);
+  });
+
+  it("defers behaviors so the preview paints first, then fills them via onBehaviorsLoaded", async () => {
+    // Phase 1 (firstLayerOnly + deferBehaviors) returns no behaviors; phase 2
+    // (full) hands them back mid-load via the onBehaviorsLoaded callback.
+    mockLoadFastKeymap.mockImplementation(
+      async (
+        _call: unknown,
+        opts: {
+          firstLayerOnly?: boolean;
+          deferBehaviors?: boolean;
+          onBehaviorsLoaded?: (b: FastKeymapModel["behaviors"]) => void;
+        },
+      ) => {
+        if (opts?.firstLayerOnly) {
+          return { ...fastModel, behaviors: [], behaviorsDeferred: true };
+        }
+        opts?.onBehaviorsLoaded?.(fastModel.behaviors);
+        return { ...fastModel, behaviorsDeferred: false };
+      },
+    );
+
+    const onBehaviorsLoaded = jest.fn();
+    const { result } = renderHook(() => useKeymapSource(), { wrapper });
+    const data = await result.current.loadKeymapData(
+      undefined,
+      undefined,
+      onBehaviorsLoaded,
+    );
+
+    // Phase 1 asks the loader to defer behaviors alongside the first layer.
+    expect(mockLoadFastKeymap).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
+      expect.objectContaining({ firstLayerOnly: true, deferBehaviors: true }),
+    );
+    // The preview data comes back with behaviors still empty.
+    expect(data.behaviorsDeferred).toBe(true);
+    expect(data.behaviors.size).toBe(0);
+
+    // Phase 2 resolves them and hands back the official-shaped map.
+    await waitFor(() => expect(onBehaviorsLoaded).toHaveBeenCalledTimes(1));
+    const behaviors = onBehaviorsLoaded.mock.calls[0][0] as Map<
+      number,
+      { displayName: string }
+    >;
+    expect(behaviors.get(42)?.displayName).toBe("Key Press");
     expect(mockLoadFastKeymap).toHaveBeenCalledTimes(2);
   });
 

@@ -358,6 +358,16 @@ export function useKeymap(): UseKeymapReturn {
       }
     };
 
+    // Called when the fast path finishes loading the behaviors it deferred (see
+    // useKeymapSource's incremental load): swap in the resolved map so bindings
+    // that were rendering with a placeholder label now show their real names.
+    const applyBackgroundBehaviors = (
+      behaviors: Map<number, BehaviorDefinition>,
+    ) => {
+      if (loadIdRef.current !== loadId) return;
+      setBehaviors(behaviors);
+    };
+
     try {
       // Load the keymap data. Only a failure HERE means unlock is actually
       // required: the fast-keymap subsystem is unsecured and loads while the
@@ -368,6 +378,7 @@ export function useKeymap(): UseKeymapReturn {
         const data = await loadFromSource(
           (progress) => setLoadingProgress(progress),
           applyBackgroundLayers,
+          applyBackgroundBehaviors,
         );
         pendingLayerIds = data.pendingLayerIds;
 

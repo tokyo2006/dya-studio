@@ -83,12 +83,24 @@ export interface KeymapData {
    * are filled in via the `onLayersLoaded` callback. Empty for the official
    * path and for single-layer / warm-cache fast loads. */
   pendingLayerIds: number[];
+  /** True when `behaviors` is still loading in the background (fast incremental
+   * load): it comes back empty here and is filled in via the
+   * `onBehaviorsLoaded` callback. False for the official path and for
+   * warm-cache fast loads (where behaviors were served without a round-trip). */
+  behaviorsDeferred: boolean;
 }
 
 /** Called when the background load of the deferred layers completes, with the
  * full set of layers (real bindings). Only fires when a fast incremental load
  * left layers pending. */
 export type OnLayersLoadedCallback = (layers: Keymap["layers"]) => void;
+
+/** Called when the background load of the deferred behaviors completes, with
+ * the full behaviors map. Only fires when a fast incremental load deferred
+ * behaviors (see {@link KeymapData.behaviorsDeferred}). */
+export type OnBehaviorsLoadedCallback = (
+  behaviors: Map<number, BehaviorDefinition>,
+) => void;
 
 /**
  * Phases of a full keymap-data load. Behaviors are loaded one at a time on the
@@ -160,14 +172,19 @@ export interface UseKeymapSourceReturn {
   source: KeymapSource;
   /** Load layouts + keymap + behaviors as one uniform {@link KeymapData}.
    *
-   * On the fast path this returns as soon as the FIRST layer is ready (other
-   * layers come back as empty placeholders listed in
-   * {@link KeymapData.pendingLayerIds}); the remaining layers load in the
-   * background and arrive via `onLayersLoaded`. On the official path everything
-   * is loaded before returning and `onLayersLoaded` never fires. */
+   * On the fast path this returns as soon as the layout + FIRST layer are ready
+   * so the keymap preview can paint immediately. Two things load in the
+   * background afterwards: the remaining layers (empty placeholders listed in
+   * {@link KeymapData.pendingLayerIds}, filled via `onLayersLoaded`) and the
+   * behaviors (deferred unless a warm cache served them for free — see
+   * {@link KeymapData.behaviorsDeferred} — filled via `onBehaviorsLoaded`).
+   * While behaviors are deferred, bindings render with a placeholder label. On
+   * the official path everything is loaded before returning and neither
+   * background callback fires. */
   loadKeymapData: (
     onProgress?: KeymapLoadProgressCallback,
     onLayersLoaded?: OnLayersLoadedCallback,
+    onBehaviorsLoaded?: OnBehaviorsLoadedCallback,
   ) => Promise<KeymapData>;
   /** Load just the physical layouts (with full geometry for every layout). */
   loadPhysicalLayouts: () => Promise<PhysicalLayouts>;
@@ -220,6 +237,23 @@ function toKeyPhysicalAttrs(keys: KeyPhysicalAttrs[]): KeyPhysicalAttrs[] {
  * time is exactly what made "Finalizing" take seconds. A non-active layout's
  * geometry is fetched lazily via {@link UseKeymapSourceReturn.loadLayoutGeometry}
  * only when the user switches to it (see useKeymap.setActiveLayout). */
+/** Maps the fast loader's behavior list onto the official
+ * `Map<local_id, BehaviorDefinition>` shape every consumer expects. Shared by
+ * {@link mapFastModel} and the background `onBehaviorsLoaded` delivery. */
+function mapFastBehaviors(
+  behaviors: FastKeymapModel["behaviors"],
+): Map<number, BehaviorDefinition> {
+  const map = new Map<number, BehaviorDefinition>();
+  for (const b of behaviors) {
+    map.set(b.localId, {
+      id: b.localId,
+      displayName: b.displayName,
+      metadata: b.metadata,
+    });
+  }
+  return map;
+}
+
 function mapFastModel(model: FastKeymapModel): KeymapData {
   const keymap: Keymap = {
     layers: model.layers.map((layer) => ({
@@ -245,21 +279,13 @@ function mapFastModel(model: FastKeymapModel): KeymapData {
     layouts,
   };
 
-  const behaviors = new Map<number, BehaviorDefinition>();
-  for (const b of model.behaviors) {
-    behaviors.set(b.localId, {
-      id: b.localId,
-      displayName: b.displayName,
-      metadata: b.metadata,
-    });
-  }
-
   return {
     physicalLayouts,
     keymap,
-    behaviors,
+    behaviors: mapFastBehaviors(model.behaviors),
     source: "fast",
     pendingLayerIds: model.pendingLayerIds,
+    behaviorsDeferred: model.behaviorsDeferred,
   };
 }
 
@@ -324,29 +350,41 @@ export function useKeymapSource(): UseKeymapSourceReturn {
     async (
       onProgress?: KeymapLoadProgressCallback,
       onLayersLoaded?: OnLayersLoadedCallback,
+      onBehaviorsLoaded?: OnBehaviorsLoadedCallback,
     ): Promise<KeymapData> => {
       if (isFastAvailable) {
         onProgress?.({ phase: "keymap" });
-        // Phase 1: fetch only the FIRST layer so the UI can render immediately;
-        // behaviors + layouts are fully loaded here too. Other uncached layers
-        // come back as empty placeholders (model.pendingLayerIds).
+        // Phase 1: fetch only the layout + FIRST layer so the keymap preview can
+        // paint as fast as possible. Behaviors are deferred (unless a warm cache
+        // serves them for free) and other uncached layers come back as empty
+        // placeholders (model.pendingLayerIds / model.behaviorsDeferred).
         const model = await loadFastKeymap(call, {
           deviceKey,
           firstLayerOnly: true,
+          deferBehaviors: true,
         });
         // Remember each layout's fingerprint so a later lazy geometry load can
         // hit the fp-keyed cache (mapFastModel drops the fps).
         layoutFpsRef.current = model.layouts.map((l) => l.fp);
         const data = mapFastModel(model);
 
-        // Phase 2 (background): load the deferred layers. behaviors/layouts and
-        // the first layer are cache-warm now, so this fetches only the pending
-        // layers (one batched get_layers round-trip) and hands them back.
-        if (data.pendingLayerIds.length > 0 && onLayersLoaded) {
-          void loadFastKeymap(call, { deviceKey })
-            .then((full) => onLayersLoaded(mapFastModel(full).keymap.layers))
+        // Phase 2 (background): resolve whatever phase 1 deferred — the behavior
+        // labels and/or the remaining layers. layouts and the first layer are
+        // cache-warm now, so this pays only for the behaviors round-trip(s) and
+        // one batched get_layers. Behaviors are handed back first (onBehaviorsLoaded,
+        // mid-load) so labels appear before the remaining layers arrive.
+        const needsBackground =
+          data.pendingLayerIds.length > 0 || data.behaviorsDeferred;
+        if (needsBackground && (onLayersLoaded || onBehaviorsLoaded)) {
+          void loadFastKeymap(call, {
+            deviceKey,
+            onBehaviorsLoaded: onBehaviorsLoaded
+              ? (behaviors) => onBehaviorsLoaded(mapFastBehaviors(behaviors))
+              : undefined,
+          })
+            .then((full) => onLayersLoaded?.(mapFastModel(full).keymap.layers))
             .catch((err) => {
-              console.error("Background layer load failed:", err);
+              console.error("Background keymap load failed:", err);
             });
         }
 
@@ -398,6 +436,7 @@ export function useKeymapSource(): UseKeymapSourceReturn {
         behaviors,
         source: "official",
         pendingLayerIds: [],
+        behaviorsDeferred: false,
       };
     },
     [isFastAvailable, call, deviceKey, officialRpc],
