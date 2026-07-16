@@ -55,7 +55,20 @@ export interface UseRuntimeMacroReturn {
   discardMacros: () => Promise<boolean>;
 }
 
-export function useRuntimeMacro(): UseRuntimeMacroReturn {
+export interface UseRuntimeMacroOptions {
+  /** Whether to load the macro list automatically on mount / when the
+   * subsystem becomes available. Defaults to `true`. Pass `false` when the
+   * caller wants to control load timing itself -- e.g. the Keymap tab defers
+   * `loadMacros()` until the keymap preview has finished loading so the macro
+   * RPCs don't compete with (and slow down) the preview. State is still
+   * cleared when the subsystem is absent regardless of this flag. */
+  autoLoad?: boolean;
+}
+
+export function useRuntimeMacro(
+  options: UseRuntimeMacroOptions = {},
+): UseRuntimeMacroReturn {
+  const autoLoad = options.autoLoad ?? true;
   const { subsystem, ready, call } = useCustomSubsystem(
     RUNTIME_MACRO_SUBSYSTEM_IDENTIFIER,
     CODEC,
@@ -332,10 +345,12 @@ export function useRuntimeMacro(): UseRuntimeMacroReturn {
         setHasUnsavedChanges(false);
         return;
       }
-      void loadMacros();
+      // Skip the automatic load when the caller drives load timing itself
+      // (autoLoad: false) -- the clear-on-absent above still runs.
+      if (autoLoad) void loadMacros();
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [loadMacros, subsystemIndex]);
+  }, [autoLoad, loadMacros, subsystemIndex]);
 
   return {
     isAvailable: subsystem !== null,

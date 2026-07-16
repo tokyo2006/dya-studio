@@ -90,6 +90,13 @@ export interface KeymapState {
   hasUnsavedChanges: boolean;
   /** Whether loading data */
   isLoading: boolean;
+  /** True once the keymap tab has fully finished loading -- the foreground
+   * preview AND any background incremental load (deferred behaviors + remaining
+   * layers) have all settled. `isLoading` goes false as soon as the preview is
+   * painted; this stays false until nothing keymap-related is still fetching,
+   * so callers can defer non-preview work (e.g. runtime-macro loading) to the
+   * very end. */
+  isFullyLoaded: boolean;
   /** Progress of the in-flight load (what/how-far), or null when idle */
   loadingProgress: KeymapLoadProgress | null;
   /** Error message if any */
@@ -181,6 +188,10 @@ export function useKeymap(): UseKeymapReturn {
   >(new Map());
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  // True only once the foreground preview AND the background incremental load
+  // (deferred behaviors + remaining layers) have all settled. See the
+  // UseKeymapReturn.isFullyLoaded doc.
+  const [isFullyLoaded, setIsFullyLoaded] = useState(false);
   const [loadingProgress, setLoadingProgress] =
     useState<KeymapLoadProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -310,6 +321,7 @@ export function useKeymap(): UseKeymapReturn {
     }
 
     setIsLoading(true);
+    setIsFullyLoaded(false);
     setLoadingProgress({ phase: "layouts" });
     setError(null);
     setUnlockRequired(false);
@@ -327,6 +339,10 @@ export function useKeymap(): UseKeymapReturn {
     // and record their original bindings (first load only).
     const applyBackgroundLayers = (fullLayers: Layer[]) => {
       if (loadIdRef.current !== loadId) return;
+      // This is the final callback of the background load (it runs after the
+      // deferred behaviors are delivered), so the keymap tab is now fully
+      // loaded -- even when there were no pending layers to fill in.
+      setIsFullyLoaded(true);
       const pending = new Set(pendingLayerIds);
       if (pending.size === 0) return;
       const bindingsById = new Map(fullLayers.map((l) => [l.id, l.bindings]));
@@ -358,6 +374,16 @@ export function useKeymap(): UseKeymapReturn {
       }
     };
 
+    // Called when the fast path finishes loading the behaviors it deferred (see
+    // useKeymapSource's incremental load): swap in the resolved map so bindings
+    // that were rendering with a placeholder label now show their real names.
+    const applyBackgroundBehaviors = (
+      behaviors: Map<number, BehaviorDefinition>,
+    ) => {
+      if (loadIdRef.current !== loadId) return;
+      setBehaviors(behaviors);
+    };
+
     try {
       // Load the keymap data. Only a failure HERE means unlock is actually
       // required: the fast-keymap subsystem is unsecured and loads while the
@@ -368,6 +394,7 @@ export function useKeymap(): UseKeymapReturn {
         const data = await loadFromSource(
           (progress) => setLoadingProgress(progress),
           applyBackgroundLayers,
+          applyBackgroundBehaviors,
         );
         pendingLayerIds = data.pendingLayerIds;
 
@@ -379,6 +406,12 @@ export function useKeymap(): UseKeymapReturn {
           dataLoadedRef.current = true;
         }
         setBehaviors(data.behaviors);
+        // If nothing was deferred to the background, the load is already
+        // complete here; otherwise applyBackgroundLayers flips this when the
+        // background (deferred behaviors + remaining layers) settles.
+        if (data.pendingLayerIds.length === 0 && !data.behaviorsDeferred) {
+          setIsFullyLoaded(true);
+        }
         loaded = true;
       } catch (err) {
         if (isKeymapUnlockRequired(err)) {
@@ -927,6 +960,7 @@ export function useKeymap(): UseKeymapReturn {
     originalBindings,
     hasUnsavedChanges,
     isLoading,
+    isFullyLoaded,
     loadingProgress,
     error,
     unlockRequired,

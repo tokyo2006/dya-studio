@@ -152,6 +152,14 @@ export interface FastKeymapModel {
    * drive incremental "show the first layer, load the rest in the background"
    * loading. */
   pendingLayerIds: number[];
+  /** True when `deferBehaviors` skipped the behavior load this round because it
+   * couldn't be served from the whole-set cache for free -- `behaviors` came
+   * back empty and must be filled by a later (background) full load. False when
+   * behaviors are populated (either not deferred, or a warm-cache hit served
+   * them without an RPC). NOTE: local addition to the vendored upstream model,
+   * used to drive "show the keymap first, resolve behavior labels in the
+   * background" loading. */
+  behaviorsDeferred: boolean;
   stats: FastKeymapLoadStats;
 }
 
@@ -185,6 +193,20 @@ export interface LoadFastKeymapOptions {
    * background with a second (cache-warm) load. NOTE: local addition to the
    * vendored upstream loader. */
   firstLayerOnly?: boolean;
+  /** When `true`, the behavior load is skipped UNLESS the whole set can be
+   * served from cache for free (behaviors_fp still matches -- no `list_behaviors`
+   * / `get_behaviors` round-trip). On a miss, `behaviors` comes back empty and
+   * `FastKeymapModel.behaviorsDeferred` is set, so a consumer can render the
+   * keymap immediately (unresolved bindings show a placeholder) and resolve the
+   * labels via a later (background) full load. NOTE: local addition to the
+   * vendored upstream loader. */
+  deferBehaviors?: boolean;
+  /** Invoked with the resolved behaviors the moment they finish loading, BEFORE
+   * the (slower) layer fetch that follows -- lets a background full load hand
+   * behavior labels to the UI as soon as they're ready rather than at the end.
+   * Not called when the load was deferred to an empty set. NOTE: local addition
+   * to the vendored upstream loader. */
+  onBehaviorsLoaded?: (behaviors: FastKeymapBehavior[]) => void;
 }
 
 function defaultStorage(): Storage | undefined {
@@ -245,15 +267,48 @@ export async function loadFastKeymap(
   // doc comment. A mismatch just means every behavior gets fetched.
   const bundleTrusted = snapshot.definitionVersion === FK_DEFINITION_VERSION;
 
-  const behaviorsResult = await loadBehaviors(
-    call,
-    storage,
-    deviceKey,
-    snapshot,
-    bundleTrusted,
-    includeAliases,
-    includeDisplayNames,
-  );
+  // Behaviors: normally a full load, but with `deferBehaviors` we only take a
+  // free whole-set cache hit and otherwise defer -- so the caller can paint the
+  // keymap before paying for the behavior round-trips (unresolved bindings show
+  // a placeholder until a background full load fills them in).
+  const emptyBehaviorsResult = {
+    behaviors: [] as FastKeymapBehavior[],
+    fromCache: false,
+    bundledCount: 0,
+    cachedCount: 0,
+    fetchedCount: 0,
+  };
+  let behaviorsResult;
+  let behaviorsDeferred = false;
+  if (options.deferBehaviors) {
+    const wholeSet = readWholeSetBehaviorCache(storage, deviceKey, snapshot);
+    if (wholeSet) {
+      behaviorsResult = {
+        ...emptyBehaviorsResult,
+        behaviors: wholeSet,
+        fromCache: true,
+      };
+    } else {
+      behaviorsResult = emptyBehaviorsResult;
+      behaviorsDeferred = true;
+    }
+  } else {
+    behaviorsResult = await loadBehaviors(
+      call,
+      storage,
+      deviceKey,
+      snapshot,
+      bundleTrusted,
+      includeAliases,
+      includeDisplayNames,
+    );
+  }
+  // Hand the freshly-resolved behaviors to a waiting consumer NOW, before the
+  // (slower) layer fetch below -- but not an empty deferred set.
+  if (!behaviorsDeferred && behaviorsResult.behaviors.length > 0) {
+    options.onBehaviorsLoaded?.(behaviorsResult.behaviors);
+  }
+
   const layersResult = await loadLayers(
     call,
     storage,
@@ -277,6 +332,7 @@ export async function loadFastKeymap(
     availableLayers: snapshot.availableLayers,
     maxLayerNameLength: snapshot.maxLayerNameLength,
     pendingLayerIds: layersResult.pendingLayerIds,
+    behaviorsDeferred,
     stats: {
       behaviorsFromCache: behaviorsResult.fromCache,
       behaviorsBundled: behaviorsResult.bundledCount,
@@ -417,6 +473,38 @@ function resolveInline(
   };
 }
 
+/**
+ * The whole-set behaviors fast path (DESIGN.md SS5): when `behaviors_fp` still
+ * matches the last load's, every behavior is exactly as served, so the cached
+ * set can be returned WITHOUT a `list_behaviors` (or any `get_behaviors`)
+ * round-trip. Returns `null` on any miss -- a changed fp, a missing/old-shaped
+ * cache, or a length mismatch -- so the caller falls back to a full load.
+ * Shared by `loadBehaviors` (its fast path) and the `deferBehaviors` path,
+ * which uses it to serve a warm cache for free rather than deferring.
+ */
+function readWholeSetBehaviorCache(
+  storage: Storage | undefined,
+  deviceKey: string,
+  snapshot: Snapshot,
+): FastKeymapBehavior[] | null {
+  const cached = readCache<{
+    fp: number;
+    defFpBits?: number;
+    behaviors: unknown[];
+  }>(storage, FastKeymapCacheKeys.behaviors(deviceKey));
+  if (!cached) return null;
+  const cachedBehaviors = (cached.behaviors ?? []).filter(isSerializedBehavior);
+  // An old-shaped cache (no entries survive the filter, even though `cached`
+  // itself is truthy) is treated as absent, not a match.
+  if (
+    cached.fp !== snapshot.behaviorsFp ||
+    cachedBehaviors.length !== cached.behaviors.length
+  ) {
+    return null;
+  }
+  return cachedBehaviors.map((b) => ({ ...b, resolvedFrom: "cache" as const }));
+}
+
 async function loadBehaviors(
   call: FastKeymapCall,
   storage: Storage | undefined,
@@ -449,19 +537,11 @@ async function loadBehaviors(
 
   // Whole-set fast path: behaviors_fp matches the last load's -> every
   // behavior is still exactly as served, skip list_behaviors entirely (and
-  // so every get_behaviors round-trip with it). An old-shaped cache (no
-  // entries survive the isSerializedBehavior filter, even though `cached`
-  // itself is truthy) is treated as absent, not a match.
-  if (
-    cached &&
-    cached.fp === snapshot.behaviorsFp &&
-    cachedBehaviors.length === cached.behaviors.length
-  ) {
+  // so every get_behaviors round-trip with it).
+  const wholeSet = readWholeSetBehaviorCache(storage, deviceKey, snapshot);
+  if (wholeSet) {
     return {
-      behaviors: cachedBehaviors.map((b) => ({
-        ...b,
-        resolvedFrom: "cache" as const,
-      })),
+      behaviors: wholeSet,
       fromCache: true,
       bundledCount: 0,
       cachedCount: 0,
