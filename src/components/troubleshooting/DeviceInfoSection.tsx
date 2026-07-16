@@ -47,11 +47,15 @@ export function DeviceInfoSection({
   const { isAvailable, info, isLoading, error, refresh } = deviceInfo;
 
   // Devices with an empty name are internal/hidden Zephyr devices that are
-  // normally left uninitialized — exclude them from the "not ready" count
-  // and the list so they don't inflate it with noise.
+  // normally left uninitialized — exclude them from the list entirely.
   const namedDevices =
     info?.zephyrDevices.filter((d) => d.name.trim() !== "") ?? [];
-  const notReadyCount = namedDevices.filter((d) => !d.ready).length;
+  // Devices literally named "empty" always report as not ready, so keep them
+  // visible in the list but exclude them from the "not ready" count and badge
+  // so they don't inflate it with noise.
+  const notReadyCount = namedDevices.filter(
+    (d) => !d.ready && d.name.trim().toLowerCase() !== "empty",
+  ).length;
 
   return (
     <SectionCard
