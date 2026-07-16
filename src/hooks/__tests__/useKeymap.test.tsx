@@ -122,6 +122,7 @@ describe("useKeymap", () => {
       expect(result.current.behaviors.size).toBe(0);
       expect(result.current.hasUnsavedChanges).toBe(false);
       expect(result.current.isLoading).toBe(false);
+      expect(result.current.isFullyLoaded).toBe(false);
       expect(result.current.error).toBeNull();
       expect(result.current.unlockRequired).toBe(false);
     });
@@ -173,6 +174,9 @@ describe("useKeymap", () => {
       expect(result.current.physicalLayouts).toEqual(mockPhysicalLayouts);
       expect(result.current.keymap).toEqual(mockKeymap);
       expect(result.current.behaviors.size).toBe(3);
+      // Official path defers nothing to the background, so the load is fully
+      // complete as soon as it finishes.
+      expect(result.current.isFullyLoaded).toBe(true);
     });
 
     it("should handle unlock required error", async () => {

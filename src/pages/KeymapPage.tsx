@@ -48,7 +48,10 @@ export function KeymapPage() {
   const keymap = useKeymap();
   const physicalLayoutModules = usePhysicalLayoutModules();
   const sensorRotate = useRuntimeSensorRotate();
-  const runtimeMacro = useRuntimeMacro();
+  // Defer macro loading (see the effect below): the macro list is only needed
+  // to label macro keys, not to paint the preview, so we don't let its RPCs
+  // compete with the keymap load. autoLoad:false suppresses the on-mount fetch.
+  const runtimeMacro = useRuntimeMacro({ autoLoad: false });
   const inputStream = useInputStream();
   // Proactive lock state: the fast-keymap subsystem is unsecured, so the keymap
   // is viewable while Studio is locked. We use this to (a) show a lock badge in
@@ -69,6 +72,9 @@ export function KeymapPage() {
   const [renameValue, setRenameValue] = useState("");
   const [isRenaming, setIsRenaming] = useState(false);
   const renameInputRef = useRef<HTMLInputElement>(null);
+  // Guards the deferred macro load so it fires once per keymap load; reset when
+  // a new load starts (see the effect below).
+  const macrosRequestedRef = useRef(false);
 
   // Get current layer
   const currentLayer = useMemo(() => {
@@ -278,6 +284,32 @@ export function KeymapPage() {
 
     setSelectedLayerIndex(inputStream.activeLayerIndex);
   }, [inputStream.activeLayerIndex, keymap.keymap?.layers]);
+
+  // Load the runtime-macro list as the FINAL step of the keymap tab load: only
+  // after the keymap has fully loaded (preview + background behaviors/layers) so
+  // the macro RPCs (list_macros / get_macro_global_settings) run last instead of
+  // competing with the preview. Fires once per load; reset when a load restarts.
+  const { isAvailable: isMacroAvailable, loadMacros: loadRuntimeMacros } =
+    runtimeMacro;
+  useEffect(() => {
+    if (keymap.isLoading) {
+      macrosRequestedRef.current = false;
+      return;
+    }
+    if (
+      keymap.isFullyLoaded &&
+      isMacroAvailable &&
+      !macrosRequestedRef.current
+    ) {
+      macrosRequestedRef.current = true;
+      void loadRuntimeMacros();
+    }
+  }, [
+    keymap.isLoading,
+    keymap.isFullyLoaded,
+    isMacroAvailable,
+    loadRuntimeMacros,
+  ]);
 
   return (
     <div className="p-6 h-full overflow-auto">
