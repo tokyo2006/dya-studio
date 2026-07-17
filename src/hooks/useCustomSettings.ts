@@ -126,12 +126,17 @@ export interface UseCustomSettingsOptions {
   // initial load by calling loadSettings() (e.g. when a collapsed section is
   // expanded). Defaults to true.
   autoLoad?: boolean;
+  // When set, the list request is scoped to the custom subsystem that
+  // registered this identifier (e.g. the pmw3610 driver) instead of fetching
+  // every subsystem's settings. Callers that only care about one module should
+  // set this so unrelated subsystems are never transferred or listed.
+  subsystemIdentifier?: string;
 }
 
 export function useCustomSettings(
   options?: UseCustomSettingsOptions,
 ): UseCustomSettingsReturn {
-  const { autoLoad = true } = options ?? {};
+  const { autoLoad = true, subsystemIdentifier } = options ?? {};
   const { t } = useLanguage();
   const zmkApp = useContext(ZMKAppContext);
   const { subsystem, ready, call } = useCustomSubsystem(
@@ -150,6 +155,19 @@ export function useCustomSettings(
       t("Subsystem {{index}}", { index }),
     [t, zmkApp?.state.customSubsystems?.subsystems],
   );
+
+  // Resolve the caller-requested subsystem identifier to the numeric index the
+  // list scope expects. Undefined identifier => no scoping. A set-but-unknown
+  // identifier resolves to undefined, which is treated as "subsystem absent".
+  const targetSubsystemIndex = useMemo(() => {
+    if (subsystemIdentifier === undefined) {
+      return undefined;
+    }
+    const index = zmkApp?.state.customSubsystems?.subsystems?.findIndex(
+      (candidate) => candidate?.identifier === subsystemIdentifier,
+    );
+    return index !== undefined && index >= 0 ? index : undefined;
+  }, [subsystemIdentifier, zmkApp?.state.customSubsystems?.subsystems]);
 
   const callCustomRequest = useCallback(
     async (request: Request): Promise<Response> => {
@@ -173,6 +191,20 @@ export function useCustomSettings(
   const collectListSettings = useCallback(async (): Promise<Setting[]> => {
     if (!ready || !zmkApp || subsystemIndex === undefined) {
       return [];
+    }
+
+    // A scoped caller whose subsystem isn't present has nothing to list; skip
+    // the request rather than falling back to an all-subsystems list.
+    if (
+      subsystemIdentifier !== undefined &&
+      targetSubsystemIndex === undefined
+    ) {
+      return [];
+    }
+
+    const listScope: SettingScope = { source: CUSTOM_SETTINGS_SOURCE_ALL };
+    if (targetSubsystemIndex !== undefined) {
+      listScope.customSubsystemIndex = targetSubsystemIndex;
     }
 
     const collected: Setting[] = [];
@@ -228,7 +260,7 @@ export function useCustomSettings(
         callCustomRequest(
           Request.create({
             listSettings: {
-              scope: { source: CUSTOM_SETTINGS_SOURCE_ALL },
+              scope: listScope,
               requireMeta: true,
             },
           }),
@@ -250,7 +282,15 @@ export function useCustomSettings(
         clearTimeout(quietTimeout);
       }
     }
-  }, [callCustomRequest, ready, subsystemIndex, t, zmkApp]);
+  }, [
+    callCustomRequest,
+    ready,
+    subsystemIdentifier,
+    subsystemIndex,
+    t,
+    targetSubsystemIndex,
+    zmkApp,
+  ]);
 
   const loadSettings = useCallback(async () => {
     if (!ready) {

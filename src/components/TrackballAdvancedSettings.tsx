@@ -23,8 +23,13 @@ export function TrackballAdvancedSettings() {
   // reopen shouldn't re-fetch).
   const [hasExpanded, setHasExpanded] = useState(false);
   // Defer loading the PMW3610 settings until the section is first expanded so
-  // opening the Trackball tab doesn't trigger the custom-settings RPC.
-  const customSettings = useCustomSettings({ autoLoad: false });
+  // opening the Trackball tab doesn't trigger the custom-settings RPC. Scope
+  // the list to the pmw3610 subsystem so unrelated custom subsystems aren't
+  // fetched or listed here.
+  const customSettings = useCustomSettings({
+    autoLoad: false,
+    subsystemIdentifier: PMW3610_CUSTOM_SETTINGS_IDENTIFIER,
+  });
   const { keymap, behaviors, isLoading: keymapLoading } = useKeymap();
 
   const handleToggle = () => {
