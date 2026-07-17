@@ -1,5 +1,10 @@
 import { Request } from "@zmkfirmware/zmk-studio-ts-client";
-import { describeOfficialRequest, protoByteLength } from "../rpcLogging";
+import type { CustomSubsystemInfo } from "@zmkfirmware/zmk-studio-ts-client/custom";
+import {
+  describeCustomNotification,
+  describeOfficialRequest,
+  protoByteLength,
+} from "../rpcLogging";
 
 describe("describeOfficialRequest", () => {
   it("derives subsystem.method from an official request", () => {
@@ -19,6 +24,24 @@ describe("describeOfficialRequest", () => {
     expect(describeOfficialRequest(null)).toBe("unknown");
     expect(describeOfficialRequest({})).toBe("unknown");
     expect(describeOfficialRequest("nope")).toBe("unknown");
+  });
+});
+
+describe("describeCustomNotification", () => {
+  const subsystems: CustomSubsystemInfo[] = [
+    { index: 3, identifier: "cormoran__watchdog", uiUrl: [] },
+    { index: 7, identifier: "cormoran__pmw3610", uiUrl: [] },
+  ];
+
+  it("resolves a subsystem index to its identifier by matching index (not array position)", () => {
+    expect(describeCustomNotification(7, subsystems)).toBe(
+      "custom:cormoran__pmw3610",
+    );
+  });
+
+  it("falls back to the raw index when the subsystem list is missing or unmatched", () => {
+    expect(describeCustomNotification(3, undefined)).toBe("custom:#3");
+    expect(describeCustomNotification(99, subsystems)).toBe("custom:#99");
   });
 });
 

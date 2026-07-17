@@ -20,6 +20,11 @@ import {
   Request,
   RequestResponse,
 } from "@zmkfirmware/zmk-studio-ts-client";
+import type {
+  CustomNotification,
+  CustomSubsystemInfo,
+} from "@zmkfirmware/zmk-studio-ts-client/custom";
+import type { NotificationSubscription } from "@cormoran/zmk-studio-react-hook";
 import { RPC_LOG_ENABLED } from "./viteEnv";
 
 /** Monotonic id so a request line and its response line can be matched even
@@ -111,6 +116,109 @@ export function protoByteLength<M>(
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Notifications already logged, so a single device push isn't logged once per
+ * subscriber. The library fan-outs the *same* notification object to every
+ * registered callback for a given type/subsystem (see `dispatchNotification` /
+ * `dispatchCustomNotification` in `useZMKApp`), and several hooks subscribe to
+ * the same stream (e.g. `core` from both {@link useKeymap} and {@link usePmw3610}).
+ * Keying on object identity lets us log each notification exactly once. Weak so
+ * entries are collected with the notification itself.
+ */
+const loggedNotifications = new WeakSet<object>();
+
+/**
+ * Log a single inbound notification pushed from the device, mirroring
+ * {@link logRpc} for the unsolicited direction. Unlike an RPC there is no
+ * request/response/duration — just the notification payload and, for custom
+ * subsystems, its encoded byte size.
+ *
+ * A no-op in the production release (gated on {@link RPC_LOG_ENABLED}), and
+ * deduped by object identity so overlapping subscribers don't double-log.
+ *
+ * @param label - `core`, `keymap`, or `custom:<identifier>` (see {@link describeCustomNotification})
+ * @param notification - The decoded (core/keymap) or raw (custom) notification
+ * @param bytes - Optional lazy reporter for the payload byte size
+ */
+export function logNotification(
+  label: string,
+  notification: unknown,
+  bytes?: () => number | undefined,
+): void {
+  if (!RPC_LOG_ENABLED) return;
+
+  if (notification && typeof notification === "object") {
+    if (loggedNotifications.has(notification)) return;
+    loggedNotifications.add(notification);
+  }
+
+  console.debug(`[rpc ⇐] ${label}${bytesLabel(bytes?.())}`, notification);
+}
+
+/**
+ * Derive a notification label from a custom subsystem index, resolving it to
+ * `custom:<identifier>` (matching the `custom:<identifier>` label {@link logRpc}
+ * uses for outbound calls). Falls back to `custom:#<index>` when the subsystem
+ * list is unavailable or the index isn't found — `index` is the device-assigned
+ * `CustomSubsystemInfo.index`, not the array position.
+ */
+export function describeCustomNotification(
+  subsystemIndex: number,
+  subsystems: readonly CustomSubsystemInfo[] | undefined,
+): string {
+  const identifier = subsystems?.find(
+    (s) => s.index === subsystemIndex,
+  )?.identifier;
+  return identifier ? `custom:${identifier}` : `custom:#${subsystemIndex}`;
+}
+
+/**
+ * Wrap an `onNotification` subscriber so every notification it receives is
+ * logged via {@link logNotification}. Returns the original function untouched in
+ * the production release so there's zero overhead and Vite tree-shakes the
+ * logging away.
+ *
+ * Applied once to the shared `zmkApp` (see {@link DeviceConnectionProvider}) so
+ * all current and future subscribers are covered without wrapping each call
+ * site; per-notification dedup keeps overlapping subscribers to one line each.
+ *
+ * @param onNotification - The app's `zmkApp.onNotification`
+ * @param describeCustom - Resolves a custom `subsystemIndex` to a label, given
+ *   the connected device's subsystem list
+ */
+export function withLoggedNotifications(
+  onNotification: (subscription: NotificationSubscription) => () => void,
+  describeCustom: (subsystemIndex: number) => string,
+): (subscription: NotificationSubscription) => () => void {
+  if (!RPC_LOG_ENABLED) return onNotification;
+
+  return (subscription) => {
+    const label =
+      subscription.type === "custom"
+        ? describeCustom(subscription.subsystemIndex)
+        : subscription.type;
+
+    // Rebuild the union member with a wrapped callback. TS can't narrow the
+    // callback parameter across the union after the spread, so the cast keeps
+    // the discriminant intact while re-typing only the callback.
+    const logged = {
+      ...subscription,
+      callback: (notification: never) => {
+        logNotification(
+          label,
+          notification,
+          subscription.type === "custom"
+            ? () => (notification as CustomNotification).payload?.byteLength
+            : undefined,
+        );
+        subscription.callback(notification);
+      },
+    } as NotificationSubscription;
+
+    return onNotification(logged);
+  };
 }
 
 /** The subsystem oneof fields on an official `Request`, in wire order. */
