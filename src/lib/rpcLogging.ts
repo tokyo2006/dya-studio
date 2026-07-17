@@ -26,6 +26,7 @@ import type {
 } from "@zmkfirmware/zmk-studio-ts-client/custom";
 import type { NotificationSubscription } from "@cormoran/zmk-studio-react-hook";
 import { RPC_LOG_ENABLED } from "./viteEnv";
+import { decodeCustomNotification } from "./customNotificationCodecs";
 
 /** Monotonic id so a request line and its response line can be matched even
  * when several BLE calls are in flight at once. */
@@ -139,13 +140,20 @@ const loggedNotifications = new WeakSet<object>();
  * deduped by object identity so overlapping subscribers don't double-log.
  *
  * @param label - `core`, `keymap`, or `custom:<identifier>` (see {@link describeCustomNotification})
- * @param notification - The decoded (core/keymap) or raw (custom) notification
- * @param bytes - Optional lazy reporter for the payload byte size
+ * @param notification - The raw notification object; also the dedup key, so it
+ *   must be the same object the library fans out to every subscriber
+ * @param options.bytes - Optional lazy reporter for the payload byte size
+ * @param options.decoded - Decoded payload to display in place of the raw
+ *   notification (for custom subsystems, whose payload is otherwise raw bytes);
+ *   the raw `notification` is still used for dedup
  */
 export function logNotification(
   label: string,
   notification: unknown,
-  bytes?: () => number | undefined,
+  options?: {
+    bytes?: () => number | undefined;
+    decoded?: unknown;
+  },
 ): void {
   if (!RPC_LOG_ENABLED) return;
 
@@ -154,7 +162,32 @@ export function logNotification(
     loggedNotifications.add(notification);
   }
 
-  console.debug(`[rpc ⇐] ${label}${bytesLabel(bytes?.())}`, notification);
+  console.debug(
+    `[rpc ⇐] ${label}${bytesLabel(options?.bytes?.())}`,
+    options?.decoded ?? notification,
+  );
+}
+
+/**
+ * Resolve a custom subsystem index to its device-assigned `identifier`, or
+ * `undefined` when the subsystem list is unavailable or the index isn't found.
+ * `index` is the device-assigned `CustomSubsystemInfo.index`, not the array
+ * position.
+ */
+export function resolveCustomSubsystemIdentifier(
+  subsystemIndex: number,
+  subsystems: readonly CustomSubsystemInfo[] | undefined,
+): string | undefined {
+  return subsystems?.find((s) => s.index === subsystemIndex)?.identifier;
+}
+
+/** Build a `custom:<identifier>` label (matching the outbound label {@link logRpc}
+ * uses), falling back to `custom:#<index>` when the identifier is unknown. */
+function customNotificationLabel(
+  identifier: string | undefined,
+  subsystemIndex: number,
+): string {
+  return identifier ? `custom:${identifier}` : `custom:#${subsystemIndex}`;
 }
 
 /**
@@ -168,10 +201,10 @@ export function describeCustomNotification(
   subsystemIndex: number,
   subsystems: readonly CustomSubsystemInfo[] | undefined,
 ): string {
-  const identifier = subsystems?.find(
-    (s) => s.index === subsystemIndex,
-  )?.identifier;
-  return identifier ? `custom:${identifier}` : `custom:#${subsystemIndex}`;
+  return customNotificationLabel(
+    resolveCustomSubsystemIdentifier(subsystemIndex, subsystems),
+    subsystemIndex,
+  );
 }
 
 /**
@@ -184,20 +217,28 @@ export function describeCustomNotification(
  * all current and future subscribers are covered without wrapping each call
  * site; per-notification dedup keeps overlapping subscribers to one line each.
  *
+ * Custom-subsystem payloads arrive as raw bytes; when the subsystem has a
+ * registered decoder (see {@link decodeCustomNotification}) the log shows the
+ * decoded payload instead of the byte data.
+ *
  * @param onNotification - The app's `zmkApp.onNotification`
- * @param describeCustom - Resolves a custom `subsystemIndex` to a label, given
- *   the connected device's subsystem list
+ * @param resolveCustomIdentifier - Resolves a custom `subsystemIndex` to its
+ *   subsystem identifier, given the connected device's subsystem list
  */
 export function withLoggedNotifications(
   onNotification: (subscription: NotificationSubscription) => () => void,
-  describeCustom: (subsystemIndex: number) => string,
+  resolveCustomIdentifier: (subsystemIndex: number) => string | undefined,
 ): (subscription: NotificationSubscription) => () => void {
   if (!RPC_LOG_ENABLED) return onNotification;
 
   return (subscription) => {
+    const identifier =
+      subscription.type === "custom"
+        ? resolveCustomIdentifier(subscription.subsystemIndex)
+        : undefined;
     const label =
       subscription.type === "custom"
-        ? describeCustom(subscription.subsystemIndex)
+        ? customNotificationLabel(identifier, subscription.subsystemIndex)
         : subscription.type;
 
     // Rebuild the union member with a wrapped callback. TS can't narrow the
@@ -206,13 +247,17 @@ export function withLoggedNotifications(
     const logged = {
       ...subscription,
       callback: (notification: never) => {
-        logNotification(
-          label,
-          notification,
-          subscription.type === "custom"
-            ? () => (notification as CustomNotification).payload?.byteLength
-            : undefined,
-        );
+        if (subscription.type === "custom") {
+          const payload = (notification as CustomNotification).payload;
+          logNotification(label, notification, {
+            bytes: () => payload?.byteLength,
+            // Show the decoded payload rather than raw bytes; falls back to the
+            // raw notification when the subsystem has no decoder or decode fails.
+            decoded: decodeCustomNotification(identifier, payload),
+          });
+        } else {
+          logNotification(label, notification);
+        }
         subscription.callback(notification);
       },
     } as NotificationSubscription;
