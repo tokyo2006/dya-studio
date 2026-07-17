@@ -89,11 +89,16 @@ function fn(n: number): number {
  * ~70% ANSI layout (function row + 65% main block with nav cluster and arrows).
  */
 export const KEY_LAYOUT_70: KeyLayoutItem[][] = [
-  // Function row
+  // Function row — Esc + F-keys grouped in fours, spread across the width
   [
     { code: ESC },
-    ...Array.from({ length: 12 }, (_, i) => ({ code: fn(i + 1) })),
-    { spacer: true, w: 2 },
+    { spacer: true, w: 0.5 },
+    ...[1, 2, 3, 4].map((n) => ({ code: fn(n) })),
+    { spacer: true, w: 0.5 },
+    ...[5, 6, 7, 8].map((n) => ({ code: fn(n) })),
+    { spacer: true, w: 0.5 },
+    ...[9, 10, 11, 12].map((n) => ({ code: fn(n) })),
+    { spacer: true, w: 0.5 },
     { code: DEL },
   ],
   // Number row
