@@ -4,7 +4,12 @@
  * Grid-based keycode selector with search, category filtering, and modifier support.
  */
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { IconSearch, IconX } from "@tabler/icons-react";
+import {
+  IconSearch,
+  IconX,
+  IconKeyboard,
+  IconLayoutGrid,
+} from "@tabler/icons-react";
 import {
   CATEGORY_DISPLAY_NAMES,
   searchKeycodes,
@@ -24,7 +29,13 @@ import {
   getLayoutName,
   type KeyboardLayoutType,
 } from "../lib/keyboardLayouts";
+import { KeyLayoutSelector } from "./KeyLayoutSelector";
 import { useLanguage } from "../hooks/useLanguage";
+
+/** Selection UI mode: category grid or physical key layout preview */
+type ViewMode = "category" | "layout";
+
+const VIEW_MODE_STORAGE_KEY = "keycodeSelectorViewMode";
 
 // Keycode categories in display order
 const KEYCODE_CATEGORY_ORDER: KeycodeCategory[] = [
@@ -61,7 +72,16 @@ export function KeycodeValueSelector({
   const [selectedModifiers, setSelectedModifiers] = useState<number>(
     extractModifierFlags(value),
   );
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    const saved = localStorage.getItem(VIEW_MODE_STORAGE_KEY);
+    return saved === "layout" ? "layout" : "category";
+  });
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Persist view mode preference
+  useEffect(() => {
+    localStorage.setItem(VIEW_MODE_STORAGE_KEY, viewMode);
+  }, [viewMode]);
 
   // Update modifiers when value changes externally
   useEffect(() => {
@@ -95,12 +115,19 @@ export function KeycodeValueSelector({
     return getKeycodesByCategory(selectedCategory, keyboardLayout);
   }, [searchQuery, selectedCategory, keyboardLayout]);
 
-  const handleKeycodeSelect = useCallback(
-    (keycode: KeycodeDefinition) => {
-      const combined = combineWithModifiers(keycode.code, selectedModifiers);
+  const handleCodeSelect = useCallback(
+    (code: number) => {
+      const combined = combineWithModifiers(code, selectedModifiers);
       onChange(combined);
     },
     [onChange, selectedModifiers],
+  );
+
+  const handleKeycodeSelect = useCallback(
+    (keycode: KeycodeDefinition) => {
+      handleCodeSelect(keycode.code);
+    },
+    [handleCodeSelect],
   );
 
   const handleModifierToggle = useCallback(
@@ -162,9 +189,9 @@ export function KeycodeValueSelector({
         </div>
       )}
 
-      {/* Search */}
-      <div className="mb-3">
-        <div className="relative">
+      {/* Search + view mode toggle */}
+      <div className="mb-3 flex items-center gap-2">
+        <div className="relative flex-1">
           <IconSearch
             size={16}
             className="absolute left-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
@@ -192,73 +219,114 @@ export function KeycodeValueSelector({
             </button>
           )}
         </div>
+        <button
+          type="button"
+          onClick={() =>
+            setViewMode((m) => (m === "layout" ? "category" : "layout"))
+          }
+          aria-pressed={viewMode === "layout"}
+          title={
+            viewMode === "layout"
+              ? t("Show keycodes by category")
+              : t("Show key layout")
+          }
+          aria-label={
+            viewMode === "layout"
+              ? t("Show keycodes by category")
+              : t("Show key layout")
+          }
+          className={`flex-shrink-0 p-2 rounded-lg border transition-colors ${
+            viewMode === "layout"
+              ? "bg-[var(--color-electric)]/20 border-[var(--color-electric)] text-[var(--color-electric)]"
+              : "bg-[var(--color-bg)] border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-electric)]/50"
+          }`}
+        >
+          {viewMode === "layout" ? (
+            <IconLayoutGrid size={18} />
+          ) : (
+            <IconKeyboard size={18} />
+          )}
+        </button>
       </div>
+
+      {/* Key Layout Preview */}
+      {viewMode === "layout" && !searchQuery.trim() && (
+        <div className="flex-1 flex overflow-hidden min-h-0">
+          <KeyLayoutSelector
+            selectedCode={extractBaseKeycode(value)}
+            onSelect={handleCodeSelect}
+            keyboardLayout={keyboardLayout}
+          />
+        </div>
+      )}
 
       {/* Category + Grid Layout */}
-      <div className="flex-1 flex overflow-hidden min-h-0">
-        {/* Category Sidebar */}
-        {!searchQuery && (
-          <div className="w-28 border-r border-[var(--color-border)] overflow-y-auto pr-2">
-            {KEYCODE_CATEGORY_ORDER.map((category) => (
-              <button
-                key={category}
-                className={`w-full px-2 py-1.5 text-left text-xs rounded transition-colors mb-0.5 ${
-                  selectedCategory === category
-                    ? "bg-[var(--color-electric)]/10 text-[var(--color-electric)]"
-                    : "text-[var(--color-text-secondary)] hover:bg-[var(--color-border)]"
-                }`}
-                onClick={() => setSelectedCategory(category)}
-              >
-                {t(CATEGORY_DISPLAY_NAMES[category])}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Keycode Grid */}
-        <div className="flex-1 overflow-y-auto pl-2">
-          <div
-            className={`grid gap-1 tablet:grid-cols-5 ${
-              searchQuery.trim() ? "grid-cols-4" : "grid-cols-2 "
-            }`}
-          >
-            {filteredKeycodes.map((keycode) => {
-              const isSelected =
-                extractBaseKeycode(value) === keycode.code ||
-                extractBaseKeycode(value) ===
-                  createHidUsage(HID_USAGE_PAGE_KEYBOARD, keycode.code);
-              return (
+      {(viewMode === "category" || searchQuery.trim()) && (
+        <div className="flex-1 flex overflow-hidden min-h-0">
+          {/* Category Sidebar */}
+          {!searchQuery && (
+            <div className="w-28 border-r border-[var(--color-border)] overflow-y-auto pr-2">
+              {KEYCODE_CATEGORY_ORDER.map((category) => (
                 <button
-                  key={`${keycode.category}-${keycode.code}`}
-                  className={`p-1.5 rounded border text-center transition-colors ${
-                    isSelected
-                      ? "bg-[var(--color-electric)]/20 border-[var(--color-electric)]"
-                      : "bg-[var(--color-bg)] border-[var(--color-border)] hover:border-[var(--color-electric)]/50"
+                  key={category}
+                  className={`w-full px-2 py-1.5 text-left text-xs rounded transition-colors mb-0.5 ${
+                    selectedCategory === category
+                      ? "bg-[var(--color-electric)]/10 text-[var(--color-electric)]"
+                      : "text-[var(--color-text-secondary)] hover:bg-[var(--color-border)]"
                   }`}
-                  onClick={() => handleKeycodeSelect(keycode)}
-                  title={`${keycode.name} (0x${keycode.code.toString(16).toUpperCase()})`}
+                  onClick={() => setSelectedCategory(category)}
                 >
-                  <span className="block text-xs font-medium text-[var(--color-text)]">
-                    {getLayoutDisplayName(keycode.code, keyboardLayout) ??
-                      keycode.displayName}
-                  </span>
-                  {keycode.displayName !== keycode.name && (
-                    <span className="block text-[10px] text-[var(--color-text-muted)] truncate">
-                      {getLayoutName(keycode.code, keyboardLayout) ??
-                        keycode.name}
-                    </span>
-                  )}
+                  {t(CATEGORY_DISPLAY_NAMES[category])}
                 </button>
-              );
-            })}
-          </div>
-          {filteredKeycodes.length === 0 && (
-            <div className="text-center py-4 text-xs text-[var(--color-text-muted)]">
-              {t("No keycodes found")}
+              ))}
             </div>
           )}
+
+          {/* Keycode Grid */}
+          <div className="flex-1 overflow-y-auto pl-2">
+            <div
+              className={`grid gap-1 tablet:grid-cols-5 ${
+                searchQuery.trim() ? "grid-cols-4" : "grid-cols-2 "
+              }`}
+            >
+              {filteredKeycodes.map((keycode) => {
+                const isSelected =
+                  extractBaseKeycode(value) === keycode.code ||
+                  extractBaseKeycode(value) ===
+                    createHidUsage(HID_USAGE_PAGE_KEYBOARD, keycode.code);
+                return (
+                  <button
+                    key={`${keycode.category}-${keycode.code}`}
+                    className={`p-1.5 rounded border text-center transition-colors ${
+                      isSelected
+                        ? "bg-[var(--color-electric)]/20 border-[var(--color-electric)]"
+                        : "bg-[var(--color-bg)] border-[var(--color-border)] hover:border-[var(--color-electric)]/50"
+                    }`}
+                    onClick={() => handleKeycodeSelect(keycode)}
+                    title={`${keycode.name} (0x${keycode.code.toString(16).toUpperCase()})`}
+                  >
+                    <span className="block text-xs font-medium text-[var(--color-text)]">
+                      {getLayoutDisplayName(keycode.code, keyboardLayout) ??
+                        keycode.displayName}
+                    </span>
+                    {keycode.displayName !== keycode.name && (
+                      <span className="block text-[10px] text-[var(--color-text-muted)] truncate">
+                        {getLayoutName(keycode.code, keyboardLayout) ??
+                          keycode.name}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            {filteredKeycodes.length === 0 && (
+              <div className="text-center py-4 text-xs text-[var(--color-text-muted)]">
+                {t("No keycodes found")}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
