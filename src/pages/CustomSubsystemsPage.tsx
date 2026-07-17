@@ -34,6 +34,7 @@ import { SETTINGS_SUBSYSTEM_IDENTIFIER } from "../hooks/useSettings";
 import { BLE_MANAGEMENT_SUBSYSTEM_IDENTIFIER } from "../hooks/useBLEProfiles";
 import { OS_DETECTION_SUBSYSTEM_IDENTIFIER } from "../hooks/useOsDetection";
 import { DEVTOOL_SUBSYSTEM_IDENTIFIER } from "../hooks/useDevtool";
+import { FAST_KEYMAP_SUBSYSTEM_IDENTIFIER } from "../hooks/useKeymapSource";
 
 // Identifiers of subsystems DYA Studio already has a dedicated UI for
 // (mirrors the `*_IDENTIFIER` constants exported by src/hooks/*.ts).
@@ -54,6 +55,10 @@ const SUPPORTED_SUBSYSTEM_IDENTIFIERS = new Set<string>([
   BLE_MANAGEMENT_SUBSYSTEM_IDENTIFIER,
   OS_DETECTION_SUBSYSTEM_IDENTIFIER,
   DEVTOOL_SUBSYSTEM_IDENTIFIER,
+  // Fast keymap has no dedicated tab of its own — it transparently powers the
+  // Keymap tab's fast-loading path (see useKeymapSource), so DYA Studio still
+  // fully handles it and it belongs with the already-supported subsystems.
+  FAST_KEYMAP_SUBSYSTEM_IDENTIFIER,
 ]);
 
 type Subsystem = ListCustomSubsystemResponse["subsystems"][number];

@@ -124,6 +124,8 @@ import {
 } from "../../proto/cormoran/fast_keymap/fast_keymap";
 import {
   FAST_KEYMAP_IDENTIFIER,
+  SETTING_EXPOSE_IDENTIFIER,
+  SETTING_EXPOSE_UI_URL,
   isDemoSubsystemEnabled,
 } from "./demo-subsystems";
 import {
@@ -261,6 +263,7 @@ class Keyboard {
   private readonly OS_DETECTION_SUBSYSTEM_INDEX = 13;
   private readonly DEFAULT_LAYER_SUBSYSTEM_INDEX = 14;
   private readonly FAST_KEYMAP_SUBSYSTEM_INDEX = 15;
+  private readonly SETTING_EXPOSE_SUBSYSTEM_INDEX = 16;
 
   constructor() {
     this.customSettingsHandler = new CustomSettingsHandler(
@@ -354,6 +357,14 @@ class Keyboard {
       index: this.FAST_KEYMAP_SUBSYSTEM_INDEX,
       identifier: FAST_KEYMAP_IDENTIFIER,
       uiUrl: [],
+    },
+    {
+      // No dedicated DYA Studio UI: the firmware module ships its own external
+      // web UI, so this advertises a uiUrl and shows up as an external-link
+      // card on the Subsystems tab.
+      index: this.SETTING_EXPOSE_SUBSYSTEM_INDEX,
+      identifier: SETTING_EXPOSE_IDENTIFIER,
+      uiUrl: [SETTING_EXPOSE_UI_URL],
     },
   ];
 

@@ -203,6 +203,64 @@ describe("CustomSubsystemsPage", () => {
       expect(screen.getByText("zmk__settings")).toBeInTheDocument();
     });
 
+    it("should treat the fast-keymap subsystem as already supported", () => {
+      const subsystems = createMockSubsystems([
+        { index: 0, identifier: "cormoran__fast_keymap", uiUrl: [] },
+      ]);
+      renderComponent({
+        state: {
+          connection: null,
+          deviceInfo: null,
+          customSubsystems: subsystems,
+          isLoading: false,
+          error: null,
+        },
+      });
+
+      // Fast keymap powers the Keymap tab, so it is grouped under the
+      // collapsed "already supported" section rather than shown prominently.
+      expect(
+        screen.queryByText("cormoran__fast_keymap"),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "All custom subsystems reported by this device are already supported by DYA Studio.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("should keep the setting-expose subsystem as a prominent external card", () => {
+      const subsystems = createMockSubsystems([
+        {
+          index: 0,
+          identifier: "zmk__setting_expose",
+          uiUrl: [
+            "https://cormoran.github.io/zmk-feature-zephyr-setting-expose/",
+          ],
+        },
+      ]);
+      renderComponent({
+        state: {
+          connection: null,
+          deviceInfo: null,
+          customSubsystems: subsystems,
+          isLoading: false,
+          error: null,
+        },
+      });
+
+      // No dedicated DYA Studio UI: shown prominently with its external web UI.
+      expect(screen.getByText("zmk__setting_expose")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "https://cormoran.github.io/zmk-feature-zephyr-setting-expose/",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText("Already supported by DYA Studio"),
+      ).not.toBeInTheDocument();
+    });
+
     it("should not show the collapsed section when no subsystems are already supported", () => {
       const subsystems = createMockSubsystems([
         { index: 0, identifier: "zmk__unsupported", uiUrl: [] },
