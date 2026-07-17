@@ -967,7 +967,9 @@ export function CustomSettingsSectionCard({
   keymapLoading = false,
 }: CustomSettingsSectionCardProps) {
   const { t } = useLanguage();
-  const [isExpanded, setIsExpanded] = useState(true);
+  // Collapsed by default — a keyboard can report many subsystems with many
+  // settings each, so showing them all expanded is overwhelming.
+  const [isExpanded, setIsExpanded] = useState(false);
   const withScrollPin = useScrollPin(customSettings.isLoading);
   const hasUnsavedChanges = section.settings.some(
     (setting) => setting.hasUnsavedValue,
@@ -1177,8 +1179,27 @@ export function CustomSettingsSectionCard({
 export function AdvancedSettingsSection() {
   const { t } = useLanguage();
   const [isExpanded, setIsExpanded] = useState(false);
-  const customSettings = useCustomSettings();
+  // Latch true once the section is first opened and stay true (a collapsed
+  // reopen shouldn't re-fetch).
+  const [hasExpanded, setHasExpanded] = useState(false);
+  // Defer loading custom settings until the section is first expanded so
+  // opening the Settings tab doesn't trigger the custom-settings RPC.
+  const customSettings = useCustomSettings({ autoLoad: false });
   const { keymap, behaviors, isLoading: keymapLoading } = useKeymap();
+
+  const handleToggle = () => {
+    setIsExpanded((expanded) => !expanded);
+    setHasExpanded(true);
+  };
+
+  // Once expanded, load reactively — mirroring the hook's default auto-load —
+  // so a not-yet-ready subsystem still loads once it becomes ready.
+  const { loadSettings } = customSettings;
+  useEffect(() => {
+    if (hasExpanded) {
+      void loadSettings();
+    }
+  }, [hasExpanded, loadSettings]);
 
   const layers = useMemo(
     () =>
@@ -1194,7 +1215,7 @@ export function AdvancedSettingsSection() {
       <button
         type="button"
         className="flex w-full items-center justify-between gap-3 p-6 text-left"
-        onClick={() => setIsExpanded((expanded) => !expanded)}
+        onClick={handleToggle}
         aria-expanded={isExpanded}
       >
         <div>
