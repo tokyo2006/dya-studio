@@ -1,5 +1,12 @@
 import type { ReactNode } from "react";
-import { createContext, useCallback, useEffect, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { RpcTransport } from "@zmkfirmware/zmk-studio-ts-client/transport/index";
 import {
   useZMKApp,
@@ -11,6 +18,10 @@ import type { UseZMKAppOptions } from "@cormoran/zmk-studio-react-hook";
 import { connect as connectBLE } from "@zmkfirmware/zmk-studio-ts-client/transport/gatt";
 import { connect as connectUSB } from "../lib/transport/usb";
 import { connect as connectDemo } from "../lib/transport/demo";
+import {
+  describeCustomNotification,
+  withLoggedNotifications,
+} from "../lib/rpcLogging";
 
 export type ConnectionMethod = "serial" | "ble" | "demo";
 
@@ -77,6 +88,23 @@ export function DeviceConnectionProvider({
 }: DeviceConnectionProviderProps) {
   const zmkApp = useZMKApp({ connectTimeoutMs });
   const [isReconnecting, setIsReconnecting] = useState(false);
+
+  // Dev-only: log every notification pushed from the device, mirroring the RPC
+  // logging that wraps outbound calls. Wrap the shared `zmkApp` once here so all
+  // consumers (which read it from `ZMKAppContext`) are covered without touching
+  // each `onNotification` call site. A no-op passthrough in the production build.
+  const loggedZmkApp = useMemo(
+    () => ({
+      ...zmkApp,
+      onNotification: withLoggedNotifications(zmkApp.onNotification, (index) =>
+        describeCustomNotification(
+          index,
+          zmkApp.state.customSubsystems?.subsystems,
+        ),
+      ),
+    }),
+    [zmkApp],
+  );
 
   // Guards against React StrictMode's double-invoke of effects triggering
   // the auto-reconnect attempt twice.
@@ -190,7 +218,7 @@ export function DeviceConnectionProvider({
   };
 
   return (
-    <ZMKAppContext.Provider value={zmkApp}>
+    <ZMKAppContext.Provider value={loggedZmkApp}>
       <ConnectionContext.Provider value={connectionValue}>
         {children}
       </ConnectionContext.Provider>
