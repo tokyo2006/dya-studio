@@ -278,7 +278,23 @@ describe("KeymapPage", () => {
         },
       );
 
-      expect(screen.getByText("● Unsaved changes")).toBeInTheDocument();
+      expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+      expect(screen.queryByText("Saved")).not.toBeInTheDocument();
+    });
+
+    it("should show the saved indicator when there are no unsaved changes", () => {
+      renderComponent(
+        { isConnected: true },
+        {
+          keymap: mockKeymap,
+          physicalLayouts: mockPhysicalLayouts,
+          behaviors: mockBehaviors,
+          hasUnsavedChanges: false,
+        },
+      );
+
+      expect(screen.getByText("Saved")).toBeInTheDocument();
+      expect(screen.queryByText("Unsaved changes")).not.toBeInTheDocument();
     });
 
     it("should show save and reset buttons when connected", () => {

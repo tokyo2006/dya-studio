@@ -96,7 +96,8 @@ const ja: Record<string, string> = {
     "A: はい、やる気はありますが、すぐではありません...",
 
   "Configure key bindings and layers": "キー割り当てとレイヤーを設定します",
-  "● Unsaved changes": "● 未保存の変更",
+  "Unsaved changes": "未保存の変更",
+  Saved: "保存済み",
   Stream: "ストリーム",
   "Toggle stream mode": "ストリームモードを切り替え",
   "Discard unsaved changes and reload the keymap":

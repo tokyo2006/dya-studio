@@ -395,11 +395,6 @@ export function KeymapPage() {
                 </button>
               ) : (
                 <>
-                  {keymap.hasUnsavedChanges && (
-                    <span className="text-xs text-[var(--color-neon)] mr-2">
-                      {t("● Unsaved changes")}
-                    </span>
-                  )}
                   <button
                     className="btn-ghost text-sm flex items-center gap-1.5 flex-shrink-0"
                     onClick={handleDiscard}
@@ -796,7 +791,28 @@ export function KeymapPage() {
 
             {/* Keyboard Layout */}
             {currentLayer && (
-              <div className="glass-card p-8">
+              <div className="glass-card p-8 relative">
+                {/* Saved / unsaved status indicator */}
+                <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5 px-2 py-1 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)]/70 text-xs">
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      keymap.hasUnsavedChanges
+                        ? "bg-[var(--color-neon)]"
+                        : "bg-[var(--color-text-muted)]"
+                    }`}
+                  />
+                  <span
+                    className={
+                      keymap.hasUnsavedChanges
+                        ? "text-[var(--color-neon)]"
+                        : "text-[var(--color-text-muted)]"
+                    }
+                  >
+                    {keymap.hasUnsavedChanges
+                      ? t("Unsaved changes")
+                      : t("Saved")}
+                  </span>
+                </div>
                 <KeyboardLayout
                   layout={currentLayout}
                   layer={currentLayer}
