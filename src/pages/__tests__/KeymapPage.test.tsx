@@ -140,9 +140,12 @@ describe("KeymapPage", () => {
       removedLayerIds: [],
       saveChanges: jest.fn().mockResolvedValue(true),
       discardChanges: jest.fn().mockResolvedValue(true),
+      resetToDefault: jest.fn().mockResolvedValue(true),
       setActiveLayout: jest.fn().mockResolvedValue(true),
       getOriginalBinding: jest.fn().mockReturnValue(null),
       isBindingModified: jest.fn().mockReturnValue(false),
+      isFastKeymapAvailable: false,
+      isBindingChangedFromDefault: jest.fn().mockReturnValue(false),
       getBehavior: jest.fn(),
       getBindingDisplayName: jest.fn().mockReturnValue("Key"),
       clearUnlockRequired: jest.fn(),
@@ -287,7 +290,48 @@ describe("KeymapPage", () => {
       );
 
       expect(screen.getByText("Save")).toBeInTheDocument();
-      expect(screen.getByText("Reset All")).toBeInTheDocument();
+      expect(screen.getByText("Discard")).toBeInTheDocument();
+      expect(screen.getByText("Reset")).toBeInTheDocument();
+    });
+
+    it("disables Reset when the fast-keymap subsystem is unavailable", () => {
+      renderComponent(
+        { isConnected: true },
+        {
+          keymap: mockKeymap,
+          physicalLayouts: mockPhysicalLayouts,
+          behaviors: mockBehaviors,
+          isFastKeymapAvailable: false,
+        },
+      );
+
+      expect(screen.getByText("Reset").closest("button")).toBeDisabled();
+    });
+
+    it("resets to default via the confirmation dialog when fast-keymap is available", async () => {
+      const user = userEvent.setup();
+      const resetToDefault = jest.fn().mockResolvedValue(true);
+      renderComponent(
+        { isConnected: true },
+        {
+          keymap: mockKeymap,
+          physicalLayouts: mockPhysicalLayouts,
+          behaviors: mockBehaviors,
+          isFastKeymapAvailable: true,
+          resetToDefault,
+        },
+      );
+
+      const resetButton = screen.getByText("Reset").closest("button");
+      expect(resetButton).not.toBeDisabled();
+      await user.click(resetButton!);
+
+      // Confirmation dialog appears; reset only fires after confirming.
+      expect(screen.getByText("Reset to default keymap?")).toBeInTheDocument();
+      expect(resetToDefault).not.toHaveBeenCalled();
+
+      await user.click(screen.getByText("Reset to default"));
+      expect(resetToDefault).toHaveBeenCalledTimes(1);
     });
 
     it("shows a Locked badge instead of Save/Reset when Studio is locked", () => {
@@ -306,7 +350,8 @@ describe("KeymapPage", () => {
 
       expect(screen.getByText("Locked")).toBeInTheDocument();
       expect(screen.queryByText("Save")).not.toBeInTheDocument();
-      expect(screen.queryByText("Reset All")).not.toBeInTheDocument();
+      expect(screen.queryByText("Discard")).not.toBeInTheDocument();
+      expect(screen.queryByText("Reset")).not.toBeInTheDocument();
     });
 
     it("opens the unlock prompt when the Locked badge is clicked", async () => {

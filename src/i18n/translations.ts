@@ -99,7 +99,18 @@ const ja: Record<string, string> = {
   "● Unsaved changes": "● 未保存の変更",
   Stream: "ストリーム",
   "Toggle stream mode": "ストリームモードを切り替え",
-  "Reset All": "すべてリセット",
+  "Discard unsaved changes and reload the keymap":
+    "未保存の変更を破棄してキーマップを再読み込みします",
+  "Reset the saved keymap to the default keymap":
+    "保存済みのキーマップをデフォルトのキーマップにリセットします",
+  "Resetting to the default keymap requires the fast-keymap firmware module, which this keyboard does not expose.":
+    "デフォルトのキーマップへのリセットには fast-keymap ファームウェアモジュールが必要ですが、このキーボードは対応していません。",
+  "Reset to default keymap?": "デフォルトのキーマップにリセットしますか？",
+  "This resets the saved keymap on your keyboard back to its hard-coded default and writes it to flash immediately. All saved key bindings will be lost. This cannot be undone.":
+    "キーボードに保存されたキーマップをハードコードされたデフォルトに戻し、直ちにフラッシュへ書き込みます。保存済みのすべてのキー割り当ては失われます。この操作は元に戻せません。",
+  "Reset to default": "デフォルトにリセット",
+  "Changed from default keymap": "デフォルトのキーマップから変更されています",
+  "Default keymap is not available": "デフォルトのキーマップを利用できません",
   Locked: "ロック中",
   "Studio is locked — click to unlock":
     "Studio はロックされています — クリックしてロック解除",
@@ -137,8 +148,8 @@ const ja: Record<string, string> = {
     "物理レイアウトモジュールのプレビューを読み込めませんでした: {{error}}",
   "Runtime sensor rotation subsystem is not available for your keyboard. Rotary encoder configuration will not be displayed. You can enable the feature by applying cormoran/zmk-behavior-runtime-sensor-rotate in your firmware.":
     "このキーボードではランタイムセンサー回転サブシステムを利用できません。ロータリーエンコーダー設定は表示されません。ファームウェアに cormoran/zmk-behavior-runtime-sensor-rotate を適用すると、この機能を有効にできます。",
-  "Click on a key to modify its binding. Modified keys are highlighted in green and show the original binding on hover. Use the Reset All button to discard all changes.":
-    "キーをクリックして割り当てを変更します。変更されたキーは緑で強調表示され、ホバーすると元の割り当てが表示されます。すべての変更を破棄するには「すべてリセット」を使ってください。",
+  "Click on a key to modify its binding. Modified keys are highlighted in green and show the original binding on hover. Use the Discard button to drop unsaved changes, or Reset to restore the default keymap.":
+    "キーをクリックして割り当てを変更します。変更されたキーは緑で強調表示され、ホバーすると元の割り当てが表示されます。未保存の変更を破棄するには「破棄」を、デフォルトのキーマップに戻すには「リセット」を使ってください。",
   "Connect your keyboard to edit keymaps. Click on a key to modify its binding.":
     "キーマップを編集するにはキーボードを接続してください。キーをクリックすると割り当てを変更できます。",
 

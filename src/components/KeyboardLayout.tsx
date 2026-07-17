@@ -44,6 +44,12 @@ interface KeyboardLayoutProps {
   onKeyReset: (keyPosition: number) => void;
   /** Function to check if a binding is modified */
   isBindingModified: (layerId: number, keyPosition: number) => boolean;
+  /** Function to check if a binding's persisted value differs from the default
+   * keymap (optional; only available when the fast-keymap subsystem is present) */
+  isBindingChangedFromDefault?: (
+    layerId: number,
+    keyPosition: number,
+  ) => boolean;
   /** Function to get original binding */
   getOriginalBinding: (
     layerId: number,
@@ -103,6 +109,7 @@ export function KeyboardLayout({
   onKeyClick,
   onKeyReset,
   isBindingModified,
+  isBindingChangedFromDefault,
   getOriginalBinding,
   keyboardLayout,
   modules = [],
@@ -267,6 +274,8 @@ export function KeyboardLayout({
         {layout.keys.map((key, position) => {
           const binding = layer.bindings[position];
           const modified = isBindingModified(layer.id, position);
+          const changedFromDefault =
+            isBindingChangedFromDefault?.(layer.id, position) ?? false;
 
           // Adjust position with offset for centering
           const adjustedKey: KeyPhysicalAttrs = {
@@ -282,6 +291,7 @@ export function KeyboardLayout({
               keyPosition={position}
               binding={binding}
               isModified={modified}
+              isChangedFromDefault={changedFromDefault}
               displayName={getKeyDisplayName(position, binding)}
               longDisplayName={getKeyLongDisplayName(position, binding)}
               originalDisplayName={
