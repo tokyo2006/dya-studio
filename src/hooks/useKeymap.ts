@@ -119,6 +119,14 @@ export interface UseKeymapReturn extends KeymapState {
   ) => Promise<boolean>;
   /** Reset a binding to its original value */
   resetBinding: (layerId: number, keyPosition: number) => Promise<boolean>;
+  /** Reset a single binding to its hard-coded default value (an in-memory edit,
+   * so the key becomes an unsaved change until saved). Only meaningful when
+   * {@link isFastKeymapAvailable} is true. Returns false when the default for
+   * this key isn't available. */
+  resetBindingToDefault: (
+    layerId: number,
+    keyPosition: number,
+  ) => Promise<boolean>;
   /** Move a layer from one position to another */
   moveLayer: (startIndex: number, destIndex: number) => Promise<boolean>;
   /** Add a new layer */
@@ -137,6 +145,12 @@ export interface UseKeymapReturn extends KeymapState {
   saveChanges: () => Promise<boolean>;
   /** Discard all unsaved changes */
   discardChanges: () => Promise<boolean>;
+  /** Reset the persistent keymap back to the hard-coded (devicetree-stock)
+   * default: applies every default binding that differs from the current one,
+   * then saves. Only meaningful when {@link isFastKeymapAvailable} is true (the
+   * default keymap is read via the fast-keymap subsystem). Returns false when
+   * unavailable or the save fails. */
+  resetToDefault: () => Promise<boolean>;
   /** Set the active physical layout */
   setActiveLayout: (layoutIndex: number) => Promise<boolean>;
   /** Get the original binding for a key (before modification) */
@@ -144,8 +158,32 @@ export interface UseKeymapReturn extends KeymapState {
     layerId: number,
     keyPosition: number,
   ) => BehaviorBinding | null;
+  /** Get the hard-coded default binding for a key, or null when the default
+   * keymap isn't loaded/available. */
+  getDefaultBinding: (
+    layerId: number,
+    keyPosition: number,
+  ) => BehaviorBinding | null;
   /** Check if a binding has been modified */
   isBindingModified: (layerId: number, keyPosition: number) => boolean;
+  /** True when the connected keyboard exposes the fast-keymap subsystem, which
+   * is what serves the hard-coded default keymap. Gates the "reset to default"
+   * action and the "changed from default" highlight. */
+  isFastKeymapAvailable: boolean;
+  /** Check whether a binding's PERSISTED value differs from the hard-coded
+   * default keymap (i.e. it was saved to flash and is no longer stock). Returns
+   * false while the default keymap is still loading, when it isn't available
+   * (no fast-keymap subsystem), or when the key is currently modified in memory
+   * (that state is surfaced by {@link isBindingModified} instead). */
+  isBindingChangedFromDefault: (
+    layerId: number,
+    keyPosition: number,
+  ) => boolean;
+  /** True when the PERSISTED keymap differs from the hard-coded default in at
+   * least one position (i.e. the saved keymap has been customized). False while
+   * the default keymap is still loading or when it isn't available (no
+   * fast-keymap subsystem). */
+  isKeymapChangedFromDefault: boolean;
   /** Get behavior definition by ID */
   getBehavior: (behaviorId: number) => BehaviorDefinition | undefined;
   /** Get display name for a binding */
@@ -186,6 +224,12 @@ export function useKeymap(): UseKeymapReturn {
   const [originalBindings, setOriginalBindings] = useState<
     Map<string, BehaviorBinding>
   >(new Map());
+  // Hard-coded (devicetree-stock) default bindings, keyed like originalBindings
+  // (`layerId:position`). Loaded lazily as the final step of a keymap load (see
+  // the effect below) and only when the fast-keymap subsystem is present.
+  const [defaultBindings, setDefaultBindings] = useState<
+    Map<string, BehaviorBinding>
+  >(new Map());
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   // True only once the foreground preview AND the background incremental load
@@ -200,6 +244,9 @@ export function useKeymap(): UseKeymapReturn {
 
   // Ref to track if data has been loaded
   const dataLoadedRef = useRef(false);
+  // Guards the final-step default-keymap load so it runs once per keymap load;
+  // reset when a new load starts (see loadKeymapData) and on disconnect.
+  const defaultKeymapRequestedRef = useRef(false);
   // Monotonic id per loadKeymapData call, so a background (incremental) layer
   // update from a superseded load is ignored.
   const loadIdRef = useRef(0);
@@ -215,8 +262,12 @@ export function useKeymap(): UseKeymapReturn {
   // Loading is delegated to useKeymapSource, which picks the fast-keymap
   // subsystem when the device exposes it and the official protocol otherwise.
   // (Editing below always uses the official protocol.)
-  const { loadKeymapData: loadFromSource, loadLayoutGeometry } =
-    useKeymapSource();
+  const {
+    loadKeymapData: loadFromSource,
+    loadLayoutGeometry,
+    loadDefaultKeymap,
+    isFastAvailable: isFastKeymapAvailable,
+  } = useKeymapSource();
 
   // Helper to set error with auto-clear timer (5 seconds)
   const setErrorWithAutoClear = useCallback((message: string) => {
@@ -329,6 +380,8 @@ export function useKeymap(): UseKeymapReturn {
     // Guard for the background (incremental) layer load: a load that has been
     // superseded (reconnect/reload) must not apply its late layer update.
     const loadId = ++loadIdRef.current;
+    // A fresh load re-arms the final-step default-keymap fetch.
+    defaultKeymapRequestedRef.current = false;
     const isFirstLoad = !dataLoadedRef.current;
     // Populated after the initial (phase-1) load returns; read by the
     // background callback, which fires later.
@@ -519,6 +572,20 @@ export function useKeymap(): UseKeymapReturn {
       return setBinding(layerId, keyPosition, original);
     },
     [originalBindings, setBinding],
+  );
+
+  // Reset a single binding to its hard-coded default value. Unlike
+  // resetToDefault (whole keymap + save), this is an in-memory edit: the key
+  // becomes an unsaved change the user can then save or discard.
+  const resetBindingToDefault = useCallback(
+    async (layerId: number, keyPosition: number): Promise<boolean> => {
+      const def = defaultBindings.get(bindingKey(layerId, keyPosition));
+      if (!def) {
+        return false;
+      }
+      return setBinding(layerId, keyPosition, def);
+    },
+    [defaultBindings, setBinding],
   );
 
   // Move a layer
@@ -760,6 +827,36 @@ export function useKeymap(): UseKeymapReturn {
     return false;
   }, [callRpc, loadKeymapData, clearError, setErrorWithAutoClear]);
 
+  // Reset the persistent keymap to the hard-coded default: set every binding
+  // that differs from its default value, then save. Only works when the default
+  // keymap has been loaded (fast-keymap subsystem present).
+  const resetToDefault = useCallback(async (): Promise<boolean> => {
+    if (!keymap) return false;
+    if (defaultBindings.size === 0) {
+      setErrorWithAutoClear("Default keymap is not available");
+      return false;
+    }
+
+    // Apply only the positions whose current binding differs from the default,
+    // to keep the number of RPCs (BLE round-trips) to what actually changed.
+    for (const layer of keymap.layers) {
+      for (let position = 0; position < layer.bindings.length; position++) {
+        const def = defaultBindings.get(bindingKey(layer.id, position));
+        if (!def) continue;
+        const current = layer.bindings[position];
+        if (current && bindingsEqual(current, def)) continue;
+        const ok = await setBinding(layer.id, position, def);
+        if (!ok) {
+          // setBinding already surfaced the error (incl. unlock-required).
+          return false;
+        }
+      }
+    }
+
+    // Persist the now-default keymap to flash.
+    return saveChanges();
+  }, [keymap, defaultBindings, setBinding, saveChanges, setErrorWithAutoClear]);
+
   // Set active physical layout
   const setActiveLayout = useCallback(
     async (layoutIndex: number): Promise<boolean> => {
@@ -828,6 +925,14 @@ export function useKeymap(): UseKeymapReturn {
     [originalBindings],
   );
 
+  // Get hard-coded default binding
+  const getDefaultBinding = useCallback(
+    (layerId: number, keyPosition: number): BehaviorBinding | null => {
+      return defaultBindings.get(bindingKey(layerId, keyPosition)) ?? null;
+    },
+    [defaultBindings],
+  );
+
   // Check if binding is modified
   const isBindingModified = useCallback(
     (layerId: number, keyPosition: number): boolean => {
@@ -844,6 +949,37 @@ export function useKeymap(): UseKeymapReturn {
     },
     [originalBindings, keymap],
   );
+
+  // Check if a binding's PERSISTED value differs from the hard-coded default.
+  // Uses the original (persistent) binding, not the current in-memory one, so a
+  // key the user is actively editing surfaces as "modified" (green) rather than
+  // here — the two highlights are mutually exclusive by design.
+  const isBindingChangedFromDefault = useCallback(
+    (layerId: number, keyPosition: number): boolean => {
+      const key = bindingKey(layerId, keyPosition);
+      const def = defaultBindings.get(key);
+      if (!def) return false;
+      const original = originalBindings.get(key);
+      if (!original) return false;
+      // Suppress while the key is modified in memory — that takes precedence.
+      if (isBindingModified(layerId, keyPosition)) return false;
+      return !bindingsEqual(original, def);
+    },
+    [defaultBindings, originalBindings, isBindingModified],
+  );
+
+  // Whether the persisted keymap differs from the hard-coded default anywhere —
+  // drives the "saved but customized" badge state. Compares the persisted
+  // (original) bindings, not the current in-memory ones, so it reflects what is
+  // actually on the device once saved.
+  const isKeymapChangedFromDefault = useMemo(() => {
+    if (defaultBindings.size === 0) return false;
+    for (const [key, def] of defaultBindings) {
+      const original = originalBindings.get(key);
+      if (original && !bindingsEqual(original, def)) return true;
+    }
+    return false;
+  }, [defaultBindings, originalBindings]);
 
   // Get behavior by ID
   const getBehavior = useCallback(
@@ -923,6 +1059,39 @@ export function useKeymap(): UseKeymapReturn {
     }
   }, [connection, loadKeymapData]);
 
+  // Load the hard-coded default keymap as the FINAL step of the keymap tab
+  // load — only once the preview + background behaviors/layers have all settled
+  // (isFullyLoaded), so its one-round-trip-per-layer fetch never competes with
+  // the preview. Fast-keymap only; skipped entirely on the official path. Fires
+  // once per load (guarded by defaultKeymapRequestedRef, re-armed on reload).
+  useEffect(() => {
+    if (!isFullyLoaded || !isFastKeymapAvailable) return;
+    if (defaultKeymapRequestedRef.current) return;
+    const layers = keymap?.layers;
+    if (!layers || layers.length === 0) return;
+
+    defaultKeymapRequestedRef.current = true;
+    const loadId = loadIdRef.current;
+    const layerIds = layers.map((layer) => layer.id);
+    void loadDefaultKeymap(layerIds)
+      .then((defaultsByLayer) => {
+        // Ignore a late result from a superseded load (reconnect/reload).
+        if (loadIdRef.current !== loadId) return;
+        const next = new Map<string, BehaviorBinding>();
+        for (const [layerId, bindings] of defaultsByLayer) {
+          bindings.forEach((binding, position) => {
+            next.set(bindingKey(layerId, position), { ...binding });
+          });
+        }
+        setDefaultBindings(next);
+      })
+      .catch((err) => {
+        // Best-effort: the default keymap only drives an optional highlight and
+        // the reset action, so a failure just leaves both unavailable.
+        console.error("Failed to load default keymap:", err);
+      });
+  }, [isFullyLoaded, isFastKeymapAvailable, keymap?.layers, loadDefaultKeymap]);
+
   // Reset state when disconnected
   useEffect(() => {
     if (!connection) {
@@ -930,12 +1099,14 @@ export function useKeymap(): UseKeymapReturn {
       setKeymap(null);
       setBehaviors(new Map());
       setOriginalBindings(new Map());
+      setDefaultBindings(new Map());
       setHasUnsavedChanges(false);
       setError(null);
       setUnlockRequired(false);
       setRemovedLayerIds([]);
       setLoadingProgress(null);
       dataLoadedRef.current = false;
+      defaultKeymapRequestedRef.current = false;
       // Clear error timer
       if (errorTimerRef.current) {
         clearTimeout(errorTimerRef.current);
@@ -967,6 +1138,7 @@ export function useKeymap(): UseKeymapReturn {
     loadKeymapData,
     setBinding,
     resetBinding,
+    resetBindingToDefault,
     moveLayer,
     addLayer,
     removeLayer,
@@ -977,9 +1149,14 @@ export function useKeymap(): UseKeymapReturn {
     removedLayerIds,
     saveChanges,
     discardChanges,
+    resetToDefault,
     setActiveLayout,
     getOriginalBinding,
+    getDefaultBinding,
     isBindingModified,
+    isFastKeymapAvailable,
+    isBindingChangedFromDefault,
+    isKeymapChangedFromDefault,
     getBehavior,
     getBindingDisplayName,
     clearUnlockRequired,

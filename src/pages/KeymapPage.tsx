@@ -16,6 +16,7 @@ import {
   IconPlus,
   IconTrash,
   IconRestore,
+  IconHistory,
   IconAlertTriangle,
   IconInfoCircle,
   IconPencil,
@@ -68,6 +69,8 @@ export function KeymapPage() {
   const [showKeycodeSelector, setShowKeycodeSelector] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDiscarding, setIsDiscarding] = useState(false);
+  const [showResetDialog, setShowResetDialog] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
   const [showRenameDialog, setShowRenameDialog] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const [isRenaming, setIsRenaming] = useState(false);
@@ -134,6 +137,16 @@ export function KeymapPage() {
     [currentLayer, keymap, requireUnlocked],
   );
 
+  // Handle key reset-to-default (in-memory edit; becomes an unsaved change)
+  const handleKeyResetToDefault = useCallback(
+    async (keyPosition: number) => {
+      if (!requireUnlocked()) return;
+      if (!currentLayer) return;
+      await keymap.resetBindingToDefault(currentLayer.id, keyPosition);
+    },
+    [currentLayer, keymap, requireUnlocked],
+  );
+
   // Handle binding selection
   const handleBindingSelect = useCallback(
     async (binding: BehaviorBinding) => {
@@ -166,6 +179,22 @@ export function KeymapPage() {
       setIsDiscarding(false);
     }
   }, [keymap, t]);
+
+  // Handle reset-to-default: reset the persistent keymap to the hard-coded
+  // default, then close the confirmation dialog. Gated on unlock (it edits +
+  // saves) like every other keymap edit.
+  const handleResetToDefault = useCallback(async () => {
+    if (!requireUnlocked()) return;
+    setIsResetting(true);
+    try {
+      const ok = await keymap.resetToDefault();
+      if (ok) {
+        setShowResetDialog(false);
+      }
+    } finally {
+      setIsResetting(false);
+    }
+  }, [keymap, requireUnlocked]);
 
   // Handle layer move up
   const handleMoveLayerUp = useCallback(async () => {
@@ -366,11 +395,6 @@ export function KeymapPage() {
                 </button>
               ) : (
                 <>
-                  {keymap.hasUnsavedChanges && (
-                    <span className="text-xs text-[var(--color-neon)] mr-2">
-                      {t("● Unsaved changes")}
-                    </span>
-                  )}
                   <button
                     className="btn-ghost text-sm flex items-center gap-1.5 flex-shrink-0"
                     onClick={handleDiscard}
@@ -379,14 +403,55 @@ export function KeymapPage() {
                       !keymap.hasUnsavedChanges ||
                       keymap.isLoading
                     }
+                    title={t("Discard unsaved changes and reload the keymap")}
                   >
                     {isDiscarding ? (
                       <IconLoader2 size={16} className="animate-spin" />
                     ) : (
                       <IconRestore size={16} />
                     )}
-                    {t("Reset All")}
+                    {t("Discard")}
                   </button>
+                  <Tooltip.Provider delayDuration={200}>
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        {/* Wrapper span so the tooltip still shows while the
+                            button is disabled (a disabled button fires no
+                            pointer events). */}
+                        <span className="flex-shrink-0">
+                          <button
+                            className="btn-ghost text-sm flex items-center gap-1.5"
+                            onClick={() => setShowResetDialog(true)}
+                            disabled={
+                              !keymap.isFastKeymapAvailable ||
+                              isResetting ||
+                              keymap.isLoading
+                            }
+                          >
+                            {isResetting ? (
+                              <IconLoader2 size={16} className="animate-spin" />
+                            ) : (
+                              <IconHistory size={16} />
+                            )}
+                            {t("Reset")}
+                          </button>
+                        </span>
+                      </Tooltip.Trigger>
+                      <Tooltip.Portal>
+                        <Tooltip.Content
+                          className="px-3 py-2 rounded bg-[var(--color-surface-elevated)] border border-[var(--color-border)] text-xs text-[var(--color-text-secondary)] shadow-lg z-50 max-w-xs"
+                          sideOffset={5}
+                        >
+                          {keymap.isFastKeymapAvailable
+                            ? t("Reset the saved keymap to the default keymap")
+                            : t(
+                                "Resetting to the default keymap requires the fast-keymap firmware module, which this keyboard does not expose.",
+                              )}
+                          <Tooltip.Arrow className="fill-[var(--color-surface-elevated)]" />
+                        </Tooltip.Content>
+                      </Tooltip.Portal>
+                    </Tooltip.Root>
+                  </Tooltip.Provider>
                   <button
                     className="btn-electric text-sm flex items-center gap-1.5"
                     onClick={handleSave}
@@ -726,7 +791,42 @@ export function KeymapPage() {
 
             {/* Keyboard Layout */}
             {currentLayer && (
-              <div className="glass-card p-8">
+              <div className="glass-card p-8 relative">
+                {/* Status indicator: unsaved edits (neon), saved-but-
+                    customized-from-default (electric/blue), or saved-and-stock
+                    (muted). */}
+                <div
+                  className="absolute top-3 right-3 z-10 flex items-center gap-1.5 px-2 py-1 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)]/70 text-xs"
+                  title={
+                    !keymap.hasUnsavedChanges &&
+                    keymap.isKeymapChangedFromDefault
+                      ? t("Saved — changed from the default keymap")
+                      : undefined
+                  }
+                >
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      keymap.hasUnsavedChanges
+                        ? "bg-[var(--color-neon)]"
+                        : keymap.isKeymapChangedFromDefault
+                          ? "bg-[var(--color-electric)]"
+                          : "bg-[var(--color-text-muted)]"
+                    }`}
+                  />
+                  <span
+                    className={
+                      keymap.hasUnsavedChanges
+                        ? "text-[var(--color-neon)]"
+                        : keymap.isKeymapChangedFromDefault
+                          ? "text-[var(--color-electric)]"
+                          : "text-[var(--color-text-muted)]"
+                    }
+                  >
+                    {keymap.hasUnsavedChanges
+                      ? t("Unsaved changes")
+                      : t("Saved")}
+                  </span>
+                </div>
                 <KeyboardLayout
                   layout={currentLayout}
                   layer={currentLayer}
@@ -735,8 +835,13 @@ export function KeymapPage() {
                   selectedKey={selectedKeyPosition}
                   onKeyClick={handleKeyClick}
                   onKeyReset={handleKeyReset}
+                  onKeyResetToDefault={handleKeyResetToDefault}
                   isBindingModified={keymap.isBindingModified}
+                  isBindingChangedFromDefault={
+                    keymap.isBindingChangedFromDefault
+                  }
                   getOriginalBinding={keymap.getOriginalBinding}
+                  getDefaultBinding={keymap.getDefaultBinding}
                   keyboardLayout={keyboardLayoutContext.layout}
                   runtimeMacros={runtimeMacro.macros}
                   modules={
@@ -803,7 +908,7 @@ export function KeymapPage() {
           <p className="text-xs text-[var(--color-text-muted)]">
             {connection.isConnected
               ? t(
-                  "Click on a key to modify its binding. Modified keys are highlighted in green and show the original binding on hover. Use the Reset All button to discard all changes.",
+                  "Click on a key to modify its binding. Modified keys are highlighted in green and show the original binding on hover. Use the Discard button to drop unsaved changes, or Reset to restore the default keymap.",
                 )
               : t(
                   "Connect your keyboard to edit keymaps. Click on a key to modify its binding.",
@@ -860,6 +965,51 @@ export function KeymapPage() {
                   <IconLoader2 size={16} className="animate-spin" />
                 )}
                 {t("Rename")}
+              </button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
+      {/* Reset-to-Default Confirmation Dialog */}
+      <Dialog.Root
+        open={showResetDialog}
+        onOpenChange={(open) => {
+          if (!open && !isResetting) setShowResetDialog(false);
+        }}
+      >
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" />
+          <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-md bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] shadow-2xl z-50 p-6">
+            <Dialog.Title className="text-base font-medium text-[var(--color-text)] mb-2 flex items-center gap-2">
+              <IconAlertTriangle
+                size={18}
+                className="text-[var(--color-warning)]"
+              />
+              {t("Reset to default keymap?")}
+            </Dialog.Title>
+            <Dialog.Description className="text-sm text-[var(--color-text-muted)] mb-5">
+              {t(
+                "This resets the saved keymap on your keyboard back to its hard-coded default and writes it to flash immediately. All saved key bindings will be lost. This cannot be undone.",
+              )}
+            </Dialog.Description>
+            <div className="flex gap-3">
+              <button
+                className="flex-1 btn-ghost border border-[var(--color-border)]"
+                onClick={() => setShowResetDialog(false)}
+                disabled={isResetting}
+              >
+                {t("Cancel")}
+              </button>
+              <button
+                className="flex-1 btn-electric flex items-center justify-center gap-2"
+                onClick={() => void handleResetToDefault()}
+                disabled={isResetting}
+              >
+                {isResetting && (
+                  <IconLoader2 size={16} className="animate-spin" />
+                )}
+                {t("Reset to default")}
               </button>
             </div>
           </Dialog.Content>

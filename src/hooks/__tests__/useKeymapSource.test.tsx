@@ -4,6 +4,10 @@ import { ZMKAppContext } from "@cormoran/zmk-studio-react-hook";
 import { useKeymapSource } from "../useKeymapSource";
 import { setFastKeymapAvailable } from "../../lib/officialKeymapRpcGuard";
 import type { FastKeymapModel } from "../../lib/fastKeymap";
+import {
+  Request,
+  Response,
+} from "../../proto/cormoran/fast_keymap/fast_keymap";
 
 // -- mock the transport bits --------------------------------------------------
 
@@ -108,6 +112,12 @@ describe("useKeymapSource — official fallback", () => {
     expect(data.keymap.availableLayers).toBe(4);
     expect(data.behaviors.get(7)?.displayName).toBe("kp");
     expect(mockLoadFastKeymap).not.toHaveBeenCalled();
+  });
+
+  it("loadDefaultKeymap returns an empty map (no default source on official)", async () => {
+    const { result } = renderHook(() => useKeymapSource(), { wrapper });
+    const defaults = await result.current.loadDefaultKeymap([1, 2]);
+    expect(defaults.size).toBe(0);
   });
 });
 
@@ -290,6 +300,31 @@ describe("useKeymapSource — fast path", () => {
     >;
     expect(behaviors.get(42)?.displayName).toBe("Key Press");
     expect(mockLoadFastKeymap).toHaveBeenCalledTimes(2);
+  });
+
+  it("loadDefaultKeymap fetches each layer's default via get_default_layer", async () => {
+    // call() encodes the Request and delegates to callRPC(), which returns the
+    // encoded Response bytes the codec then decodes.
+    mockCallRPC.mockImplementation(async (payload: Uint8Array) => {
+      const req = Request.decode(payload);
+      const layerId = req.getDefaultLayer?.layerId ?? 0;
+      return Response.encode({
+        getDefaultLayer: {
+          id: layerId,
+          name: "",
+          bindings: [{ behaviorId: layerId + 10, param1: 1, param2: 2 }],
+        },
+      }).finish();
+    });
+
+    const { result } = renderHook(() => useKeymapSource(), { wrapper });
+    const defaults = await result.current.loadDefaultKeymap([1, 2]);
+
+    expect(defaults.size).toBe(2);
+    expect(defaults.get(1)).toEqual([{ behaviorId: 11, param1: 1, param2: 2 }]);
+    expect(defaults.get(2)).toEqual([{ behaviorId: 12, param1: 1, param2: 2 }]);
+    // One get_default_layer round-trip per requested layer.
+    expect(mockCallRPC).toHaveBeenCalledTimes(2);
   });
 
   it("fetches one layout's geometry lazily via loadLayoutGeometry", async () => {

@@ -29,6 +29,7 @@ import type {
   PhysicalLayouts,
   PhysicalLayout,
   KeyPhysicalAttrs,
+  BehaviorBinding,
 } from "@zmkfirmware/zmk-studio-ts-client/keymap";
 import type { BehaviorBindingParametersSet } from "@zmkfirmware/zmk-studio-ts-client/behaviors";
 import { ErrorConditions } from "@zmkfirmware/zmk-studio-ts-client/meta";
@@ -195,6 +196,21 @@ export interface UseKeymapSourceReturn {
    * non-active layout geometry is loaded lazily (not at initial load) — call
    * this when switching to a layout whose `keys` are still empty. */
   loadLayoutGeometry: (index: number) => Promise<KeyPhysicalAttrs[]>;
+  /** Load the keyboard's hard-coded (devicetree-stock) DEFAULT keymap — the
+   * bindings before any Studio edit was ever saved — as a map from layer id to
+   * that layer's default bindings.
+   *
+   * Only the fast-keymap subsystem exposes this (`get_default_layer`); on the
+   * official path there is no way to read the stock keymap, so this returns an
+   * empty map. Callers gate any "reset to default" / "changed from default"
+   * feature on {@link isFastAvailable} and treat an empty map as "unavailable".
+   *
+   * This costs one round-trip per layer, so it is meant to run as the FINAL
+   * step of a keymap load (after the preview is already painted), never on the
+   * critical path. */
+  loadDefaultKeymap: (
+    layerIds: number[],
+  ) => Promise<Map<number, BehaviorBinding[]>>;
 }
 
 // -- fast-path helpers ------------------------------------------------------
@@ -500,6 +516,38 @@ export function useKeymapSource(): UseKeymapSourceReturn {
     [isFastAvailable, call, deviceKey, officialRpc],
   );
 
+  const loadDefaultKeymap = useCallback(
+    async (layerIds: number[]): Promise<Map<number, BehaviorBinding[]>> => {
+      const defaults = new Map<number, BehaviorBinding[]>();
+      // Only the fast subsystem can serve the devicetree-stock keymap; the
+      // official protocol has no such request. Return empty so callers fall
+      // back to "unavailable" (highlight skipped, reset disabled).
+      if (!isFastAvailable) {
+        return defaults;
+      }
+      // One get_default_layer round-trip per layer — deliberately serial and
+      // meant to run last (see the interface doc), so it never competes with
+      // the preview load.
+      for (const layerId of layerIds) {
+        const response = await fastCallChecked(call, {
+          getDefaultLayer: { layerId },
+        });
+        const layer = response.getDefaultLayer;
+        if (!layer) continue;
+        defaults.set(
+          layerId,
+          layer.bindings.map((b) => ({
+            behaviorId: b.behaviorId,
+            param1: b.param1,
+            param2: b.param2,
+          })),
+        );
+      }
+      return defaults;
+    },
+    [isFastAvailable, call],
+  );
+
   return {
     isFastAvailable,
     source,
@@ -507,5 +555,6 @@ export function useKeymapSource(): UseKeymapSourceReturn {
     loadPhysicalLayouts,
     loadLayerNames,
     loadLayoutGeometry,
+    loadDefaultKeymap,
   };
 }

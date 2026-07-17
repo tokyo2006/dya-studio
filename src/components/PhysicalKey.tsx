@@ -11,6 +11,7 @@ import {
   IconBrandWindows,
   IconChevronUp,
   IconCommand,
+  IconHistory,
   IconOption,
   IconRotateClockwise,
   IconSpace,
@@ -30,6 +31,11 @@ interface PhysicalKeyProps {
   binding?: BehaviorBinding;
   /** Whether this key has been modified from original */
   isModified: boolean;
+  /** Whether this key's persisted binding differs from the hard-coded default
+   * keymap (a modest, informational highlight, distinct from `isModified`). */
+  isChangedFromDefault?: boolean;
+  /** Default-binding display name (for tooltip when changed from default) */
+  defaultDisplayName?: string;
   /** Display name for the binding */
   displayName: string;
   /** Long display name (for tooltip) */
@@ -46,6 +52,8 @@ interface PhysicalKeyProps {
   onClick: () => void;
   /** Callback to reset this key to original */
   onReset: () => void;
+  /** Callback to reset this key to its hard-coded default (optional) */
+  onResetToDefault?: () => void;
   /** Scale factor for responsive sizing */
   scale?: number;
 }
@@ -53,14 +61,17 @@ interface PhysicalKeyProps {
 export function PhysicalKey({
   attrs,
   isModified,
+  isChangedFromDefault = false,
   displayName,
   longDisplayName,
   originalDisplayName,
+  defaultDisplayName,
   bindingDescription,
   isSelected,
   isHighlighted = false,
   onClick,
   onReset,
+  onResetToDefault,
   scale = 1.0,
 }: PhysicalKeyProps) {
   const { t } = useLanguage();
@@ -114,7 +125,9 @@ export function PhysicalKey({
               ? "bg-[var(--color-electric)]/20 border-[var(--color-electric)] shadow-[0_0_10px_rgba(0,212,255,0.3)]"
               : isModified
                 ? "bg-[var(--color-neon)]/10 border-[var(--color-neon)]/50 hover:border-[var(--color-neon)]"
-                : "bg-[var(--color-surface)] border-[var(--color-border)] hover:border-[var(--color-electric)]/50 hover:bg-[var(--color-electric)]/5"
+                : isChangedFromDefault
+                  ? "bg-[var(--color-surface)] border-[var(--color-electric)]/30 hover:border-[var(--color-electric)]/60 hover:bg-[var(--color-electric)]/5"
+                  : "bg-[var(--color-surface)] border-[var(--color-border)] hover:border-[var(--color-electric)]/50 hover:bg-[var(--color-electric)]/5"
         }
       `}
       style={style}
@@ -146,6 +159,12 @@ export function PhysicalKey({
         <div className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[var(--color-neon)]" />
       )}
 
+      {/* Changed-from-default indicator (modest, distinct corner + color from
+          the modified dot above) */}
+      {isChangedFromDefault && !isModified && (
+        <div className="absolute top-1 left-1 w-1.5 h-1.5 rounded-full bg-[var(--color-electric)]/50" />
+      )}
+
       {isHighlighted && (
         <div className="absolute inset-0 rounded-lg border-2 border-amber-200/70 pointer-events-none animate-pulse" />
       )}
@@ -164,6 +183,22 @@ export function PhysicalKey({
             size={12}
             className="text-[var(--color-text-muted)]"
           />
+        </button>
+      )}
+
+      {/* Reset-to-default button on hover when changed from default (and not
+          currently modified — that state shows the reset-to-original button
+          above instead) */}
+      {isChangedFromDefault && !isModified && isHovered && onResetToDefault && (
+        <button
+          className="absolute bottom-1 right-1 p-0.5 rounded bg-[var(--color-surface)]/80 hover:bg-[var(--color-surface)] border border-[var(--color-border)]"
+          onClick={(e) => {
+            e.stopPropagation();
+            onResetToDefault();
+          }}
+          title={t("Reset to default")}
+        >
+          <IconHistory size={12} className="text-[var(--color-electric)]" />
         </button>
       )}
     </div>
@@ -204,6 +239,17 @@ export function PhysicalKey({
                     {t("Original")}:{" "}
                   </span>
                   <span>{originalDisplayName}</span>
+                </div>
+              )}
+              {/* Default binding when the persisted value differs from it */}
+              {isChangedFromDefault && !isModified && defaultDisplayName && (
+                <div>
+                  <span className="text-[var(--color-text-muted)]">
+                    {t("Default")}:{" "}
+                  </span>
+                  <span className="text-[var(--color-electric)]">
+                    {defaultDisplayName}
+                  </span>
                 </div>
               )}
             </div>

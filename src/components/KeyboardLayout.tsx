@@ -42,10 +42,25 @@ interface KeyboardLayoutProps {
   onKeyClick: (keyPosition: number) => void;
   /** Callback to reset a key to original */
   onKeyReset: (keyPosition: number) => void;
+  /** Callback to reset a key to its hard-coded default (optional; only wired
+   * when the fast-keymap subsystem is present) */
+  onKeyResetToDefault?: (keyPosition: number) => void;
   /** Function to check if a binding is modified */
   isBindingModified: (layerId: number, keyPosition: number) => boolean;
+  /** Function to check if a binding's persisted value differs from the default
+   * keymap (optional; only available when the fast-keymap subsystem is present) */
+  isBindingChangedFromDefault?: (
+    layerId: number,
+    keyPosition: number,
+  ) => boolean;
   /** Function to get original binding */
   getOriginalBinding: (
+    layerId: number,
+    keyPosition: number,
+  ) => BehaviorBinding | null;
+  /** Function to get the hard-coded default binding (optional; only available
+   * when the fast-keymap subsystem is present) */
+  getDefaultBinding?: (
     layerId: number,
     keyPosition: number,
   ) => BehaviorBinding | null;
@@ -102,8 +117,11 @@ export function KeyboardLayout({
   selectedKey,
   onKeyClick,
   onKeyReset,
+  onKeyResetToDefault,
   isBindingModified,
+  isBindingChangedFromDefault,
   getOriginalBinding,
+  getDefaultBinding,
   keyboardLayout,
   modules = [],
   highlightedKeys,
@@ -243,6 +261,28 @@ export function KeyboardLayout({
     ],
   );
 
+  // Get default-binding display name for tooltip
+  const getDefaultDisplayName = useCallback(
+    (keyPosition: number): string | undefined => {
+      const def = getDefaultBinding?.(layer.id, keyPosition);
+      if (!def) return undefined;
+      const behavior = behaviors.get(def.behaviorId) || null;
+      return formatBehaviorBinding(def, behavior, {
+        layers: layers,
+        keyboardLayout,
+        runtimeMacros,
+      });
+    },
+    [
+      getDefaultBinding,
+      layer,
+      behaviors,
+      layers,
+      keyboardLayout,
+      runtimeMacros,
+    ],
+  );
+
   // Get full binding description for tooltip
   const getBindingDescription = useCallback(
     (binding: BehaviorBinding | undefined): string => {
@@ -267,6 +307,8 @@ export function KeyboardLayout({
         {layout.keys.map((key, position) => {
           const binding = layer.bindings[position];
           const modified = isBindingModified(layer.id, position);
+          const changedFromDefault =
+            isBindingChangedFromDefault?.(layer.id, position) ?? false;
 
           // Adjust position with offset for centering
           const adjustedKey: KeyPhysicalAttrs = {
@@ -282,16 +324,25 @@ export function KeyboardLayout({
               keyPosition={position}
               binding={binding}
               isModified={modified}
+              isChangedFromDefault={changedFromDefault}
               displayName={getKeyDisplayName(position, binding)}
               longDisplayName={getKeyLongDisplayName(position, binding)}
               originalDisplayName={
                 modified ? getOriginalDisplayName(position) : undefined
+              }
+              defaultDisplayName={
+                changedFromDefault ? getDefaultDisplayName(position) : undefined
               }
               bindingDescription={getBindingDescription(binding)}
               isSelected={selectedKey === position}
               isHighlighted={highlightedKeys?.has(position)}
               onClick={() => onKeyClick(position)}
               onReset={() => onKeyReset(position)}
+              onResetToDefault={
+                onKeyResetToDefault
+                  ? () => onKeyResetToDefault(position)
+                  : undefined
+              }
               scale={scale}
             />
           );
