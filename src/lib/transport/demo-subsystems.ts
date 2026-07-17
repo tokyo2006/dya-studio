@@ -28,6 +28,18 @@ import { DEFAULT_LAYER_IDENTIFIER } from "./demo-default-layer";
 /** Identifier the fast-keymap module registers on the device. */
 export const FAST_KEYMAP_IDENTIFIER = "cormoran__fast_keymap";
 
+/**
+ * Identifier the zephyr-setting-expose module registers on the device.
+ * DYA Studio has no dedicated UI for it; it ships its own external web UI, so
+ * the Subsystems tab surfaces it as an external-link card (see
+ * SETTING_EXPOSE_UI_URL).
+ */
+export const SETTING_EXPOSE_IDENTIFIER = "zmk__setting_expose";
+
+/** External web UI published by the zephyr-setting-expose firmware module. */
+export const SETTING_EXPOSE_UI_URL =
+  "https://cormoran.github.io/zmk-feature-zephyr-setting-expose/";
+
 /** localStorage key holding `{ [identifier]: boolean }` overrides. */
 const OVERRIDES_KEY = "dya-studio-demo-subsystem-overrides";
 
@@ -140,6 +152,12 @@ export const DEMO_SUBSYSTEMS: DemoSubsystemInfo[] = [
     identifier: FAST_KEYMAP_IDENTIFIER,
     label: "Fast Keymap",
     defaultEnabled: false,
+  },
+  {
+    index: 16,
+    identifier: SETTING_EXPOSE_IDENTIFIER,
+    label: "Setting Expose",
+    defaultEnabled: true,
   },
 ];
 

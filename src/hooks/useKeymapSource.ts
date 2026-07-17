@@ -49,7 +49,8 @@ import {
 import type { TranslationParams } from "../i18n/translations";
 
 /** Identifier the fast-keymap module registers on the device. */
-const FAST_KEYMAP_SUBSYSTEM = "cormoran__fast_keymap";
+export const FAST_KEYMAP_SUBSYSTEM_IDENTIFIER = "cormoran__fast_keymap";
+const FAST_KEYMAP_SUBSYSTEM = FAST_KEYMAP_SUBSYSTEM_IDENTIFIER;
 
 /** ts-proto codec for the fast_keymap Request/Response wire messages. */
 const FAST_KEYMAP_CODEC = {
