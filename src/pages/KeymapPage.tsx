@@ -137,6 +137,16 @@ export function KeymapPage() {
     [currentLayer, keymap, requireUnlocked],
   );
 
+  // Handle key reset-to-default (in-memory edit; becomes an unsaved change)
+  const handleKeyResetToDefault = useCallback(
+    async (keyPosition: number) => {
+      if (!requireUnlocked()) return;
+      if (!currentLayer) return;
+      await keymap.resetBindingToDefault(currentLayer.id, keyPosition);
+    },
+    [currentLayer, keymap, requireUnlocked],
+  );
+
   // Handle binding selection
   const handleBindingSelect = useCallback(
     async (binding: BehaviorBinding) => {
@@ -795,11 +805,13 @@ export function KeymapPage() {
                   selectedKey={selectedKeyPosition}
                   onKeyClick={handleKeyClick}
                   onKeyReset={handleKeyReset}
+                  onKeyResetToDefault={handleKeyResetToDefault}
                   isBindingModified={keymap.isBindingModified}
                   isBindingChangedFromDefault={
                     keymap.isBindingChangedFromDefault
                   }
                   getOriginalBinding={keymap.getOriginalBinding}
+                  getDefaultBinding={keymap.getDefaultBinding}
                   keyboardLayout={keyboardLayoutContext.layout}
                   runtimeMacros={runtimeMacro.macros}
                   modules={

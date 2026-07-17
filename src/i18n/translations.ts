@@ -109,7 +109,6 @@ const ja: Record<string, string> = {
   "This resets the saved keymap on your keyboard back to its hard-coded default and writes it to flash immediately. All saved key bindings will be lost. This cannot be undone.":
     "キーボードに保存されたキーマップをハードコードされたデフォルトに戻し、直ちにフラッシュへ書き込みます。保存済みのすべてのキー割り当ては失われます。この操作は元に戻せません。",
   "Reset to default": "デフォルトにリセット",
-  "Changed from default keymap": "デフォルトのキーマップから変更されています",
   "Default keymap is not available": "デフォルトのキーマップを利用できません",
   Locked: "ロック中",
   "Studio is locked — click to unlock":

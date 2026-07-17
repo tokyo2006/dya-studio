@@ -119,6 +119,14 @@ export interface UseKeymapReturn extends KeymapState {
   ) => Promise<boolean>;
   /** Reset a binding to its original value */
   resetBinding: (layerId: number, keyPosition: number) => Promise<boolean>;
+  /** Reset a single binding to its hard-coded default value (an in-memory edit,
+   * so the key becomes an unsaved change until saved). Only meaningful when
+   * {@link isFastKeymapAvailable} is true. Returns false when the default for
+   * this key isn't available. */
+  resetBindingToDefault: (
+    layerId: number,
+    keyPosition: number,
+  ) => Promise<boolean>;
   /** Move a layer from one position to another */
   moveLayer: (startIndex: number, destIndex: number) => Promise<boolean>;
   /** Add a new layer */
@@ -147,6 +155,12 @@ export interface UseKeymapReturn extends KeymapState {
   setActiveLayout: (layoutIndex: number) => Promise<boolean>;
   /** Get the original binding for a key (before modification) */
   getOriginalBinding: (
+    layerId: number,
+    keyPosition: number,
+  ) => BehaviorBinding | null;
+  /** Get the hard-coded default binding for a key, or null when the default
+   * keymap isn't loaded/available. */
+  getDefaultBinding: (
     layerId: number,
     keyPosition: number,
   ) => BehaviorBinding | null;
@@ -555,6 +569,20 @@ export function useKeymap(): UseKeymapReturn {
     [originalBindings, setBinding],
   );
 
+  // Reset a single binding to its hard-coded default value. Unlike
+  // resetToDefault (whole keymap + save), this is an in-memory edit: the key
+  // becomes an unsaved change the user can then save or discard.
+  const resetBindingToDefault = useCallback(
+    async (layerId: number, keyPosition: number): Promise<boolean> => {
+      const def = defaultBindings.get(bindingKey(layerId, keyPosition));
+      if (!def) {
+        return false;
+      }
+      return setBinding(layerId, keyPosition, def);
+    },
+    [defaultBindings, setBinding],
+  );
+
   // Move a layer
   const moveLayer = useCallback(
     async (startIndex: number, destIndex: number): Promise<boolean> => {
@@ -892,6 +920,14 @@ export function useKeymap(): UseKeymapReturn {
     [originalBindings],
   );
 
+  // Get hard-coded default binding
+  const getDefaultBinding = useCallback(
+    (layerId: number, keyPosition: number): BehaviorBinding | null => {
+      return defaultBindings.get(bindingKey(layerId, keyPosition)) ?? null;
+    },
+    [defaultBindings],
+  );
+
   // Check if binding is modified
   const isBindingModified = useCallback(
     (layerId: number, keyPosition: number): boolean => {
@@ -1084,6 +1120,7 @@ export function useKeymap(): UseKeymapReturn {
     loadKeymapData,
     setBinding,
     resetBinding,
+    resetBindingToDefault,
     moveLayer,
     addLayer,
     removeLayer,
@@ -1097,6 +1134,7 @@ export function useKeymap(): UseKeymapReturn {
     resetToDefault,
     setActiveLayout,
     getOriginalBinding,
+    getDefaultBinding,
     isBindingModified,
     isFastKeymapAvailable,
     isBindingChangedFromDefault,

@@ -11,6 +11,7 @@ import {
   IconBrandWindows,
   IconChevronUp,
   IconCommand,
+  IconHistory,
   IconOption,
   IconRotateClockwise,
   IconSpace,
@@ -33,6 +34,8 @@ interface PhysicalKeyProps {
   /** Whether this key's persisted binding differs from the hard-coded default
    * keymap (a modest, informational highlight, distinct from `isModified`). */
   isChangedFromDefault?: boolean;
+  /** Default-binding display name (for tooltip when changed from default) */
+  defaultDisplayName?: string;
   /** Display name for the binding */
   displayName: string;
   /** Long display name (for tooltip) */
@@ -49,6 +52,8 @@ interface PhysicalKeyProps {
   onClick: () => void;
   /** Callback to reset this key to original */
   onReset: () => void;
+  /** Callback to reset this key to its hard-coded default (optional) */
+  onResetToDefault?: () => void;
   /** Scale factor for responsive sizing */
   scale?: number;
 }
@@ -60,11 +65,13 @@ export function PhysicalKey({
   displayName,
   longDisplayName,
   originalDisplayName,
+  defaultDisplayName,
   bindingDescription,
   isSelected,
   isHighlighted = false,
   onClick,
   onReset,
+  onResetToDefault,
   scale = 1.0,
 }: PhysicalKeyProps) {
   const { t } = useLanguage();
@@ -178,6 +185,22 @@ export function PhysicalKey({
           />
         </button>
       )}
+
+      {/* Reset-to-default button on hover when changed from default (and not
+          currently modified — that state shows the reset-to-original button
+          above instead) */}
+      {isChangedFromDefault && !isModified && isHovered && onResetToDefault && (
+        <button
+          className="absolute bottom-1 right-1 p-0.5 rounded bg-[var(--color-surface)]/80 hover:bg-[var(--color-surface)] border border-[var(--color-border)]"
+          onClick={(e) => {
+            e.stopPropagation();
+            onResetToDefault();
+          }}
+          title={t("Reset to default")}
+        >
+          <IconHistory size={12} className="text-[var(--color-electric)]" />
+        </button>
+      )}
     </div>
   );
 
@@ -218,10 +241,15 @@ export function PhysicalKey({
                   <span>{originalDisplayName}</span>
                 </div>
               )}
-              {/* Note when the persisted binding differs from the default */}
-              {isChangedFromDefault && !isModified && (
-                <div className="text-[var(--color-electric)]">
-                  {t("Changed from default keymap")}
+              {/* Default binding when the persisted value differs from it */}
+              {isChangedFromDefault && !isModified && defaultDisplayName && (
+                <div>
+                  <span className="text-[var(--color-text-muted)]">
+                    {t("Default")}:{" "}
+                  </span>
+                  <span className="text-[var(--color-electric)]">
+                    {defaultDisplayName}
+                  </span>
                 </div>
               )}
             </div>

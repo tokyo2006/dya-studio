@@ -127,6 +127,7 @@ describe("KeymapPage", () => {
       loadKeymapData: jest.fn(),
       setBinding: jest.fn().mockResolvedValue(true),
       resetBinding: jest.fn().mockResolvedValue(true),
+      resetBindingToDefault: jest.fn().mockResolvedValue(true),
       moveLayer: jest.fn().mockResolvedValue(true),
       addLayer: jest.fn().mockResolvedValue({
         index: 0,
@@ -143,6 +144,7 @@ describe("KeymapPage", () => {
       resetToDefault: jest.fn().mockResolvedValue(true),
       setActiveLayout: jest.fn().mockResolvedValue(true),
       getOriginalBinding: jest.fn().mockReturnValue(null),
+      getDefaultBinding: jest.fn().mockReturnValue(null),
       isBindingModified: jest.fn().mockReturnValue(false),
       isFastKeymapAvailable: false,
       isBindingChangedFromDefault: jest.fn().mockReturnValue(false),
