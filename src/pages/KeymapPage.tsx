@@ -792,20 +792,34 @@ export function KeymapPage() {
             {/* Keyboard Layout */}
             {currentLayer && (
               <div className="glass-card p-8 relative">
-                {/* Saved / unsaved status indicator */}
-                <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5 px-2 py-1 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)]/70 text-xs">
+                {/* Status indicator: unsaved edits (neon), saved-but-
+                    customized-from-default (electric/blue), or saved-and-stock
+                    (muted). */}
+                <div
+                  className="absolute top-3 right-3 z-10 flex items-center gap-1.5 px-2 py-1 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)]/70 text-xs"
+                  title={
+                    !keymap.hasUnsavedChanges &&
+                    keymap.isKeymapChangedFromDefault
+                      ? t("Saved — changed from the default keymap")
+                      : undefined
+                  }
+                >
                   <span
                     className={`w-2 h-2 rounded-full ${
                       keymap.hasUnsavedChanges
                         ? "bg-[var(--color-neon)]"
-                        : "bg-[var(--color-text-muted)]"
+                        : keymap.isKeymapChangedFromDefault
+                          ? "bg-[var(--color-electric)]"
+                          : "bg-[var(--color-text-muted)]"
                     }`}
                   />
                   <span
                     className={
                       keymap.hasUnsavedChanges
                         ? "text-[var(--color-neon)]"
-                        : "text-[var(--color-text-muted)]"
+                        : keymap.isKeymapChangedFromDefault
+                          ? "text-[var(--color-electric)]"
+                          : "text-[var(--color-text-muted)]"
                     }
                   >
                     {keymap.hasUnsavedChanges

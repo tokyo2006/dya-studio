@@ -148,6 +148,7 @@ describe("KeymapPage", () => {
       isBindingModified: jest.fn().mockReturnValue(false),
       isFastKeymapAvailable: false,
       isBindingChangedFromDefault: jest.fn().mockReturnValue(false),
+      isKeymapChangedFromDefault: false,
       getBehavior: jest.fn(),
       getBindingDisplayName: jest.fn().mockReturnValue("Key"),
       clearUnlockRequired: jest.fn(),
@@ -295,6 +296,28 @@ describe("KeymapPage", () => {
 
       expect(screen.getByText("Saved")).toBeInTheDocument();
       expect(screen.queryByText("Unsaved changes")).not.toBeInTheDocument();
+    });
+
+    it("marks the saved indicator when the keymap differs from the default", () => {
+      renderComponent(
+        { isConnected: true },
+        {
+          keymap: mockKeymap,
+          physicalLayouts: mockPhysicalLayouts,
+          behaviors: mockBehaviors,
+          hasUnsavedChanges: false,
+          isKeymapChangedFromDefault: true,
+        },
+      );
+
+      // Still reads "Saved", but tinted electric and carrying the explanatory
+      // title (the blue-dot state).
+      const label = screen.getByText("Saved");
+      expect(label).toBeInTheDocument();
+      expect(label.className).toContain("--color-electric");
+      expect(
+        screen.getByTitle("Saved — changed from the default keymap"),
+      ).toBeInTheDocument();
     });
 
     it("should show save and reset buttons when connected", () => {

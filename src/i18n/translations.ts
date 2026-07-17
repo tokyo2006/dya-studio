@@ -98,6 +98,8 @@ const ja: Record<string, string> = {
   "Configure key bindings and layers": "キー割り当てとレイヤーを設定します",
   "Unsaved changes": "未保存の変更",
   Saved: "保存済み",
+  "Saved — changed from the default keymap":
+    "保存済み — デフォルトのキーマップから変更されています",
   Stream: "ストリーム",
   "Toggle stream mode": "ストリームモードを切り替え",
   "Discard unsaved changes and reload the keymap":

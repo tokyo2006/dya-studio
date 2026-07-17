@@ -179,6 +179,11 @@ export interface UseKeymapReturn extends KeymapState {
     layerId: number,
     keyPosition: number,
   ) => boolean;
+  /** True when the PERSISTED keymap differs from the hard-coded default in at
+   * least one position (i.e. the saved keymap has been customized). False while
+   * the default keymap is still loading or when it isn't available (no
+   * fast-keymap subsystem). */
+  isKeymapChangedFromDefault: boolean;
   /** Get behavior definition by ID */
   getBehavior: (behaviorId: number) => BehaviorDefinition | undefined;
   /** Get display name for a binding */
@@ -963,6 +968,19 @@ export function useKeymap(): UseKeymapReturn {
     [defaultBindings, originalBindings, isBindingModified],
   );
 
+  // Whether the persisted keymap differs from the hard-coded default anywhere —
+  // drives the "saved but customized" badge state. Compares the persisted
+  // (original) bindings, not the current in-memory ones, so it reflects what is
+  // actually on the device once saved.
+  const isKeymapChangedFromDefault = useMemo(() => {
+    if (defaultBindings.size === 0) return false;
+    for (const [key, def] of defaultBindings) {
+      const original = originalBindings.get(key);
+      if (original && !bindingsEqual(original, def)) return true;
+    }
+    return false;
+  }, [defaultBindings, originalBindings]);
+
   // Get behavior by ID
   const getBehavior = useCallback(
     (behaviorId: number): BehaviorDefinition | undefined => {
@@ -1138,6 +1156,7 @@ export function useKeymap(): UseKeymapReturn {
     isBindingModified,
     isFastKeymapAvailable,
     isBindingChangedFromDefault,
+    isKeymapChangedFromDefault,
     getBehavior,
     getBindingDisplayName,
     clearUnlockRequired,
