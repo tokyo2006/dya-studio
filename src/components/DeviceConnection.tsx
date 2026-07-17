@@ -19,7 +19,7 @@ import { connect as connectBLE } from "@zmkfirmware/zmk-studio-ts-client/transpo
 import { connect as connectUSB } from "../lib/transport/usb";
 import { connect as connectDemo } from "../lib/transport/demo";
 import {
-  describeCustomNotification,
+  resolveCustomSubsystemIdentifier,
   withLoggedNotifications,
 } from "../lib/rpcLogging";
 
@@ -97,7 +97,7 @@ export function DeviceConnectionProvider({
     () => ({
       ...zmkApp,
       onNotification: withLoggedNotifications(zmkApp.onNotification, (index) =>
-        describeCustomNotification(
+        resolveCustomSubsystemIdentifier(
           index,
           zmkApp.state.customSubsystems?.subsystems,
         ),
