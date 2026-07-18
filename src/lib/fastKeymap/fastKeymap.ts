@@ -371,6 +371,31 @@ async function callChecked(
   return response;
 }
 
+/** One layer's unsaved (pending) positions, from {@link loadPendingPositions}. */
+export interface FastKeymapPendingLayer {
+  id: number;
+  /** Binding positions (selected-layout order) with an unsaved edit. */
+  positions: number[];
+}
+
+/**
+ * Fetch the positions whose binding has an unsaved, in-memory-only edit --
+ * changed since the last save (ZMK core's pending bit) -- via the `get_pending`
+ * RPC. Only layers with at least one pending position are returned; a
+ * fully-saved keymap yields an empty array. Values are not returned (the client
+ * already holds the current bindings from {@link loadFastKeymap} / `get_layers`);
+ * this reports only WHICH keys are unsaved.
+ */
+export async function loadPendingPositions(
+  call: FastKeymapCall,
+): Promise<FastKeymapPendingLayer[]> {
+  const response = await callChecked(call, { getPending: true });
+  return (response.getPending?.layers ?? []).map((l) => ({
+    id: l.id,
+    positions: [...l.positions],
+  }));
+}
+
 // ---------------------------------------------------------------------
 // localStorage cache helpers -- caching is a pure optimization, never a
 // correctness requirement, so any storage failure (quota, private

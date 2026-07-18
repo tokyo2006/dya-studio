@@ -830,6 +830,33 @@ class Keyboard {
       };
     }
 
+    if (req.getPending) {
+      // Unsaved (pending) positions = the current in-memory bindings that
+      // differ from what was last saved (this.persistent), so the web can
+      // restore the "pending to save" highlight after a keymap-tab remount.
+      // Only layers with at least one pending position are included.
+      const savedLayers = this.persistent.keymap.layers;
+      const pendingLayers = km.layers
+        .map((l) => {
+          const saved = savedLayers.find((s: { id: number }) => s.id === l.id);
+          const positions: number[] = [];
+          l.bindings.forEach((b, position) => {
+            const s = saved?.bindings[position];
+            if (
+              !s ||
+              s.behaviorId !== b.behaviorId ||
+              s.param1 !== b.param1 ||
+              s.param2 !== b.param2
+            ) {
+              positions.push(position);
+            }
+          });
+          return { id: l.id, positions };
+        })
+        .filter((l) => l.positions.length > 0);
+      return { getPending: { layers: pendingLayers } };
+    }
+
     if (req.getPhysicalLayouts) {
       const withKeys =
         req.getPhysicalLayouts.details ===

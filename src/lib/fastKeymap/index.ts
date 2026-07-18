@@ -13,11 +13,13 @@
 export {
   loadFastKeymap,
   loadPhysicalLayoutGeometry,
+  loadPendingPositions,
   indexBehaviorsById,
   formatBindingToken,
   exportKeymapText,
   FastKeymapCacheKeys,
   type FastKeymapCall,
+  type FastKeymapPendingLayer,
   type FastKeymapBinding,
   type BehaviorResolvedFrom,
   type FastKeymapBehavior,

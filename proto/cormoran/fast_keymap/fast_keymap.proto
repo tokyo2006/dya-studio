@@ -10,7 +10,8 @@ package cormoran.fast_keymap;
 // `cormoran__fast_keymap` custom Studio RPC subsystem when a keyboard exposes
 // it, falling back to the official protocol otherwise. Kept in sync with
 // upstream (currently reflects PR #2: 16-bit / adaptive-width fingerprints,
-// batched get_layers, physical-layout size hoist, opt-in alias/display_name).
+// batched get_layers, physical-layout size hoist, opt-in alias/display_name;
+// plus PR #4: get_pending unsaved-positions method).
 //
 // Message shapes deliberately mimic the official proto
 // (dependencies/modules/msgs/zmk-studio-messages/proto/zmk/{keymap,behaviors}.proto)
@@ -29,6 +30,7 @@ message Request {
         GetPhysicalLayoutsRequest get_physical_layouts = 7; // slim summary (+ optional geometry)
         GetPhysicalLayoutRequest get_physical_layout = 8;   // one layout's geometry
         GetLayersRequest get_layers = 9;                    // batch current/effective (cold load)
+        bool get_pending = 10;                              // all layers' unsaved (pending) positions
     }
 }
 
@@ -44,6 +46,7 @@ message Response {
         PhysicalLayoutsResponse get_physical_layouts = 8;
         PhysicalLayoutResponse get_physical_layout = 9;
         GetLayersResponse get_layers = 10;
+        PendingResponse get_pending = 11;
     }
 }
 
@@ -216,6 +219,19 @@ message EditedLayer {
     uint32 id = 1;
     repeated EditedBinding bindings = 2;
 }
+
+// Positions (in the selected physical layout's binding order) whose binding has
+// an unsaved, in-memory-only edit -- changed since the last save, i.e. ZMK
+// core's pending bit (zmk_keymap_layer_binding_at_idx_is_pending). This reports
+// only WHICH keys are unsaved, not their values: the client already holds the
+// current bindings from get_layers/get_layer. Only layers with at least one
+// pending position are included (a fully-saved keymap yields an empty list).
+message PendingLayer {
+    uint32 id = 1;
+    repeated uint32 positions = 2;
+}
+
+message PendingResponse { repeated PendingLayer layers = 1; }
 
 // enum LayoutDetailsMode -- see DESIGN.md SS6 for the semantics of each mode.
 enum LayoutDetailsMode {
