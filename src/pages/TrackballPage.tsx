@@ -771,33 +771,6 @@ export function TrackballPage() {
                 {/* Settings */}
                 {processor && (
                   <div className="space-y-6">
-                    {/* Processor Selector (if multiple processors) */}
-                    {processors.length > 1 && (
-                      <div className="glass-card p-6">
-                        <h3 className="text-sm font-medium text-[var(--color-text)] mb-2">
-                          {t("Select Processor")}
-                        </h3>
-                        <p className="text-xs text-[var(--color-text-muted)] mb-4">
-                          {t("{{count}} processors detected", {
-                            count: processors.length,
-                          })}
-                        </p>
-                        <select
-                          value={selectedProcessorIndex}
-                          onChange={(e) =>
-                            setSelectedProcessorIndex(Number(e.target.value))
-                          }
-                          className="w-full px-4 py-2 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)] text-sm cursor-pointer hover:border-[var(--color-border-hover)] focus:outline-none focus:border-[var(--color-electric)] transition-colors"
-                        >
-                          {processors.map((p, index) => (
-                            <option key={index} value={index}>
-                              {p.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-
                     {/* Active Layers Selection */}
                     <div className="glass-card p-6">
                       <div className="flex items-center justify-between mb-4">
@@ -1030,6 +1003,152 @@ export function TrackballPage() {
                           >
                             <IconChevronRight size={18} />
                           </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Temp Layer Settings */}
+                    <div className="glass-card p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h3 className="text-sm font-medium text-[var(--color-text)]">
+                            {t("Temporary Layer")}
+                          </h3>
+                          <p className="text-xs text-[var(--color-text-muted)]">
+                            {t("Auto-activate layer when trackball is in use")}
+                          </p>
+                        </div>
+                        <div className="flex-shrink-0">
+                          <Switch.Root
+                            checked={displayTempLayerEnabled}
+                            onCheckedChange={handleTempLayerEnabledChange}
+                            className="w-11 h-6 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-surface)] border border-[var(--color-border)] transition-colors cursor-pointer"
+                          >
+                            <Switch.Thumb className="block w-5 h-5 rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform bg-white border border-[var(--color-border)]" />
+                          </Switch.Root>
+                        </div>
+                      </div>
+
+                      {displayTempLayerEnabled && (
+                        <div className="space-y-4 mt-6">
+                          {/* Layer Selection */}
+                          <div>
+                            <label className="text-sm text-[var(--color-text-secondary)] mb-3 block">
+                              {t("Target Layer")}
+                            </label>
+                            {layers.length > 0 ? (
+                              <select
+                                value={displayTempLayerLayer}
+                                onChange={(e) =>
+                                  handleTempLayerLayerChange(
+                                    Number(e.target.value),
+                                  )
+                                }
+                                className="w-full px-4 py-2 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)] text-sm cursor-pointer hover:border-[var(--color-border-hover)] focus:outline-none focus:border-[var(--color-electric)] transition-colors"
+                              >
+                                {layers.map((layer) => (
+                                  <option key={layer.id} value={layer.id}>
+                                    {layer.name ||
+                                      t("Layer {{id}}", { id: layer.id })}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <p className="text-xs text-[var(--color-text-muted)]">
+                                {t("Loading layers...")}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Activation Delay */}
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <label className="text-sm text-[var(--color-text-secondary)]">
+                                {t("Activation Delay")}
+                              </label>
+                              <span className="text-sm font-mono text-[var(--color-electric)]">
+                                {displayTempLayerActivationDelay}ms
+                              </span>
+                            </div>
+                            <input
+                              type="range"
+                              min={0}
+                              max={1000}
+                              step={50}
+                              value={displayTempLayerActivationDelay}
+                              onChange={(e) =>
+                                handleTempLayerActivationDelayChange(
+                                  Number(e.target.value),
+                                )
+                              }
+                              className="w-full h-2 rounded-lg appearance-none cursor-pointer
+                        bg-[var(--color-border)]
+                        [&::-webkit-slider-thumb]:appearance-none
+                        [&::-webkit-slider-thumb]:w-4
+                        [&::-webkit-slider-thumb]:h-4
+                        [&::-webkit-slider-thumb]:rounded-full
+                        [&::-webkit-slider-thumb]:bg-[var(--color-electric)]
+                        [&::-webkit-slider-thumb]:cursor-pointer
+                        [&::-webkit-slider-thumb]:shadow-[0_0_8px_var(--color-electric)]
+                        [&::-moz-range-thumb]:w-4
+                        [&::-moz-range-thumb]:h-4
+                        [&::-moz-range-thumb]:rounded-full
+                        [&::-moz-range-thumb]:bg-[var(--color-electric)]
+                        [&::-moz-range-thumb]:border-0
+                        [&::-moz-range-thumb]:cursor-pointer
+                        [&::-moz-range-thumb]:shadow-[0_0_8px_var(--color-electric)]"
+                            />
+                            <p className="text-xs text-[var(--color-text-muted)] mt-2">
+                              {t(
+                                "Delay before activating layer when trackball moves",
+                              )}
+                            </p>
+                          </div>
+
+                          {/* Deactivation Delay */}
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <label className="text-sm text-[var(--color-text-secondary)]">
+                                {t("Deactivation Delay")}
+                              </label>
+                              <span className="text-sm font-mono text-[var(--color-electric)]">
+                                {displayTempLayerDeactivationDelay}ms
+                              </span>
+                            </div>
+                            <input
+                              type="range"
+                              min={0}
+                              max={2000}
+                              step={100}
+                              value={displayTempLayerDeactivationDelay}
+                              onChange={(e) =>
+                                handleTempLayerDeactivationDelayChange(
+                                  Number(e.target.value),
+                                )
+                              }
+                              className="w-full h-2 rounded-lg appearance-none cursor-pointer
+                        bg-[var(--color-border)]
+                        [&::-webkit-slider-thumb]:appearance-none
+                        [&::-webkit-slider-thumb]:w-4
+                        [&::-webkit-slider-thumb]:h-4
+                        [&::-webkit-slider-thumb]:rounded-full
+                        [&::-webkit-slider-thumb]:bg-[var(--color-electric)]
+                        [&::-webkit-slider-thumb]:cursor-pointer
+                        [&::-webkit-slider-thumb]:shadow-[0_0_8px_var(--color-electric)]
+                        [&::-moz-range-thumb]:w-4
+                        [&::-moz-range-thumb]:h-4
+                        [&::-moz-range-thumb]:rounded-full
+                        [&::-moz-range-thumb]:bg-[var(--color-electric)]
+                        [&::-moz-range-thumb]:border-0
+                        [&::-moz-range-thumb]:cursor-pointer
+                        [&::-moz-range-thumb]:shadow-[0_0_8px_var(--color-electric)]"
+                            />
+                            <p className="text-xs text-[var(--color-text-muted)] mt-2">
+                              {t(
+                                "Delay before deactivating layer when trackball stops",
+                              )}
+                            </p>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -1307,152 +1426,6 @@ export function TrackballPage() {
                           </div>
                         </div>
                       </div>
-                    </div>
-
-                    {/* Temp Layer Settings */}
-                    <div className="glass-card p-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <div>
-                          <h3 className="text-sm font-medium text-[var(--color-text)]">
-                            {t("Temporary Layer")}
-                          </h3>
-                          <p className="text-xs text-[var(--color-text-muted)]">
-                            {t("Auto-activate layer when trackball is in use")}
-                          </p>
-                        </div>
-                        <div className="flex-shrink-0">
-                          <Switch.Root
-                            checked={displayTempLayerEnabled}
-                            onCheckedChange={handleTempLayerEnabledChange}
-                            className="w-11 h-6 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-surface)] border border-[var(--color-border)] transition-colors cursor-pointer"
-                          >
-                            <Switch.Thumb className="block w-5 h-5 rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform bg-white border border-[var(--color-border)]" />
-                          </Switch.Root>
-                        </div>
-                      </div>
-
-                      {displayTempLayerEnabled && (
-                        <div className="space-y-4 mt-6">
-                          {/* Layer Selection */}
-                          <div>
-                            <label className="text-sm text-[var(--color-text-secondary)] mb-3 block">
-                              {t("Target Layer")}
-                            </label>
-                            {layers.length > 0 ? (
-                              <select
-                                value={displayTempLayerLayer}
-                                onChange={(e) =>
-                                  handleTempLayerLayerChange(
-                                    Number(e.target.value),
-                                  )
-                                }
-                                className="w-full px-4 py-2 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)] text-sm cursor-pointer hover:border-[var(--color-border-hover)] focus:outline-none focus:border-[var(--color-electric)] transition-colors"
-                              >
-                                {layers.map((layer) => (
-                                  <option key={layer.id} value={layer.id}>
-                                    {layer.name ||
-                                      t("Layer {{id}}", { id: layer.id })}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              <p className="text-xs text-[var(--color-text-muted)]">
-                                {t("Loading layers...")}
-                              </p>
-                            )}
-                          </div>
-
-                          {/* Activation Delay */}
-                          <div>
-                            <div className="flex items-center justify-between mb-2">
-                              <label className="text-sm text-[var(--color-text-secondary)]">
-                                {t("Activation Delay")}
-                              </label>
-                              <span className="text-sm font-mono text-[var(--color-electric)]">
-                                {displayTempLayerActivationDelay}ms
-                              </span>
-                            </div>
-                            <input
-                              type="range"
-                              min={0}
-                              max={1000}
-                              step={50}
-                              value={displayTempLayerActivationDelay}
-                              onChange={(e) =>
-                                handleTempLayerActivationDelayChange(
-                                  Number(e.target.value),
-                                )
-                              }
-                              className="w-full h-2 rounded-lg appearance-none cursor-pointer
-                        bg-[var(--color-border)]
-                        [&::-webkit-slider-thumb]:appearance-none
-                        [&::-webkit-slider-thumb]:w-4
-                        [&::-webkit-slider-thumb]:h-4
-                        [&::-webkit-slider-thumb]:rounded-full
-                        [&::-webkit-slider-thumb]:bg-[var(--color-electric)]
-                        [&::-webkit-slider-thumb]:cursor-pointer
-                        [&::-webkit-slider-thumb]:shadow-[0_0_8px_var(--color-electric)]
-                        [&::-moz-range-thumb]:w-4
-                        [&::-moz-range-thumb]:h-4
-                        [&::-moz-range-thumb]:rounded-full
-                        [&::-moz-range-thumb]:bg-[var(--color-electric)]
-                        [&::-moz-range-thumb]:border-0
-                        [&::-moz-range-thumb]:cursor-pointer
-                        [&::-moz-range-thumb]:shadow-[0_0_8px_var(--color-electric)]"
-                            />
-                            <p className="text-xs text-[var(--color-text-muted)] mt-2">
-                              {t(
-                                "Delay before activating layer when trackball moves",
-                              )}
-                            </p>
-                          </div>
-
-                          {/* Deactivation Delay */}
-                          <div>
-                            <div className="flex items-center justify-between mb-2">
-                              <label className="text-sm text-[var(--color-text-secondary)]">
-                                {t("Deactivation Delay")}
-                              </label>
-                              <span className="text-sm font-mono text-[var(--color-electric)]">
-                                {displayTempLayerDeactivationDelay}ms
-                              </span>
-                            </div>
-                            <input
-                              type="range"
-                              min={0}
-                              max={2000}
-                              step={100}
-                              value={displayTempLayerDeactivationDelay}
-                              onChange={(e) =>
-                                handleTempLayerDeactivationDelayChange(
-                                  Number(e.target.value),
-                                )
-                              }
-                              className="w-full h-2 rounded-lg appearance-none cursor-pointer
-                        bg-[var(--color-border)]
-                        [&::-webkit-slider-thumb]:appearance-none
-                        [&::-webkit-slider-thumb]:w-4
-                        [&::-webkit-slider-thumb]:h-4
-                        [&::-webkit-slider-thumb]:rounded-full
-                        [&::-webkit-slider-thumb]:bg-[var(--color-electric)]
-                        [&::-webkit-slider-thumb]:cursor-pointer
-                        [&::-webkit-slider-thumb]:shadow-[0_0_8px_var(--color-electric)]
-                        [&::-moz-range-thumb]:w-4
-                        [&::-moz-range-thumb]:h-4
-                        [&::-moz-range-thumb]:rounded-full
-                        [&::-moz-range-thumb]:bg-[var(--color-electric)]
-                        [&::-moz-range-thumb]:border-0
-                        [&::-moz-range-thumb]:cursor-pointer
-                        [&::-moz-range-thumb]:shadow-[0_0_8px_var(--color-electric)]"
-                            />
-                            <p className="text-xs text-[var(--color-text-muted)] mt-2">
-                              {t(
-                                "Delay before deactivating layer when trackball stops",
-                              )}
-                            </p>
-                          </div>
-                        </div>
-                      )}
                     </div>
                   </div>
                 )}
