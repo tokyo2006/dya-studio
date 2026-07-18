@@ -4,7 +4,7 @@
  * Provides access to cormoran/zmk-feature-runtime-combo through the custom ZMK
  * Studio RPC subsystem.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useCustomSubsystem } from "./useCustomSubsystem";
 import { studioLockErrorText } from "../lib/studioUnlock";
 import {
@@ -122,11 +122,19 @@ export function useRuntimeCombo(): UseRuntimeComboReturn {
     [ready, call],
   );
 
+  // Guard against starting a load while one is still in flight. When locked,
+  // these RPCs are parked by the unlock gate (pending until unlock/cancel);
+  // without the guard a re-triggered auto-load would keep firing requests.
+  const combosInFlightRef = useRef(false);
+  const globalSettingsInFlightRef = useRef(false);
+
   const loadCombos = useCallback(async () => {
     if (!ready) {
       setCombos([]);
       return;
     }
+    if (combosInFlightRef.current) return;
+    combosInFlightRef.current = true;
 
     setIsLoading(true);
     setError(null);
@@ -148,6 +156,7 @@ export function useRuntimeCombo(): UseRuntimeComboReturn {
       );
     } finally {
       setIsLoading(false);
+      combosInFlightRef.current = false;
     }
   }, [callRuntimeComboRPC, ready]);
 
@@ -156,6 +165,8 @@ export function useRuntimeCombo(): UseRuntimeComboReturn {
       setGlobalSettings(null);
       return;
     }
+    if (globalSettingsInFlightRef.current) return;
+    globalSettingsInFlightRef.current = true;
 
     setIsLoading(true);
     setError(null);
@@ -175,6 +186,7 @@ export function useRuntimeCombo(): UseRuntimeComboReturn {
       );
     } finally {
       setIsLoading(false);
+      globalSettingsInFlightRef.current = false;
     }
   }, [callRuntimeComboRPC, ready]);
 

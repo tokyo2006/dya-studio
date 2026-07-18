@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useCustomSubsystem } from "./useCustomSubsystem";
 import { studioLockErrorText } from "../lib/studioUnlock";
 import {
@@ -160,12 +160,18 @@ export function useRuntimeMacro(
     [callRpc],
   );
 
+  const loadInFlightRef = useRef(false);
   const loadMacros = useCallback(async () => {
     if (!ready) {
       setMacros([]);
       setGlobalSettings(null);
       return;
     }
+    // Don't start another load while one is still in flight. When locked, the
+    // list RPCs are parked by the unlock gate (pending until unlock/cancel);
+    // without this guard a re-triggered auto-load would keep firing requests.
+    if (loadInFlightRef.current) return;
+    loadInFlightRef.current = true;
 
     setIsLoading(true);
     setError(null);
@@ -193,6 +199,7 @@ export function useRuntimeMacro(
       );
     } finally {
       setIsLoading(false);
+      loadInFlightRef.current = false;
     }
   }, [callRpc, ready]);
 
