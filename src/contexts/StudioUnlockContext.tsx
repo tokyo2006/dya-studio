@@ -22,7 +22,14 @@
  * settles. An actual unlock clears it.
  */
 import type { ReactNode } from "react";
-import { createContext, useEffect, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useStudioLockState } from "@cormoran/zmk-studio-react-hook";
 import { UnlockPrompt } from "../components/UnlockPrompt";
 import {
@@ -81,8 +88,11 @@ export function StudioUnlockProvider({
 }) {
   const { locked, lockState } = useStudioLockState();
 
-  // Parked ops are held in a ref (not state) so `runWithUnlock`/`requireUnlock`
-  // stay referentially stable and don't churn every consumer's useCallback.
+  // All bookkeeping lives in refs so every gate helper below can be a *stable*
+  // useCallback. The context value must never change identity: if it did, every
+  // consumer's `call` (and the auto-load effects that depend on it) would get a
+  // new identity each time the provider re-renders — e.g. when the modal opens —
+  // and re-fire, which is exactly the infinite-refresh loop we must avoid.
   const parkedRef = useRef<ParkedOp[]>([]);
   // True when the proactive gate opened the modal without a parked op.
   const proactiveOpenRef = useRef(false);
@@ -92,26 +102,30 @@ export function StudioUnlockProvider({
   const suppressingRef = useRef(false);
   const inFlightRef = useRef(0);
   const quietTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Mirror of `locked` for the stable `requireUnlock` (updated off-render so the
+  // callback can stay dependency-free and never change identity).
+  const lockedRef = useRef(locked);
+  useEffect(() => {
+    lockedRef.current = locked;
+  }, [locked]);
 
   const [isOpen, setIsOpen] = useState(false);
 
-  // Plain functions: React Compiler (enabled in this project) handles the
-  // memoization, so manual useCallback/useMemo is intentionally omitted.
-  const syncOpen = () => {
+  const syncOpen = useCallback(() => {
     setIsOpen(parkedRef.current.length > 0 || proactiveOpenRef.current);
-  };
+  }, []);
 
-  const clearQuietTimer = () => {
+  const clearQuietTimer = useCallback(() => {
     if (quietTimerRef.current !== null) {
       clearTimeout(quietTimerRef.current);
       quietTimerRef.current = null;
     }
-  };
+  }, []);
 
   // While suppressing, (re)arm the quiet timer once nothing is in flight; when
   // it fires with no further activity the cooldown ends and the modal may open
   // again.
-  const scheduleQuietTimer = () => {
+  const scheduleQuietTimer = useCallback(() => {
     clearQuietTimer();
     if (suppressingRef.current && inFlightRef.current === 0) {
       quietTimerRef.current = setTimeout(() => {
@@ -119,20 +133,20 @@ export function StudioUnlockProvider({
         suppressingRef.current = false;
       }, quietMs);
     }
-  };
+  }, [clearQuietTimer, quietMs]);
 
-  const beginActivity = () => {
+  const beginActivity = useCallback(() => {
     inFlightRef.current += 1;
     // A request in flight means we're not quiet — hold off the timer.
     clearQuietTimer();
-  };
+  }, [clearQuietTimer]);
 
-  const endActivity = () => {
+  const endActivity = useCallback(() => {
     inFlightRef.current -= 1;
     scheduleQuietTimer();
-  };
+  }, [scheduleQuietTimer]);
 
-  const retryAll = async () => {
+  const retryAll = useCallback(async () => {
     // Snapshot and clear: any op that is still locked re-parks itself below.
     const ops = parkedRef.current;
     parkedRef.current = [];
@@ -154,9 +168,9 @@ export function StudioUnlockProvider({
         }
       }),
     );
-  };
+  }, [syncOpen]);
 
-  const cancel = () => {
+  const cancel = useCallback(() => {
     // Enter the cooldown; arm the quiet timer (nothing may be in flight right
     // now, in which case it starts counting down immediately).
     suppressingRef.current = true;
@@ -168,7 +182,7 @@ export function StudioUnlockProvider({
     for (const op of ops) {
       op.reject(new StudioUnlockCancelledError());
     }
-  };
+  }, [scheduleQuietTimer, syncOpen]);
 
   // On unlock: clear the cancel cooldown (a real unlock supersedes any recent
   // dismissal) and auto-retry any parked requests.
@@ -180,9 +194,7 @@ export function StudioUnlockProvider({
         void retryAll();
       }
     }
-    // retryAll reads only refs; re-run solely on lock-state transitions.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lockState]);
+  }, [lockState, clearQuietTimer, retryAll]);
 
   // Clean up the quiet timer on unmount.
   useEffect(() => {
@@ -193,55 +205,66 @@ export function StudioUnlockProvider({
     };
   }, []);
 
-  const runWithUnlock = <T,>(fn: () => Promise<T>): Promise<T> => {
-    const attempt = async (): Promise<T> => {
-      // Count this as in-flight activity so the cancel cooldown knows whether
-      // requests are still arriving (each keeps the quiet timer from firing).
-      beginActivity();
-      try {
-        const result = await fn();
-        // Normalize a resolved-but-locked response (official reads) into a
-        // throw so parking/retry treats both error shapes identically.
-        if (isStudioUnlockError(result)) {
-          throw result;
+  const runWithUnlock = useCallback(
+    <T,>(fn: () => Promise<T>): Promise<T> => {
+      const attempt = async (): Promise<T> => {
+        // Count this as in-flight activity so the cancel cooldown knows whether
+        // requests are still arriving (each keeps the quiet timer from firing).
+        beginActivity();
+        try {
+          const result = await fn();
+          // Normalize a resolved-but-locked response (official reads) into a
+          // throw so parking/retry treats both error shapes identically.
+          if (isStudioUnlockError(result)) {
+            throw result;
+          }
+          return result;
+        } finally {
+          endActivity();
         }
-        return result;
-      } finally {
-        endActivity();
-      }
-    };
+      };
 
-    return attempt().catch((err) => {
-      if (!isStudioUnlockError(err)) {
-        throw err;
-      }
-      // Cancel cooldown: while suppressing (Cancel pressed, activity not yet
-      // quiet for `quietMs`), auto-cancel instead of re-opening the modal.
-      if (suppressingRef.current) {
-        throw new StudioUnlockCancelledError();
-      }
-      return new Promise<T>((resolve, reject) => {
-        parkedRef.current.push({
-          attempt: attempt as () => Promise<unknown>,
-          resolve: resolve as (value: unknown) => void,
-          reject,
+      return attempt().catch((err) => {
+        if (!isStudioUnlockError(err)) {
+          throw err;
+        }
+        // Cancel cooldown: while suppressing (Cancel pressed, activity not yet
+        // quiet for `quietMs`), auto-cancel instead of re-opening the modal.
+        if (suppressingRef.current) {
+          throw new StudioUnlockCancelledError();
+        }
+        return new Promise<T>((resolve, reject) => {
+          parkedRef.current.push({
+            attempt: attempt as () => Promise<unknown>,
+            resolve: resolve as (value: unknown) => void,
+            reject,
+          });
+          syncOpen();
         });
-        syncOpen();
       });
-    });
-  };
+    },
+    [beginActivity, endActivity, syncOpen],
+  );
 
-  const requireUnlock = (): boolean => {
-    if (locked) {
+  const requireUnlock = useCallback((): boolean => {
+    if (lockedRef.current) {
       proactiveOpenRef.current = true;
       syncOpen();
       return false;
     }
     return true;
-  };
+  }, [syncOpen]);
+
+  // Stable context value: `runWithUnlock`/`requireUnlock` never change identity,
+  // so consumers don't re-render (and their `call`/auto-load effects don't
+  // re-fire) when the provider re-renders to open/close the modal.
+  const value = useMemo(
+    () => ({ runWithUnlock, requireUnlock }),
+    [runWithUnlock, requireUnlock],
+  );
 
   return (
-    <StudioUnlockContext.Provider value={{ runWithUnlock, requireUnlock }}>
+    <StudioUnlockContext.Provider value={value}>
       {children}
       <UnlockPrompt open={isOpen} onClose={cancel} onRetry={retryAll} />
     </StudioUnlockContext.Provider>

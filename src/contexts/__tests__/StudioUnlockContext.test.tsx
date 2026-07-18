@@ -55,6 +55,33 @@ describe("StudioUnlockProvider", () => {
     mockLockState = "locked";
   });
 
+  it("keeps the context value stable when the modal opens (regression: infinite refresh)", async () => {
+    // If runWithUnlock/requireUnlock changed identity on a provider re-render,
+    // every consumer's `call` (and its auto-load effect) would re-fire in a
+    // loop. Opening the modal re-renders the provider; the value must not churn.
+    const runWithUnlockRefs = new Set<unknown>();
+    function Probe() {
+      const { runWithUnlock } = useStudioUnlock();
+      runWithUnlockRefs.add(runWithUnlock);
+      return null;
+    }
+    const fn = jest.fn().mockRejectedValue(unlockError());
+
+    render(
+      <StudioUnlockProvider>
+        <Probe />
+        <Harness fn={fn} label="run" />
+      </StudioUnlockProvider>,
+    );
+    expect(runWithUnlockRefs.size).toBe(1);
+
+    await userEvent.click(screen.getByText("run"));
+    await screen.findByText("Keyboard Unlock Required");
+
+    // Still exactly one identity after the provider re-rendered to open the modal.
+    expect(runWithUnlockRefs.size).toBe(1);
+  });
+
   it("resolves immediately when the request succeeds (no modal)", async () => {
     const onResolve = jest.fn();
     const fn = jest.fn().mockResolvedValue("ok");
