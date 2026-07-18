@@ -22,6 +22,14 @@ import { isUnlockRequiredError } from "@cormoran/zmk-studio-react-hook";
 import { ErrorConditions } from "@zmkfirmware/zmk-studio-ts-client/meta";
 
 /**
+ * User-facing message shown when an operation fails because the device is
+ * locked in ZMK Studio. This exact string is the i18n key (see the `ja`
+ * dictionary in `src/i18n/translations.ts`); render it through `t()`.
+ */
+export const STUDIO_LOCKED_MESSAGE =
+  "The operation failed because the device is locked in ZMK Studio. Unlock the keyboard and try again.";
+
+/**
  * Thrown when a keymap load fails because the keyboard is locked. Lives here
  * (rather than in `useKeymapSource`) so {@link isStudioUnlockError} can
  * recognize it without a circular import; re-exported from `useKeymapSource`
@@ -34,21 +42,24 @@ export class KeymapUnlockRequiredError extends Error {
   }
 }
 
-/** True when `err` means "the keyboard is locked" — from either protocol. */
-export function isKeymapUnlockRequired(err: unknown): boolean {
-  return err instanceof KeymapUnlockRequiredError || isUnlockRequiredError(err);
-}
-
 /**
- * Rejection raised by the unlock gate when the user dismisses the unlock modal
- * instead of unlocking. Callers should swallow it silently: the user chose to
- * back out, so it is not an error worth surfacing as a banner.
+ * Rejection raised by the unlock gate when a request cannot proceed because the
+ * device is locked and the user did not unlock it — i.e. they dismissed the
+ * unlock modal, or the request arrived during the post-cancel cooldown. Its
+ * message is the shared {@link STUDIO_LOCKED_MESSAGE} i18n key, so a feature
+ * that surfaces `err.message` already shows the clear "device is locked" text
+ * (rendered through `t()`) instead of a subsystem-specific error.
  */
 export class StudioUnlockCancelledError extends Error {
   constructor() {
-    super("Studio unlock cancelled by user");
+    super(STUDIO_LOCKED_MESSAGE);
     this.name = "StudioUnlockCancelledError";
   }
+}
+
+/** True when `err` means "the keyboard is locked" — from either protocol. */
+export function isKeymapUnlockRequired(err: unknown): boolean {
+  return err instanceof KeymapUnlockRequiredError || isUnlockRequiredError(err);
 }
 
 /**
@@ -69,4 +80,18 @@ export function isStudioUnlockError(x: unknown): boolean {
     }
   }
   return false;
+}
+
+/**
+ * If `err` means "the device is locked" — either the gate's
+ * {@link StudioUnlockCancelledError} or a raw unlock error that slipped past the
+ * gate — return the shared {@link STUDIO_LOCKED_MESSAGE} i18n key; otherwise
+ * `null` so the caller can fall back to its own error text. Callers set this as
+ * their error string and render it through `t()`.
+ */
+export function studioLockErrorText(err: unknown): string | null {
+  if (err instanceof StudioUnlockCancelledError || isStudioUnlockError(err)) {
+    return STUDIO_LOCKED_MESSAGE;
+  }
+  return null;
 }

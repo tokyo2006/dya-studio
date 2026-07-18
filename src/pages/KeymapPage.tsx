@@ -465,13 +465,13 @@ export function KeymapPage() {
         {keymap.error && (
           <div className="glass-card p-4 mb-4 border-red-500/20 bg-red-500/10 flex items-center gap-3">
             <IconAlertCircle size={20} className="text-red-400" />
-            <p className="text-sm text-red-400">{keymap.error}</p>
+            <p className="text-sm text-red-400">{t(keymap.error)}</p>
           </div>
         )}
         {inputStream.error && (
           <div className="glass-card p-4 mb-4 border-red-500/20 bg-red-500/10 flex items-center gap-3">
             <IconAlertCircle size={20} className="text-red-400" />
-            <p className="text-sm text-red-400">{inputStream.error}</p>
+            <p className="text-sm text-red-400">{t(inputStream.error)}</p>
             <button
               className="ml-auto text-xs text-red-300 hover:text-red-200"
               onClick={inputStream.clearError}

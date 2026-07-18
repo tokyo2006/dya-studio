@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useCustomSubsystem } from "./useCustomSubsystem";
+import { studioLockErrorText } from "../lib/studioUnlock";
 import {
   Request,
   Response,
@@ -98,7 +99,19 @@ export function useRuntimeMacro(
         return null;
       }
 
-      const response = await call(request);
+      let response;
+      try {
+        response = await call(request);
+      } catch (err) {
+        // Blocked by the unlock gate (modal dismissed / cooldown): show the
+        // shared "device is locked" message instead of a macro-specific error.
+        const locked = studioLockErrorText(err);
+        if (locked !== null) {
+          setError(locked);
+          return null;
+        }
+        throw err;
+      }
 
       if (!response) {
         setError("Runtime macro RPC returned an empty response");

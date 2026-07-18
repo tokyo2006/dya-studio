@@ -966,10 +966,13 @@ export function MacroPage() {
           <div className="glass-card p-4 mb-4 border-red-500/20 bg-red-500/10 flex items-center gap-3">
             <IconAlertCircle size={20} className="text-red-400" />
             <p className="text-sm text-red-400">
-              {runtimeMacro.error ||
-                encodedSizeError ||
-                stringConversionError ||
-                keymap.error}
+              {t(
+                runtimeMacro.error ||
+                  encodedSizeError ||
+                  stringConversionError ||
+                  keymap.error ||
+                  "",
+              )}
             </p>
           </div>
         )}

@@ -160,7 +160,7 @@ export function TrackballAdvancedSettings() {
 
           {customSettings.error && (
             <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3">
-              <p className="text-sm text-red-400">{customSettings.error}</p>
+              <p className="text-sm text-red-400">{t(customSettings.error)}</p>
             </div>
           )}
         </div>

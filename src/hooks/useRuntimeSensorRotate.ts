@@ -5,7 +5,7 @@
  * It allows configuring rotary encoder bindings per layer at runtime without reflashing.
  */
 import { useState, useEffect, useCallback } from "react";
-import { useCustomSubsystem } from "./useCustomSubsystem";
+import { useCustomSubsystem, useLockAwareCall } from "./useCustomSubsystem";
 import {
   Request,
   Response,
@@ -65,13 +65,17 @@ export interface UseRuntimeSensorRotateReturn {
 }
 
 export function useRuntimeSensorRotate(): UseRuntimeSensorRotateReturn {
-  const { subsystem, ready, call } = useCustomSubsystem(
-    SUBSYSTEM_IDENTIFIER,
-    CODEC,
-  );
+  const {
+    subsystem,
+    ready,
+    call: gatedCall,
+  } = useCustomSubsystem(SUBSYSTEM_IDENTIFIER, CODEC);
   const [sensors, setSensors] = useState<Sensor[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Map a lock/cancel rejection from the gate to the shared "device is locked"
+  // message (rendered via t()); other outcomes pass through unchanged.
+  const call = useLockAwareCall(gatedCall, setError);
 
   const loadSensors = useCallback(async () => {
     if (!ready) {

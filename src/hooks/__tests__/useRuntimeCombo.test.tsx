@@ -3,6 +3,10 @@ import { ZMKAppContext } from "@cormoran/zmk-studio-react-hook";
 import type { ReactNode } from "react";
 import { useRuntimeCombo } from "../useRuntimeCombo";
 import {
+  STUDIO_LOCKED_MESSAGE,
+  StudioUnlockCancelledError,
+} from "../../lib/studioUnlock";
+import {
   ComboSource,
   Response,
   SlowReleaseOverride,
@@ -104,6 +108,30 @@ describe("useRuntimeCombo", () => {
       requirePriorIdleMs: 0,
     });
     expect(result.current.error).toBe(null);
+  });
+
+  it("shows the shared 'device is locked' message when the gate blocks a request", async () => {
+    // The gate rejects with StudioUnlockCancelledError when the user dismisses
+    // the unlock modal (or during the cooldown); the hook must map it to the
+    // clear shared message instead of a "Failed to load runtime combos: ..." one.
+    mockCallRPC.mockRejectedValue(new StudioUnlockCancelledError());
+
+    const wrapper = createWrapper({
+      state: {
+        connection: { isConnected: true },
+        customSubsystems: [{ index: 7, identifier: "cormoran__runtime_combo" }],
+      },
+      findSubsystem: (id: string) =>
+        id === "cormoran__runtime_combo"
+          ? { index: 7, identifier: "cormoran__runtime_combo" }
+          : null,
+    });
+
+    const { result } = renderHook(() => useRuntimeCombo(), { wrapper });
+
+    await waitFor(() =>
+      expect(result.current.error).toBe(STUDIO_LOCKED_MESSAGE),
+    );
   });
 
   it("reports unavailable when the subsystem is missing", () => {

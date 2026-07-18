@@ -7,6 +7,7 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { useKeymap } from "../useKeymap";
 import { ZMKAppContext } from "@cormoran/zmk-studio-react-hook";
+import { STUDIO_LOCKED_MESSAGE } from "../../lib/studioUnlock";
 import type { ReactNode } from "react";
 
 // Mock the zmk-studio-ts-client
@@ -178,11 +179,12 @@ describe("useKeymap", () => {
       expect(result.current.isFullyLoaded).toBe(true);
     });
 
-    it("surfaces an unlock error from a load (routed to the gate in the app)", async () => {
+    it("surfaces the shared 'device is locked' message when a load hits an unlock error", async () => {
       // In the app this load is wrapped by StudioUnlockProvider's runWithUnlock,
       // which parks it and shows the unlock modal (see
-      // StudioUnlockContext.test.tsx). Rendered here without that provider, the
-      // gate is a passthrough, so the unlock error surfaces as a plain error.
+      // StudioUnlockContext.test.tsx). Rendered here without that provider the
+      // gate is a passthrough, so the unlock error surfaces as the shared
+      // STUDIO_LOCKED_MESSAGE (mapped by studioLockErrorText).
       const mockConnection = { label: "test" };
       const zmkApp = {
         state: { connection: mockConnection },
@@ -199,7 +201,7 @@ describe("useKeymap", () => {
       });
 
       await waitFor(() => {
-        expect(result.current.error).toContain("unlock");
+        expect(result.current.error).toBe(STUDIO_LOCKED_MESSAGE);
       });
     });
 

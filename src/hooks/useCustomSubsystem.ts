@@ -29,7 +29,7 @@ import {
 } from "@cormoran/zmk-studio-react-hook";
 import { logRpc } from "../lib/rpcLogging";
 import { useStudioUnlock } from "./useStudioUnlock";
-import { StudioUnlockCancelledError } from "../lib/studioUnlock";
+import { studioLockErrorText } from "../lib/studioUnlock";
 
 /** Default per-RPC timeout (ms) applied to every custom-subsystem call. */
 export const DEFAULT_CUSTOM_SUBSYSTEM_TIMEOUT_MS = 30_000;
@@ -71,16 +71,14 @@ export function useCustomSubsystem<TReq, TRes>(
     | undefined;
 
   // Wrap a call in the unlock gate: a locked-subsystem failure opens the unlock
-  // modal and retries after unlock; a user-dismissed modal resolves to `null`
-  // (the same "no response" shape callers already handle) rather than surfacing
-  // StudioUnlockCancelledError as an error.
+  // modal and retries after unlock. If the user dismisses the modal (or the
+  // request lands during the post-cancel cooldown) the promise rejects with
+  // StudioUnlockCancelledError, which callers map to a clear "device is locked"
+  // message (see studioLockErrorText) instead of a subsystem-specific error.
   const gate = useCallback(
-    <T>(run: () => Promise<T>): Promise<T | null> => {
+    <T>(run: () => Promise<T>): Promise<T> => {
       if (!unlockGate) return run();
-      return runWithUnlock(run).catch((err) => {
-        if (err instanceof StudioUnlockCancelledError) return null;
-        throw err;
-      });
+      return runWithUnlock(run);
     },
     [unlockGate, runWithUnlock],
   );
@@ -139,4 +137,34 @@ export function useCustomSubsystem<TReq, TRes>(
   return baseCall
     ? { subsystem: base.subsystem, ready: base.ready, callRPC, call }
     : { subsystem: base.subsystem, ready: base.ready, callRPC };
+}
+
+/**
+ * Wrap a gated `call` so a lock/cancel rejection (the user dismissed the unlock
+ * modal, or the request landed during the post-cancel cooldown) becomes the
+ * shared "device is locked" message plus a `null` result — the same "no
+ * response" shape these hooks already treat as a silent no-op. Non-lock errors
+ * propagate unchanged. Use this in hooks whose call sites ignore a `null`
+ * response; hooks that treat "no response" as an error (or rethrow) instead rely
+ * on {@link StudioUnlockCancelledError}'s message being {@link STUDIO_LOCKED_MESSAGE}.
+ */
+export function useLockAwareCall<TReq, TRes>(
+  call: (request: TReq, options?: { timeout?: number }) => Promise<TRes | null>,
+  setError: (message: string) => void,
+): (request: TReq, options?: { timeout?: number }) => Promise<TRes | null> {
+  return useCallback(
+    async (request: TReq, options?: { timeout?: number }) => {
+      try {
+        return await call(request, options);
+      } catch (err) {
+        const locked = studioLockErrorText(err);
+        if (locked !== null) {
+          setError(locked);
+          return null;
+        }
+        throw err;
+      }
+    },
+    [call, setError],
+  );
 }

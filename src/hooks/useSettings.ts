@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useContext } from "react";
 import { ZMKAppContext } from "@cormoran/zmk-studio-react-hook";
-import { useCustomSubsystem } from "./useCustomSubsystem";
+import { useCustomSubsystem, useLockAwareCall } from "./useCustomSubsystem";
 import {
   Request,
   Response,
@@ -39,13 +39,17 @@ export interface UseSettingsReturn {
 
 export function useSettings(): UseSettingsReturn {
   const zmkApp = useContext(ZMKAppContext);
-  const { subsystem, ready, call } = useCustomSubsystem(
-    SUBSYSTEM_IDENTIFIER,
-    CODEC,
-  );
+  const {
+    subsystem,
+    ready,
+    call: gatedCall,
+  } = useCustomSubsystem(SUBSYSTEM_IDENTIFIER, CODEC);
   const [devices, setDevices] = useState<DeviceActivitySettings[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Map a lock/cancel rejection from the gate to the shared "device is locked"
+  // message (rendered via t()); other outcomes pass through unchanged.
+  const call = useLockAwareCall(gatedCall, setError);
 
   // Extract subsystem index as a stable primitive value for dependencies
   const subsystemIndex = subsystem?.index;

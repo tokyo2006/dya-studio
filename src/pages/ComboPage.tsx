@@ -717,7 +717,7 @@ export function ComboPage() {
           <div className="glass-card p-4 mb-4 border-red-500/20 bg-red-500/10 flex items-center gap-3">
             <IconAlertTriangle size={20} className="text-red-400" />
             <p className="text-sm text-red-400">
-              {runtimeCombo.error || keymap.error}
+              {t(runtimeCombo.error || keymap.error || "")}
             </p>
             {runtimeCombo.error && (
               <button

@@ -146,9 +146,10 @@ export function NotAvailableNotice({
 }
 
 export function SectionError({ message }: { message: string }) {
+  const { t } = useLanguage();
   return (
     <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
-      <p className="text-sm text-red-400">{message}</p>
+      <p className="text-sm text-red-400">{t(message)}</p>
     </div>
   );
 }

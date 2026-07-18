@@ -16,7 +16,7 @@ import { ZMKAppContext } from "@cormoran/zmk-studio-react-hook";
 import type { call_rpc } from "@zmkfirmware/zmk-studio-ts-client";
 import { loggedCallRpc } from "../lib/rpcLogging";
 import { useStudioUnlock } from "./useStudioUnlock";
-import { StudioUnlockCancelledError } from "../lib/studioUnlock";
+import { studioLockErrorText } from "../lib/studioUnlock";
 import type {
   Keymap,
   Layer,
@@ -326,8 +326,11 @@ export function useKeymap(): UseKeymapReturn {
         clearError();
         return result;
       } catch (err) {
-        if (err instanceof StudioUnlockCancelledError) {
-          // User dismissed the unlock modal instead of unlocking; not an error.
+        const locked = studioLockErrorText(err);
+        if (locked !== null) {
+          // Blocked by the unlock gate (modal dismissed / cooldown): surface
+          // the shared "device is locked" message.
+          setErrorWithAutoClear(locked);
           return null;
         }
         console.error("RPC call failed:", err);
@@ -460,8 +463,11 @@ export function useKeymap(): UseKeymapReturn {
         }
         loaded = true;
       } catch (err) {
-        if (err instanceof StudioUnlockCancelledError) {
-          // User dismissed the unlock modal; leave the tab unloaded silently.
+        const locked = studioLockErrorText(err);
+        if (locked !== null) {
+          // Blocked by the unlock gate (modal dismissed / cooldown): surface
+          // the shared "device is locked" message.
+          setErrorWithAutoClear(locked);
         } else {
           console.error("Failed to load keymap data:", err);
           setErrorWithAutoClear(

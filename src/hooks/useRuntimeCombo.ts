@@ -6,6 +6,7 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { useCustomSubsystem } from "./useCustomSubsystem";
+import { studioLockErrorText } from "../lib/studioUnlock";
 import {
   Request,
   Response,
@@ -92,9 +93,20 @@ export function useRuntimeCombo(): UseRuntimeComboReturn {
         return null;
       }
 
-      // `call` handles the locked case (unlock modal + retry, or null if the
-      // user dismisses it) via the shared gate.
-      const response = await call(request);
+      // The shared gate handles the locked case (unlock modal + retry). If the
+      // user dismisses it (or a request lands during the cooldown), `call`
+      // rejects: surface the clear "device is locked" message.
+      let response;
+      try {
+        response = await call(request);
+      } catch (err) {
+        const locked = studioLockErrorText(err);
+        if (locked !== null) {
+          setError(locked);
+          return null;
+        }
+        throw err;
+      }
       if (!response) {
         return null;
       }
