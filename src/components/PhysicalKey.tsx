@@ -31,6 +31,11 @@ interface PhysicalKeyProps {
   binding?: BehaviorBinding;
   /** Whether this key has been modified from original */
   isModified: boolean;
+  /** Whether this key's ORIGINAL (last-saved) binding is still known. When
+   * false and the key is modified, its saved value couldn't be recovered
+   * (e.g. after a tab switch), so the tooltip shows "original: unknown" and the
+   * per-key reset reverts to the hard-coded default instead of the original. */
+  isOriginalKnown?: boolean;
   /** Whether this key's persisted binding differs from the hard-coded default
    * keymap (a modest, informational highlight, distinct from `isModified`). */
   isChangedFromDefault?: boolean;
@@ -61,6 +66,7 @@ interface PhysicalKeyProps {
 export function PhysicalKey({
   attrs,
   isModified,
+  isOriginalKnown = true,
   isChangedFromDefault = false,
   displayName,
   longDisplayName,
@@ -169,8 +175,11 @@ export function PhysicalKey({
         <div className="absolute inset-0 rounded-lg border-2 border-amber-200/70 pointer-events-none animate-pulse" />
       )}
 
-      {/* Reset button on hover when modified */}
-      {isModified && isHovered && (
+      {/* Reset button on hover when modified. When the original is known it
+          reverts to that saved value; when it's unknown (e.g. after a tab
+          switch lost it) it reverts to the hard-coded default instead — and is
+          only shown if a default is available to revert to. */}
+      {isModified && isHovered && isOriginalKnown && (
         <button
           className="absolute bottom-1 right-1 p-0.5 rounded bg-[var(--color-surface)]/80 hover:bg-[var(--color-surface)] border border-[var(--color-border)]"
           onClick={(e) => {
@@ -183,6 +192,21 @@ export function PhysicalKey({
             size={12}
             className="text-[var(--color-text-muted)]"
           />
+        </button>
+      )}
+
+      {/* Modified but the original is unknown: revert to the hard-coded default
+          instead (only when one is available). */}
+      {isModified && isHovered && !isOriginalKnown && onResetToDefault && (
+        <button
+          className="absolute bottom-1 right-1 p-0.5 rounded bg-[var(--color-surface)]/80 hover:bg-[var(--color-surface)] border border-[var(--color-border)]"
+          onClick={(e) => {
+            e.stopPropagation();
+            onResetToDefault();
+          }}
+          title={t("Reset to default")}
+        >
+          <IconHistory size={12} className="text-[var(--color-electric)]" />
         </button>
       )}
 
@@ -232,8 +256,8 @@ export function PhysicalKey({
                     <span>{bindingDescription}</span>
                   </div>
                 )}
-              {/* Original binding info when modified */}
-              {isModified && originalDisplayName && (
+              {/* Original binding info when modified and still known */}
+              {isModified && isOriginalKnown && originalDisplayName && (
                 <div>
                   <span className="text-[var(--color-text-muted)]">
                     {t("Original")}:{" "}
@@ -241,17 +265,31 @@ export function PhysicalKey({
                   <span>{originalDisplayName}</span>
                 </div>
               )}
-              {/* Default binding when the persisted value differs from it */}
-              {isChangedFromDefault && !isModified && defaultDisplayName && (
+              {/* Original lost (e.g. after a tab switch): we can't recover the
+                  saved value, so say so and fall back to the default below. */}
+              {isModified && !isOriginalKnown && (
                 <div>
                   <span className="text-[var(--color-text-muted)]">
-                    {t("Default")}:{" "}
+                    {t("Original")}:{" "}
                   </span>
-                  <span className="text-[var(--color-electric)]">
-                    {defaultDisplayName}
-                  </span>
+                  <span>{t("Unknown")}</span>
                 </div>
               )}
+              {/* Default binding: shown when the persisted value differs from it
+                  (changed-from-default), or as the fall-back reference for a
+                  modified key whose original is unknown. */}
+              {((isChangedFromDefault && !isModified) ||
+                (isModified && !isOriginalKnown)) &&
+                defaultDisplayName && (
+                  <div>
+                    <span className="text-[var(--color-text-muted)]">
+                      {t("Default")}:{" "}
+                    </span>
+                    <span className="text-[var(--color-electric)]">
+                      {defaultDisplayName}
+                    </span>
+                  </div>
+                )}
             </div>
             <Tooltip.Arrow className="fill-[var(--color-surface-elevated)]" />
           </Tooltip.Content>

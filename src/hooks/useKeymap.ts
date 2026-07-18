@@ -34,6 +34,7 @@ import {
   type BehaviorDefinition,
   type KeymapLoadPhase,
   type KeymapLoadProgress,
+  type KeymapSource,
 } from "./useKeymapSource";
 import { assertOfficialKeymapRpcAllowed } from "../lib/officialKeymapRpcGuard";
 
@@ -166,6 +167,13 @@ export interface UseKeymapReturn extends KeymapState {
   ) => BehaviorBinding | null;
   /** Check if a binding has been modified */
   isBindingModified: (layerId: number, keyPosition: number) => boolean;
+  /** Whether the ORIGINAL (last-saved) binding for a position is still known.
+   * False for positions that were already unsaved on the device when the tab
+   * loaded (their saved value can't be recovered — see the pending-positions
+   * flow): for those the UI shows "original: unknown" and reverts to the
+   * hard-coded default instead of the original. Always true for in-session
+   * edits. */
+  isBindingOriginalKnown: (layerId: number, keyPosition: number) => boolean;
   /** True when the connected keyboard exposes the fast-keymap subsystem, which
    * is what serves the hard-coded default keymap. Gates the "reset to default"
    * action and the "changed from default" highlight. */
@@ -256,8 +264,6 @@ export function useKeymap(): UseKeymapReturn {
   // Guards the final-step default-keymap load so it runs once per keymap load;
   // reset when a new load starts (see loadKeymapData) and on disconnect.
   const defaultKeymapRequestedRef = useRef(false);
-  // Same one-per-load guard for the final-step pending-positions fetch.
-  const pendingRequestedRef = useRef(false);
   // Monotonic id per loadKeymapData call, so a background (incremental) layer
   // update from a superseded load is ignored.
   const loadIdRef = useRef(0);
@@ -392,12 +398,11 @@ export function useKeymap(): UseKeymapReturn {
     // Guard for the background (incremental) layer load: a load that has been
     // superseded (reconnect/reload) must not apply its late layer update.
     const loadId = ++loadIdRef.current;
-    // A fresh load re-arms the final-step default-keymap + pending fetches.
+    // A fresh load re-arms the final-step default-keymap fetch.
     defaultKeymapRequestedRef.current = false;
-    pendingRequestedRef.current = false;
     // Drop any device-pending set from a prior load: an in-place reload (unlock
     // retry, discard) may reflect a different device state, and the fresh set is
-    // re-seeded once the load fully settles (the effect below).
+    // re-seeded once this load settles (the inline get_pending fetch below).
     setPendingPositions(new Set());
     const isFirstLoad = !dataLoadedRef.current;
     // Populated after the initial (phase-1) load returns; read by the
@@ -460,12 +465,20 @@ export function useKeymap(): UseKeymapReturn {
       // keyboard is locked, whereas the official protocol needs unlock even to
       // read — either way, this is the call whose unlock error should surface.
       let loaded = false;
+      // Which protocol actually served this load. Drives whether the
+      // unsaved-changes state comes from the official checkUnsavedChanges call
+      // below or from get_pending (fast path). Read from the load result rather
+      // than the isFastKeymapAvailable state so loadKeymapData needn't depend on
+      // it — that dependency would recreate this callback when the subsystem is
+      // detected mid-load and fire a second, racing load.
+      let loadedSource: KeymapSource = "official";
       try {
         const data = await loadFromSource(
           (progress) => setLoadingProgress(progress),
           applyBackgroundLayers,
           applyBackgroundBehaviors,
         );
+        loadedSource = data.source;
         pendingLayerIds = data.pendingLayerIds;
 
         setPhysicalLayouts(data.physicalLayouts);
@@ -497,19 +510,41 @@ export function useKeymap(): UseKeymapReturn {
         }
       }
 
-      if (loaded && !isFastKeymapAvailable) {
-        // Official path only. checkUnsavedChanges uses the official (secured)
-        // keymap subsystem, so it fails with unlock-required when the keymap
-        // was loaded read-only via the unsecured fast path while locked. The
-        // keymap is already viewable, so don't promote that to an unlock
-        // prompt — best-effort: assume no unsaved changes when we can't read
-        // it. Editing a binding still prompts for unlock at that point.
-        //
-        // On the fast path this call is skipped entirely: the unsaved-changes
-        // state is derived from get_pending instead (see the pending-positions
-        // effect), which is one unsecured round-trip that also feeds the
-        // per-key "pending to save" highlight — no official round-trip, no
-        // unlock prompt while locked.
+      if (loaded && loadedSource === "fast") {
+        // Fast path: read the device's UNSAVED (pending) positions via
+        // get_pending. This is done inline (not in a separate effect) so it's
+        // tied to THIS load's id — a remount can fire a second, racing load
+        // (the subsystem-detection flip changes loadFromSource's identity), and
+        // a standalone effect's result would be discarded by the load-id guard.
+        // It serves double duty: seed the per-key "pending to save" highlight
+        // (survives a keymap-tab remount, since the freshly-loaded originals
+        // show no diff) AND derive hasUnsavedChanges — one unsecured round-trip
+        // that works while locked, replacing the official checkUnsavedChanges.
+        setLoadingProgress({ phase: "finalizing" });
+        try {
+          const layers = await loadPendingFromSource();
+          if (loadIdRef.current === loadId) {
+            const next = new Set<string>();
+            for (const layer of layers) {
+              for (const position of layer.positions) {
+                next.add(bindingKey(layer.id, position));
+              }
+            }
+            setPendingPositions(next);
+            setHasUnsavedChanges(next.size > 0);
+          }
+        } catch (err) {
+          // Best-effort: this only restores an optional highlight + badge, so a
+          // failure just leaves both unset until the next edit.
+          console.error("Failed to load pending positions:", err);
+        }
+      } else if (loaded) {
+        // Official path. checkUnsavedChanges uses the official (secured) keymap
+        // subsystem, so it fails with unlock-required when the keymap was loaded
+        // read-only via the unsecured fast path while locked. The keymap is
+        // already viewable, so don't promote that to an unlock prompt —
+        // best-effort: assume no unsaved changes when we can't read it. Editing
+        // a binding still prompts for unlock at that point.
         setLoadingProgress({ phase: "finalizing" });
         try {
           if (connection) {
@@ -529,9 +564,9 @@ export function useKeymap(): UseKeymapReturn {
   }, [
     connection,
     loadFromSource,
+    loadPendingFromSource,
     storeOriginalBindings,
     setErrorWithAutoClear,
-    isFastKeymapAvailable,
   ]);
 
   // Set a key binding
@@ -983,6 +1018,30 @@ export function useKeymap(): UseKeymapReturn {
     [originalBindings, keymap, pendingPositions],
   );
 
+  // Whether we still know a position's ORIGINAL (last-saved) binding.
+  //
+  // - Not reported pending by the device → the value we loaded IS the saved
+  //   one, so the original is known.
+  // - Reported pending (`get_pending`) → the device holds an unsaved edit whose
+  //   saved value it never sends. We still know the original only if our stored
+  //   `originalBindings` value DIFFERS from the current binding — a genuine
+  //   pre-edit "before" value (e.g. the warm fingerprint cache preserved it, or
+  //   this session made the edit). If our stored original EQUALS the current
+  //   binding, a fresh load stored the device's unsaved value as the "original"
+  //   and the true saved value is lost — the UI then shows "original: unknown"
+  //   and reverts to the hard-coded default instead.
+  const isBindingOriginalKnown = useCallback(
+    (layerId: number, keyPosition: number): boolean => {
+      const key = bindingKey(layerId, keyPosition);
+      if (!pendingPositions.has(key)) return true;
+      const original = originalBindings.get(key);
+      const layer = keymap?.layers.find((l) => l.id === layerId);
+      const current = layer?.bindings[keyPosition];
+      return !!(original && current && !bindingsEqual(original, current));
+    },
+    [pendingPositions, originalBindings, keymap],
+  );
+
   // Check if a binding's PERSISTED value differs from the hard-coded default.
   // Uses the original (persistent) binding, not the current in-memory one, so a
   // key the user is actively editing surfaces as "modified" (green) rather than
@@ -1125,45 +1184,10 @@ export function useKeymap(): UseKeymapReturn {
       });
   }, [isFullyLoaded, isFastKeymapAvailable, keymap?.layers, loadDefaultKeymap]);
 
-  // Fetch the device's UNSAVED (pending) positions as the final step of a fast
-  // load. This does double duty:
-  //   1. Restores the per-key "pending to save" highlight after a keymap-tab
-  //      remount — the device still holds any in-memory edits, but the
-  //      freshly-loaded original bindings show no diff, so without this every
-  //      pending key would silently lose its highlight (isBindingModified reads
-  //      pendingPositions).
-  //   2. Seeds hasUnsavedChanges — on the fast path this REPLACES the official
-  //      checkUnsavedChanges round-trip (skipped in loadKeymapData above): a
-  //      keymap with any pending position has unsaved changes, and get_pending
-  //      is an unsecured call that works while locked.
-  // Runs once per load (guarded like the default-keymap fetch), after the
-  // preview has settled.
-  useEffect(() => {
-    if (!isFullyLoaded || !isFastKeymapAvailable) return;
-    if (pendingRequestedRef.current) return;
-
-    pendingRequestedRef.current = true;
-    const loadId = loadIdRef.current;
-    void loadPendingFromSource()
-      .then((layers) => {
-        // Ignore a late result from a superseded load (reconnect/reload).
-        if (loadIdRef.current !== loadId) return;
-        const next = new Set<string>();
-        for (const layer of layers) {
-          for (const position of layer.positions) {
-            next.add(bindingKey(layer.id, position));
-          }
-        }
-        setPendingPositions(next);
-        setHasUnsavedChanges(next.size > 0);
-      })
-      .catch((err) => {
-        // Best-effort: this restores an optional highlight and the
-        // unsaved-changes badge, so a failure just leaves both unset until the
-        // next edit (the pre-existing fast-path behavior).
-        console.error("Failed to load pending positions:", err);
-      });
-  }, [isFullyLoaded, isFastKeymapAvailable, loadPendingFromSource]);
+  // (The device's UNSAVED (pending) positions are fetched inline in
+  // loadKeymapData on the fast path — see the get_pending call there. Doing it
+  // there rather than in a standalone effect keeps it tied to the load id, so a
+  // remount's second racing load can't strand a stale result.)
 
   // Reset state when disconnected
   useEffect(() => {
@@ -1181,7 +1205,6 @@ export function useKeymap(): UseKeymapReturn {
       setLoadingProgress(null);
       dataLoadedRef.current = false;
       defaultKeymapRequestedRef.current = false;
-      pendingRequestedRef.current = false;
       // Clear error timer
       if (errorTimerRef.current) {
         clearTimeout(errorTimerRef.current);
@@ -1229,6 +1252,7 @@ export function useKeymap(): UseKeymapReturn {
     getOriginalBinding,
     getDefaultBinding,
     isBindingModified,
+    isBindingOriginalKnown,
     isFastKeymapAvailable,
     isBindingChangedFromDefault,
     isKeymapChangedFromDefault,

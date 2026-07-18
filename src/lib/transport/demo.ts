@@ -813,7 +813,13 @@ class Keyboard {
     }
 
     if (req.getDefaultLayer) {
-      const l = findLayer(req.getDefaultLayer.layerId);
+      // The compiled-in (devicetree-stock) default never changes with edits, so
+      // read it from the pristine DEMO baseline rather than the live keymap --
+      // this is what real firmware's get_default_layer returns, and it lets the
+      // "changed from default" / "reset to default" features work in demo mode.
+      const l = DEMO.keymap.layers.find(
+        (layer) => layer.id === req.getDefaultLayer!.layerId,
+      );
       return {
         getDefaultLayer: {
           id: l?.id ?? req.getDefaultLayer.layerId,
