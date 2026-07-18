@@ -135,18 +135,31 @@ message Setting {
     // Omitted for DEVICE_PRIVATE settings and secure settings while locked.
     SettingValue value = 9;
     uint32 source = 10;
+    // The setting's default value (its runtime override if one was installed,
+    // otherwise its compile-time default). Present only when the request set
+    // require_default AND the current value differs from that default, so a
+    // client can offer a "reset to default" affordance without a second round
+    // trip. Never present for array or keyspace settings (which have no
+    // compile-time default).
+    optional SettingValue default_value = 11;
 }
 
 message ListSettingsRequest {
     SettingScope scope = 1;
     // Include static metadata in each list item notification.
     bool require_meta = 2;
+    // Include each setting's default value (see Setting.default_value); only
+    // emitted for settings whose current value differs from the default.
+    bool require_default = 3;
 }
 
 message GetSettingRequest {
     SettingRef setting = 1;
     // Include static metadata in the get response.
     bool require_meta = 2;
+    // Include the setting's default value (see Setting.default_value); only
+    // emitted when the current value differs from the default.
+    bool require_default = 3;
 }
 
 message WriteSettingRequest {

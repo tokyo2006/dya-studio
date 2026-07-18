@@ -189,15 +189,88 @@ describe("RuntimeMacroHandler", () => {
     expect(renameResponse.status?.affectedCount).toBe(1);
 
     const listResponse = handler.process(Request.create({ listMacros: {} }));
-    expect(
-      listResponse.listMacros?.macros.some((m) => m.name === "Hi"),
-    ).toBe(true);
+    expect(listResponse.listMacros?.macros.some((m) => m.name === "Hi")).toBe(
+      true,
+    );
     expect(
       listResponse.listMacros?.macros.some((m) => m.name === "Hello"),
     ).toBe(false);
 
     const after = handler.process(Request.create({ getMacro: { slot: 0 } }));
     expect(after.getMacro?.macro?.steps.length).toBe(stepsBefore);
+  });
+
+  it("reports per-slot hasUnsavedChanges cleared by save and discard", () => {
+    const initial = handler.process(Request.create({ listMacros: {} }));
+    expect(initial.listMacros?.macros.every((m) => !m.hasUnsavedChanges)).toBe(
+      true,
+    );
+
+    handler.process(
+      Request.create({
+        setMacroStepCount: { slot: 0, stepCount: 0, persist: false },
+      }),
+    );
+
+    const afterEdit = handler.process(Request.create({ listMacros: {} }));
+    expect(
+      afterEdit.listMacros?.macros.find((m) => m.slot === 0)?.hasUnsavedChanges,
+    ).toBe(true);
+    expect(
+      afterEdit.listMacros?.macros.find((m) => m.slot === 1)?.hasUnsavedChanges,
+    ).toBe(false);
+
+    handler.process(Request.create({ discardMacros: {} }));
+    const afterDiscard = handler.process(Request.create({ listMacros: {} }));
+    expect(
+      afterDiscard.listMacros?.macros.every((m) => !m.hasUnsavedChanges),
+    ).toBe(true);
+  });
+
+  it("resets a macro to its devicetree default and marks it unsaved", () => {
+    // Edit + persist so flash differs from the compile-time default.
+    handler.process(
+      Request.create({
+        setMacroStepCount: { slot: 0, stepCount: 0, persist: false },
+      }),
+    );
+    handler.process(Request.create({ saveMacros: {} }));
+
+    const resetResponse = handler.process(
+      Request.create({ resetMacro: { slot: 0, persist: false } }),
+    );
+    expect(resetResponse.error).toBeUndefined();
+    expect(resetResponse.status?.affectedCount).toBe(1);
+
+    const getResponse = handler.process(
+      Request.create({ getMacro: { slot: 0 } }),
+    );
+    // "Hello" seed has 5 steps -- restored from the default.
+    expect(getResponse.getMacro?.macro?.steps.length).toBe(5);
+
+    const listResponse = handler.process(Request.create({ listMacros: {} }));
+    expect(
+      listResponse.listMacros?.macros.find((m) => m.slot === 0)
+        ?.hasUnsavedChanges,
+    ).toBe(true);
+  });
+
+  it("deletes a macro on reset when it has no devicetree default", () => {
+    handler.process(
+      Request.create({ createMacro: { name: "temp", persist: false } }),
+    );
+    const created = handler
+      .process(Request.create({ listMacros: {} }))
+      .listMacros?.macros.find((m) => m.name === "temp");
+    expect(created).toBeDefined();
+
+    const resetResponse = handler.process(
+      Request.create({ resetMacro: { slot: created!.slot, persist: false } }),
+    );
+    expect(resetResponse.error).toBeUndefined();
+
+    const after = handler.process(Request.create({ listMacros: {} }));
+    expect(after.listMacros?.macros.some((m) => m.name === "temp")).toBe(false);
   });
 
   it("creates a new macro when the custom-settings keyspace gains a matching entry (legacy path)", () => {

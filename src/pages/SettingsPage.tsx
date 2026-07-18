@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import {
   IconSettings,
@@ -8,6 +8,7 @@ import {
 import { AdvancedSettingsSection } from "../components/AdvancedSettingsSection";
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import { useSettings } from "../hooks/useSettings";
+import { useDebouncedMemoryWrite } from "../hooks/useDebouncedMemoryWrite";
 import { useLanguage } from "../hooks/useLanguage";
 
 // Helper to format milliseconds to human readable
@@ -231,10 +232,6 @@ export function SettingsPage() {
   const { t } = useLanguage();
   const { isAvailable, devices, isLoading, error, setActivitySettings } =
     useSettings();
-  // Track if user has edited the form
-  const [hasEdits, setHasEdits] = useState(false);
-  const [editedIdleTimeout, setEditedIdleTimeout] = useState<number>(0);
-  const [editedSleepTimeout, setEditedSleepTimeout] = useState<number>(0);
 
   // Get central device settings (source 0)
   const centralSettings = useMemo(
@@ -242,30 +239,55 @@ export function SettingsPage() {
     [devices],
   );
 
-  // Display values: use edited values if user has made changes, otherwise use central settings
-  const idleTimeout = hasEdits
-    ? editedIdleTimeout
-    : (centralSettings?.idleMs ?? 0);
-  const sleepTimeout = hasEdits
-    ? editedSleepTimeout
-    : (centralSettings?.sleepMs ?? 0);
+  // Optimistic pending value shown while a debounced write is in flight. This
+  // is a direct/persistent write-through (no memory tier), so there is no
+  // discard/reset — the edit is auto-written after MEMORY_WRITE_DEBOUNCE_MS.
+  const [pending, setPending] = useState<{
+    idleMs: number;
+    sleepMs: number;
+  } | null>(null);
+  const [showSaved, setShowSaved] = useState(false);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+    },
+    [],
+  );
+
+  const write = useCallback(
+    async (value: { idleMs: number; sleepMs: number }) => {
+      await setActivitySettings(value.idleMs, value.sleepMs);
+      setPending(null);
+      setShowSaved(true);
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+      savedTimerRef.current = setTimeout(() => setShowSaved(false), 2000);
+    },
+    [setActivitySettings],
+  );
+
+  const { state: saveState, queue } = useDebouncedMemoryWrite(write);
+
+  // Display values: prefer the in-flight pending edit, otherwise device state.
+  const idleTimeout = pending?.idleMs ?? centralSettings?.idleMs ?? 0;
+  const sleepTimeout = pending?.sleepMs ?? centralSettings?.sleepMs ?? 0;
 
   const handleIdleChange = (ms: number) => {
-    setHasEdits(true);
-    setEditedIdleTimeout(ms);
-    setEditedSleepTimeout(sleepTimeout); // Keep sleep timeout unchanged
+    const next = { idleMs: ms, sleepMs: sleepTimeout };
+    setPending(next);
+    setShowSaved(false);
+    queue(next);
   };
 
   const handleSleepChange = (ms: number) => {
-    setHasEdits(true);
-    setEditedSleepTimeout(ms);
-    setEditedIdleTimeout(idleTimeout); // Keep idle timeout unchanged
+    const next = { idleMs: idleTimeout, sleepMs: ms };
+    setPending(next);
+    setShowSaved(false);
+    queue(next);
   };
 
-  const handleSaveSettings = async () => {
-    await setActivitySettings(idleTimeout, sleepTimeout);
-    setHasEdits(false);
-  };
+  const isSaving = saveState === "queued" || saveState === "saving";
 
   return (
     <div className="p-6 h-full overflow-auto">
@@ -362,14 +384,16 @@ export function SettingsPage() {
                   />
                 </div>
 
-                <div className="flex justify-end pt-2">
-                  <button
-                    className="btn-electric text-sm"
-                    onClick={handleSaveSettings}
-                    disabled={isLoading}
-                  >
-                    {isLoading ? t("Saving...") : t("Apply to All Devices")}
-                  </button>
+                <div className="flex justify-end pt-2 h-4">
+                  {isSaving ? (
+                    <span className="text-xs text-[var(--color-text-muted)]">
+                      {t("Saving...")}
+                    </span>
+                  ) : showSaved ? (
+                    <span className="text-xs text-[var(--color-text-muted)]">
+                      {t("Saved")}
+                    </span>
+                  ) : null}
                 </div>
               </div>
 

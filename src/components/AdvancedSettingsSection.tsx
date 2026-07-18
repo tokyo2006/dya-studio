@@ -26,6 +26,8 @@ import {
   type CustomSettingsSection,
   type UseCustomSettingsReturn,
 } from "../hooks/useCustomSettings";
+import { MEMORY_WRITE_DEBOUNCE_MS } from "../hooks/useDebouncedMemoryWrite";
+import { StatusBadge, StatusDot, type EditStatus } from "./EditStatusIndicator";
 import { useKeymap, type BehaviorDefinition } from "../hooks/useKeymap";
 import { useLanguage } from "../hooks/useLanguage";
 import {
@@ -37,8 +39,6 @@ import {
 } from "../proto/cormoran/zmk/custom_settings/custom_settings";
 
 type ValueKind = "bytes" | "int32" | "bool" | "string" | "behavior" | "unknown";
-
-const MEMORY_WRITE_DEBOUNCE_MS = 1500;
 
 // Input that keeps its own local value while focused so that parent-driven
 // updates (e.g. after a debounced memory write completes) don't reset the
@@ -811,6 +811,15 @@ function SettingRow({
   );
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Green when the value lives only in memory, blue when it is persisted but
+  // differs from the compile-time default (device reports defaultValue only in
+  // that case), nothing when it matches the default.
+  const editStatus: EditStatus = setting.hasUnsavedValue
+    ? "unsaved"
+    : setting.defaultValue !== undefined
+      ? "modified"
+      : "default";
+
   useEffect(() => {
     return () => {
       if (timeoutRef.current) {
@@ -839,13 +848,7 @@ function SettingRow({
           <p className="truncate text-sm font-medium text-[var(--color-text)]">
             {settingLabel(setting)}
           </p>
-          {setting.hasUnsavedValue && (
-            <span
-              className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-[var(--color-neon)]"
-              title={t("Unsaved")}
-              aria-label={t("Unsaved")}
-            />
-          )}
+          <StatusDot status={editStatus} />
         </div>
         <p className="mt-1 truncate font-mono text-xs text-[var(--color-text-muted)]">
           {formatValue(setting, t)}
@@ -974,6 +977,11 @@ export function CustomSettingsSectionCard({
   const hasUnsavedChanges = section.settings.some(
     (setting) => setting.hasUnsavedValue,
   );
+  // Blue summary: nothing is queued in memory, but at least one persisted value
+  // differs from its compile-time default (device reports defaultValue).
+  const hasModifiedFromDefault = section.settings.some(
+    (setting) => setting.defaultValue !== undefined,
+  );
   const sortedSettings = [...section.settings].sort((a, b) =>
     settingSortValue(a).localeCompare(settingSortValue(b)),
   );
@@ -1029,11 +1037,11 @@ export function CustomSettingsSectionCard({
           </div>
         </button>
         <div className="flex flex-wrap items-center justify-end gap-2">
-          {hasUnsavedChanges && (
-            <span className="text-xs text-[var(--color-neon)]">
-              {t("● Unsaved")}
-            </span>
-          )}
+          {hasUnsavedChanges ? (
+            <StatusBadge status="unsaved" />
+          ) : hasModifiedFromDefault ? (
+            <StatusBadge status="modified" />
+          ) : null}
           <button
             type="button"
             className="btn-electric flex items-center gap-2 px-3 py-2 text-sm"

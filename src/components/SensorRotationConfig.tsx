@@ -12,6 +12,7 @@ import {
   IconInfoTriangle,
 } from "@tabler/icons-react";
 import { useRuntimeSensorRotate } from "../hooks/useRuntimeSensorRotate";
+import { MEMORY_WRITE_DEBOUNCE_MS } from "../hooks/useDebouncedMemoryWrite";
 import type { LayerBindings, Binding } from "../hooks/useRuntimeSensorRotate";
 import type { BehaviorDefinition } from "../hooks/useKeymap";
 import type { BehaviorBinding } from "../hooks/useKeymap";
@@ -248,7 +249,7 @@ export function SensorRotationConfig({
         });
 
         tapTimeTimersRef.current.delete(sensorIndex);
-      }, 3000); // 3 second debounce
+      }, MEMORY_WRITE_DEBOUNCE_MS);
 
       tapTimeTimersRef.current.set(sensorIndex, timer);
     },

@@ -26,6 +26,8 @@ function createBehavior(
   return { behaviorId, param1, param2 };
 }
 
+// Compile-time defaults for the demo keyboard. These define which slots have a
+// default to reset back to (DEFAULT_SLOT_INDICES below).
 const MOCK_COMBOS: Combo[] = [
   {
     index: 0,
@@ -53,6 +55,50 @@ const MOCK_COMBOS: Combo[] = [
   },
 ];
 
+// The combos actually persisted on the demo keyboard at boot. Slot 0 is a
+// compile-time default that has been overridden (blue), slot 1 is the untouched
+// default, and slot 2 is a runtime-only combo with no compile-time default
+// (also blue). This gives the UI both DEFAULT and OVERRIDDEN/RUNTIME sources so
+// the blue "changed from default" dot is visible without any user action.
+const INITIAL_COMBOS: Combo[] = [
+  {
+    index: 0,
+    name: "Escape chord",
+    keyPositions: [0, 1],
+    behavior: createBehavior(BEHAVIOR_KEY_PRESS, 0x29),
+    layerMask: 0,
+    enabled: true,
+    timeoutMs: 120,
+    requirePriorIdleMs: 0,
+    slowReleaseOverride: SlowReleaseOverride.SLOW_RELEASE_OVERRIDE_INHERIT,
+    source: ComboSource.COMBO_SOURCE_OVERRIDDEN,
+  },
+  {
+    index: 1,
+    name: "Tab chord",
+    keyPositions: [2, 3],
+    behavior: createBehavior(BEHAVIOR_KEY_PRESS, 0x2b),
+    layerMask: 1,
+    enabled: true,
+    timeoutMs: 0,
+    requirePriorIdleMs: 0,
+    slowReleaseOverride: SlowReleaseOverride.SLOW_RELEASE_OVERRIDE_INHERIT,
+    source: ComboSource.COMBO_SOURCE_DEFAULT,
+  },
+  {
+    index: 2,
+    name: "Copy chord",
+    keyPositions: [4, 5],
+    behavior: createBehavior(BEHAVIOR_KEY_PRESS, 0x06),
+    layerMask: 0,
+    enabled: true,
+    timeoutMs: 0,
+    requirePriorIdleMs: 0,
+    slowReleaseOverride: SlowReleaseOverride.SLOW_RELEASE_OVERRIDE_INHERIT,
+    source: ComboSource.COMBO_SOURCE_RUNTIME,
+  },
+];
+
 const MOCK_GLOBAL_SETTINGS: GlobalSettings = {
   timeoutMs: 50,
   slowRelease: false,
@@ -72,8 +118,8 @@ function cloneCombo(combo: Combo): Combo {
 }
 
 export class RuntimeComboHandler {
-  private persistentCombos: Combo[] = MOCK_COMBOS.map(cloneCombo);
-  private combos: Combo[] = MOCK_COMBOS.map(cloneCombo);
+  private persistentCombos: Combo[] = INITIAL_COMBOS.map(cloneCombo);
+  private combos: Combo[] = INITIAL_COMBOS.map(cloneCombo);
   private persistentGlobalSettings: GlobalSettings = {
     ...MOCK_GLOBAL_SETTINGS,
   };

@@ -24,6 +24,12 @@ message MacroSummary {
     uint32 slot = 1;
     string name = 2;
     uint32 encoded_size = 3;
+    // True when the macro has an in-memory-only change not yet written to
+    // flash (a memory-mode create/edit, or a value that differs from the
+    // persisted one). Cleared by SaveMacros / DiscardMacros. A devicetree
+    // default that has never been saved also reports true, since it lives
+    // only in memory until the user saves it.
+    bool has_unsaved_changes = 4;
 }
 
 message BehaviorBinding {
@@ -94,6 +100,18 @@ message RenameMacroRequest {
     bool persist = 3;
 }
 
+// Reset the macro at `slot` to its compile-time (devicetree) state: if a
+// `cormoran,runtime-macro-default` node declares a macro whose name matches
+// this macro's, overwrite the body with that default; otherwise (no such
+// compile-time default) delete the macro entirely - "reset" of a macro that
+// only ever existed at runtime means removing it. `persist` writes the reset
+// result straight to flash (otherwise it lives in memory until SaveMacros /
+// is re-seeded from the devicetree next boot).
+message ResetMacroRequest {
+    uint32 slot = 1;
+    bool persist = 2;
+}
+
 message Request {
     reserved 3,
         8; // formerly set_macro_name, delete_macro
@@ -110,6 +128,7 @@ message Request {
         CreateMacroRequest create_macro = 12;
         DeleteMacroRequest delete_macro = 13;
         RenameMacroRequest rename_macro = 14;
+        ResetMacroRequest reset_macro = 15;
     }
 }
 

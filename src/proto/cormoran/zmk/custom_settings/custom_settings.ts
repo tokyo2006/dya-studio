@@ -187,6 +187,15 @@ export interface Setting {
   /** Omitted for DEVICE_PRIVATE settings and secure settings while locked. */
   value: SettingValue | undefined;
   source: number;
+  /**
+   * The setting's default value (its runtime override if one was installed,
+   * otherwise its compile-time default). Present only when the request set
+   * require_default AND the current value differs from that default, so a
+   * client can offer a "reset to default" affordance without a second round
+   * trip. Never present for array or keyspace settings (which have no
+   * compile-time default).
+   */
+  defaultValue?: SettingValue | undefined;
 }
 
 export interface ListSettingsRequest {
@@ -195,6 +204,11 @@ export interface ListSettingsRequest {
     | undefined;
   /** Include static metadata in each list item notification. */
   requireMeta: boolean;
+  /**
+   * Include each setting's default value (see Setting.default_value); only
+   * emitted for settings whose current value differs from the default.
+   */
+  requireDefault: boolean;
 }
 
 export interface GetSettingRequest {
@@ -203,6 +217,11 @@ export interface GetSettingRequest {
     | undefined;
   /** Include static metadata in the get response. */
   requireMeta: boolean;
+  /**
+   * Include the setting's default value (see Setting.default_value); only
+   * emitted when the current value differs from the default.
+   */
+  requireDefault: boolean;
 }
 
 export interface WriteSettingRequest {
@@ -1287,7 +1306,15 @@ export const SettingMeta: MessageFns<SettingMeta> = {
 };
 
 function createBaseSetting(): Setting {
-  return { customSubsystemIndex: 0, key: "", meta: undefined, hasUnsavedValue: false, value: undefined, source: 0 };
+  return {
+    customSubsystemIndex: 0,
+    key: "",
+    meta: undefined,
+    hasUnsavedValue: false,
+    value: undefined,
+    source: 0,
+    defaultValue: undefined,
+  };
 }
 
 export const Setting: MessageFns<Setting> = {
@@ -1309,6 +1336,9 @@ export const Setting: MessageFns<Setting> = {
     }
     if (message.source !== 0) {
       writer.uint32(80).uint32(message.source);
+    }
+    if (message.defaultValue !== undefined) {
+      SettingValue.encode(message.defaultValue, writer.uint32(90).fork()).join();
     }
     return writer;
   },
@@ -1368,6 +1398,14 @@ export const Setting: MessageFns<Setting> = {
           message.source = reader.uint32();
           continue;
         }
+        case 11: {
+          if (tag !== 90) {
+            break;
+          }
+
+          message.defaultValue = SettingValue.decode(reader, reader.uint32());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1392,12 +1430,15 @@ export const Setting: MessageFns<Setting> = {
       ? SettingValue.fromPartial(object.value)
       : undefined;
     message.source = object.source ?? 0;
+    message.defaultValue = (object.defaultValue !== undefined && object.defaultValue !== null)
+      ? SettingValue.fromPartial(object.defaultValue)
+      : undefined;
     return message;
   },
 };
 
 function createBaseListSettingsRequest(): ListSettingsRequest {
-  return { scope: undefined, requireMeta: false };
+  return { scope: undefined, requireMeta: false, requireDefault: false };
 }
 
 export const ListSettingsRequest: MessageFns<ListSettingsRequest> = {
@@ -1407,6 +1448,9 @@ export const ListSettingsRequest: MessageFns<ListSettingsRequest> = {
     }
     if (message.requireMeta !== false) {
       writer.uint32(16).bool(message.requireMeta);
+    }
+    if (message.requireDefault !== false) {
+      writer.uint32(24).bool(message.requireDefault);
     }
     return writer;
   },
@@ -1434,6 +1478,14 @@ export const ListSettingsRequest: MessageFns<ListSettingsRequest> = {
           message.requireMeta = reader.bool();
           continue;
         }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.requireDefault = reader.bool();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1452,12 +1504,13 @@ export const ListSettingsRequest: MessageFns<ListSettingsRequest> = {
       ? SettingScope.fromPartial(object.scope)
       : undefined;
     message.requireMeta = object.requireMeta ?? false;
+    message.requireDefault = object.requireDefault ?? false;
     return message;
   },
 };
 
 function createBaseGetSettingRequest(): GetSettingRequest {
-  return { setting: undefined, requireMeta: false };
+  return { setting: undefined, requireMeta: false, requireDefault: false };
 }
 
 export const GetSettingRequest: MessageFns<GetSettingRequest> = {
@@ -1467,6 +1520,9 @@ export const GetSettingRequest: MessageFns<GetSettingRequest> = {
     }
     if (message.requireMeta !== false) {
       writer.uint32(16).bool(message.requireMeta);
+    }
+    if (message.requireDefault !== false) {
+      writer.uint32(24).bool(message.requireDefault);
     }
     return writer;
   },
@@ -1494,6 +1550,14 @@ export const GetSettingRequest: MessageFns<GetSettingRequest> = {
           message.requireMeta = reader.bool();
           continue;
         }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.requireDefault = reader.bool();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1512,6 +1576,7 @@ export const GetSettingRequest: MessageFns<GetSettingRequest> = {
       ? SettingRef.fromPartial(object.setting)
       : undefined;
     message.requireMeta = object.requireMeta ?? false;
+    message.requireDefault = object.requireDefault ?? false;
     return message;
   },
 };

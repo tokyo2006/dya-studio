@@ -11,6 +11,7 @@ import { TrackballAdvancedSettings } from "../components/TrackballAdvancedSettin
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import { AxisSnapMode } from "../proto/zmk/runtime_input_processor/runtime_input_processor";
 import { useDebouncedSave } from "../hooks/useDebouncedSave";
+import { MEMORY_WRITE_DEBOUNCE_MS } from "../hooks/useDebouncedMemoryWrite";
 import { useLanguage } from "../hooks/useLanguage";
 
 const SCALING_MIN = 0.1;
@@ -107,21 +108,51 @@ export function TrackballPage() {
   );
 
   // Debounced save hooks for each field
-  const scalingMultiplierSave = useDebouncedSave<number>();
-  const scalingDivisorSave = useDebouncedSave<number>();
-  const rotationSave = useDebouncedSave<number>();
-  const tempLayerEnabledSave = useDebouncedSave<boolean>();
-  const tempLayerLayerSave = useDebouncedSave<number>();
-  const tempLayerActivationDelaySave = useDebouncedSave<number>();
-  const tempLayerDeactivationDelaySave = useDebouncedSave<number>();
-  const activeLayersSave = useDebouncedSave<number>();
-  const axisSnapModeSave = useDebouncedSave<AxisSnapMode>();
-  const axisSnapThresholdSave = useDebouncedSave<number>();
-  const axisSnapTimeoutSave = useDebouncedSave<number>();
-  const xInvertSave = useDebouncedSave<boolean>();
-  const yInvertSave = useDebouncedSave<boolean>();
-  const xyToScrollEnabledSave = useDebouncedSave<boolean>();
-  const xySwapEnabledSave = useDebouncedSave<boolean>();
+  const scalingMultiplierSave = useDebouncedSave<number>({
+    delay: MEMORY_WRITE_DEBOUNCE_MS,
+  });
+  const scalingDivisorSave = useDebouncedSave<number>({
+    delay: MEMORY_WRITE_DEBOUNCE_MS,
+  });
+  const rotationSave = useDebouncedSave<number>({
+    delay: MEMORY_WRITE_DEBOUNCE_MS,
+  });
+  const tempLayerEnabledSave = useDebouncedSave<boolean>({
+    delay: MEMORY_WRITE_DEBOUNCE_MS,
+  });
+  const tempLayerLayerSave = useDebouncedSave<number>({
+    delay: MEMORY_WRITE_DEBOUNCE_MS,
+  });
+  const tempLayerActivationDelaySave = useDebouncedSave<number>({
+    delay: MEMORY_WRITE_DEBOUNCE_MS,
+  });
+  const tempLayerDeactivationDelaySave = useDebouncedSave<number>({
+    delay: MEMORY_WRITE_DEBOUNCE_MS,
+  });
+  const activeLayersSave = useDebouncedSave<number>({
+    delay: MEMORY_WRITE_DEBOUNCE_MS,
+  });
+  const axisSnapModeSave = useDebouncedSave<AxisSnapMode>({
+    delay: MEMORY_WRITE_DEBOUNCE_MS,
+  });
+  const axisSnapThresholdSave = useDebouncedSave<number>({
+    delay: MEMORY_WRITE_DEBOUNCE_MS,
+  });
+  const axisSnapTimeoutSave = useDebouncedSave<number>({
+    delay: MEMORY_WRITE_DEBOUNCE_MS,
+  });
+  const xInvertSave = useDebouncedSave<boolean>({
+    delay: MEMORY_WRITE_DEBOUNCE_MS,
+  });
+  const yInvertSave = useDebouncedSave<boolean>({
+    delay: MEMORY_WRITE_DEBOUNCE_MS,
+  });
+  const xyToScrollEnabledSave = useDebouncedSave<boolean>({
+    delay: MEMORY_WRITE_DEBOUNCE_MS,
+  });
+  const xySwapEnabledSave = useDebouncedSave<boolean>({
+    delay: MEMORY_WRITE_DEBOUNCE_MS,
+  });
 
   // Track previous processor to detect changes and reset pending state
   const previousProcessorRef = useRef<string | null>(null);
