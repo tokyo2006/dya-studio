@@ -1,0 +1,710 @@
+/**
+ * Merged "Macro&Combo" page: one tab that hosts both the runtime-macro and
+ * runtime-combo editors. The left column shows the two lists (Macros on top,
+ * Combos below); the right column shows exactly one of: the selected macro's
+ * editor, the selected combo's editor, the macro global settings, the combo
+ * global settings, or an empty placeholder. A single top action bar refreshes,
+ * saves and discards both domains at once.
+ */
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import {
+  IconAlertCircle,
+  IconAlertTriangle,
+  IconDeviceFloppy,
+  IconLoader2,
+  IconLock,
+  IconPlus,
+  IconRefresh,
+  IconRestore,
+  IconSettings,
+  IconWand,
+} from "@tabler/icons-react";
+import { ConnectionContext } from "../components/DeviceConnection";
+import { KeyboardLayoutContext } from "../contexts/KeyboardLayoutContext";
+import { LoadingIndicator } from "../components/LoadingIndicator";
+import { StatusDot } from "../components/EditStatusIndicator";
+import { UnlockPrompt } from "../components/UnlockPrompt";
+import { useStudioLockState } from "@cormoran/zmk-studio-react-hook";
+import { useKeymap, getKeymapLoadingLabel } from "../hooks/useKeymap";
+import { useLanguage } from "../hooks/useLanguage";
+import { useRuntimeCombo } from "../hooks/useRuntimeCombo";
+import { useRuntimeMacro } from "../hooks/useRuntimeMacro";
+import { useMemo } from "react";
+import { MacroEditorCard } from "../components/macroCombo/MacroEditorCard";
+import { ComboEditorCard } from "../components/macroCombo/ComboEditorCard";
+import {
+  ComboGlobalSettingsCard,
+  MacroGlobalSettingsCard,
+} from "../components/macroCombo/GlobalSettingsCards";
+import {
+  comboEditStatus,
+  comboSourceLabel,
+  defaultBehaviorBinding,
+  formatComboBehavior,
+  formatLayerScope,
+} from "../components/macroCombo/comboUtils";
+import { useComboEditor } from "../components/macroCombo/useComboEditor";
+import { useMacroEditor } from "../components/macroCombo/useMacroEditor";
+import type { Combo } from "../hooks/useRuntimeCombo";
+import type { MacroSummary } from "../proto/cormoran/runtime_macro/runtime_macro";
+
+/** What the right column currently shows. `null` renders the placeholder
+ * (until the macro auto-select picks the first macro, mirroring the old
+ * MacroPage behavior). */
+type RightView = "macro" | "combo" | "macro-settings" | "combo-settings" | null;
+
+export function MacroComboPage() {
+  const { t } = useLanguage();
+  const connection = useContext(ConnectionContext);
+  const keyboardLayoutContext = useContext(KeyboardLayoutContext);
+  const keymap = useKeymap();
+  const runtimeMacro = useRuntimeMacro();
+  const runtimeCombo = useRuntimeCombo();
+  // Proactive lock state: prompt for unlock on edit intent and show a lock
+  // badge in place of Save/Discard, instead of letting the edit fail first.
+  const { locked } = useStudioLockState();
+  const [showUnlockPrompt, setShowUnlockPrompt] = useState(false);
+  const [rightView, setRightView] = useState<RightView>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDiscarding, setIsDiscarding] = useState(false);
+
+  const macroAvailable = runtimeMacro.isAvailable;
+  const comboAvailable = runtimeCombo.isAvailable;
+  const anyAvailable = macroAvailable || comboAvailable;
+  const anyLoading = runtimeMacro.isLoading || runtimeCombo.isLoading;
+  const hasPendingChanges =
+    runtimeMacro.hasUnsavedChanges || runtimeCombo.hasPendingChanges;
+
+  // Guard an edit action: if Studio is locked, open the unlock prompt instead
+  // of performing the edit (and let the caller bail out).
+  const requireUnlocked = useCallback((): boolean => {
+    if (locked) {
+      setShowUnlockPrompt(true);
+      return false;
+    }
+    return true;
+  }, [locked]);
+
+  const layersForSelector = useMemo(() => {
+    if (!keymap.keymap?.layers) return [];
+    return keymap.keymap.layers.map((layer) => ({
+      id: layer.id,
+      name: layer.name,
+    }));
+  }, [keymap.keymap?.layers]);
+
+  // Auto-selecting the first macro (old MacroPage behavior) may only claim the
+  // right column while nothing else owns it.
+  const onMacroAutoSelected = useCallback(() => {
+    setRightView((view) => (view === null ? "macro" : view));
+  }, []);
+  const onComboSelected = useCallback(() => {
+    setRightView("combo");
+  }, []);
+
+  const macroEditor = useMacroEditor({
+    runtimeMacro,
+    keymap,
+    layers: layersForSelector,
+    keyboardLayout: keyboardLayoutContext.layout,
+    requireUnlocked,
+    t,
+    canMaintainSelection: rightView === null || rightView === "macro",
+    onAutoSelected: onMacroAutoSelected,
+  });
+
+  const comboEditor = useComboEditor({
+    runtimeCombo,
+    keymap,
+    requireUnlocked,
+    t,
+    onComboSelected,
+  });
+
+  // listMacros RPC requires unlock, so we manage loading around lock state:
+  // - While locked: show the unlock modal and suppress the error from the
+  //   failed initial load attempt (the hooks fire their loads on mount before
+  //   we know the studio is locked).
+  // - On locked→unlocked transition: reload both domains so data appears
+  //   immediately without requiring the user to manually retry.
+  const prevLockedRef = useRef(locked);
+  useEffect(() => {
+    if (locked) {
+      setShowUnlockPrompt(true);
+      runtimeMacro.clearError();
+      runtimeCombo.clearError();
+    } else if (prevLockedRef.current) {
+      if (runtimeMacro.isAvailable) void runtimeMacro.loadMacros();
+      if (runtimeCombo.isAvailable) void runtimeCombo.reload();
+    }
+    prevLockedRef.current = locked;
+  }, [locked, runtimeMacro, runtimeCombo]);
+
+  // --- Selection routing (exclusive across the two lists) ---
+
+  const handleSelectMacro = useCallback(
+    (macro: MacroSummary) => {
+      comboEditor.clearSelection();
+      macroEditor.selectMacro(macro);
+      setRightView("macro");
+    },
+    [comboEditor, macroEditor],
+  );
+
+  const handleCreateMacro = useCallback(() => {
+    comboEditor.clearSelection();
+    setRightView("macro");
+    void macroEditor.handleCreateMacro();
+  }, [comboEditor, macroEditor]);
+
+  const handleSelectCombo = useCallback(
+    (combo: Combo) => {
+      macroEditor.clearSelection();
+      comboEditor.selectCombo(combo);
+    },
+    [comboEditor, macroEditor],
+  );
+
+  const handleNewCombo = useCallback(() => {
+    macroEditor.clearSelection();
+    void comboEditor.handleNewCombo();
+  }, [comboEditor, macroEditor]);
+
+  const openMacroSettings = useCallback(() => {
+    macroEditor.clearSelection();
+    comboEditor.clearSelection();
+    setRightView("macro-settings");
+  }, [comboEditor, macroEditor]);
+
+  const openComboSettings = useCallback(() => {
+    macroEditor.clearSelection();
+    comboEditor.clearSelection();
+    setRightView("combo-settings");
+  }, [comboEditor, macroEditor]);
+
+  // --- Unified top-bar actions (both domains at once) ---
+
+  const handleRefresh = useCallback(() => {
+    if (macroAvailable) void runtimeMacro.loadMacros();
+    if (comboAvailable) void runtimeCombo.reload();
+  }, [comboAvailable, macroAvailable, runtimeCombo, runtimeMacro]);
+
+  const handleSave = useCallback(async () => {
+    if (!requireUnlocked()) return;
+    setIsSaving(true);
+    try {
+      // Flush any queued debounced edits so they are part of this persist.
+      await macroEditor.flushPendingWrites();
+      await comboEditor.flushPendingWrites();
+      if (macroAvailable) {
+        await runtimeMacro.saveMacros();
+        macroEditor.clearGlobalModified();
+      }
+      if (comboAvailable) {
+        const status = await runtimeCombo.saveChanges();
+        if (status) {
+          comboEditor.clearModified();
+          comboEditor.setStatusMessage(
+            t("Saved {{count}} runtime combo changes.", {
+              count: status.affectedCount,
+            }),
+          );
+        }
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  }, [
+    comboAvailable,
+    comboEditor,
+    macroAvailable,
+    macroEditor,
+    requireUnlocked,
+    runtimeCombo,
+    runtimeMacro,
+    t,
+  ]);
+
+  const handleDiscard = useCallback(async () => {
+    if (!requireUnlocked()) return;
+    setIsDiscarding(true);
+    try {
+      // Drop queued edits — discard restores the persisted values.
+      macroEditor.cancelPendingWrites();
+      comboEditor.cancelPendingWrites();
+      if (macroAvailable) {
+        await runtimeMacro.discardMacros();
+        macroEditor.clearGlobalModified();
+        await macroEditor.reloadLoadedMacro();
+      }
+      if (comboAvailable) {
+        const status = await runtimeCombo.discardChanges();
+        if (status) {
+          comboEditor.clearModified();
+          comboEditor.clearSelection();
+          comboEditor.setStatusMessage(
+            t("Discarded {{count}} runtime combo changes.", {
+              count: status.affectedCount,
+            }),
+          );
+          // A discarded combo selection no longer exists reliably; fall back
+          // to the placeholder (the macro auto-select may then take over).
+          setRightView((view) => (view === "combo" ? null : view));
+        }
+      }
+    } finally {
+      setIsDiscarding(false);
+    }
+  }, [
+    comboAvailable,
+    comboEditor,
+    macroAvailable,
+    macroEditor,
+    requireUnlocked,
+    runtimeCombo,
+    runtimeMacro,
+    t,
+  ]);
+
+  const firstError =
+    runtimeMacro.error ||
+    macroEditor.encodedSizeError ||
+    macroEditor.stringConversionError ||
+    runtimeCombo.error ||
+    keymap.error;
+
+  return (
+    <div className="p-6 h-full overflow-auto">
+      <div className="max-w-6xl mx-auto">
+        <div className="flex flex-col tablet:flex-row tablet:items-center gap-3 mb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-[var(--color-electric)]/10 border border-[var(--color-electric)]/20">
+              <IconWand size={24} className="text-[var(--color-electric)]" />
+            </div>
+            <div>
+              <h1 className="text-xl font-medium text-[var(--color-text)]">
+                {t("Macro&Combo")}
+              </h1>
+              <p className="text-sm text-[var(--color-text-muted)]">
+                {t("Edit runtime macro and combo slots")}
+              </p>
+            </div>
+          </div>
+
+          {connection.isConnected && anyAvailable && (
+            <div className="flex items-center gap-2 ml-auto flex-wrap">
+              <button
+                className="btn-ghost text-sm flex items-center gap-1.5"
+                onClick={handleRefresh}
+                disabled={anyLoading}
+              >
+                <IconRefresh size={16} />
+                {t("Refresh")}
+              </button>
+              {locked ? (
+                <button
+                  type="button"
+                  onClick={() => setShowUnlockPrompt(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-[var(--color-warning)]/40 bg-[var(--color-warning)]/10 text-[var(--color-warning)] hover:bg-[var(--color-warning)]/20 transition-colors"
+                  title={t("Studio is locked — click to unlock")}
+                >
+                  <IconLock size={16} />
+                  {t("Locked")}
+                </button>
+              ) : (
+                <>
+                  {hasPendingChanges && (
+                    <span className="flex items-center gap-1 text-xs text-[var(--color-neon)] mr-2">
+                      <StatusDot status="unsaved" />
+                      {t("Unsaved changes")}
+                    </span>
+                  )}
+                  <button
+                    className="btn-ghost text-sm flex items-center gap-1.5"
+                    onClick={handleDiscard}
+                    disabled={isDiscarding || anyLoading || !hasPendingChanges}
+                  >
+                    {isDiscarding ? (
+                      <IconLoader2 size={16} className="animate-spin" />
+                    ) : (
+                      <IconRestore size={16} />
+                    )}
+                    {t("Discard")}
+                  </button>
+                  <button
+                    className="btn-electric text-sm flex items-center gap-1.5"
+                    onClick={handleSave}
+                    disabled={
+                      isSaving ||
+                      anyLoading ||
+                      !hasPendingChanges ||
+                      Boolean(macroEditor.encodedSizeError)
+                    }
+                  >
+                    {isSaving ? (
+                      <IconLoader2 size={16} className="animate-spin" />
+                    ) : (
+                      <IconDeviceFloppy size={16} />
+                    )}
+                    {t("Save")}
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        {!connection.isConnected && (
+          <div className="glass-card p-6 text-center">
+            <p className="text-sm text-[var(--color-text-muted)]">
+              {t("Connect your keyboard to edit runtime macros and combos")}
+            </p>
+          </div>
+        )}
+
+        {connection.isConnected && !macroAvailable && (
+          <div className="glass-card p-6 text-center mb-4">
+            <p className="text-sm text-[var(--color-text-muted)]">
+              {t("Runtime macro subsystem not found. Build firmware with")}{" "}
+              <a
+                href="https://github.com/cormoran/zmk-feature-runtime-macro"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[var(--color-electric)] underline"
+              >
+                cormoran/zmk-feature-runtime-macro
+              </a>
+              .
+            </p>
+          </div>
+        )}
+
+        {connection.isConnected && !comboAvailable && (
+          <div className="glass-card p-4 warning-banner border flex items-center gap-3 mb-4">
+            <IconAlertTriangle size={24} className="flex-shrink-0" />
+            <p className="text-sm">
+              {t("Runtime combo subsystem is not available for your keyboard.")}
+              <a
+                href="https://github.com/cormoran/zmk-feature-runtime-combo"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[var(--color-electric)] underline mx-1"
+              >
+                cormoran/zmk-feature-runtime-combo
+              </a>
+              {t("is required in firmware.")}
+            </p>
+          </div>
+        )}
+
+        {firstError &&
+          !((showUnlockPrompt && locked) || keymap.unlockRequired) && (
+            <div className="glass-card p-4 mb-4 border-red-500/20 bg-red-500/10 flex items-center gap-3">
+              <IconAlertCircle size={20} className="text-red-400" />
+              <p className="text-sm text-red-400">{firstError}</p>
+              {runtimeCombo.error && (
+                <button
+                  className="ml-auto text-xs text-red-300 hover:text-red-200"
+                  onClick={runtimeCombo.clearError}
+                >
+                  {t("Dismiss")}
+                </button>
+              )}
+            </div>
+          )}
+
+        {comboEditor.statusMessage && (
+          <div className="glass-card p-3 mb-4 border-[var(--color-electric)]/20 bg-[var(--color-electric)]/10">
+            <p className="text-sm text-[var(--color-electric)]">
+              {comboEditor.statusMessage}
+            </p>
+          </div>
+        )}
+
+        {connection.isConnected &&
+          comboAvailable &&
+          (runtimeCombo.isLoading || keymap.isLoading) &&
+          !keymap.keymap && (
+            <LoadingIndicator
+              className="mb-6"
+              label={
+                keymap.isLoading
+                  ? getKeymapLoadingLabel(t, keymap.loadingProgress)
+                  : t("Loading combo data...")
+              }
+              current={
+                keymap.isLoading ? keymap.loadingProgress?.current : undefined
+              }
+              total={
+                keymap.isLoading ? keymap.loadingProgress?.total : undefined
+              }
+            />
+          )}
+
+        {connection.isConnected && anyAvailable && (
+          <div className="grid grid-cols-1 desktop:grid-cols-[300px_1fr] gap-4 min-w-0">
+            <div className="space-y-4">
+              {/* Macros list */}
+              {macroAvailable && (
+                <section className="glass-card p-3">
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-sm font-medium text-[var(--color-text)]">
+                      {t("Macros")}
+                    </h2>
+                    <div className="flex items-center gap-1">
+                      {runtimeMacro.isLoading && (
+                        <IconLoader2
+                          size={14}
+                          className="animate-spin text-[var(--color-electric)]"
+                        />
+                      )}
+                      <button
+                        className="relative p-1 rounded hover:bg-[var(--color-border)] text-[var(--color-electric)] transition-colors"
+                        onClick={openMacroSettings}
+                        title={t("Macro Global Settings")}
+                        aria-label={t("Macro Global Settings")}
+                      >
+                        <IconSettings size={15} />
+                        {macroEditor.globalModifiedFields.size > 0 && (
+                          <StatusDot
+                            status="unsaved"
+                            className="absolute -top-0.5 -right-0.5"
+                          />
+                        )}
+                      </button>
+                      <button
+                        className="p-1 rounded hover:bg-[var(--color-border)] text-[var(--color-electric)] disabled:opacity-40 transition-colors"
+                        onClick={handleCreateMacro}
+                        disabled={
+                          macroEditor.isCreating || runtimeMacro.isLoading
+                        }
+                        title={t("Create macro")}
+                      >
+                        {macroEditor.isCreating ? (
+                          <IconLoader2 size={15} className="animate-spin" />
+                        ) : (
+                          <IconPlus size={15} />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    {runtimeMacro.macros.length === 0 && (
+                      <p className="text-sm text-[var(--color-text-muted)] py-4 text-center">
+                        {t("No macros yet. Create one above.")}
+                      </p>
+                    )}
+                    {runtimeMacro.macros.map((macro) => (
+                      <button
+                        key={macro.name}
+                        className={`w-full px-3 py-2 rounded-lg text-left transition-colors ${
+                          rightView === "macro" &&
+                          macroEditor.selectedName === macro.name
+                            ? "bg-[var(--color-electric)]/20 text-[var(--color-electric)] border border-[var(--color-electric)]/30"
+                            : "text-[var(--color-text-secondary)] hover:bg-[var(--color-border)]"
+                        }`}
+                        onClick={() => handleSelectMacro(macro)}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span className="block text-sm font-medium truncate flex-1">
+                            {macro.name ||
+                              t("Macro {{slot}}", { slot: macro.slot })}
+                          </span>
+                          {macro.hasUnsavedChanges && (
+                            <StatusDot status="unsaved" />
+                          )}
+                        </div>
+                        <span className="block text-xs text-[var(--color-text-muted)]">
+                          {t("{{encodedSize}}/{{maxMacroBytes}} bytes", {
+                            encodedSize: macro.encodedSize,
+                            maxMacroBytes: runtimeMacro.maxMacroBytes,
+                          })}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* Combos list */}
+              {comboAvailable && keymap.keymap && (
+                <section className="glass-card p-3">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <h2 className="text-sm font-medium text-[var(--color-text)]">
+                        {t("Combos")}
+                      </h2>
+                      <p className="text-xs text-[var(--color-text-muted)]">
+                        {runtimeCombo.combos.length}
+                        {comboEditor.maxCombo
+                          ? ` / ${comboEditor.maxCombo}`
+                          : ""}{" "}
+                        {t("configured")}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {runtimeCombo.isLoading && (
+                        <IconLoader2
+                          size={14}
+                          className="animate-spin text-[var(--color-electric)]"
+                        />
+                      )}
+                      <button
+                        className="relative p-1 rounded hover:bg-[var(--color-border)] text-[var(--color-electric)] transition-colors"
+                        onClick={openComboSettings}
+                        title={t("Combo Global Settings")}
+                        aria-label={t("Combo Global Settings")}
+                      >
+                        <IconSettings size={15} />
+                        {comboEditor.globalModifiedFields.size > 0 && (
+                          <StatusDot
+                            status="unsaved"
+                            className="absolute -top-0.5 -right-0.5"
+                          />
+                        )}
+                      </button>
+                      <button
+                        className="p-1 rounded hover:bg-[var(--color-border)] text-[var(--color-electric)] disabled:opacity-40 transition-colors"
+                        onClick={handleNewCombo}
+                        title={t("New combo")}
+                      >
+                        <IconPlus size={15} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    {runtimeCombo.combos.length === 0 && (
+                      <p className="text-sm text-[var(--color-text-muted)] py-4 text-center">
+                        {t("No runtime combos configured")}
+                      </p>
+                    )}
+                    {runtimeCombo.combos.map((combo) => {
+                      const binding =
+                        combo.behavior ??
+                        defaultBehaviorBinding(keymap.behaviors);
+                      return (
+                        <button
+                          key={combo.index}
+                          className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                            rightView === "combo" &&
+                            comboEditor.selectedIndex === combo.index
+                              ? "bg-[var(--color-electric)]/10 border-[var(--color-electric)]/40"
+                              : "bg-[var(--color-surface)] border-[var(--color-border)] hover:border-[var(--color-electric)]/40"
+                          } ${combo.enabled ? "" : "opacity-60"}`}
+                          onClick={() => handleSelectCombo(combo)}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-sm font-medium text-[var(--color-text)] truncate flex-1">
+                              {combo.name ||
+                                t("Combo {{index}}", {
+                                  index: combo.index,
+                                })}
+                            </span>
+                            <span className="flex items-center gap-1.5 shrink-0">
+                              <StatusDot
+                                status={comboEditStatus(
+                                  combo.source,
+                                  combo.index,
+                                  comboEditor.modifiedIndices,
+                                )}
+                              />
+                              <span className="text-xs font-mono text-[var(--color-text-muted)]">
+                                #{combo.index}
+                              </span>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-[var(--color-border)] text-[var(--color-text-muted)]">
+                                {comboSourceLabel(combo.source, t)}
+                              </span>
+                            </span>
+                          </div>
+                          <div className="mt-1 text-xs text-[var(--color-text-muted)] truncate">
+                            {combo.keyPositions.join(" + ")} ·{" "}
+                            {formatLayerScope(combo.layerMask, t)}
+                          </div>
+                          <div className="mt-1 text-xs text-[var(--color-text-secondary)] truncate">
+                            {formatComboBehavior(
+                              binding,
+                              keymap.behaviors,
+                              layersForSelector,
+                              keyboardLayoutContext.layout,
+                              runtimeMacro.macros,
+                              t,
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
+            </div>
+
+            <div className="min-w-0">
+              {rightView === "macro" && macroAvailable ? (
+                <MacroEditorCard
+                  macro={macroEditor}
+                  runtimeMacro={runtimeMacro}
+                  keymap={keymap}
+                  layers={layersForSelector}
+                  keyboardLayout={keyboardLayoutContext.layout}
+                />
+              ) : rightView === "combo" &&
+                comboAvailable &&
+                keymap.keymap &&
+                comboEditor.selectedIndex !== null ? (
+                <ComboEditorCard
+                  combo={comboEditor}
+                  runtimeCombo={runtimeCombo}
+                  keymap={keymap}
+                  layers={layersForSelector}
+                  keyboardLayout={keyboardLayoutContext.layout}
+                  runtimeMacros={runtimeMacro.macros}
+                />
+              ) : rightView === "macro-settings" && macroAvailable ? (
+                <MacroGlobalSettingsCard
+                  macro={macroEditor}
+                  runtimeMacro={runtimeMacro}
+                />
+              ) : rightView === "combo-settings" && comboAvailable ? (
+                <ComboGlobalSettingsCard
+                  combo={comboEditor}
+                  runtimeCombo={runtimeCombo}
+                />
+              ) : (
+                <section className="glass-card p-6 flex items-center justify-center min-h-[320px] text-center">
+                  <div>
+                    <IconWand
+                      size={28}
+                      className="mx-auto mb-3 text-[var(--color-electric)]"
+                    />
+                    <h2 className="text-sm font-medium text-[var(--color-text)]">
+                      {t("Select a macro or combo")}
+                    </h2>
+                    <p className="text-sm text-[var(--color-text-muted)] mt-1">
+                      {t("Choose an item from the lists on the left.")}
+                    </p>
+                  </div>
+                </section>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <UnlockPrompt
+        open={(showUnlockPrompt && locked) || keymap.unlockRequired}
+        onClose={() => {
+          setShowUnlockPrompt(false);
+          keymap.clearUnlockRequired();
+        }}
+        onRetry={() => {
+          setShowUnlockPrompt(false);
+          keymap.clearUnlockRequired();
+          keymap.loadKeymapData();
+          if (runtimeMacro.isAvailable) void runtimeMacro.loadMacros();
+          if (runtimeCombo.isAvailable) void runtimeCombo.reload();
+        }}
+      />
+    </div>
+  );
+}
