@@ -13,11 +13,13 @@
  * the same modal *before* sending a doomed request when Studio is already known
  * to be locked.
  *
- * Cancel cooldown: after the user dismisses the modal, a further unlock error
- * within {@link CANCEL_COOLDOWN_MS} is auto-cancelled (no modal), and each such
- * suppressed request slides the window forward. This keeps a burst of follow-up
- * requests — e.g. a load that fans out into several RPCs — from immediately
- * re-popping the modal the user just closed. An actual unlock clears it.
+ * Cancel cooldown: after the user dismisses the modal, further unlock errors
+ * are auto-cancelled (no modal) until every unlock-gated request has finished
+ * *and* things have stayed quiet for {@link DEFAULT_QUIET_MS}. This keeps a load
+ * that fans out into several RPCs — some of which may take a while — from
+ * immediately re-popping the modal the user just closed: as long as requests
+ * keep arriving the quiet timer restarts, so suppression lasts until the burst
+ * settles. An actual unlock clears it.
  */
 import type { ReactNode } from "react";
 import { createContext, useEffect, useRef, useState } from "react";
@@ -51,8 +53,11 @@ export interface StudioUnlockContextValue {
   requireUnlock: () => boolean;
 }
 
-/** How long after a Cancel to auto-suppress the unlock modal (see file doc). */
-export const CANCEL_COOLDOWN_MS = 10_000;
+/**
+ * How long unlock-gated requests must stay quiet (no request in flight, none
+ * arriving) after a Cancel before the modal is allowed to re-open. See file doc.
+ */
+export const DEFAULT_QUIET_MS = 1_000;
 
 // Default (no provider): a transparent passthrough so hooks that call device
 // RPCs still work when rendered outside the provider (e.g. isolated unit
@@ -63,7 +68,17 @@ const StudioUnlockContext = createContext<StudioUnlockContextValue>({
   requireUnlock: () => true,
 });
 
-export function StudioUnlockProvider({ children }: { children: ReactNode }) {
+export function StudioUnlockProvider({
+  children,
+  quietMs = DEFAULT_QUIET_MS,
+}: {
+  children: ReactNode;
+  /**
+   * Quiet window (ms) after a Cancel before the modal may re-open. Overridable
+   * mainly so tests don't have to wait out the real-world default.
+   */
+  quietMs?: number;
+}) {
   const { locked, lockState } = useStudioLockState();
 
   // Parked ops are held in a ref (not state) so `runWithUnlock`/`requireUnlock`
@@ -71,9 +86,12 @@ export function StudioUnlockProvider({ children }: { children: ReactNode }) {
   const parkedRef = useRef<ParkedOp[]>([]);
   // True when the proactive gate opened the modal without a parked op.
   const proactiveOpenRef = useRef(false);
-  // Epoch-ms of the last Cancel (or last cooldown-suppressed request); null once
-  // there's no active cooldown. Drives the cancel cooldown (see file doc).
-  const lastCancelAtRef = useRef<number | null>(null);
+  // Cancel cooldown state: `suppressing` is true from a Cancel until things go
+  // quiet; `inFlight` counts executing unlock-gated requests; `quietTimer` fires
+  // once no request has been in flight for `quietMs`.
+  const suppressingRef = useRef(false);
+  const inFlightRef = useRef(0);
+  const quietTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [isOpen, setIsOpen] = useState(false);
 
@@ -81,6 +99,37 @@ export function StudioUnlockProvider({ children }: { children: ReactNode }) {
   // memoization, so manual useCallback/useMemo is intentionally omitted.
   const syncOpen = () => {
     setIsOpen(parkedRef.current.length > 0 || proactiveOpenRef.current);
+  };
+
+  const clearQuietTimer = () => {
+    if (quietTimerRef.current !== null) {
+      clearTimeout(quietTimerRef.current);
+      quietTimerRef.current = null;
+    }
+  };
+
+  // While suppressing, (re)arm the quiet timer once nothing is in flight; when
+  // it fires with no further activity the cooldown ends and the modal may open
+  // again.
+  const scheduleQuietTimer = () => {
+    clearQuietTimer();
+    if (suppressingRef.current && inFlightRef.current === 0) {
+      quietTimerRef.current = setTimeout(() => {
+        quietTimerRef.current = null;
+        suppressingRef.current = false;
+      }, quietMs);
+    }
+  };
+
+  const beginActivity = () => {
+    inFlightRef.current += 1;
+    // A request in flight means we're not quiet — hold off the timer.
+    clearQuietTimer();
+  };
+
+  const endActivity = () => {
+    inFlightRef.current -= 1;
+    scheduleQuietTimer();
   };
 
   const retryAll = async () => {
@@ -108,7 +157,10 @@ export function StudioUnlockProvider({ children }: { children: ReactNode }) {
   };
 
   const cancel = () => {
-    lastCancelAtRef.current = Date.now();
+    // Enter the cooldown; arm the quiet timer (nothing may be in flight right
+    // now, in which case it starts counting down immediately).
+    suppressingRef.current = true;
+    scheduleQuietTimer();
     const ops = parkedRef.current;
     parkedRef.current = [];
     proactiveOpenRef.current = false;
@@ -122,7 +174,8 @@ export function StudioUnlockProvider({ children }: { children: ReactNode }) {
   // dismissal) and auto-retry any parked requests.
   useEffect(() => {
     if (lockState === "unlocked") {
-      lastCancelAtRef.current = null;
+      suppressingRef.current = false;
+      clearQuietTimer();
       if (parkedRef.current.length > 0 || proactiveOpenRef.current) {
         void retryAll();
       }
@@ -131,28 +184,40 @@ export function StudioUnlockProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lockState]);
 
+  // Clean up the quiet timer on unmount.
+  useEffect(() => {
+    return () => {
+      if (quietTimerRef.current !== null) {
+        clearTimeout(quietTimerRef.current);
+      }
+    };
+  }, []);
+
   const runWithUnlock = <T,>(fn: () => Promise<T>): Promise<T> => {
     const attempt = async (): Promise<T> => {
-      const result = await fn();
-      // Normalize a resolved-but-locked response (official reads) into a throw
-      // so parking/retry treats both error shapes identically.
-      if (isStudioUnlockError(result)) {
-        throw result;
+      // Count this as in-flight activity so the cancel cooldown knows whether
+      // requests are still arriving (each keeps the quiet timer from firing).
+      beginActivity();
+      try {
+        const result = await fn();
+        // Normalize a resolved-but-locked response (official reads) into a
+        // throw so parking/retry treats both error shapes identically.
+        if (isStudioUnlockError(result)) {
+          throw result;
+        }
+        return result;
+      } finally {
+        endActivity();
       }
-      return result;
     };
 
     return attempt().catch((err) => {
       if (!isStudioUnlockError(err)) {
         throw err;
       }
-      // Cancel cooldown: if the modal was dismissed recently, auto-cancel this
-      // request instead of re-opening the modal, and slide the window forward
-      // so an ongoing burst stays suppressed until it quiets for the interval.
-      const now = Date.now();
-      const lastCancel = lastCancelAtRef.current;
-      if (lastCancel !== null && now - lastCancel <= CANCEL_COOLDOWN_MS) {
-        lastCancelAtRef.current = now;
+      // Cancel cooldown: while suppressing (Cancel pressed, activity not yet
+      // quiet for `quietMs`), auto-cancel instead of re-opening the modal.
+      if (suppressingRef.current) {
         throw new StudioUnlockCancelledError();
       }
       return new Promise<T>((resolve, reject) => {

@@ -183,19 +183,18 @@ describe("StudioUnlockProvider", () => {
   });
 
   describe("cancel cooldown", () => {
-    afterEach(() => {
-      jest.restoreAllMocks();
-    });
+    const sleep = (ms: number) =>
+      act(() => new Promise<void>((r) => setTimeout(r, ms)));
 
-    it("auto-cancels a follow-up unlock request within the cooldown (no modal)", async () => {
-      const onReject1 = jest.fn();
+    it("auto-cancels a follow-up unlock request during the cooldown (no modal)", async () => {
       const onReject2 = jest.fn();
       const fn1 = jest.fn().mockRejectedValue(unlockError());
       const fn2 = jest.fn().mockRejectedValue(unlockError());
 
+      // Wide quiet window so run2 lands well inside the cooldown.
       render(
-        <StudioUnlockProvider>
-          <Harness fn={fn1} onReject={onReject1} label="run1" />
+        <StudioUnlockProvider quietMs={10_000}>
+          <Harness fn={fn1} label="run1" />
           <Harness fn={fn2} onReject={onReject2} label="run2" />
         </StudioUnlockProvider>,
       );
@@ -205,12 +204,12 @@ describe("StudioUnlockProvider", () => {
       await screen.findByText("Keyboard Unlock Required");
       await userEvent.click(screen.getByRole("button", { name: /Cancel/i }));
       await waitFor(() =>
-        expect(onReject1).toHaveBeenCalledWith(
-          expect.any(StudioUnlockCancelledError),
-        ),
+        expect(
+          screen.queryByText("Keyboard Unlock Required"),
+        ).not.toBeInTheDocument(),
       );
 
-      // A follow-up unlock request within the cooldown is auto-cancelled: it
+      // A follow-up unlock request during the cooldown is auto-cancelled: it
       // rejects with StudioUnlockCancelledError and the modal stays closed.
       await userEvent.click(screen.getByText("run2"));
       await waitFor(() =>
@@ -223,13 +222,12 @@ describe("StudioUnlockProvider", () => {
       ).not.toBeInTheDocument();
     });
 
-    it("re-opens the modal once the cooldown has elapsed", async () => {
-      const nowSpy = jest.spyOn(Date, "now").mockReturnValue(1_000);
+    it("re-opens the modal once requests stay quiet for the window", async () => {
       const fn1 = jest.fn().mockRejectedValue(unlockError());
       const fn2 = jest.fn().mockRejectedValue(unlockError());
 
       render(
-        <StudioUnlockProvider>
+        <StudioUnlockProvider quietMs={30}>
           <Harness fn={fn1} label="run1" />
           <Harness fn={fn2} label="run2" />
         </StudioUnlockProvider>,
@@ -244,22 +242,67 @@ describe("StudioUnlockProvider", () => {
         ).not.toBeInTheDocument(),
       );
 
-      // Advance well past the cooldown window, then a new unlock request should
-      // open the modal again.
-      nowSpy.mockReturnValue(1_000 + 11_000);
+      // No activity for longer than the quiet window ends the cooldown, so the
+      // next unlock request opens the modal again.
+      await sleep(80);
       await userEvent.click(screen.getByText("run2"));
       await screen.findByText("Keyboard Unlock Required");
+    });
+
+    it("keeps suppressing while a request is still in flight", async () => {
+      // A request that never settles keeps inFlight > 0, so the quiet timer
+      // never arms and the cooldown persists past the window.
+      const pending = new Promise<never>(() => {});
+      const slow = jest.fn(() => pending);
+      const fn1 = jest.fn().mockRejectedValue(unlockError());
+      const fn2 = jest.fn().mockRejectedValue(unlockError());
+      const onReject2 = jest.fn();
+
+      render(
+        <StudioUnlockProvider quietMs={30}>
+          <Harness fn={slow} label="slow" />
+          <Harness fn={fn1} label="run1" />
+          <Harness fn={fn2} onReject={onReject2} label="run2" />
+        </StudioUnlockProvider>,
+      );
+
+      // Start a long-running request, then open + cancel the modal.
+      await userEvent.click(screen.getByText("slow"));
+      await userEvent.click(screen.getByText("run1"));
+      await screen.findByText("Keyboard Unlock Required");
+      await userEvent.click(screen.getByRole("button", { name: /Cancel/i }));
+      await waitFor(() =>
+        expect(
+          screen.queryByText("Keyboard Unlock Required"),
+        ).not.toBeInTheDocument(),
+      );
+
+      // Wait well past the quiet window; because `slow` is still in flight the
+      // cooldown must not lapse, so run2 is still auto-cancelled.
+      await sleep(80);
+      await userEvent.click(screen.getByText("run2"));
+      await waitFor(() =>
+        expect(onReject2).toHaveBeenCalledWith(
+          expect.any(StudioUnlockCancelledError),
+        ),
+      );
+      expect(
+        screen.queryByText("Keyboard Unlock Required"),
+      ).not.toBeInTheDocument();
     });
 
     it("clears the cooldown when the device is unlocked", async () => {
       const fn1 = jest.fn().mockRejectedValue(unlockError());
       const fn2 = jest.fn().mockRejectedValue(unlockError());
-
-      const { rerender } = render(
-        <StudioUnlockProvider>
+      const tree = (
+        <>
           <Harness fn={fn1} label="run1" />
           <Harness fn={fn2} label="run2" />
-        </StudioUnlockProvider>,
+        </>
+      );
+
+      const { rerender } = render(
+        <StudioUnlockProvider quietMs={10_000}>{tree}</StudioUnlockProvider>,
       );
 
       await userEvent.click(screen.getByText("run1"));
@@ -274,17 +317,11 @@ describe("StudioUnlockProvider", () => {
       // An actual unlock supersedes the recent cancel and clears the cooldown.
       act(() => setLockState("unlocked"));
       rerender(
-        <StudioUnlockProvider>
-          <Harness fn={fn1} label="run1" />
-          <Harness fn={fn2} label="run2" />
-        </StudioUnlockProvider>,
+        <StudioUnlockProvider quietMs={10_000}>{tree}</StudioUnlockProvider>,
       );
       act(() => setLockState("locked"));
       rerender(
-        <StudioUnlockProvider>
-          <Harness fn={fn1} label="run1" />
-          <Harness fn={fn2} label="run2" />
-        </StudioUnlockProvider>,
+        <StudioUnlockProvider quietMs={10_000}>{tree}</StudioUnlockProvider>,
       );
 
       // The next unlock request opens the modal again (cooldown was cleared).
