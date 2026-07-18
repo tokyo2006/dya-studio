@@ -1,18 +1,93 @@
-import { useState, useRef } from "react";
+import { useMemo, useState, useRef } from "react";
 import {
   IconAlertTriangleFilled,
   IconChevronLeft,
   IconChevronRight,
+  IconCpu,
+  IconLoader2,
+  IconMouse,
   IconPointer,
+  IconRefresh,
 } from "@tabler/icons-react";
 import * as Switch from "@radix-ui/react-switch";
 import { useRuntimeInputProcessor } from "../hooks/useRuntimeInputProcessor";
-import { TrackballAdvancedSettings } from "../components/TrackballAdvancedSettings";
+import {
+  CustomSettingsSectionCard,
+  PMW3610_CUSTOM_SETTINGS_IDENTIFIER,
+} from "../components/AdvancedSettingsSection";
+import { StatusDot } from "../components/EditStatusIndicator";
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import { AxisSnapMode } from "../proto/zmk/runtime_input_processor/runtime_input_processor";
+import { useCustomSettings } from "../hooks/useCustomSettings";
 import { useDebouncedSave } from "../hooks/useDebouncedSave";
+import { useKeymap } from "../hooks/useKeymap";
 import { MEMORY_WRITE_DEBOUNCE_MS } from "../hooks/useDebouncedMemoryWrite";
 import { useLanguage } from "../hooks/useLanguage";
+
+// Which detail is shown in the right pane: the selected runtime input
+// processor, or one PMW3610 driver section (keyed by its subsystem index).
+type RightView = { kind: "processor" } | { kind: "pmw3610"; index: number };
+
+interface LayerInfo {
+  id: number;
+  name: string;
+}
+
+// Visualizes a processor's "Active on Layers" (filled squares) and its
+// "Temporary Layer" target (ringed square) as a compact grid of layer cells.
+function LayerGrid({
+  layers,
+  activeLayers,
+  tempLayerEnabled,
+  tempLayerLayer,
+}: {
+  layers: LayerInfo[];
+  activeLayers: number;
+  tempLayerEnabled: boolean;
+  tempLayerLayer: number;
+}) {
+  const { t } = useLanguage();
+
+  if (layers.length === 0) {
+    return (
+      <span className="text-[10px] text-[var(--color-text-muted)]">
+        {t("Loading layers...")}
+      </span>
+    );
+  }
+
+  // A bitmask of 0 means the processor is active on every layer.
+  const allActive = activeLayers === 0;
+
+  return (
+    <div className="flex flex-wrap gap-1">
+      {layers.map((layer) => {
+        const isActive = allActive || (activeLayers & (1 << layer.id)) !== 0;
+        const isTemp = tempLayerEnabled && tempLayerLayer === layer.id;
+        const label = layer.name || t("Layer {{id}}", { id: layer.id });
+        return (
+          <span
+            key={layer.id}
+            title={
+              isTemp
+                ? t("{{layer}} — temporary layer target", { layer: label })
+                : isActive
+                  ? t("{{layer}} — active", { layer: label })
+                  : t("{{layer}} — inactive", { layer: label })
+            }
+            className={`flex h-5 w-5 items-center justify-center rounded border text-[10px] font-mono transition-colors ${
+              isActive
+                ? "border-[var(--color-electric)]/50 bg-[var(--color-electric)]/20 text-[var(--color-electric)]"
+                : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)]"
+            } ${isTemp ? "ring-2 ring-[var(--color-cyber)]" : ""}`}
+          >
+            {layer.id}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
 
 const SCALING_MIN = 0.1;
 const SCALING_MAX = 10;
@@ -96,8 +171,33 @@ export function TrackballPage() {
     setXySwapEnabled,
   } = useRuntimeInputProcessor();
 
+  // PMW3610 driver sections (custom settings) shown in the left list. Scoped to
+  // the pmw3610 subsystem so unrelated custom subsystems aren't fetched here.
+  const customSettings = useCustomSettings({
+    subsystemIdentifier: PMW3610_CUSTOM_SETTINGS_IDENTIFIER,
+  });
+  const { keymap, behaviors, isLoading: keymapLoading } = useKeymap();
+  const keymapLayers = useMemo<LayerInfo[]>(
+    () =>
+      keymap?.layers.map((layer) => ({
+        id: layer.id,
+        name: layer.name || t("Layer {{id}}", { id: layer.id }),
+      })) ?? [],
+    [keymap?.layers, t],
+  );
+  const pmw3610Sections = useMemo(
+    () =>
+      customSettings.sections.filter(
+        (section) => section.identifier === PMW3610_CUSTOM_SETTINGS_IDENTIFIER,
+      ),
+    [customSettings.sections],
+  );
+
   // Selected processor index
   const [selectedProcessorIndex, setSelectedProcessorIndex] = useState(0);
+
+  // Which detail pane is shown on the right.
+  const [rightView, setRightView] = useState<RightView>({ kind: "processor" });
 
   // Rotation enabled state
   const [rotationEnabled, setRotationEnabled] = useState(false);
@@ -381,9 +481,25 @@ export function TrackballPage() {
     });
   };
 
+  const handleSelectProcessor = (index: number) => {
+    setSelectedProcessorIndex(index);
+    setRightView({ kind: "processor" });
+  };
+
+  const handleSelectDriver = (customSubsystemIndex: number) => {
+    setRightView({ kind: "pmw3610", index: customSubsystemIndex });
+  };
+
+  const selectedDriverSection =
+    rightView.kind === "pmw3610"
+      ? pmw3610Sections.find(
+          (section) => section.customSubsystemIndex === rightView.index,
+        )
+      : undefined;
+
   return (
     <div className="p-6 h-full overflow-auto">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="flex items-center gap-3 mb-8">
           <div className="p-2 rounded-lg bg-[var(--color-cyber)]/10 border border-[var(--color-cyber)]/20">
@@ -399,188 +515,368 @@ export function TrackballPage() {
           </div>
         </div>
 
-        {!isAvailable && !isLoading && !error && (
-          <div className="mb-6 p-4 rounded-lg bg-[var(--color-border)] border border-[var(--color-border-hover)] flex items-start gap-3">
-            <div className="p-2">
-              <IconAlertTriangleFilled size={24} className="text-red-500" />
-            </div>
-            <p className="text-sm text-[var(--color-text-muted)]">
-              {t(
-                "Runtime input processor subsystem is not available for your keyboard.",
-              )}
-              <br />
-              {t("Make sure your firmware has the {{module}} enabled.", {
-                module: "cormoran/zmk-module-runtime-input-processor",
-              })}
-              <a
-                href="https://github.com/cormoran/zmk-module-runtime-input-processor"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[var(--color-electric)] underline mx-1"
-              >
-                cormoran/zmk-module-runtime-input-processor
-              </a>
-            </p>
-          </div>
-        )}
-
-        {/* Error state */}
-        {error && (
-          <div className="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/20">
-            <p className="text-sm text-red-400">{t(error)}</p>
-          </div>
-        )}
-
-        {/* Loading state */}
-        {isLoading && !processor && (
-          <LoadingIndicator
-            className="mb-6"
-            label={t("Loading trackball settings...")}
-          />
-        )}
-
-        {/* No processor found */}
-        {!isLoading && !processor && !error && (
-          <div className="mb-6 p-4 rounded-lg bg-[var(--color-border)] border border-[var(--color-border-hover)]">
-            <p className="text-sm text-[var(--color-text-muted)]">
-              {t(
-                "No runtime input processor found. Make sure your firmware has the runtime input processor module enabled.",
-              )}
-            </p>
-          </div>
-        )}
-
-        {/* Settings */}
-        {processor && (
-          <div className="space-y-6">
-            {/* Processor Selector (if multiple processors) */}
-            {processors.length > 1 && (
-              <div className="glass-card p-6">
-                <h3 className="text-sm font-medium text-[var(--color-text)] mb-2">
-                  {t("Select Processor")}
-                </h3>
-                <p className="text-xs text-[var(--color-text-muted)] mb-4">
-                  {t("{{count}} processors detected", {
-                    count: processors.length,
-                  })}
-                </p>
-                <select
-                  value={selectedProcessorIndex}
-                  onChange={(e) =>
-                    setSelectedProcessorIndex(Number(e.target.value))
-                  }
-                  className="w-full px-4 py-2 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)] text-sm cursor-pointer hover:border-[var(--color-border-hover)] focus:outline-none focus:border-[var(--color-electric)] transition-colors"
-                >
-                  {processors.map((p, index) => (
-                    <option key={index} value={index}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+        <div className="grid grid-cols-1 desktop:grid-cols-[300px_1fr] gap-4 min-w-0">
+          {/* Left: selectable lists */}
+          <div className="space-y-4">
+            {/* Processors */}
+            <section className="glass-card p-3">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <IconCpu size={16} className="text-[var(--color-cyber)]" />
+                  <h2 className="text-sm font-medium text-[var(--color-text)]">
+                    {t("Processors")}
+                  </h2>
+                </div>
+                {isLoading && (
+                  <IconLoader2
+                    size={14}
+                    className="animate-spin text-[var(--color-electric)]"
+                  />
+                )}
               </div>
-            )}
-
-            {/* Active Layers Selection */}
-            <div className="glass-card p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="text-sm font-medium text-[var(--color-text)]">
-                    {t("Active on Layers")}
-                  </h3>
-                  <p className="text-xs text-[var(--color-text-muted)]">
-                    {t("Configure which layers this processor is active on")}
+              <div className="space-y-1">
+                {processors.length === 0 ? (
+                  <p className="text-sm text-[var(--color-text-muted)] py-4 text-center">
+                    {isLoading ? t("Loading...") : t("No processors found")}
                   </p>
-                </div>
-                <div className="flex-shrink-0">
-                  <Switch.Root
-                    checked={activeLayersMode === "specific"}
-                    onCheckedChange={(checked) =>
-                      handleActiveLayersModeChange(checked ? "specific" : "all")
-                    }
-                    className="w-11 h-6 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-surface)] border border-[var(--color-border)] transition-colors cursor-pointer"
-                  >
-                    <Switch.Thumb className="block w-5 h-5 rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform bg-white border border-[var(--color-border)]" />
-                  </Switch.Root>
-                </div>
-              </div>
-
-              {activeLayersMode === "specific" && (
-                <div className="space-y-2 mt-4">
-                  {layers.length > 0 ? (
-                    layers.map((layer) => {
-                      const isChecked =
-                        (displayActiveLayers & (1 << layer.id)) !== 0;
-                      return (
-                        <label
-                          key={layer.id}
-                          className="flex items-center gap-3 p-2 rounded-lg hover:bg-[var(--color-border)]/50 cursor-pointer transition-colors"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => handleLayerToggle(layer.id)}
-                            className="w-4 h-4 rounded border-[var(--color-border)] text-[var(--color-electric)] focus:ring-[var(--color-electric)] focus:ring-offset-0 cursor-pointer"
-                          />
-                          <span className="text-sm text-[var(--color-text-secondary)]">
-                            {layer.name || t("Layer {{id}}", { id: layer.id })}
+                ) : (
+                  processors.map((p, index) => {
+                    const isSelectedProcessor =
+                      rightView.kind === "processor" &&
+                      selectedProcessorIndex === index;
+                    // Reflect pending (unsaved) edits for the processor
+                    // currently loaded into the detail pane; other rows show
+                    // their persisted values.
+                    const isEditing = selectedProcessorIndex === index;
+                    const rowActiveLayers = isEditing
+                      ? displayActiveLayers
+                      : p.activeLayers;
+                    const rowTempEnabled = isEditing
+                      ? displayTempLayerEnabled
+                      : p.tempLayerEnabled;
+                    const rowTempLayer = isEditing
+                      ? displayTempLayerLayer
+                      : p.tempLayerLayer;
+                    return (
+                      <button
+                        key={`${p.id}-${p.name}-${index}`}
+                        onClick={() => handleSelectProcessor(index)}
+                        className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                          isSelectedProcessor
+                            ? "bg-[var(--color-electric)]/10 border-[var(--color-electric)]/40"
+                            : "bg-[var(--color-surface)] border-[var(--color-border)] hover:border-[var(--color-electric)]/40"
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <span className="block text-sm font-medium text-[var(--color-text)] truncate flex-1">
+                            {p.name || t("Processor {{id}}", { id: p.id })}
                           </span>
-                        </label>
-                      );
-                    })
-                  ) : (
-                    <p className="text-xs text-[var(--color-text-muted)]">
-                      {t("Loading layers...")}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {activeLayersMode === "all" && (
-                <p className="text-sm text-[var(--color-text-secondary)] mt-4">
-                  {t("Processor is active on all layers")}
-                </p>
-              )}
-            </div>
-
-            {/* Scaling Setting */}
-            <div className="glass-card p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="text-sm font-medium text-[var(--color-text)]">
-                    {t("Scaling")}
-                  </h3>
-                  <p className="text-xs text-[var(--color-text-muted)]">
-                    {t("Adjust sensitivity from 0.1x to 10x")}
-                  </p>
-                </div>
-                <span className="text-lg font-mono text-[var(--color-electric)]">
-                  {formatScalingValue(finalScalingValue)}x
-                </span>
+                        </div>
+                        <LayerGrid
+                          layers={layers}
+                          activeLayers={rowActiveLayers}
+                          tempLayerEnabled={rowTempEnabled}
+                          tempLayerLayer={rowTempLayer}
+                        />
+                      </button>
+                    );
+                  })
+                )}
               </div>
+              {processors.length > 0 && layers.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-[var(--color-border)] flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-[var(--color-text-muted)]">
+                  <span className="flex items-center gap-1">
+                    <span className="h-3 w-3 rounded border border-[var(--color-electric)]/50 bg-[var(--color-electric)]/20" />
+                    {t("Active on layer")}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="h-3 w-3 rounded border border-[var(--color-border)] ring-2 ring-[var(--color-cyber)]" />
+                    {t("Temp layer")}
+                  </span>
+                </div>
+              )}
+            </section>
 
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  aria-label={t("Decrease scaling")}
-                  onClick={() => handleScalingStepChange(-1)}
-                  disabled={finalScalingValue <= SCALING_MIN}
-                  className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border)] hover:text-[var(--color-text)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                >
-                  <IconChevronLeft size={18} />
-                </button>
+            {/* PMW3610 drivers */}
+            <section className="glass-card p-3">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <IconMouse size={16} className="text-[var(--color-neon)]" />
+                  <h2 className="text-sm font-medium text-[var(--color-text)]">
+                    {t("PMW3610 Drivers")}
+                  </h2>
+                </div>
+                <div className="flex items-center gap-1">
+                  {customSettings.isLoading && (
+                    <IconLoader2
+                      size={14}
+                      className="animate-spin text-[var(--color-electric)]"
+                    />
+                  )}
+                  <button
+                    className="p-1 rounded hover:bg-[var(--color-border)] text-[var(--color-electric)] disabled:opacity-40 transition-colors"
+                    onClick={customSettings.loadSettings}
+                    disabled={customSettings.isLoading}
+                    title={t("Reload")}
+                    aria-label={t("Reload")}
+                  >
+                    <IconRefresh size={15} />
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-1">
+                {!customSettings.isAvailable ? (
+                  <p className="text-xs text-[var(--color-text-muted)] py-2">
+                    {t(
+                      "Custom settings subsystem is not available for this keyboard.",
+                    )}
+                  </p>
+                ) : customSettings.isLoading && pmw3610Sections.length === 0 ? (
+                  <LoadingIndicator
+                    variant="inline"
+                    label={t("Loading advanced settings...")}
+                  />
+                ) : pmw3610Sections.length === 0 ? (
+                  <p className="text-xs text-[var(--color-text-muted)] py-2">
+                    {t(
+                      "No pmw3610 driver settings were reported by the keyboard.",
+                    )}
+                  </p>
+                ) : (
+                  pmw3610Sections.map((section) => {
+                    const isSelectedDriver =
+                      rightView.kind === "pmw3610" &&
+                      rightView.index === section.customSubsystemIndex;
+                    const hasUnsaved = section.settings.some(
+                      (s) => s.hasUnsavedValue,
+                    );
+                    return (
+                      <button
+                        key={section.customSubsystemIndex}
+                        onClick={() =>
+                          handleSelectDriver(section.customSubsystemIndex)
+                        }
+                        className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                          isSelectedDriver
+                            ? "bg-[var(--color-electric)]/10 border-[var(--color-electric)]/40"
+                            : "bg-[var(--color-surface)] border-[var(--color-border)] hover:border-[var(--color-electric)]/40"
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span className="block text-sm font-medium text-[var(--color-text)] truncate flex-1">
+                            {section.identifier}
+                            {pmw3610Sections.length > 1
+                              ? ` #${section.customSubsystemIndex}`
+                              : ""}
+                          </span>
+                          {hasUnsaved && <StatusDot status="unsaved" />}
+                        </div>
+                        <span className="block text-xs text-[var(--color-text-muted)]">
+                          {t("{{count}} settings", {
+                            count: section.settings.length,
+                          })}
+                        </span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </section>
+          </div>
 
-                <div className="min-w-0 flex-1">
-                  <input
-                    type="range"
-                    aria-label={t("Scaling")}
-                    min={0}
-                    max={SCALING_STEPS}
-                    step={1}
-                    value={scalingSliderIndex}
-                    onChange={(e) =>
-                      handleScalingSliderChange(Number(e.target.value))
-                    }
-                    className="w-full h-2 rounded-lg appearance-none cursor-pointer
+          {/* Right: detail pane for the selected item */}
+          <div className="min-w-0">
+            {rightView.kind === "pmw3610" ? (
+              selectedDriverSection ? (
+                <CustomSettingsSectionCard
+                  section={selectedDriverSection}
+                  layers={keymapLayers}
+                  behaviors={behaviors}
+                  customSettings={customSettings}
+                  keymapLoading={keymapLoading}
+                  defaultExpanded
+                />
+              ) : (
+                <section className="glass-card p-6 flex items-center justify-center min-h-[320px] text-center">
+                  <div>
+                    <IconMouse
+                      size={28}
+                      className="mx-auto mb-3 text-[var(--color-neon)]"
+                    />
+                    <p className="text-sm text-[var(--color-text-muted)]">
+                      {t("This driver is no longer available.")}
+                    </p>
+                  </div>
+                </section>
+              )
+            ) : (
+              <>
+                {!isAvailable && !isLoading && !error && (
+                  <div className="mb-6 p-4 rounded-lg bg-[var(--color-border)] border border-[var(--color-border-hover)] flex items-start gap-3">
+                    <div className="p-2">
+                      <IconAlertTriangleFilled
+                        size={24}
+                        className="text-red-500"
+                      />
+                    </div>
+                    <p className="text-sm text-[var(--color-text-muted)]">
+                      {t(
+                        "Runtime input processor subsystem is not available for your keyboard.",
+                      )}
+                      <br />
+                      {t(
+                        "Make sure your firmware has the {{module}} enabled.",
+                        {
+                          module: "cormoran/zmk-module-runtime-input-processor",
+                        },
+                      )}
+                      <a
+                        href="https://github.com/cormoran/zmk-module-runtime-input-processor"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[var(--color-electric)] underline mx-1"
+                      >
+                        cormoran/zmk-module-runtime-input-processor
+                      </a>
+                    </p>
+                  </div>
+                )}
+
+                {/* Error state */}
+                {error && (
+                  <div className="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/20">
+                    <p className="text-sm text-red-400">{t(error)}</p>
+                  </div>
+                )}
+
+                {/* Loading state */}
+                {isLoading && !processor && (
+                  <LoadingIndicator
+                    className="mb-6"
+                    label={t("Loading trackball settings...")}
+                  />
+                )}
+
+                {/* No processor found */}
+                {!isLoading && !processor && !error && (
+                  <div className="mb-6 p-4 rounded-lg bg-[var(--color-border)] border border-[var(--color-border-hover)]">
+                    <p className="text-sm text-[var(--color-text-muted)]">
+                      {t(
+                        "No runtime input processor found. Make sure your firmware has the runtime input processor module enabled.",
+                      )}
+                    </p>
+                  </div>
+                )}
+
+                {/* Settings */}
+                {processor && (
+                  <div className="space-y-6">
+                    {/* Active Layers Selection */}
+                    <div className="glass-card p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h3 className="text-sm font-medium text-[var(--color-text)]">
+                            {t("Active on Layers")}
+                          </h3>
+                          <p className="text-xs text-[var(--color-text-muted)]">
+                            {t(
+                              "Configure which layers this processor is active on",
+                            )}
+                          </p>
+                        </div>
+                        <div className="flex-shrink-0">
+                          <Switch.Root
+                            checked={activeLayersMode === "specific"}
+                            onCheckedChange={(checked) =>
+                              handleActiveLayersModeChange(
+                                checked ? "specific" : "all",
+                              )
+                            }
+                            className="w-11 h-6 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-surface)] border border-[var(--color-border)] transition-colors cursor-pointer"
+                          >
+                            <Switch.Thumb className="block w-5 h-5 rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform bg-white border border-[var(--color-border)]" />
+                          </Switch.Root>
+                        </div>
+                      </div>
+
+                      {activeLayersMode === "specific" && (
+                        <div className="space-y-2 mt-4">
+                          {layers.length > 0 ? (
+                            layers.map((layer) => {
+                              const isChecked =
+                                (displayActiveLayers & (1 << layer.id)) !== 0;
+                              return (
+                                <label
+                                  key={layer.id}
+                                  className="flex items-center gap-3 p-2 rounded-lg hover:bg-[var(--color-border)]/50 cursor-pointer transition-colors"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => handleLayerToggle(layer.id)}
+                                    className="w-4 h-4 rounded border-[var(--color-border)] text-[var(--color-electric)] focus:ring-[var(--color-electric)] focus:ring-offset-0 cursor-pointer"
+                                  />
+                                  <span className="text-sm text-[var(--color-text-secondary)]">
+                                    {layer.name ||
+                                      t("Layer {{id}}", { id: layer.id })}
+                                  </span>
+                                </label>
+                              );
+                            })
+                          ) : (
+                            <p className="text-xs text-[var(--color-text-muted)]">
+                              {t("Loading layers...")}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {activeLayersMode === "all" && (
+                        <p className="text-sm text-[var(--color-text-secondary)] mt-4">
+                          {t("Processor is active on all layers")}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Scaling Setting */}
+                    <div className="glass-card p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h3 className="text-sm font-medium text-[var(--color-text)]">
+                            {t("Scaling")}
+                          </h3>
+                          <p className="text-xs text-[var(--color-text-muted)]">
+                            {t("Adjust sensitivity from 0.1x to 10x")}
+                          </p>
+                        </div>
+                        <span className="text-lg font-mono text-[var(--color-electric)]">
+                          {formatScalingValue(finalScalingValue)}x
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          aria-label={t("Decrease scaling")}
+                          onClick={() => handleScalingStepChange(-1)}
+                          disabled={finalScalingValue <= SCALING_MIN}
+                          className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border)] hover:text-[var(--color-text)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <IconChevronLeft size={18} />
+                        </button>
+
+                        <div className="min-w-0 flex-1">
+                          <input
+                            type="range"
+                            aria-label={t("Scaling")}
+                            min={0}
+                            max={SCALING_STEPS}
+                            step={1}
+                            value={scalingSliderIndex}
+                            onChange={(e) =>
+                              handleScalingSliderChange(Number(e.target.value))
+                            }
+                            className="w-full h-2 rounded-lg appearance-none cursor-pointer
                       bg-[var(--color-border)]
                       [&::-webkit-slider-thumb]:appearance-none
                       [&::-webkit-slider-thumb]:w-4
@@ -596,79 +892,81 @@ export function TrackballPage() {
                       [&::-moz-range-thumb]:cursor-pointer
                       [&::-moz-range-thumb]:border-0
                       [&::-moz-range-thumb]:shadow-[0_0_8px_var(--color-electric)]"
-                  />
-                  <div className="mt-2 flex justify-between text-xs text-[var(--color-text-muted)]">
-                    <span>0.1x</span>
-                    <span>10x</span>
-                  </div>
-                </div>
+                          />
+                          <div className="mt-2 flex justify-between text-xs text-[var(--color-text-muted)]">
+                            <span>0.1x</span>
+                            <span>10x</span>
+                          </div>
+                        </div>
 
-                <button
-                  type="button"
-                  aria-label={t("Increase scaling")}
-                  onClick={() => handleScalingStepChange(1)}
-                  disabled={finalScalingValue >= SCALING_MAX}
-                  className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border)] hover:text-[var(--color-text)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                >
-                  <IconChevronRight size={18} />
-                </button>
-              </div>
-            </div>
+                        <button
+                          type="button"
+                          aria-label={t("Increase scaling")}
+                          onClick={() => handleScalingStepChange(1)}
+                          disabled={finalScalingValue >= SCALING_MAX}
+                          className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border)] hover:text-[var(--color-text)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <IconChevronRight size={18} />
+                        </button>
+                      </div>
+                    </div>
 
-            {/* Rotation Setting */}
-            <div className="glass-card p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="text-sm font-medium text-[var(--color-text)]">
-                    {t("Sensor Rotation")}
-                  </h3>
-                  <p className="text-xs text-[var(--color-text-muted)]">
-                    {t("Rotate input for different mounting angles")}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-lg font-mono text-[var(--color-electric)]">
-                    {displayRotation}°
-                  </span>
-                  <div className="flex-shrink-0">
-                    <Switch.Root
-                      checked={rotationEnabled}
-                      onCheckedChange={handleRotationEnabledChange}
-                      className="w-11 h-6 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-surface)] border border-[var(--color-border)] transition-colors cursor-pointer"
-                    >
-                      <Switch.Thumb className="block w-5 h-5 rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform bg-white border border-[var(--color-border)]" />
-                    </Switch.Root>
-                  </div>
-                </div>
-              </div>
+                    {/* Rotation Setting */}
+                    <div className="glass-card p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h3 className="text-sm font-medium text-[var(--color-text)]">
+                            {t("Sensor Rotation")}
+                          </h3>
+                          <p className="text-xs text-[var(--color-text-muted)]">
+                            {t("Rotate input for different mounting angles")}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-lg font-mono text-[var(--color-electric)]">
+                            {displayRotation}°
+                          </span>
+                          <div className="flex-shrink-0">
+                            <Switch.Root
+                              checked={rotationEnabled}
+                              onCheckedChange={handleRotationEnabledChange}
+                              className="w-11 h-6 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-surface)] border border-[var(--color-border)] transition-colors cursor-pointer"
+                            >
+                              <Switch.Thumb className="block w-5 h-5 rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform bg-white border border-[var(--color-border)]" />
+                            </Switch.Root>
+                          </div>
+                        </div>
+                      </div>
 
-              {rotationEnabled && (
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    aria-label={t("Decrease rotation")}
-                    onClick={() =>
-                      handleRotationChange(displayRotation - ROTATION_STEP)
-                    }
-                    disabled={displayRotation <= ROTATION_MIN}
-                    className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border)] hover:text-[var(--color-text)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                  >
-                    <IconChevronLeft size={18} />
-                  </button>
+                      {rotationEnabled && (
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            aria-label={t("Decrease rotation")}
+                            onClick={() =>
+                              handleRotationChange(
+                                displayRotation - ROTATION_STEP,
+                              )
+                            }
+                            disabled={displayRotation <= ROTATION_MIN}
+                            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border)] hover:text-[var(--color-text)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                          >
+                            <IconChevronLeft size={18} />
+                          </button>
 
-                  {/* Slider centered at 0, ranging from -180 to +180 */}
-                  <div className="min-w-0 flex-1">
-                    <input
-                      type="range"
-                      aria-label={t("Sensor Rotation")}
-                      min={ROTATION_MIN}
-                      max={ROTATION_MAX}
-                      step={ROTATION_STEP}
-                      value={displayRotation}
-                      onChange={(e) =>
-                        handleRotationChange(Number(e.target.value))
-                      }
-                      className="w-full h-2 rounded-lg appearance-none cursor-pointer
+                          {/* Slider centered at 0, ranging from -180 to +180 */}
+                          <div className="min-w-0 flex-1">
+                            <input
+                              type="range"
+                              aria-label={t("Sensor Rotation")}
+                              min={ROTATION_MIN}
+                              max={ROTATION_MAX}
+                              step={ROTATION_STEP}
+                              value={displayRotation}
+                              onChange={(e) =>
+                                handleRotationChange(Number(e.target.value))
+                              }
+                              className="w-full h-2 rounded-lg appearance-none cursor-pointer
                         bg-[var(--color-border)]
                         [&::-webkit-slider-thumb]:appearance-none
                         [&::-webkit-slider-thumb]:w-4
@@ -684,435 +982,456 @@ export function TrackballPage() {
                         [&::-moz-range-thumb]:border-0
                         [&::-moz-range-thumb]:cursor-pointer
                         [&::-moz-range-thumb]:shadow-[0_0_8px_var(--color-electric)]"
-                    />
-                    <div className="flex justify-between mt-2 text-xs text-[var(--color-text-muted)]">
-                      <span>-180°</span>
-                      <span>0°</span>
-                      <span>+180°</span>
-                    </div>
-                  </div>
+                            />
+                            <div className="flex justify-between mt-2 text-xs text-[var(--color-text-muted)]">
+                              <span>-180°</span>
+                              <span>0°</span>
+                              <span>+180°</span>
+                            </div>
+                          </div>
 
-                  <button
-                    type="button"
-                    aria-label={t("Increase rotation")}
-                    onClick={() =>
-                      handleRotationChange(displayRotation + ROTATION_STEP)
-                    }
-                    disabled={displayRotation >= ROTATION_MAX}
-                    className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border)] hover:text-[var(--color-text)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                  >
-                    <IconChevronRight size={18} />
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Axis Snapping */}
-            <div className="glass-card p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="text-sm font-medium text-[var(--color-text)]">
-                    {t("Axis Snapping")}
-                  </h3>
-                  <p className="text-xs text-[var(--color-text-muted)]">
-                    {t(
-                      "Constrain movement to a single axis for precision scrolling",
-                    )}
-                  </p>
-                </div>
-                <div className="flex-shrink-0">
-                  <Switch.Root
-                    checked={
-                      displayAxisSnapMode !== AxisSnapMode.AXIS_SNAP_MODE_NONE
-                    }
-                    onCheckedChange={handleAxisSnapEnabledChange}
-                    className="w-11 h-6 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-surface)] border border-[var(--color-border)] transition-colors cursor-pointer"
-                  >
-                    <Switch.Thumb className="block w-5 h-5 rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform bg-white border border-[var(--color-border)]" />
-                  </Switch.Root>
-                </div>
-              </div>
-
-              {displayAxisSnapMode !== AxisSnapMode.AXIS_SNAP_MODE_NONE && (
-                <div className="space-y-4 mt-6">
-                  {/* Axis Selection */}
-                  <div>
-                    <label className="text-sm text-[var(--color-text-secondary)] mb-3 block">
-                      {t("Snap Axis")}
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        onClick={() =>
-                          handleAxisSnapModeChange(
-                            AxisSnapMode.AXIS_SNAP_MODE_Y,
-                          )
-                        }
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                          displayAxisSnapMode === AxisSnapMode.AXIS_SNAP_MODE_Y
-                            ? "bg-[var(--color-electric)] text-white"
-                            : "bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border)]"
-                        }`}
-                      >
-                        {t("Y Axis (Vertical)")}
-                      </button>
-                      <button
-                        onClick={() =>
-                          handleAxisSnapModeChange(
-                            AxisSnapMode.AXIS_SNAP_MODE_X,
-                          )
-                        }
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                          displayAxisSnapMode === AxisSnapMode.AXIS_SNAP_MODE_X
-                            ? "bg-[var(--color-electric)] text-white"
-                            : "bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border)]"
-                        }`}
-                      >
-                        {t("X Axis (Horizontal)")}
-                      </button>
-                    </div>
-                  </div>
-                  {/* Snap Threshold */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-sm text-[var(--color-text-secondary)]">
-                        {t("Snap Threshold")}
-                      </label>
-                      <span className="text-sm font-mono text-[var(--color-electric)]">
-                        {displayAxisSnapThreshold}
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={1000}
-                      step={1}
-                      value={displayAxisSnapThreshold}
-                      onChange={(e) =>
-                        handleAxisSnapThresholdChange(Number(e.target.value))
-                      }
-                      className="w-full h-2 rounded-lg appearance-none cursor-pointer
-                        bg-[var(--color-border)]
-                        [&::-webkit-slider-thumb]:appearance-none
-                        [&::-webkit-slider-thumb]:w-4
-                        [&::-webkit-slider-thumb]:h-4
-                        [&::-webkit-slider-thumb]:rounded-full
-                        [&::-webkit-slider-thumb]:bg-[var(--color-electric)]
-                        [&::-webkit-slider-thumb]:cursor-pointer
-                        [&::-webkit-slider-thumb]:shadow-[0_0_8px_var(--color-electric)]
-                        [&::-moz-range-thumb]:w-4
-                        [&::-moz-range-thumb]:h-4
-                        [&::-moz-range-thumb]:rounded-full
-                        [&::-moz-range-thumb]:bg-[var(--color-electric)]
-                        [&::-moz-range-thumb]:border-0
-                        [&::-moz-range-thumb]:cursor-pointer
-                        [&::-moz-range-thumb]:shadow-[0_0_8px_var(--color-electric)]"
-                    />
-                    <p className="text-xs text-[var(--color-text-muted)] mt-2">
-                      {t("Threshold for unsnapping from the locked axis")}
-                    </p>
-                  </div>
-
-                  {/* Snap Timeout */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-sm text-[var(--color-text-secondary)]">
-                        {t("Snap Timeout")}
-                      </label>
-                      <span className="text-sm font-mono text-[var(--color-electric)]">
-                        {displayAxisSnapTimeout}ms
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={600}
-                      step={50}
-                      value={displayAxisSnapTimeout}
-                      onChange={(e) =>
-                        handleAxisSnapTimeoutChange(Number(e.target.value))
-                      }
-                      className="w-full h-2 rounded-lg appearance-none cursor-pointer
-                        bg-[var(--color-border)]
-                        [&::-webkit-slider-thumb]:appearance-none
-                        [&::-webkit-slider-thumb]:w-4
-                        [&::-webkit-slider-thumb]:h-4
-                        [&::-webkit-slider-thumb]:rounded-full
-                        [&::-webkit-slider-thumb]:bg-[var(--color-electric)]
-                        [&::-webkit-slider-thumb]:cursor-pointer
-                        [&::-webkit-slider-thumb]:shadow-[0_0_8px_var(--color-electric)]
-                        [&::-moz-range-thumb]:w-4
-                        [&::-moz-range-thumb]:h-4
-                        [&::-moz-range-thumb]:rounded-full
-                        [&::-moz-range-thumb]:bg-[var(--color-electric)]
-                        [&::-moz-range-thumb]:border-0
-                        [&::-moz-range-thumb]:cursor-pointer
-                        [&::-moz-range-thumb]:shadow-[0_0_8px_var(--color-electric)]"
-                    />
-                    <p className="text-xs text-[var(--color-text-muted)] mt-2">
-                      {t("Time window for threshold check")}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Axis Inversion */}
-            <div className="glass-card p-6">
-              <div className="mb-4">
-                <h3 className="text-sm font-medium text-[var(--color-text)]">
-                  {t("Axis Inversion")}
-                </h3>
-                <p className="text-xs text-[var(--color-text-muted)]">
-                  {t("Reverse the direction of X or Y axis movement")}
-                </p>
-              </div>
-
-              <div className="space-y-4">
-                {/* X Invert */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-[var(--color-text-secondary)]">
-                      {t("Invert X Axis")}
-                    </p>
-                    <p className="text-xs text-[var(--color-text-muted)]">
-                      {t("Reverse horizontal movement direction")}
-                    </p>
-                  </div>
-                  <div className="flex-shrink-0">
-                    <Switch.Root
-                      checked={displayXInvert}
-                      onCheckedChange={handleXInvertChange}
-                      className="w-11 h-6 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-surface)] border border-[var(--color-border)] transition-colors cursor-pointer"
-                    >
-                      <Switch.Thumb className="block w-5 h-5 rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform bg-white border border-[var(--color-border)]" />
-                    </Switch.Root>
-                  </div>
-                </div>
-
-                {/* Y Invert */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-[var(--color-text-secondary)]">
-                      {t("Invert Y Axis")}
-                    </p>
-                    <p className="text-xs text-[var(--color-text-muted)]">
-                      {t("Reverse vertical movement direction")}
-                    </p>
-                  </div>
-                  <div className="flex-shrink-0">
-                    <Switch.Root
-                      checked={displayYInvert}
-                      onCheckedChange={handleYInvertChange}
-                      className="w-11 h-6 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-surface)] border border-[var(--color-border)] transition-colors cursor-pointer"
-                    >
-                      <Switch.Thumb className="block w-5 h-5 rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform bg-white border border-[var(--color-border)]" />
-                    </Switch.Root>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Code Mapping */}
-            <div className="glass-card p-6">
-              <div className="mb-4">
-                <h3 className="text-sm font-medium text-[var(--color-text)]">
-                  {t("Code Mapping")}
-                </h3>
-                <p className="text-xs text-[var(--color-text-muted)]">
-                  {t("Transform trackball movement into different input types")}
-                </p>
-              </div>
-
-              <div className="space-y-4">
-                {/* XY to Scroll */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-[var(--color-text-secondary)]">
-                      {t("XY-to-Scroll")}
-                    </p>
-                    <p className="text-xs text-[var(--color-text-muted)]">
-                      {t("Map X/Y movement to horizontal/vertical scroll")}
-                    </p>
-                  </div>
-                  <div className="flex-shrink-0">
-                    <Switch.Root
-                      checked={displayXyToScrollEnabled}
-                      onCheckedChange={handleXyToScrollEnabledChange}
-                      className="w-11 h-6 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-surface)] border border-[var(--color-border)] transition-colors cursor-pointer"
-                    >
-                      <Switch.Thumb className="block w-5 h-5 rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform bg-white border border-[var(--color-border)]" />
-                    </Switch.Root>
-                  </div>
-                </div>
-
-                {/* XY Swap */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-[var(--color-text-secondary)]">
-                      {t("XY-Swap")}
-                    </p>
-                    <p className="text-xs text-[var(--color-text-muted)]">
-                      {t("Swap X and Y axes")}
-                    </p>
-                  </div>
-                  <div className="flex-shrink-0">
-                    <Switch.Root
-                      checked={displayXySwapEnabled}
-                      onCheckedChange={handleXySwapEnabledChange}
-                      className="w-11 h-6 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-surface)] border border-[var(--color-border)] transition-colors cursor-pointer"
-                    >
-                      <Switch.Thumb className="block w-5 h-5 rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform bg-white border border-[var(--color-border)]" />
-                    </Switch.Root>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Temp Layer Settings */}
-            <div className="glass-card p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="text-sm font-medium text-[var(--color-text)]">
-                    {t("Temporary Layer")}
-                  </h3>
-                  <p className="text-xs text-[var(--color-text-muted)]">
-                    {t("Auto-activate layer when trackball is in use")}
-                  </p>
-                </div>
-                <div className="flex-shrink-0">
-                  <Switch.Root
-                    checked={displayTempLayerEnabled}
-                    onCheckedChange={handleTempLayerEnabledChange}
-                    className="w-11 h-6 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-surface)] border border-[var(--color-border)] transition-colors cursor-pointer"
-                  >
-                    <Switch.Thumb className="block w-5 h-5 rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform bg-white border border-[var(--color-border)]" />
-                  </Switch.Root>
-                </div>
-              </div>
-
-              {displayTempLayerEnabled && (
-                <div className="space-y-4 mt-6">
-                  {/* Layer Selection */}
-                  <div>
-                    <label className="text-sm text-[var(--color-text-secondary)] mb-3 block">
-                      {t("Target Layer")}
-                    </label>
-                    {layers.length > 0 ? (
-                      <select
-                        value={displayTempLayerLayer}
-                        onChange={(e) =>
-                          handleTempLayerLayerChange(Number(e.target.value))
-                        }
-                        className="w-full px-4 py-2 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)] text-sm cursor-pointer hover:border-[var(--color-border-hover)] focus:outline-none focus:border-[var(--color-electric)] transition-colors"
-                      >
-                        {layers.map((layer) => (
-                          <option key={layer.id} value={layer.id}>
-                            {layer.name || t("Layer {{id}}", { id: layer.id })}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <p className="text-xs text-[var(--color-text-muted)]">
-                        {t("Loading layers...")}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Activation Delay */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-sm text-[var(--color-text-secondary)]">
-                        {t("Activation Delay")}
-                      </label>
-                      <span className="text-sm font-mono text-[var(--color-electric)]">
-                        {displayTempLayerActivationDelay}ms
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={1000}
-                      step={50}
-                      value={displayTempLayerActivationDelay}
-                      onChange={(e) =>
-                        handleTempLayerActivationDelayChange(
-                          Number(e.target.value),
-                        )
-                      }
-                      className="w-full h-2 rounded-lg appearance-none cursor-pointer
-                        bg-[var(--color-border)]
-                        [&::-webkit-slider-thumb]:appearance-none
-                        [&::-webkit-slider-thumb]:w-4
-                        [&::-webkit-slider-thumb]:h-4
-                        [&::-webkit-slider-thumb]:rounded-full
-                        [&::-webkit-slider-thumb]:bg-[var(--color-electric)]
-                        [&::-webkit-slider-thumb]:cursor-pointer
-                        [&::-webkit-slider-thumb]:shadow-[0_0_8px_var(--color-electric)]
-                        [&::-moz-range-thumb]:w-4
-                        [&::-moz-range-thumb]:h-4
-                        [&::-moz-range-thumb]:rounded-full
-                        [&::-moz-range-thumb]:bg-[var(--color-electric)]
-                        [&::-moz-range-thumb]:border-0
-                        [&::-moz-range-thumb]:cursor-pointer
-                        [&::-moz-range-thumb]:shadow-[0_0_8px_var(--color-electric)]"
-                    />
-                    <p className="text-xs text-[var(--color-text-muted)] mt-2">
-                      {t("Delay before activating layer when trackball moves")}
-                    </p>
-                  </div>
-
-                  {/* Deactivation Delay */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-sm text-[var(--color-text-secondary)]">
-                        {t("Deactivation Delay")}
-                      </label>
-                      <span className="text-sm font-mono text-[var(--color-electric)]">
-                        {displayTempLayerDeactivationDelay}ms
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={2000}
-                      step={100}
-                      value={displayTempLayerDeactivationDelay}
-                      onChange={(e) =>
-                        handleTempLayerDeactivationDelayChange(
-                          Number(e.target.value),
-                        )
-                      }
-                      className="w-full h-2 rounded-lg appearance-none cursor-pointer
-                        bg-[var(--color-border)]
-                        [&::-webkit-slider-thumb]:appearance-none
-                        [&::-webkit-slider-thumb]:w-4
-                        [&::-webkit-slider-thumb]:h-4
-                        [&::-webkit-slider-thumb]:rounded-full
-                        [&::-webkit-slider-thumb]:bg-[var(--color-electric)]
-                        [&::-webkit-slider-thumb]:cursor-pointer
-                        [&::-webkit-slider-thumb]:shadow-[0_0_8px_var(--color-electric)]
-                        [&::-moz-range-thumb]:w-4
-                        [&::-moz-range-thumb]:h-4
-                        [&::-moz-range-thumb]:rounded-full
-                        [&::-moz-range-thumb]:bg-[var(--color-electric)]
-                        [&::-moz-range-thumb]:border-0
-                        [&::-moz-range-thumb]:cursor-pointer
-                        [&::-moz-range-thumb]:shadow-[0_0_8px_var(--color-electric)]"
-                    />
-                    <p className="text-xs text-[var(--color-text-muted)] mt-2">
-                      {t(
-                        "Delay before deactivating layer when trackball stops",
+                          <button
+                            type="button"
+                            aria-label={t("Increase rotation")}
+                            onClick={() =>
+                              handleRotationChange(
+                                displayRotation + ROTATION_STEP,
+                              )
+                            }
+                            disabled={displayRotation >= ROTATION_MAX}
+                            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border)] hover:text-[var(--color-text)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                          >
+                            <IconChevronRight size={18} />
+                          </button>
+                        </div>
                       )}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+                    </div>
 
-        <div className="mt-6">
-          <TrackballAdvancedSettings />
+                    {/* Temp Layer Settings */}
+                    <div className="glass-card p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h3 className="text-sm font-medium text-[var(--color-text)]">
+                            {t("Temporary Layer")}
+                          </h3>
+                          <p className="text-xs text-[var(--color-text-muted)]">
+                            {t("Auto-activate layer when trackball is in use")}
+                          </p>
+                        </div>
+                        <div className="flex-shrink-0">
+                          <Switch.Root
+                            checked={displayTempLayerEnabled}
+                            onCheckedChange={handleTempLayerEnabledChange}
+                            className="w-11 h-6 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-surface)] border border-[var(--color-border)] transition-colors cursor-pointer"
+                          >
+                            <Switch.Thumb className="block w-5 h-5 rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform bg-white border border-[var(--color-border)]" />
+                          </Switch.Root>
+                        </div>
+                      </div>
+
+                      {displayTempLayerEnabled && (
+                        <div className="space-y-4 mt-6">
+                          {/* Layer Selection */}
+                          <div>
+                            <label className="text-sm text-[var(--color-text-secondary)] mb-3 block">
+                              {t("Target Layer")}
+                            </label>
+                            {layers.length > 0 ? (
+                              <select
+                                value={displayTempLayerLayer}
+                                onChange={(e) =>
+                                  handleTempLayerLayerChange(
+                                    Number(e.target.value),
+                                  )
+                                }
+                                className="w-full px-4 py-2 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)] text-sm cursor-pointer hover:border-[var(--color-border-hover)] focus:outline-none focus:border-[var(--color-electric)] transition-colors"
+                              >
+                                {layers.map((layer) => (
+                                  <option key={layer.id} value={layer.id}>
+                                    {layer.name ||
+                                      t("Layer {{id}}", { id: layer.id })}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <p className="text-xs text-[var(--color-text-muted)]">
+                                {t("Loading layers...")}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Activation Delay */}
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <label className="text-sm text-[var(--color-text-secondary)]">
+                                {t("Activation Delay")}
+                              </label>
+                              <span className="text-sm font-mono text-[var(--color-electric)]">
+                                {displayTempLayerActivationDelay}ms
+                              </span>
+                            </div>
+                            <input
+                              type="range"
+                              min={0}
+                              max={1000}
+                              step={50}
+                              value={displayTempLayerActivationDelay}
+                              onChange={(e) =>
+                                handleTempLayerActivationDelayChange(
+                                  Number(e.target.value),
+                                )
+                              }
+                              className="w-full h-2 rounded-lg appearance-none cursor-pointer
+                        bg-[var(--color-border)]
+                        [&::-webkit-slider-thumb]:appearance-none
+                        [&::-webkit-slider-thumb]:w-4
+                        [&::-webkit-slider-thumb]:h-4
+                        [&::-webkit-slider-thumb]:rounded-full
+                        [&::-webkit-slider-thumb]:bg-[var(--color-electric)]
+                        [&::-webkit-slider-thumb]:cursor-pointer
+                        [&::-webkit-slider-thumb]:shadow-[0_0_8px_var(--color-electric)]
+                        [&::-moz-range-thumb]:w-4
+                        [&::-moz-range-thumb]:h-4
+                        [&::-moz-range-thumb]:rounded-full
+                        [&::-moz-range-thumb]:bg-[var(--color-electric)]
+                        [&::-moz-range-thumb]:border-0
+                        [&::-moz-range-thumb]:cursor-pointer
+                        [&::-moz-range-thumb]:shadow-[0_0_8px_var(--color-electric)]"
+                            />
+                            <p className="text-xs text-[var(--color-text-muted)] mt-2">
+                              {t(
+                                "Delay before activating layer when trackball moves",
+                              )}
+                            </p>
+                          </div>
+
+                          {/* Deactivation Delay */}
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <label className="text-sm text-[var(--color-text-secondary)]">
+                                {t("Deactivation Delay")}
+                              </label>
+                              <span className="text-sm font-mono text-[var(--color-electric)]">
+                                {displayTempLayerDeactivationDelay}ms
+                              </span>
+                            </div>
+                            <input
+                              type="range"
+                              min={0}
+                              max={2000}
+                              step={100}
+                              value={displayTempLayerDeactivationDelay}
+                              onChange={(e) =>
+                                handleTempLayerDeactivationDelayChange(
+                                  Number(e.target.value),
+                                )
+                              }
+                              className="w-full h-2 rounded-lg appearance-none cursor-pointer
+                        bg-[var(--color-border)]
+                        [&::-webkit-slider-thumb]:appearance-none
+                        [&::-webkit-slider-thumb]:w-4
+                        [&::-webkit-slider-thumb]:h-4
+                        [&::-webkit-slider-thumb]:rounded-full
+                        [&::-webkit-slider-thumb]:bg-[var(--color-electric)]
+                        [&::-webkit-slider-thumb]:cursor-pointer
+                        [&::-webkit-slider-thumb]:shadow-[0_0_8px_var(--color-electric)]
+                        [&::-moz-range-thumb]:w-4
+                        [&::-moz-range-thumb]:h-4
+                        [&::-moz-range-thumb]:rounded-full
+                        [&::-moz-range-thumb]:bg-[var(--color-electric)]
+                        [&::-moz-range-thumb]:border-0
+                        [&::-moz-range-thumb]:cursor-pointer
+                        [&::-moz-range-thumb]:shadow-[0_0_8px_var(--color-electric)]"
+                            />
+                            <p className="text-xs text-[var(--color-text-muted)] mt-2">
+                              {t(
+                                "Delay before deactivating layer when trackball stops",
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Axis Snapping */}
+                    <div className="glass-card p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h3 className="text-sm font-medium text-[var(--color-text)]">
+                            {t("Axis Snapping")}
+                          </h3>
+                          <p className="text-xs text-[var(--color-text-muted)]">
+                            {t(
+                              "Constrain movement to a single axis for precision scrolling",
+                            )}
+                          </p>
+                        </div>
+                        <div className="flex-shrink-0">
+                          <Switch.Root
+                            checked={
+                              displayAxisSnapMode !==
+                              AxisSnapMode.AXIS_SNAP_MODE_NONE
+                            }
+                            onCheckedChange={handleAxisSnapEnabledChange}
+                            className="w-11 h-6 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-surface)] border border-[var(--color-border)] transition-colors cursor-pointer"
+                          >
+                            <Switch.Thumb className="block w-5 h-5 rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform bg-white border border-[var(--color-border)]" />
+                          </Switch.Root>
+                        </div>
+                      </div>
+
+                      {displayAxisSnapMode !==
+                        AxisSnapMode.AXIS_SNAP_MODE_NONE && (
+                        <div className="space-y-4 mt-6">
+                          {/* Axis Selection */}
+                          <div>
+                            <label className="text-sm text-[var(--color-text-secondary)] mb-3 block">
+                              {t("Snap Axis")}
+                            </label>
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                onClick={() =>
+                                  handleAxisSnapModeChange(
+                                    AxisSnapMode.AXIS_SNAP_MODE_Y,
+                                  )
+                                }
+                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                  displayAxisSnapMode ===
+                                  AxisSnapMode.AXIS_SNAP_MODE_Y
+                                    ? "bg-[var(--color-electric)] text-white"
+                                    : "bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border)]"
+                                }`}
+                              >
+                                {t("Y Axis (Vertical)")}
+                              </button>
+                              <button
+                                onClick={() =>
+                                  handleAxisSnapModeChange(
+                                    AxisSnapMode.AXIS_SNAP_MODE_X,
+                                  )
+                                }
+                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                  displayAxisSnapMode ===
+                                  AxisSnapMode.AXIS_SNAP_MODE_X
+                                    ? "bg-[var(--color-electric)] text-white"
+                                    : "bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border)]"
+                                }`}
+                              >
+                                {t("X Axis (Horizontal)")}
+                              </button>
+                            </div>
+                          </div>
+                          {/* Snap Threshold */}
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <label className="text-sm text-[var(--color-text-secondary)]">
+                                {t("Snap Threshold")}
+                              </label>
+                              <span className="text-sm font-mono text-[var(--color-electric)]">
+                                {displayAxisSnapThreshold}
+                              </span>
+                            </div>
+                            <input
+                              type="range"
+                              min={0}
+                              max={1000}
+                              step={1}
+                              value={displayAxisSnapThreshold}
+                              onChange={(e) =>
+                                handleAxisSnapThresholdChange(
+                                  Number(e.target.value),
+                                )
+                              }
+                              className="w-full h-2 rounded-lg appearance-none cursor-pointer
+                        bg-[var(--color-border)]
+                        [&::-webkit-slider-thumb]:appearance-none
+                        [&::-webkit-slider-thumb]:w-4
+                        [&::-webkit-slider-thumb]:h-4
+                        [&::-webkit-slider-thumb]:rounded-full
+                        [&::-webkit-slider-thumb]:bg-[var(--color-electric)]
+                        [&::-webkit-slider-thumb]:cursor-pointer
+                        [&::-webkit-slider-thumb]:shadow-[0_0_8px_var(--color-electric)]
+                        [&::-moz-range-thumb]:w-4
+                        [&::-moz-range-thumb]:h-4
+                        [&::-moz-range-thumb]:rounded-full
+                        [&::-moz-range-thumb]:bg-[var(--color-electric)]
+                        [&::-moz-range-thumb]:border-0
+                        [&::-moz-range-thumb]:cursor-pointer
+                        [&::-moz-range-thumb]:shadow-[0_0_8px_var(--color-electric)]"
+                            />
+                            <p className="text-xs text-[var(--color-text-muted)] mt-2">
+                              {t(
+                                "Threshold for unsnapping from the locked axis",
+                              )}
+                            </p>
+                          </div>
+
+                          {/* Snap Timeout */}
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <label className="text-sm text-[var(--color-text-secondary)]">
+                                {t("Snap Timeout")}
+                              </label>
+                              <span className="text-sm font-mono text-[var(--color-electric)]">
+                                {displayAxisSnapTimeout}ms
+                              </span>
+                            </div>
+                            <input
+                              type="range"
+                              min={0}
+                              max={600}
+                              step={50}
+                              value={displayAxisSnapTimeout}
+                              onChange={(e) =>
+                                handleAxisSnapTimeoutChange(
+                                  Number(e.target.value),
+                                )
+                              }
+                              className="w-full h-2 rounded-lg appearance-none cursor-pointer
+                        bg-[var(--color-border)]
+                        [&::-webkit-slider-thumb]:appearance-none
+                        [&::-webkit-slider-thumb]:w-4
+                        [&::-webkit-slider-thumb]:h-4
+                        [&::-webkit-slider-thumb]:rounded-full
+                        [&::-webkit-slider-thumb]:bg-[var(--color-electric)]
+                        [&::-webkit-slider-thumb]:cursor-pointer
+                        [&::-webkit-slider-thumb]:shadow-[0_0_8px_var(--color-electric)]
+                        [&::-moz-range-thumb]:w-4
+                        [&::-moz-range-thumb]:h-4
+                        [&::-moz-range-thumb]:rounded-full
+                        [&::-moz-range-thumb]:bg-[var(--color-electric)]
+                        [&::-moz-range-thumb]:border-0
+                        [&::-moz-range-thumb]:cursor-pointer
+                        [&::-moz-range-thumb]:shadow-[0_0_8px_var(--color-electric)]"
+                            />
+                            <p className="text-xs text-[var(--color-text-muted)] mt-2">
+                              {t("Time window for threshold check")}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Axis Inversion */}
+                    <div className="glass-card p-6">
+                      <div className="mb-4">
+                        <h3 className="text-sm font-medium text-[var(--color-text)]">
+                          {t("Axis Inversion")}
+                        </h3>
+                        <p className="text-xs text-[var(--color-text-muted)]">
+                          {t("Reverse the direction of X or Y axis movement")}
+                        </p>
+                      </div>
+
+                      <div className="space-y-4">
+                        {/* X Invert */}
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm text-[var(--color-text-secondary)]">
+                              {t("Invert X Axis")}
+                            </p>
+                            <p className="text-xs text-[var(--color-text-muted)]">
+                              {t("Reverse horizontal movement direction")}
+                            </p>
+                          </div>
+                          <div className="flex-shrink-0">
+                            <Switch.Root
+                              checked={displayXInvert}
+                              onCheckedChange={handleXInvertChange}
+                              className="w-11 h-6 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-surface)] border border-[var(--color-border)] transition-colors cursor-pointer"
+                            >
+                              <Switch.Thumb className="block w-5 h-5 rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform bg-white border border-[var(--color-border)]" />
+                            </Switch.Root>
+                          </div>
+                        </div>
+
+                        {/* Y Invert */}
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm text-[var(--color-text-secondary)]">
+                              {t("Invert Y Axis")}
+                            </p>
+                            <p className="text-xs text-[var(--color-text-muted)]">
+                              {t("Reverse vertical movement direction")}
+                            </p>
+                          </div>
+                          <div className="flex-shrink-0">
+                            <Switch.Root
+                              checked={displayYInvert}
+                              onCheckedChange={handleYInvertChange}
+                              className="w-11 h-6 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-surface)] border border-[var(--color-border)] transition-colors cursor-pointer"
+                            >
+                              <Switch.Thumb className="block w-5 h-5 rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform bg-white border border-[var(--color-border)]" />
+                            </Switch.Root>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Code Mapping */}
+                    <div className="glass-card p-6">
+                      <div className="mb-4">
+                        <h3 className="text-sm font-medium text-[var(--color-text)]">
+                          {t("Code Mapping")}
+                        </h3>
+                        <p className="text-xs text-[var(--color-text-muted)]">
+                          {t(
+                            "Transform trackball movement into different input types",
+                          )}
+                        </p>
+                      </div>
+
+                      <div className="space-y-4">
+                        {/* XY to Scroll */}
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm text-[var(--color-text-secondary)]">
+                              {t("XY-to-Scroll")}
+                            </p>
+                            <p className="text-xs text-[var(--color-text-muted)]">
+                              {t(
+                                "Map X/Y movement to horizontal/vertical scroll",
+                              )}
+                            </p>
+                          </div>
+                          <div className="flex-shrink-0">
+                            <Switch.Root
+                              checked={displayXyToScrollEnabled}
+                              onCheckedChange={handleXyToScrollEnabledChange}
+                              className="w-11 h-6 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-surface)] border border-[var(--color-border)] transition-colors cursor-pointer"
+                            >
+                              <Switch.Thumb className="block w-5 h-5 rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform bg-white border border-[var(--color-border)]" />
+                            </Switch.Root>
+                          </div>
+                        </div>
+
+                        {/* XY Swap */}
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm text-[var(--color-text-secondary)]">
+                              {t("XY-Swap")}
+                            </p>
+                            <p className="text-xs text-[var(--color-text-muted)]">
+                              {t("Swap X and Y axes")}
+                            </p>
+                          </div>
+                          <div className="flex-shrink-0">
+                            <Switch.Root
+                              checked={displayXySwapEnabled}
+                              onCheckedChange={handleXySwapEnabledChange}
+                              className="w-11 h-6 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-surface)] border border-[var(--color-border)] transition-colors cursor-pointer"
+                            >
+                              <Switch.Thumb className="block w-5 h-5 rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform bg-white border border-[var(--color-border)]" />
+                            </Switch.Root>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>

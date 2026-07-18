@@ -945,6 +945,9 @@ export interface CustomSettingsSectionCardProps {
   behaviors: Map<number, BehaviorDefinition>;
   customSettings: UseCustomSettingsReturn;
   keymapLoading?: boolean;
+  // When the card is used as a standalone detail pane (rather than one of many
+  // stacked sections), open it expanded so the settings are immediately visible.
+  defaultExpanded?: boolean;
 }
 
 interface SettingRowListProps {
@@ -989,11 +992,13 @@ export function CustomSettingsSectionCard({
   behaviors,
   customSettings,
   keymapLoading = false,
+  defaultExpanded = false,
 }: CustomSettingsSectionCardProps) {
   const { t } = useLanguage();
   // Collapsed by default — a keyboard can report many subsystems with many
-  // settings each, so showing them all expanded is overwhelming.
-  const [isExpanded, setIsExpanded] = useState(false);
+  // settings each, so showing them all expanded is overwhelming. When rendered
+  // as a standalone detail pane, callers pass defaultExpanded to open it.
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const withScrollPin = useScrollPin(customSettings.isLoading);
   const hasUnsavedChanges = section.settings.some(
     (setting) => setting.hasUnsavedValue,

@@ -107,9 +107,7 @@ describe("StudioUnlockProvider", () => {
     mockLockState = "unlocked";
     function Gate() {
       const { requireUnlock } = useStudioUnlock();
-      return (
-        <button onClick={() => requireUnlock()}>gate</button>
-      );
+      return <button onClick={() => requireUnlock()}>gate</button>;
     }
 
     render(
