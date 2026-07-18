@@ -16,6 +16,7 @@ import {
   IconCode,
   IconDeviceFloppy,
   IconInfoCircle,
+  IconLoader2,
   IconRefresh,
   IconRotateClockwise,
   IconX,
@@ -309,9 +310,9 @@ function sourceLabel(
   source: number,
   t: (key: string, params?: Record<string, number | string>) => string,
 ): string {
-  if (source === 0) return t("Local");
+  if (source === 0) return t("Central");
   if (source === CUSTOM_SETTINGS_SOURCE_ALL) return t("All");
-  return t("Source {{source}}", { source });
+  return t("Peripheral {{n}}", { n: source });
 }
 
 function settingLabel(setting: Setting): string {
@@ -774,24 +775,89 @@ function SettingEditor({
 }
 
 // Shared between the header row and each SettingRow so columns line up.
-// Setting gets most of the room; Editor is capped well below its old
-// 22rem max so it doesn't dominate the row on wide screens.
+// Setting gets most of the room; Source is wide enough for "Peripheral N";
+// Editor holds the input plus the optional default-value hint below it.
 const SETTINGS_TABLE_GRID_COLS =
-  "md:grid-cols-[minmax(10rem,1.6fr)_6rem_minmax(9rem,12rem)_7rem_6rem]";
+  "md:grid-cols-[minmax(12rem,1.6fr)_7rem_minmax(12rem,1fr)]";
+
+// Transient write state shown next to the setting name (in place of the old
+// standalone Status column). Only rendered while a write is queued/in flight;
+// otherwise the green/blue edit-status dot is shown instead.
+function RowStatusIndicator({
+  saveState,
+  editStatus,
+}: {
+  saveState: "idle" | "queued" | "saving";
+  editStatus: EditStatus;
+}) {
+  const { t } = useLanguage();
+  if (saveState === "saving") {
+    return (
+      <span className="inline-flex flex-shrink-0 items-center gap-1 text-[11px] text-[var(--color-neon)]">
+        <IconLoader2 size={12} className="animate-spin" />
+        {t("Saving…")}
+      </span>
+    );
+  }
+  if (saveState === "queued") {
+    return (
+      <span className="inline-flex flex-shrink-0 items-center gap-1 text-[11px] text-[var(--color-text-muted)]">
+        <StatusDot status="unsaved" />
+        {t("Queued")}
+      </span>
+    );
+  }
+  return <StatusDot status={editStatus} />;
+}
+
+// Link-style hint shown below the editor whenever the current value differs
+// from the setting's default. Clicking it writes the default back into memory
+// (the per-item Reset affordance, folded into the value display).
+function DefaultValueHint({
+  displayValue,
+  onApply,
+}: {
+  displayValue: string;
+  onApply: () => void;
+}) {
+  const { t } = useLanguage();
+  return (
+    <Tooltip.Provider delayDuration={200}>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <button
+            type="button"
+            onClick={onApply}
+            className="group inline-flex max-w-full items-baseline gap-1 text-left text-[11px]"
+          >
+            <span className="flex-shrink-0 text-[var(--color-text-muted)]">
+              {t("Default:")}
+            </span>
+            <span className="truncate font-mono text-[var(--color-electric)] underline decoration-dotted underline-offset-2 group-hover:decoration-solid">
+              {displayValue}
+            </span>
+          </button>
+        </Tooltip.Trigger>
+        <Tooltip.Portal>
+          <Tooltip.Content
+            className="px-3 py-2 rounded bg-[var(--color-surface-elevated)] border border-[var(--color-border)] text-xs text-[var(--color-text-secondary)] shadow-lg z-50 max-w-xs"
+            sideOffset={5}
+          >
+            {t("Click to restore the default value.")}
+            <Tooltip.Arrow className="fill-[var(--color-surface-elevated)]" />
+          </Tooltip.Content>
+        </Tooltip.Portal>
+      </Tooltip.Root>
+    </Tooltip.Provider>
+  );
+}
 
 interface SettingRowProps {
   setting: Setting;
   description?: string;
   layers: { id: number; name: string }[];
   behaviors: Map<number, BehaviorDefinition>;
-  isLoading: boolean;
   onWrite: (setting: Setting, value: SettingValue) => Promise<void>;
-  onDiscard: (setting: Setting) => Promise<void>;
-  onReset: (setting: Setting) => Promise<void>;
-  withScrollPin: <T>(
-    triggerElement: Element | null,
-    action: () => Promise<T>,
-  ) => Promise<T>;
 }
 
 function SettingRow({
@@ -799,11 +865,7 @@ function SettingRow({
   description,
   layers,
   behaviors,
-  isLoading,
   onWrite,
-  onDiscard,
-  onReset,
-  withScrollPin,
 }: SettingRowProps) {
   const { t } = useLanguage();
   const [saveState, setSaveState] = useState<"idle" | "queued" | "saving">(
@@ -839,16 +901,30 @@ function SettingRow({
     }, MEMORY_WRITE_DEBOUNCE_MS);
   };
 
+  // The default value (present only when the current value differs from it) is
+  // a scalar SettingValue; render it the same way the current value is shown.
+  // Suppress the hint once the (possibly in-memory) value already matches the
+  // default, e.g. right after clicking the hint but before the next reload.
+  const defaultValue = setting.defaultValue;
+  const defaultDisplayValue =
+    defaultValue !== undefined
+      ? scalarToInputValue({ ...setting, value: defaultValue })
+      : undefined;
+  const showDefaultHint =
+    defaultValue !== undefined &&
+    defaultDisplayValue !== undefined &&
+    defaultDisplayValue !== scalarToInputValue(setting);
+
   return (
     <div
-      className={`grid gap-3 border-t border-[var(--color-border)] py-4 md:items-center ${SETTINGS_TABLE_GRID_COLS}`}
+      className={`grid gap-3 border-t border-[var(--color-border)] py-4 md:items-start ${SETTINGS_TABLE_GRID_COLS}`}
     >
       <div className="min-w-0">
         <div className="flex items-center gap-2">
           <p className="truncate text-sm font-medium text-[var(--color-text)]">
             {settingLabel(setting)}
           </p>
-          <StatusDot status={editStatus} />
+          <RowStatusIndicator saveState={saveState} editStatus={editStatus} />
         </div>
         <p className="mt-1 truncate font-mono text-xs text-[var(--color-text-muted)]">
           {formatValue(setting, t)}
@@ -864,46 +940,19 @@ function SettingRow({
         {sourceLabel(setting.source, t)}
       </span>
 
-      <SettingEditor
-        setting={setting}
-        layers={layers}
-        behaviors={behaviors}
-        onChange={queueMemoryWrite}
-      />
-
-      <span className="text-xs text-[var(--color-text-muted)]">
-        {saveState === "queued"
-          ? t("Queued")
-          : saveState === "saving"
-            ? t("Memory...")
-            : setting.hasUnsavedValue
-              ? t("In memory")
-              : t("Current")}
-      </span>
-
-      <div className="flex justify-end gap-2">
-        <button
-          type="button"
-          className="theme-toggle h-9 w-9"
-          disabled={isLoading}
-          onClick={(event) =>
-            void withScrollPin(event.currentTarget, () => onDiscard(setting))
-          }
-          title={t("Discard item changes")}
-        >
-          <IconRefresh size={17} />
-        </button>
-        <button
-          type="button"
-          className="theme-toggle h-9 w-9"
-          disabled={isLoading}
-          onClick={(event) =>
-            void withScrollPin(event.currentTarget, () => onReset(setting))
-          }
-          title={t("Reset item to default")}
-        >
-          <IconRotateClockwise size={17} />
-        </button>
+      <div className="min-w-0 space-y-1.5">
+        <SettingEditor
+          setting={setting}
+          layers={layers}
+          behaviors={behaviors}
+          onChange={queueMemoryWrite}
+        />
+        {showDefaultHint && (
+          <DefaultValueHint
+            displayValue={defaultDisplayValue}
+            onApply={() => queueMemoryWrite(defaultValue)}
+          />
+        )}
       </div>
     </div>
   );
@@ -922,10 +971,6 @@ interface SettingRowListProps {
   layers: { id: number; name: string }[];
   behaviors: Map<number, BehaviorDefinition>;
   customSettings: UseCustomSettingsReturn;
-  withScrollPin: <T>(
-    triggerElement: Element | null,
-    action: () => Promise<T>,
-  ) => Promise<T>;
   describeField?: (field: string) => string | undefined;
 }
 
@@ -934,7 +979,6 @@ function SettingRowList({
   layers,
   behaviors,
   customSettings,
-  withScrollPin,
   describeField,
 }: SettingRowListProps) {
   return (
@@ -951,11 +995,7 @@ function SettingRowList({
           description={describeField?.(fieldName(setting.key))}
           layers={layers}
           behaviors={behaviors}
-          isLoading={customSettings.isLoading}
           onWrite={customSettings.writeSettingToMemory}
-          onDiscard={customSettings.discardSetting}
-          onReset={customSettings.resetSetting}
-          withScrollPin={withScrollPin}
         />
       ))}
     </>
@@ -1105,10 +1145,10 @@ export function CustomSettingsSectionCard({
                   {t("Source legend")}
                 </div>
                 <ul className="list-disc space-y-1 pl-4">
-                  <li>{t("Local: the split side you are connected to.")}</li>
+                  <li>{t("Central: the split side you are connected to.")}</li>
                   <li>
                     {t(
-                      "Source N: another split side's own independently stored copy.",
+                      "Peripheral N: another split side's own independently stored copy.",
                     )}
                   </li>
                   <li>
@@ -1120,29 +1160,6 @@ export function CustomSettingsSectionCard({
               </InfoTooltip>
             </span>
             <span>{t("Editor")}</span>
-            <span className="flex items-center gap-1">
-              {t("Status")}
-              <InfoTooltip label={t("What Status means")}>
-                <div className="mb-1 font-semibold text-[var(--color-electric)]">
-                  {t("Status legend")}
-                </div>
-                <ul className="list-disc space-y-1 pl-4">
-                  <li>
-                    {t("Current: matches the value persisted on the keyboard.")}
-                  </li>
-                  <li>
-                    {t(
-                      "In memory: written to RAM; save the section to persist it.",
-                    )}
-                  </li>
-                  <li>{t("Queued: your edit is about to be sent.")}</li>
-                  <li>
-                    {t("Memory...: the edit is being written right now.")}
-                  </li>
-                </ul>
-              </InfoTooltip>
-            </span>
-            <span className="text-right">{t("Item")}</span>
           </div>
 
           {groups?.map((group) => (
@@ -1160,7 +1177,6 @@ export function CustomSettingsSectionCard({
                 layers={layers}
                 behaviors={behaviors}
                 customSettings={customSettings}
-                withScrollPin={withScrollPin}
                 describeField={(field) => {
                   const description = PMW3610_FIELD_DESCRIPTIONS[field];
                   return description ? t(description) : undefined;
@@ -1175,7 +1191,6 @@ export function CustomSettingsSectionCard({
               layers={layers}
               behaviors={behaviors}
               customSettings={customSettings}
-              withScrollPin={withScrollPin}
             />
           )}
         </div>
