@@ -1,8 +1,16 @@
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   IconAlertCircle,
   IconChevronDown,
   IconDeviceFloppy,
+  IconHistory,
   IconLoader2,
   IconLock,
   IconPlus,
@@ -13,9 +21,11 @@ import {
   IconWand,
 } from "@tabler/icons-react";
 import { KeycodeSelector } from "../components/KeycodeSelector";
+import { StatusDot } from "../components/EditStatusIndicator";
 import { UnlockPrompt } from "../components/UnlockPrompt";
 import { KeyboardLayoutContext } from "../contexts/KeyboardLayoutContext";
 import { useStudioLockState } from "@cormoran/zmk-studio-react-hook";
+import { useDebouncedMemoryWrite } from "../hooks/useDebouncedMemoryWrite";
 import { useKeymap } from "../hooks/useKeymap";
 import { useLanguage } from "../hooks/useLanguage";
 import { useRuntimeMacro } from "../hooks/useRuntimeMacro";
@@ -351,12 +361,6 @@ function buildMacroStepRows(
   return rows;
 }
 
-function UnsavedDot() {
-  return (
-    <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-neon)] flex-shrink-0 inline-block" />
-  );
-}
-
 export function MacroPage() {
   const { t } = useLanguage();
   const runtimeMacro = useRuntimeMacro();
@@ -373,6 +377,7 @@ export function MacroPage() {
   const [isDiscarding, setIsDiscarding] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
   const [renameDraft, setRenameDraft] = useState("");
   const [stringConversionError, setStringConversionError] = useState<
     string | null
@@ -380,8 +385,12 @@ export function MacroPage() {
   const [stringDraft, setStringDraft] = useState<StringDraftRow | null>(null);
   const [isGlobalSettingsExpanded, setIsGlobalSettingsExpanded] =
     useState(false);
-  const [modifiedSlots, setModifiedSlots] = useState<Set<number>>(new Set());
+  // Tap ms has no device-side unsaved flag (it is a global setting, not a
+  // MacroSummary slot), so its green dot stays client-tracked.
   const [globalSettingsModified, setGlobalSettingsModified] = useState(false);
+  // Local draft for the debounced tap-ms input so typing stays responsive
+  // while the memory write is deferred until the quiet period.
+  const [tapMsDraft, setTapMsDraft] = useState(0);
 
   const layersForSelector = useMemo(() => {
     if (!keymap.keymap?.layers) return [];
@@ -549,7 +558,6 @@ export function MacroPage() {
         if (!stepUpdated) return false;
       }
 
-      setModifiedSlots((prev) => new Set([...prev, loadedMacro.slot]));
       setLoadedMacro({ ...loadedMacro, steps });
       await runtimeMacro.loadMacros();
       return true;
@@ -676,6 +684,35 @@ export function MacroPage() {
     [loadedMacro, updateStep],
   );
 
+  // Debounced memory writes for free-text/number edits: typing auto-writes to
+  // keyboard memory after a quiet period (flushed on blur / before Save).
+  // Discrete dropdown selections keep committing immediately (see updateStep).
+  const delayDebounce = useDebouncedMemoryWrite<number>(
+    useCallback(
+      async (stepIndex: number) => {
+        await commitDelay(stepIndex);
+      },
+      [commitDelay],
+    ),
+  );
+
+  const stringDebounce = useDebouncedMemoryWrite<void>(
+    useCallback(async () => {
+      await commitStringChange();
+    }, [commitStringChange]),
+  );
+
+  const tapMsDebounce = useDebouncedMemoryWrite<number>(
+    useCallback(
+      async (tapMs: number) => {
+        if (!requireUnlocked()) return;
+        const ok = await runtimeMacro.setTapMs(clampUInt32(tapMs));
+        if (ok) setGlobalSettingsModified(true);
+      },
+      [requireUnlocked, runtimeMacro],
+    ),
+  );
+
   const handleBehaviorSelect = useCallback(
     async (binding: KeymapBehaviorBinding) => {
       if (!loadedMacro || editingStepIndex === null) return;
@@ -721,11 +758,6 @@ export function MacroPage() {
       if (ok) {
         setSelectedName(null);
         setLoadedMacro(null);
-        setModifiedSlots((prev) => {
-          const next = new Set(prev);
-          next.delete(loadedMacro.slot);
-          return next;
-        });
       }
     } finally {
       setIsDeleting(false);
@@ -753,24 +785,51 @@ export function MacroPage() {
     }
   }, [generateMacroName, runtimeMacro, requireUnlocked]);
 
+  const handleResetMacro = useCallback(async () => {
+    if (!requireUnlocked()) return;
+    if (!loadedMacro) return;
+    if (!window.confirm(t("Reset this macro to its default?"))) return;
+    setIsResetting(true);
+    try {
+      const ok = await runtimeMacro.resetMacro(loadedMacro.slot);
+      if (ok) {
+        await loadMacro(loadedMacro.slot);
+      }
+    } finally {
+      setIsResetting(false);
+    }
+  }, [loadMacro, loadedMacro, requireUnlocked, runtimeMacro, t]);
+
   const handleSave = useCallback(async () => {
     if (!requireUnlocked()) return;
     setIsSaving(true);
     try {
+      // Flush any queued debounced edits so they are part of this persist.
+      await tapMsDebounce.flush();
+      await delayDebounce.flush();
+      await stringDebounce.flush();
       await runtimeMacro.saveMacros();
-      setModifiedSlots(new Set());
       setGlobalSettingsModified(false);
     } finally {
       setIsSaving(false);
     }
-  }, [runtimeMacro, requireUnlocked]);
+  }, [
+    delayDebounce,
+    requireUnlocked,
+    runtimeMacro,
+    stringDebounce,
+    tapMsDebounce,
+  ]);
 
   const handleDiscard = useCallback(async () => {
     if (!requireUnlocked()) return;
     setIsDiscarding(true);
     try {
+      // Drop queued edits — discard restores the persisted values.
+      tapMsDebounce.cancel();
+      delayDebounce.cancel();
+      stringDebounce.cancel();
       await runtimeMacro.discardMacros();
-      setModifiedSlots(new Set());
       setGlobalSettingsModified(false);
       if (loadedMacro) {
         await loadMacro(loadedMacro.slot);
@@ -778,15 +837,22 @@ export function MacroPage() {
     } finally {
       setIsDiscarding(false);
     }
-  }, [loadMacro, loadedMacro, runtimeMacro, requireUnlocked]);
+  }, [
+    delayDebounce,
+    loadMacro,
+    loadedMacro,
+    requireUnlocked,
+    runtimeMacro,
+    stringDebounce,
+    tapMsDebounce,
+  ]);
 
   const handleTapMsChange = useCallback(
-    async (tapMs: number) => {
-      if (!requireUnlocked()) return;
-      const ok = await runtimeMacro.setTapMs(clampUInt32(tapMs));
-      if (ok) setGlobalSettingsModified(true);
+    (tapMs: number) => {
+      setTapMsDraft(tapMs);
+      tapMsDebounce.queue(tapMs);
     },
-    [runtimeMacro, requireUnlocked],
+    [tapMsDebounce],
   );
 
   const getStepDisplayName = useCallback(
@@ -810,8 +876,14 @@ export function MacroPage() {
     ],
   );
 
+  // Keep the debounced tap-ms input in sync with device state (initial load,
+  // discard, external refresh) while leaving in-flight typing untouched.
+  useEffect(() => {
+    setTapMsDraft(runtimeMacro.globalSettings?.tapMs ?? 0);
+  }, [runtimeMacro.globalSettings?.tapMs]);
+
   const loadedMacroHasUnsavedChanges =
-    loadedMacro !== null && modifiedSlots.has(loadedMacro.slot);
+    loadedMacro !== null && runtimeMacro.isSlotUnsaved(loadedMacro.slot);
 
   return (
     <div className="p-6 h-full overflow-auto">
@@ -855,7 +927,7 @@ export function MacroPage() {
                 <>
                   {runtimeMacro.hasUnsavedChanges && (
                     <span className="flex items-center gap-1 text-xs text-[var(--color-neon)] mr-2">
-                      <UnsavedDot />
+                      <StatusDot status="unsaved" />
                       {t("Unsaved changes")}
                     </span>
                   )}
@@ -873,7 +945,7 @@ export function MacroPage() {
                     ) : (
                       <IconRestore size={16} />
                     )}
-                    {t("Reset")}
+                    {t("Discard")}
                   </button>
                   <button
                     className="btn-electric text-sm flex items-center gap-1.5"
@@ -949,7 +1021,7 @@ export function MacroPage() {
                   <h2 className="text-sm font-medium text-[var(--color-text)] flex-1">
                     {t("Global Settings")}
                   </h2>
-                  {globalSettingsModified && <UnsavedDot />}
+                  {globalSettingsModified && <StatusDot status="unsaved" />}
                   <IconChevronDown
                     size={14}
                     className={`text-[var(--color-text-muted)] flex-shrink-0 transition-transform ${
@@ -969,10 +1041,11 @@ export function MacroPage() {
                           min={0}
                           max={10000}
                           className="mt-1 w-full px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text)] focus:outline-none focus:border-[var(--color-electric)]/50"
-                          value={runtimeMacro.globalSettings?.tapMs ?? 0}
+                          value={tapMsDraft}
                           onChange={(event) =>
-                            void handleTapMsChange(Number(event.target.value))
+                            handleTapMsChange(Number(event.target.value))
                           }
+                          onBlur={() => void tapMsDebounce.flush()}
                         />
                       </label>
                       {runtimeMacro.globalSettings &&
@@ -1044,7 +1117,9 @@ export function MacroPage() {
                           {macro.name ||
                             t("Macro {{slot}}", { slot: macro.slot })}
                         </span>
-                        {modifiedSlots.has(macro.slot) && <UnsavedDot />}
+                        {macro.hasUnsavedChanges && (
+                          <StatusDot status="unsaved" />
+                        )}
                       </div>
                       <span className="block text-xs text-[var(--color-text-muted)]">
                         {t("{{encodedSize}}/{{maxMacroBytes}} bytes", {
@@ -1065,7 +1140,9 @@ export function MacroPage() {
                     <div className="flex-1 min-w-0">
                       <label className="flex items-center gap-1.5 text-xs font-medium text-[var(--color-text-muted)] mb-1">
                         {t("Name")}
-                        {loadedMacroHasUnsavedChanges && <UnsavedDot />}
+                        {loadedMacroHasUnsavedChanges && (
+                          <StatusDot status="unsaved" />
+                        )}
                       </label>
                       <input
                         className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text)] focus:outline-none focus:border-[var(--color-electric)]/50"
@@ -1102,6 +1179,19 @@ export function MacroPage() {
                       </h2>
                     </div>
                     <div className="flex items-center gap-2">
+                      <button
+                        className="btn-ghost text-sm flex items-center gap-1.5"
+                        onClick={() => void handleResetMacro()}
+                        disabled={isResetting || runtimeMacro.isLoading}
+                        title={t("Reset this macro to its default")}
+                      >
+                        {isResetting ? (
+                          <IconLoader2 size={16} className="animate-spin" />
+                        ) : (
+                          <IconHistory size={16} />
+                        )}
+                        {t("Reset")}
+                      </button>
                       <button
                         className="btn-ghost text-sm flex items-center gap-1.5 text-red-400"
                         onClick={() => void handleDeleteMacro()}
@@ -1168,15 +1258,14 @@ export function MacroPage() {
                                   min={0}
                                   className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-sm text-[var(--color-text)] focus:outline-none focus:border-[var(--color-electric)]/50"
                                   value={step?.delay?.delayMs ?? 0}
-                                  onChange={(event) =>
+                                  onChange={(event) => {
                                     handleDelayChange(
                                       row.startIndex,
                                       Number(event.target.value),
-                                    )
-                                  }
-                                  onBlur={() =>
-                                    void commitDelay(row.startIndex)
-                                  }
+                                    );
+                                    delayDebounce.queue(row.startIndex);
+                                  }}
+                                  onBlur={() => void delayDebounce.flush()}
                                 />
                                 <span className="text-xs text-[var(--color-text-muted)]">
                                   {t("ms")}
@@ -1186,10 +1275,11 @@ export function MacroPage() {
                               <input
                                 className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-sm text-[var(--color-text)] focus:outline-none focus:border-[var(--color-electric)]/50"
                                 value={row.value ?? ""}
-                                onChange={(event) =>
-                                  handleStringChange(row, event.target.value)
-                                }
-                                onBlur={() => void commitStringChange()}
+                                onChange={(event) => {
+                                  handleStringChange(row, event.target.value);
+                                  stringDebounce.queue();
+                                }}
+                                onBlur={() => void stringDebounce.flush()}
                               />
                             ) : (
                               <button

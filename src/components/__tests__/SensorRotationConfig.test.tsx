@@ -104,7 +104,7 @@ describe("SensorRotationConfig", () => {
       expect(mockSetLayerCcwBindings).not.toHaveBeenCalled();
 
       // Wait for debounce (3 seconds)
-      jest.advanceTimersByTime(3000);
+      jest.advanceTimersByTime(1500);
 
       // Now API should be called
       await waitFor(() => {
@@ -168,7 +168,7 @@ describe("SensorRotationConfig", () => {
       expect(screen.getByText(/pending/i)).toBeInTheDocument();
 
       // Advance timers to complete debounce
-      jest.advanceTimersByTime(3000);
+      jest.advanceTimersByTime(1500);
 
       // Wait for the update to complete
       await waitFor(() => {
@@ -222,21 +222,21 @@ describe("SensorRotationConfig", () => {
       await user.clear(tapTimeInput);
       await user.type(tapTimeInput, "10");
 
-      // Advance timer partially
-      jest.advanceTimersByTime(1500);
+      // Advance timer partially (less than the 1500ms debounce)
+      jest.advanceTimersByTime(750);
 
       // Second change before debounce completes
       await user.clear(tapTimeInput);
       await user.type(tapTimeInput, "20");
 
-      // Advance another 1500ms (total 3000ms from first change, but only 1500ms from second)
-      jest.advanceTimersByTime(1500);
+      // Advance another 750ms (only 750ms from the second change)
+      jest.advanceTimersByTime(750);
 
       // API should not be called yet
       expect(mockSetLayerCwBindings).not.toHaveBeenCalled();
 
-      // Advance another 1500ms to complete the second debounce
-      jest.advanceTimersByTime(1500);
+      // Advance another 750ms to complete the second debounce (1500ms total)
+      jest.advanceTimersByTime(750);
 
       // Now API should be called only once with the final value
       await waitFor(() => {
@@ -303,7 +303,7 @@ describe("SensorRotationConfig", () => {
       await user.type(tapTimeInputs[1], "20");
 
       // Advance timers
-      jest.advanceTimersByTime(3000);
+      jest.advanceTimersByTime(1500);
 
       // Both should be called with their respective values
       await waitFor(() => {

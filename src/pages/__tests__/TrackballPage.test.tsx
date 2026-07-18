@@ -181,9 +181,9 @@ describe("TrackballPage", () => {
 
     await user.click(screen.getByLabelText("Increase scaling"));
 
-    // Fast-forward time to trigger debounced auto-save (1000ms)
+    // Fast-forward time to trigger debounced auto-save (1500ms)
     await act(async () => {
-      jest.advanceTimersByTime(1000);
+      jest.advanceTimersByTime(1500);
     });
 
     expect(mockSetScaling).toHaveBeenCalledWith(0, 21, 20);
@@ -213,7 +213,7 @@ describe("TrackballPage", () => {
     await user.click(screen.getByLabelText("Increase scaling"));
 
     await act(async () => {
-      jest.advanceTimersByTime(1000);
+      jest.advanceTimersByTime(1500);
     });
 
     expect(mockSetScaling).toHaveBeenCalledWith(0, 6, 5);
@@ -247,9 +247,9 @@ describe("TrackballPage", () => {
     // Toggle it off
     await user.click(rotationToggle);
 
-    // Fast-forward time to trigger debounced auto-save (1000ms)
+    // Fast-forward time to trigger debounced auto-save (1500ms)
     await act(async () => {
-      jest.advanceTimersByTime(1000);
+      jest.advanceTimersByTime(1500);
     });
 
     // Disabling rotation should set it to 0
@@ -279,7 +279,7 @@ describe("TrackballPage", () => {
     await user.click(screen.getByLabelText("Increase rotation"));
 
     await act(async () => {
-      jest.advanceTimersByTime(1000);
+      jest.advanceTimersByTime(1500);
     });
 
     expect(mockSetRotation).toHaveBeenCalledWith(0, 91);

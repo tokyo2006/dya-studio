@@ -88,14 +88,6 @@ function createMacro(
   };
 }
 
-function macroSummary(macro: MacroDetail): MacroSummary {
-  return {
-    slot: macro.slot,
-    name: macro.name,
-    encodedSize: macro.encodedSize,
-  };
-}
-
 const SEED_MACROS: MacroDetail[] = [
   createMacro(0, "Hello", [
     createTapStep(0x0b),
@@ -116,6 +108,10 @@ export class RuntimeMacroHandler {
   };
   private globalSettings: MacroGlobalSettings = { ...MOCK_GLOBAL_SETTINGS };
   private pendingChanges = false;
+  // Per-slot device truth for MacroSummary.hasUnsavedChanges: a slot lands
+  // here on any memory-mode (persist=false) mutation and is cleared by
+  // Save/Discard. Mirrors the firmware's per-slot unsaved flag.
+  private readonly unsavedSlots = new Set<number>();
   private nextSlot = SEED_MACROS.length;
 
   constructor(customSettings?: CustomSettingsHandler) {
@@ -144,7 +140,7 @@ export class RuntimeMacroHandler {
     if (request.listMacros !== undefined) {
       return {
         listMacros: {
-          macros: this.macros.map(macroSummary),
+          macros: this.macros.map((macro) => this.toSummary(macro)),
           maxMacroBytes: MAX_MACRO_BYTES,
           maxNameLength: MAX_NAME_LENGTH,
         },
@@ -196,7 +192,7 @@ export class RuntimeMacroHandler {
       macro.steps = macro.steps.slice(0, stepCount);
       const error = this.refreshEncodedSize(macro);
       if (error) return error;
-      this.markChanged(persist);
+      this.markChanged(persist, slot);
       return { status: { affectedCount: 1, message: "Step count updated" } };
     }
 
@@ -212,7 +208,7 @@ export class RuntimeMacroHandler {
       macro.steps[stepIndex] = cloneStep(step);
       const error = this.refreshEncodedSize(macro);
       if (error) return error;
-      this.markChanged(persist);
+      this.markChanged(persist, slot);
       return { status: { affectedCount: 1, message: "Macro step updated" } };
     }
 
@@ -228,7 +224,7 @@ export class RuntimeMacroHandler {
       macro.steps.push(cloneStep(step));
       const error = this.refreshEncodedSize(macro);
       if (error) return error;
-      this.markChanged(persist);
+      this.markChanged(persist, slot);
       return { status: { affectedCount: 1, message: "Macro step appended" } };
     }
 
@@ -237,9 +233,10 @@ export class RuntimeMacroHandler {
       if (this.macros.some((m) => m.name === name)) {
         return { error: { message: `Macro already exists: ${name}` } };
       }
-      this.macros.push(createMacro(this.nextSlot++, name));
+      const slot = this.nextSlot++;
+      this.macros.push(createMacro(slot, name));
       this.refreshPoolUsage();
-      this.markChanged(persist);
+      this.markChanged(persist, slot);
       return { status: { affectedCount: 1, message: "Macro created" } };
     }
 
@@ -249,7 +246,8 @@ export class RuntimeMacroHandler {
       if (index === -1) {
         return { error: { message: `Macro not found: ${name}` } };
       }
-      this.macros.splice(index, 1);
+      const [removed] = this.macros.splice(index, 1);
+      this.unsavedSlots.delete(removed.slot);
       this.refreshPoolUsage();
       this.markChanged(false);
       return { status: { affectedCount: 1, message: "Macro deleted" } };
@@ -267,8 +265,37 @@ export class RuntimeMacroHandler {
         };
       }
       macro.name = newName;
-      this.markChanged(persist);
+      this.markChanged(persist, macro.slot);
       return { status: { affectedCount: 1, message: "Macro renamed" } };
+    }
+
+    if (request.resetMacro !== undefined) {
+      const { slot, persist } = request.resetMacro;
+      const index = this.macros.findIndex((m) => m.slot === slot);
+      if (index === -1) {
+        return { error: { message: `Macro not found: ${slot}` } };
+      }
+      const macro = this.macros[index];
+      const seed = SEED_MACROS.find((m) => m.name === macro.name);
+      if (seed) {
+        // Restore the compile-time devicetree default steps for this slot.
+        macro.steps = seed.steps.map(cloneStep);
+        const error = this.refreshEncodedSize(macro);
+        if (error) return error;
+        this.markChanged(persist, slot);
+        return {
+          status: { affectedCount: 1, message: "Macro reset to default" },
+        };
+      }
+      // No devicetree default for this slot -> reset deletes it (mirrors
+      // deleteMacro, which leaves the legacy keyspace entry untouched).
+      this.macros.splice(index, 1);
+      this.unsavedSlots.delete(slot);
+      this.markChanged(persist);
+      this.refreshPoolUsage();
+      return {
+        status: { affectedCount: 1, message: "Macro reset (deleted)" },
+      };
     }
 
     if (request.saveMacros !== undefined) {
@@ -276,6 +303,7 @@ export class RuntimeMacroHandler {
       this.persistentMacros = this.macros.map(cloneMacro);
       this.persistentGlobalSettings = { ...this.globalSettings };
       this.pendingChanges = false;
+      this.unsavedSlots.clear();
       return {
         status: {
           affectedCount,
@@ -289,6 +317,7 @@ export class RuntimeMacroHandler {
       this.macros = this.persistentMacros.map(cloneMacro);
       this.globalSettings = { ...this.persistentGlobalSettings };
       this.pendingChanges = false;
+      this.unsavedSlots.clear();
       this.refreshPoolUsage();
       return {
         status: {
@@ -311,15 +340,19 @@ export class RuntimeMacroHandler {
     );
 
     // Remove macros whose keyspace entry is gone (deleted).
-    this.macros = this.macros.filter((macro) =>
-      namesInKeyspace.has(macro.name),
-    );
+    this.macros = this.macros.filter((macro) => {
+      const kept = namesInKeyspace.has(macro.name);
+      if (!kept) this.unsavedSlots.delete(macro.slot);
+      return kept;
+    });
 
     // Add a new (empty) macro for any keyspace entry with no matching macro
-    // yet (created).
+    // yet (created). A newly created slot is unsaved until saved.
     for (const name of namesInKeyspace) {
       if (!this.macros.some((macro) => macro.name === name)) {
-        this.macros.push(createMacro(this.nextSlot++, name));
+        const slot = this.nextSlot++;
+        this.macros.push(createMacro(slot, name));
+        this.unsavedSlots.add(slot);
       }
     }
 
@@ -327,13 +360,24 @@ export class RuntimeMacroHandler {
     this.refreshPoolUsage();
   }
 
-  private markChanged(persist: boolean) {
+  private toSummary(macro: MacroDetail): MacroSummary {
+    return {
+      slot: macro.slot,
+      name: macro.name,
+      encodedSize: macro.encodedSize,
+      hasUnsavedChanges: this.unsavedSlots.has(macro.slot),
+    };
+  }
+
+  private markChanged(persist: boolean, slot?: number) {
     if (persist) {
       this.persistentMacros = this.macros.map(cloneMacro);
       this.persistentGlobalSettings = { ...this.globalSettings };
       this.pendingChanges = false;
+      this.unsavedSlots.clear();
     } else {
       this.pendingChanges = true;
+      if (slot !== undefined) this.unsavedSlots.add(slot);
     }
     this.refreshPoolUsage();
   }

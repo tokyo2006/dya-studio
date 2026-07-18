@@ -1,4 +1,10 @@
-import { useCallback, useContext, useMemo, useState } from "react";
+import {
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+  type InputHTMLAttributes,
+} from "react";
 import {
   IconAlertTriangle,
   IconChevronDown,
@@ -19,6 +25,8 @@ import { KeyboardLayout } from "../components/KeyboardLayout";
 import { KeycodeSelector } from "../components/KeycodeSelector";
 import { UnlockPrompt } from "../components/UnlockPrompt";
 import { LoadingIndicator } from "../components/LoadingIndicator";
+import { StatusDot, type EditStatus } from "../components/EditStatusIndicator";
+import { useDebouncedMemoryWrite } from "../hooks/useDebouncedMemoryWrite";
 import { useStudioLockState } from "@cormoran/zmk-studio-react-hook";
 import { useKeymap, getKeymapLoadingLabel } from "../hooks/useKeymap";
 import { useLanguage } from "../hooks/useLanguage";
@@ -60,10 +68,48 @@ interface ComboDraft {
   source: ComboSource;
 }
 
-interface GlobalSettingsDraft {
-  timeoutMs: number | null;
-  slowRelease: boolean | null;
-  requirePriorIdleMs: number | null;
+// Input that keeps its own local value while focused so parent-driven updates
+// (e.g. after a debounced memory write reloads device state) don't reset the
+// cursor or steal focus mid-edit. Mirrors the RetainedInput used by
+// AdvancedSettingsSection. Only needed for fields driven by device state
+// (global settings); the per-combo editor is driven by the local draft.
+function RetainedInput({
+  value,
+  onChange,
+  ...rest
+}: Omit<InputHTMLAttributes<HTMLInputElement>, "value" | "onChange"> & {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [local, setLocal] = useState(value);
+  const [prevProp, setPrevProp] = useState(value);
+  const [focused, setFocused] = useState(false);
+
+  if (prevProp !== value) {
+    setPrevProp(value);
+    if (!focused) {
+      setLocal(value);
+    }
+  }
+
+  return (
+    <input
+      {...rest}
+      value={local}
+      onFocus={(e) => {
+        setFocused(true);
+        rest.onFocus?.(e);
+      }}
+      onBlur={(e) => {
+        setFocused(false);
+        rest.onBlur?.(e);
+      }}
+      onChange={(e) => {
+        setLocal(e.target.value);
+        onChange(e.target.value);
+      }}
+    />
+  );
 }
 
 function comboSourceLabel(
@@ -82,6 +128,26 @@ function comboSourceLabel(
     default:
       return t("Unknown");
   }
+}
+
+// Unified edit status for a combo slot: green when it has an in-memory change
+// not yet persisted, blue when it is persisted but differs from (or is not
+// part of) the compile-time default, otherwise no dot.
+function comboEditStatus(
+  source: ComboSource,
+  index: number,
+  modifiedIndices: Set<number>,
+): EditStatus {
+  if (modifiedIndices.has(index)) {
+    return "unsaved";
+  }
+  if (
+    source === ComboSource.COMBO_SOURCE_OVERRIDDEN ||
+    source === ComboSource.COMBO_SOURCE_RUNTIME
+  ) {
+    return "modified";
+  }
+  return "default";
 }
 
 function defaultBehaviorBinding(
@@ -179,6 +245,44 @@ function formatLayerScope(
   return mask === 0 ? t("All layers") : `0x${mask.toString(16)}`;
 }
 
+// Pure validation shared by the error banner and the auto-write guard: an
+// invalid draft is shown to the user but never written to the device.
+function validateCombo(
+  draft: ComboDraft,
+  maxCombo: number | undefined,
+  t: (key: string, params?: Record<string, number | string>) => string,
+): string | null {
+  if (draft.index < 0 || !Number.isInteger(draft.index)) {
+    return t("Choose a valid slot.");
+  }
+  if (maxCombo && maxCombo > 0 && draft.index >= maxCombo) {
+    return t("Slot must be below {{maxCombo}}.", { maxCombo });
+  }
+  if (draft.name.length > MAX_NAME_LENGTH) {
+    return t("Name must be {{maxLength}} characters or fewer.", {
+      maxLength: MAX_NAME_LENGTH,
+    });
+  }
+  if (draft.keyPositions.length < 2) {
+    return t("Select at least two key positions.");
+  }
+  if (draft.keyPositions.length > MAX_POSITIONS_PER_COMBO) {
+    return t("Select {{maxPositions}} positions or fewer.", {
+      maxPositions: MAX_POSITIONS_PER_COMBO,
+    });
+  }
+  if (draft.keyPositions.some((position) => position > 65535)) {
+    return t("Key positions must be below 65536.");
+  }
+  if (!draft.behavior || draft.behavior.behaviorId === 0) {
+    return t("Choose a behavior.");
+  }
+  if (draft.layerMask < 0 || draft.layerMask > 0xffffffff) {
+    return t("Layer mask is out of range.");
+  }
+  return null;
+}
+
 function formatComboBehavior(
   binding: BehaviorBinding,
   behaviors: Map<number, BehaviorDefinition>,
@@ -198,12 +302,6 @@ function formatComboBehavior(
   });
 }
 
-function PendingDot() {
-  return (
-    <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-neon)] flex-shrink-0 inline-block" />
-  );
-}
-
 export function ComboPage() {
   const { t } = useLanguage();
   const connection = useContext(ConnectionContext);
@@ -221,34 +319,27 @@ export function ComboPage() {
   const [draft, setDraft] = useState<ComboDraft>(() =>
     createDraft([], undefined, new Map()),
   );
-  const [positionsText, setPositionsText] = useState("");
-  const [globalDraft, setGlobalDraft] = useState<GlobalSettingsDraft>({
-    timeoutMs: null,
-    slowRelease: null,
-    requirePriorIdleMs: null,
-  });
   const [showBehaviorSelector, setShowBehaviorSelector] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isGlobalSettingsExpanded, setIsGlobalSettingsExpanded] =
     useState(false);
   const [isAdvancedExpanded, setIsAdvancedExpanded] = useState(false);
+  // Client-side green tracking: the proto carries no per-combo "unsaved" flag,
+  // so we mark a slot whenever a field auto-writes to memory and clear the set
+  // on the global Save/Discard.
   const [modifiedIndices, setModifiedIndices] = useState<Set<number>>(
     new Set(),
   );
+  // Global settings likewise have no per-value unsaved flag; track green with a
+  // single client flag, cleared on Save/Discard.
+  const [globalModified, setGlobalModified] = useState(false);
 
   const maxCombo = runtimeCombo.globalSettings?.maxCombo;
   const displayTimeoutMs =
-    globalDraft.timeoutMs ??
-    runtimeCombo.globalSettings?.timeoutMs ??
-    DEFAULT_TIMEOUT_MS;
-  const displaySlowRelease =
-    globalDraft.slowRelease ??
-    runtimeCombo.globalSettings?.slowRelease ??
-    false;
+    runtimeCombo.globalSettings?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const displaySlowRelease = runtimeCombo.globalSettings?.slowRelease ?? false;
   const displayRequirePriorIdleMs =
-    globalDraft.requirePriorIdleMs ??
-    runtimeCombo.globalSettings?.requirePriorIdleMs ??
-    0;
+    runtimeCombo.globalSettings?.requirePriorIdleMs ?? 0;
   const keymapLayers = keymap.keymap?.layers;
   const physicalLayouts = keymap.physicalLayouts?.layouts;
   const activeLayoutIndex = keymap.physicalLayouts?.activeLayoutIndex;
@@ -273,14 +364,63 @@ export function ComboPage() {
     [draft.keyPositions],
   );
 
+  // Writer for the debounced auto-write: pushes the whole draft to keyboard
+  // MEMORY (persist=false) and marks the slot green. `setCombo` refreshes the
+  // combo list from the device (which derives `source`), then the name is
+  // written on top.
+  const writeComboToMemory = useCallback(
+    async (next: ComboDraft) => {
+      const comboSaved = await runtimeCombo.setCombo({
+        index: next.index,
+        keyPositions: next.keyPositions,
+        behavior: next.behavior,
+        layerMask: next.layerMask,
+        enabled: next.enabled,
+        timeoutMs: next.timeoutMs,
+        requirePriorIdleMs: next.requirePriorIdleMs,
+        slowReleaseOverride: next.slowReleaseOverride,
+      });
+      if (!comboSaved) return;
+      await runtimeCombo.setComboName(next.index, next.name);
+      setModifiedIndices((prev) => new Set(prev).add(next.index));
+    },
+    [runtimeCombo],
+  );
+
+  const comboMemoryWrite = useDebouncedMemoryWrite(writeComboToMemory);
+
+  const globalTimeoutWrite = useDebouncedMemoryWrite<number>(
+    useCallback(
+      async (timeoutMs: number) => {
+        if (timeoutMs < 1 || timeoutMs > 65535) return;
+        const ok = await runtimeCombo.setTimeoutMs(timeoutMs);
+        if (ok) setGlobalModified(true);
+      },
+      [runtimeCombo],
+    ),
+  );
+
+  const globalIdleWrite = useDebouncedMemoryWrite<number>(
+    useCallback(
+      async (requirePriorIdleMs: number) => {
+        if (requirePriorIdleMs < 0 || requirePriorIdleMs > 65535) return;
+        const ok = await runtimeCombo.setRequirePriorIdleMs(requirePriorIdleMs);
+        if (ok) setGlobalModified(true);
+      },
+      [runtimeCombo],
+    ),
+  );
+
   const selectDraft = useCallback(
     (nextDraft: ComboDraft) => {
+      // Flush any pending write for the previously edited slot before switching
+      // (the queued value carries its own index, so it targets the right slot).
+      void comboMemoryWrite.flush();
       setSelectedIndex(nextDraft.index);
       setDraft(nextDraft);
-      setPositionsText(positionsToText(nextDraft.keyPositions));
       setStatusMessage(null);
     },
-    [setDraft],
+    [comboMemoryWrite],
   );
 
   // Guard an edit action: if Studio is locked, open the unlock prompt instead
@@ -292,6 +432,28 @@ export function ComboPage() {
     }
     return true;
   }, [locked]);
+
+  // Single entry point for every per-combo field edit: update the local draft
+  // (keeping inputs responsive) and, when the draft is valid, auto-write it to
+  // memory. Discrete controls pass `immediate` to write without the debounce.
+  const applyDraftChange = useCallback(
+    (next: ComboDraft, immediate = false) => {
+      if (!requireUnlocked()) return;
+      setDraft(next);
+      setStatusMessage(null);
+      if (validateCombo(next, maxCombo, t)) {
+        // Invalid drafts are shown (with the error banner) but never written.
+        return;
+      }
+      // Optimistic green so the dot reacts immediately, before the debounce.
+      setModifiedIndices((prev) => new Set(prev).add(next.index));
+      comboMemoryWrite.queue(next);
+      if (immediate) {
+        void comboMemoryWrite.flush();
+      }
+    },
+    [comboMemoryWrite, maxCombo, requireUnlocked, t],
+  );
 
   const handleNewCombo = useCallback(async () => {
     if (!requireUnlocked()) return;
@@ -318,9 +480,8 @@ export function ComboPage() {
     });
     if (!comboSaved) return;
     await runtimeCombo.setComboName(newCombo.index, newCombo.name);
-    setModifiedIndices((prev) => new Set([...prev, newCombo.index]));
+    setModifiedIndices((prev) => new Set(prev).add(newCombo.index));
     selectDraft(newCombo);
-    setStatusMessage(t("Combo changes are pending."));
   }, [
     keymap.behaviors,
     maxCombo,
@@ -330,74 +491,24 @@ export function ComboPage() {
     t,
   ]);
 
-  const handlePositionToggle = useCallback((position: number) => {
-    setDraft((prev) => {
-      const nextPositions = prev.keyPositions.includes(position)
-        ? prev.keyPositions.filter((item) => item !== position)
-        : normalizePositions([...prev.keyPositions, position]);
-      setPositionsText(positionsToText(nextPositions));
-      return { ...prev, keyPositions: nextPositions };
-    });
-  }, []);
+  const handlePositionToggle = useCallback(
+    (position: number) => {
+      const nextPositions = draft.keyPositions.includes(position)
+        ? draft.keyPositions.filter((item) => item !== position)
+        : normalizePositions([...draft.keyPositions, position]);
+      applyDraftChange({ ...draft, keyPositions: nextPositions }, true);
+    },
+    [applyDraftChange, draft],
+  );
 
-  const validationError = useMemo(() => {
-    if (draft.index < 0 || !Number.isInteger(draft.index)) {
-      return t("Choose a valid slot.");
-    }
-    if (maxCombo && maxCombo > 0 && draft.index >= maxCombo) {
-      return t("Slot must be below {{maxCombo}}.", { maxCombo });
-    }
-    if (draft.name.length > MAX_NAME_LENGTH) {
-      return t("Name must be {{maxLength}} characters or fewer.", {
-        maxLength: MAX_NAME_LENGTH,
-      });
-    }
-    if (draft.keyPositions.length < 2) {
-      return t("Select at least two key positions.");
-    }
-    if (draft.keyPositions.length > MAX_POSITIONS_PER_COMBO) {
-      return t("Select {{maxPositions}} positions or fewer.", {
-        maxPositions: MAX_POSITIONS_PER_COMBO,
-      });
-    }
-    if (draft.keyPositions.some((position) => position > 65535)) {
-      return t("Key positions must be below 65536.");
-    }
-    if (!draft.behavior || draft.behavior.behaviorId === 0) {
-      return t("Choose a behavior.");
-    }
-    if (draft.layerMask < 0 || draft.layerMask > 0xffffffff) {
-      return t("Layer mask is out of range.");
-    }
-    return null;
-  }, [draft, maxCombo, t]);
-
-  const handleSaveCombo = useCallback(async () => {
-    if (!requireUnlocked()) return;
-    if (validationError) return;
-    setStatusMessage(null);
-    const comboSaved = await runtimeCombo.setCombo({
-      index: draft.index,
-      keyPositions: draft.keyPositions,
-      behavior: draft.behavior,
-      layerMask: draft.layerMask,
-      enabled: draft.enabled,
-      timeoutMs: draft.timeoutMs,
-      requirePriorIdleMs: draft.requirePriorIdleMs,
-      slowReleaseOverride: draft.slowReleaseOverride,
-    });
-    if (!comboSaved) return;
-
-    const nameSaved = await runtimeCombo.setComboName(draft.index, draft.name);
-    if (nameSaved) {
-      setSelectedIndex(draft.index);
-      setModifiedIndices((prev) => new Set([...prev, draft.index]));
-      setStatusMessage(t("Combo changes are pending."));
-    }
-  }, [draft, runtimeCombo, t, validationError, requireUnlocked]);
+  const validationError = useMemo(
+    () => validateCombo(draft, maxCombo, t),
+    [draft, maxCombo, t],
+  );
 
   const handleDeleteCombo = useCallback(async () => {
     if (!requireUnlocked()) return;
+    comboMemoryWrite.cancel();
     const deleted = await runtimeCombo.deleteCombo(draft.index);
     if (deleted) {
       const remaining = runtimeCombo.combos.filter(
@@ -407,25 +518,25 @@ export function ComboPage() {
         ? comboToDraft(remaining[0], keymap.behaviors)
         : createDraft(remaining, maxCombo, keymap.behaviors);
       setModifiedIndices((prev) => {
-        const next = new Set(prev);
-        next.delete(draft.index);
-        return next;
+        const nextSet = new Set(prev);
+        nextSet.delete(draft.index);
+        return nextSet;
       });
       selectDraft(nextDraft);
-      setStatusMessage(t("Combo deletion is pending."));
     }
   }, [
+    comboMemoryWrite,
     draft.index,
     keymap.behaviors,
     maxCombo,
     runtimeCombo,
     selectDraft,
-    t,
     requireUnlocked,
   ]);
 
   const handleResetCombo = useCallback(async () => {
     if (!requireUnlocked()) return;
+    comboMemoryWrite.cancel();
     const resetIndex = draft.index;
     const reset = await runtimeCombo.resetCombo(resetIndex);
     if (reset) {
@@ -435,70 +546,59 @@ export function ComboPage() {
       const nextDraft = updated
         ? comboToDraft(updated, keymap.behaviors)
         : createDraft(runtimeCombo.combos, maxCombo, keymap.behaviors);
+      // Reset clears any local unsaved marker for the slot; the device now
+      // reports its source (default/empty), which drives the dot.
+      setModifiedIndices((prev) => {
+        const nextSet = new Set(prev);
+        nextSet.delete(resetIndex);
+        return nextSet;
+      });
       selectDraft(nextDraft);
-      setStatusMessage(t("Combo reset to default is pending."));
     }
   }, [
+    comboMemoryWrite,
     draft.index,
     keymap.behaviors,
     maxCombo,
     runtimeCombo,
     selectDraft,
-    t,
-    requireUnlocked,
-  ]);
-
-  const handleApplyGlobalSettings = useCallback(async () => {
-    if (!requireUnlocked()) return;
-    setStatusMessage(null);
-    const current = runtimeCombo.globalSettings;
-    let ok = true;
-    if (!current || current.timeoutMs !== displayTimeoutMs) {
-      ok = (await runtimeCombo.setTimeoutMs(displayTimeoutMs)) && ok;
-    }
-    if (!current || current.slowRelease !== displaySlowRelease) {
-      ok = (await runtimeCombo.setSlowRelease(displaySlowRelease)) && ok;
-    }
-    if (!current || current.requirePriorIdleMs !== displayRequirePriorIdleMs) {
-      ok =
-        (await runtimeCombo.setRequirePriorIdleMs(displayRequirePriorIdleMs)) &&
-        ok;
-    }
-    if (ok) {
-      setGlobalDraft({
-        timeoutMs: null,
-        slowRelease: null,
-        requirePriorIdleMs: null,
-      });
-      setStatusMessage(t("Global settings are pending."));
-    }
-  }, [
-    displayRequirePriorIdleMs,
-    displaySlowRelease,
-    displayTimeoutMs,
-    runtimeCombo,
-    t,
     requireUnlocked,
   ]);
 
   const handleSavePending = useCallback(async () => {
     if (!requireUnlocked()) return;
+    // Persist any still-queued edits to memory first, then flush memory→flash.
+    await comboMemoryWrite.flush();
+    await globalTimeoutWrite.flush();
+    await globalIdleWrite.flush();
     const status = await runtimeCombo.saveChanges();
     if (status) {
       setModifiedIndices(new Set());
+      setGlobalModified(false);
       setStatusMessage(
         t("Saved {{count}} runtime combo changes.", {
           count: status.affectedCount,
         }),
       );
     }
-  }, [runtimeCombo, t, requireUnlocked]);
+  }, [
+    comboMemoryWrite,
+    globalIdleWrite,
+    globalTimeoutWrite,
+    runtimeCombo,
+    t,
+    requireUnlocked,
+  ]);
 
   const handleDiscardPending = useCallback(async () => {
     if (!requireUnlocked()) return;
+    comboMemoryWrite.cancel();
+    globalTimeoutWrite.cancel();
+    globalIdleWrite.cancel();
     const status = await runtimeCombo.discardChanges();
     if (status) {
       setModifiedIndices(new Set());
+      setGlobalModified(false);
       setStatusMessage(
         t("Discarded {{count}} runtime combo changes.", {
           count: status.affectedCount,
@@ -506,16 +606,22 @@ export function ComboPage() {
       );
       setSelectedIndex(null);
     }
-  }, [runtimeCombo, t, requireUnlocked]);
+  }, [
+    comboMemoryWrite,
+    globalIdleWrite,
+    globalTimeoutWrite,
+    runtimeCombo,
+    t,
+    requireUnlocked,
+  ]);
 
-  const selectedComboExists = runtimeCombo.combos.some(
-    (combo) => combo.index === draft.index,
+  const selectedCombo = useMemo(
+    () =>
+      runtimeCombo.combos.find((combo) => combo.index === draft.index) ?? null,
+    [runtimeCombo.combos, draft.index],
   );
-
-  const globalSettingsModified =
-    globalDraft.timeoutMs !== null ||
-    globalDraft.slowRelease !== null ||
-    globalDraft.requirePriorIdleMs !== null;
+  const selectedComboExists = selectedCombo !== null;
+  const editorSource = selectedCombo?.source ?? draft.source;
 
   return (
     <div className="p-6 h-full overflow-auto">
@@ -559,8 +665,8 @@ export function ComboPage() {
                 <>
                   {runtimeCombo.hasPendingChanges && (
                     <span className="flex items-center gap-1 text-xs text-[var(--color-neon)] mr-2">
-                      <PendingDot />
-                      {t("Pending changes")}
+                      <StatusDot status="unsaved" />
+                      {t("Unsaved changes")}
                     </span>
                   )}
                   <button
@@ -680,7 +786,7 @@ export function ComboPage() {
                     <h2 className="text-sm font-medium text-[var(--color-text)] flex-1">
                       {t("Global Settings")}
                     </h2>
-                    {globalSettingsModified && <PendingDot />}
+                    {globalModified && <StatusDot status="unsaved" />}
                     <IconChevronDown
                       size={14}
                       className={`text-[var(--color-text-muted)] flex-shrink-0 transition-transform ${
@@ -691,6 +797,11 @@ export function ComboPage() {
                   {isGlobalSettingsExpanded && (
                     <div className="px-4 pb-4 border-t border-[var(--color-border)]">
                       <div className="space-y-3 mt-3">
+                        <p className="text-xs text-[var(--color-text-muted)]">
+                          {t(
+                            "Changes are written to keyboard memory after a short delay. Save a section to persist them.",
+                          )}
+                        </p>
                         <label className="block">
                           <span className="text-xs text-[var(--color-text-muted)]">
                             {t("Max slots")}
@@ -705,18 +816,16 @@ export function ComboPage() {
                           <span className="text-xs text-[var(--color-text-muted)]">
                             {t("Timeout ms")}
                           </span>
-                          <input
+                          <RetainedInput
                             type="number"
                             min={1}
                             max={65535}
                             className="mt-1 w-full px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text)]"
-                            value={displayTimeoutMs}
-                            onChange={(event) =>
-                              setGlobalDraft((prev) => ({
-                                ...prev,
-                                timeoutMs: Number(event.target.value),
-                              }))
-                            }
+                            value={String(displayTimeoutMs)}
+                            onChange={(value) => {
+                              if (!requireUnlocked()) return;
+                              globalTimeoutWrite.queue(Number(value));
+                            }}
                           />
                         </label>
                         <div className="flex items-center justify-between gap-3">
@@ -725,12 +834,14 @@ export function ComboPage() {
                           </span>
                           <Switch.Root
                             checked={displaySlowRelease}
-                            onCheckedChange={(slowRelease) =>
-                              setGlobalDraft((prev) => ({
-                                ...prev,
-                                slowRelease,
-                              }))
-                            }
+                            onCheckedChange={(slowRelease) => {
+                              if (!requireUnlocked()) return;
+                              void runtimeCombo
+                                .setSlowRelease(slowRelease)
+                                .then((ok) => {
+                                  if (ok) setGlobalModified(true);
+                                });
+                            }}
                             className="w-10 h-5 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-border)] border border-[var(--color-border)] transition-colors"
                           >
                             <Switch.Thumb className="block w-4 h-4 rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform bg-white border border-[var(--color-border)]" />
@@ -740,33 +851,18 @@ export function ComboPage() {
                           <span className="text-xs text-[var(--color-text-muted)]">
                             {t("Require prior idle ms (0 disables)")}
                           </span>
-                          <input
+                          <RetainedInput
                             type="number"
                             min={0}
                             max={65535}
                             className="mt-1 w-full px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text)]"
-                            value={displayRequirePriorIdleMs}
-                            onChange={(event) =>
-                              setGlobalDraft((prev) => ({
-                                ...prev,
-                                requirePriorIdleMs: Number(event.target.value),
-                              }))
-                            }
+                            value={String(displayRequirePriorIdleMs)}
+                            onChange={(value) => {
+                              if (!requireUnlocked()) return;
+                              globalIdleWrite.queue(Number(value));
+                            }}
                           />
                         </label>
-                        <button
-                          className="btn-electric w-full text-sm"
-                          onClick={handleApplyGlobalSettings}
-                          disabled={
-                            runtimeCombo.isLoading ||
-                            displayTimeoutMs < 1 ||
-                            displayTimeoutMs > 65535 ||
-                            displayRequirePriorIdleMs < 0 ||
-                            displayRequirePriorIdleMs > 65535
-                          }
-                        >
-                          {t("Apply Global Settings")}
-                        </button>
                       </div>
                     </div>
                   )}
@@ -831,9 +927,13 @@ export function ComboPage() {
                                 })}
                             </span>
                             <span className="flex items-center gap-1.5 shrink-0">
-                              {modifiedIndices.has(combo.index) && (
-                                <PendingDot />
-                              )}
+                              <StatusDot
+                                status={comboEditStatus(
+                                  combo.source,
+                                  combo.index,
+                                  modifiedIndices,
+                                )}
+                              />
                               <span className="text-xs font-mono text-[var(--color-text-muted)]">
                                 #{combo.index}
                               </span>
@@ -895,9 +995,15 @@ export function ComboPage() {
                           {t("Combo Editor")}
                         </h2>
                         <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-[var(--color-border)] text-[var(--color-text-muted)]">
-                          {comboSourceLabel(draft.source, t)}
+                          {comboSourceLabel(editorSource, t)}
                         </span>
-                        {modifiedIndices.has(draft.index) && <PendingDot />}
+                        <StatusDot
+                          status={comboEditStatus(
+                            editorSource,
+                            draft.index,
+                            modifiedIndices,
+                          )}
+                        />
                       </div>
                       <p className="text-xs text-[var(--color-text-muted)]">
                         {selectedComboExists
@@ -906,8 +1012,8 @@ export function ComboPage() {
                       </p>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      {(draft.source === ComboSource.COMBO_SOURCE_DEFAULT ||
-                        draft.source ===
+                      {(editorSource === ComboSource.COMBO_SOURCE_DEFAULT ||
+                        editorSource ===
                           ComboSource.COMBO_SOURCE_OVERRIDDEN) && (
                         <button
                           className="btn-ghost text-sm flex items-center gap-1.5"
@@ -926,7 +1032,7 @@ export function ComboPage() {
                         <Switch.Root
                           checked={draft.enabled}
                           onCheckedChange={(enabled) =>
-                            setDraft((prev) => ({ ...prev, enabled }))
+                            applyDraftChange({ ...draft, enabled }, true)
                           }
                           className="w-8 h-4 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-border)] border border-[var(--color-border)] transition-colors"
                         >
@@ -942,19 +1048,6 @@ export function ComboPage() {
                       >
                         <IconTrash size={16} />
                         {t("Delete")}
-                      </button>
-                      <button
-                        className="btn-electric text-sm flex items-center gap-1.5"
-                        onClick={handleSaveCombo}
-                        disabled={!!validationError || runtimeCombo.isLoading}
-                        title={validationError ?? undefined}
-                      >
-                        {runtimeCombo.isLoading ? (
-                          <IconLoader2 size={16} className="animate-spin" />
-                        ) : (
-                          <IconDeviceFloppy size={16} />
-                        )}
-                        {t("Save Combo")}
                       </button>
                     </div>
                   </div>
@@ -977,10 +1070,10 @@ export function ComboPage() {
                         className="mt-1 w-full px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text)]"
                         value={draft.name}
                         onChange={(event) =>
-                          setDraft((prev) => ({
-                            ...prev,
+                          applyDraftChange({
+                            ...draft,
                             name: event.target.value,
-                          }))
+                          })
                         }
                       />
                     </label>
@@ -1021,7 +1114,7 @@ export function ComboPage() {
                             : "bg-[var(--color-bg)] text-[var(--color-text-secondary)] border-[var(--color-border)]"
                         }`}
                         onClick={() =>
-                          setDraft((prev) => ({ ...prev, layerMask: 0 }))
+                          applyDraftChange({ ...draft, layerMask: 0 }, true)
                         }
                       >
                         {t("All")}
@@ -1036,10 +1129,16 @@ export function ComboPage() {
                               : "bg-[var(--color-bg)] text-[var(--color-text-secondary)] border-[var(--color-border)]"
                           }`}
                           onClick={() =>
-                            setDraft((prev) => ({
-                              ...prev,
-                              layerMask: toggleLayer(prev.layerMask, layer.id),
-                            }))
+                            applyDraftChange(
+                              {
+                                ...draft,
+                                layerMask: toggleLayer(
+                                  draft.layerMask,
+                                  layer.id,
+                                ),
+                              },
+                              true,
+                            )
                           }
                           disabled={layer.id >= 32}
                         >
@@ -1060,7 +1159,7 @@ export function ComboPage() {
                     <input
                       readOnly
                       className="mt-1 w-full px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text)] cursor-default select-none"
-                      value={positionsText}
+                      value={positionsToText(draft.keyPositions)}
                     />
                   </label>
 
@@ -1114,10 +1213,10 @@ export function ComboPage() {
                               className="mt-1 w-full px-3 py-2 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)]"
                               value={draft.timeoutMs}
                               onChange={(event) =>
-                                setDraft((prev) => ({
-                                  ...prev,
+                                applyDraftChange({
+                                  ...draft,
                                   timeoutMs: Number(event.target.value),
-                                }))
+                                })
                               }
                             />
                           </label>
@@ -1132,12 +1231,12 @@ export function ComboPage() {
                               className="mt-1 w-full px-3 py-2 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)]"
                               value={draft.requirePriorIdleMs}
                               onChange={(event) =>
-                                setDraft((prev) => ({
-                                  ...prev,
+                                applyDraftChange({
+                                  ...draft,
                                   requirePriorIdleMs: Number(
                                     event.target.value,
                                   ),
-                                }))
+                                })
                               }
                             />
                           </label>
@@ -1149,12 +1248,15 @@ export function ComboPage() {
                               className="select-field mt-1 w-full text-sm"
                               value={draft.slowReleaseOverride}
                               onChange={(event) =>
-                                setDraft((prev) => ({
-                                  ...prev,
-                                  slowReleaseOverride: Number(
-                                    event.target.value,
-                                  ) as SlowReleaseOverride,
-                                }))
+                                applyDraftChange(
+                                  {
+                                    ...draft,
+                                    slowReleaseOverride: Number(
+                                      event.target.value,
+                                    ) as SlowReleaseOverride,
+                                  },
+                                  true,
+                                )
                               }
                             >
                               <option
@@ -1194,7 +1296,7 @@ export function ComboPage() {
         open={showBehaviorSelector}
         onClose={() => setShowBehaviorSelector(false)}
         onSelect={(binding) =>
-          setDraft((prev) => ({ ...prev, behavior: binding }))
+          applyDraftChange({ ...draft, behavior: binding }, true)
         }
         currentBinding={draft.behavior}
         behaviors={keymap.behaviors}

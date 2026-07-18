@@ -23,6 +23,14 @@ export interface MacroSummary {
   slot: number;
   name: string;
   encodedSize: number;
+  /**
+   * True when the macro has an in-memory-only change not yet written to
+   * flash (a memory-mode create/edit, or a value that differs from the
+   * persisted one). Cleared by SaveMacros / DiscardMacros. A devicetree
+   * default that has never been saved also reports true, since it lives
+   * only in memory until the user saves it.
+   */
+  hasUnsavedChanges: boolean;
 }
 
 export interface BehaviorBinding {
@@ -99,6 +107,20 @@ export interface RenameMacroRequest {
   persist: boolean;
 }
 
+/**
+ * Reset the macro at `slot` to its compile-time (devicetree) state: if a
+ * `cormoran,runtime-macro-default` node declares a macro whose name matches
+ * this macro's, overwrite the body with that default; otherwise (no such
+ * compile-time default) delete the macro entirely - "reset" of a macro that
+ * only ever existed at runtime means removing it. `persist` writes the reset
+ * result straight to flash (otherwise it lives in memory until SaveMacros /
+ * is re-seeded from the devicetree next boot).
+ */
+export interface ResetMacroRequest {
+  slot: number;
+  persist: boolean;
+}
+
 export interface Request {
   listMacros?: ListMacrosRequest | undefined;
   getMacro?: GetMacroRequest | undefined;
@@ -112,6 +134,7 @@ export interface Request {
   createMacro?: CreateMacroRequest | undefined;
   deleteMacro?: DeleteMacroRequest | undefined;
   renameMacro?: RenameMacroRequest | undefined;
+  resetMacro?: ResetMacroRequest | undefined;
 }
 
 export interface ErrorResponse {
@@ -272,7 +295,7 @@ export const GetMacroGlobalSettingsRequest: MessageFns<GetMacroGlobalSettingsReq
 };
 
 function createBaseMacroSummary(): MacroSummary {
-  return { slot: 0, name: "", encodedSize: 0 };
+  return { slot: 0, name: "", encodedSize: 0, hasUnsavedChanges: false };
 }
 
 export const MacroSummary: MessageFns<MacroSummary> = {
@@ -285,6 +308,9 @@ export const MacroSummary: MessageFns<MacroSummary> = {
     }
     if (message.encodedSize !== 0) {
       writer.uint32(24).uint32(message.encodedSize);
+    }
+    if (message.hasUnsavedChanges !== false) {
+      writer.uint32(32).bool(message.hasUnsavedChanges);
     }
     return writer;
   },
@@ -320,6 +346,14 @@ export const MacroSummary: MessageFns<MacroSummary> = {
           message.encodedSize = reader.uint32();
           continue;
         }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.hasUnsavedChanges = reader.bool();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -337,6 +371,7 @@ export const MacroSummary: MessageFns<MacroSummary> = {
     message.slot = object.slot ?? 0;
     message.name = object.name ?? "";
     message.encodedSize = object.encodedSize ?? 0;
+    message.hasUnsavedChanges = object.hasUnsavedChanges ?? false;
     return message;
   },
 };
@@ -1209,6 +1244,64 @@ export const RenameMacroRequest: MessageFns<RenameMacroRequest> = {
   },
 };
 
+function createBaseResetMacroRequest(): ResetMacroRequest {
+  return { slot: 0, persist: false };
+}
+
+export const ResetMacroRequest: MessageFns<ResetMacroRequest> = {
+  encode(message: ResetMacroRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.slot !== 0) {
+      writer.uint32(8).uint32(message.slot);
+    }
+    if (message.persist !== false) {
+      writer.uint32(16).bool(message.persist);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ResetMacroRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseResetMacroRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.slot = reader.uint32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.persist = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<ResetMacroRequest>): ResetMacroRequest {
+    return ResetMacroRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ResetMacroRequest>): ResetMacroRequest {
+    const message = createBaseResetMacroRequest();
+    message.slot = object.slot ?? 0;
+    message.persist = object.persist ?? false;
+    return message;
+  },
+};
+
 function createBaseRequest(): Request {
   return {
     listMacros: undefined,
@@ -1223,6 +1316,7 @@ function createBaseRequest(): Request {
     createMacro: undefined,
     deleteMacro: undefined,
     renameMacro: undefined,
+    resetMacro: undefined,
   };
 }
 
@@ -1263,6 +1357,9 @@ export const Request: MessageFns<Request> = {
     }
     if (message.renameMacro !== undefined) {
       RenameMacroRequest.encode(message.renameMacro, writer.uint32(114).fork()).join();
+    }
+    if (message.resetMacro !== undefined) {
+      ResetMacroRequest.encode(message.resetMacro, writer.uint32(122).fork()).join();
     }
     return writer;
   },
@@ -1370,6 +1467,14 @@ export const Request: MessageFns<Request> = {
           message.renameMacro = RenameMacroRequest.decode(reader, reader.uint32());
           continue;
         }
+        case 15: {
+          if (tag !== 122) {
+            break;
+          }
+
+          message.resetMacro = ResetMacroRequest.decode(reader, reader.uint32());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1420,6 +1525,9 @@ export const Request: MessageFns<Request> = {
       : undefined;
     message.renameMacro = (object.renameMacro !== undefined && object.renameMacro !== null)
       ? RenameMacroRequest.fromPartial(object.renameMacro)
+      : undefined;
+    message.resetMacro = (object.resetMacro !== undefined && object.resetMacro !== null)
+      ? ResetMacroRequest.fromPartial(object.resetMacro)
       : undefined;
     return message;
   },

@@ -34,6 +34,9 @@ export interface UseRuntimeMacroReturn {
   createMacro: (name: string) => Promise<boolean>;
   deleteMacro: (name: string) => Promise<boolean>;
   renameMacro: (oldName: string, newName: string) => Promise<boolean>;
+  resetMacro: (slot: number, persist?: boolean) => Promise<boolean>;
+  /** Device truth: whether the slot has in-memory-only (unsaved) changes. */
+  isSlotUnsaved: (slot: number) => boolean;
   setMacroStepCount: (
     slot: number,
     stepCount: number,
@@ -316,6 +319,27 @@ export function useRuntimeMacro(
     [runMutation, loadMacros],
   );
 
+  const resetMacro = useCallback(
+    async (slot: number, persist = false): Promise<boolean> => {
+      const status = await runMutation(
+        Request.create({ resetMacro: { slot, persist } }),
+        persist,
+      );
+      if (status !== null) {
+        await loadMacros();
+        return true;
+      }
+      return false;
+    },
+    [runMutation, loadMacros],
+  );
+
+  const isSlotUnsaved = useCallback(
+    (slot: number): boolean =>
+      macros.find((macro) => macro.slot === slot)?.hasUnsavedChanges ?? false,
+    [macros],
+  );
+
   const saveMacros = useCallback(async (): Promise<boolean> => {
     const status = await runMutation(Request.create({ saveMacros: {} }), true);
     if (status) {
@@ -367,6 +391,8 @@ export function useRuntimeMacro(
     createMacro,
     deleteMacro,
     renameMacro,
+    resetMacro,
+    isSlotUnsaved,
     setMacroStepCount,
     setMacroStep,
     appendMacroStep,

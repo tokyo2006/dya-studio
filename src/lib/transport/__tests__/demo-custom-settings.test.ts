@@ -3,8 +3,10 @@ import {
   MACRO_KEYSPACE_PREFIX,
 } from "../demo-custom-settings";
 import {
+  Notification,
   Request,
   SettingWriteMode,
+  type Setting,
 } from "../../../proto/cormoran/zmk/custom_settings/custom_settings";
 
 describe("demo-custom-settings CustomSettingsHandler", () => {
@@ -218,5 +220,55 @@ describe("demo-custom-settings CustomSettingsHandler", () => {
       expect(notifications.length).toBe(response.status?.affectedCount);
       done();
     }, 250);
+  });
+
+  it("reports defaultValue only for settings changed from their default when requireDefault is set", (done) => {
+    const handler = new CustomSettingsHandler(3);
+    const listed: Setting[] = [];
+    handler.notify((payload) => {
+      const setting = Notification.decode(payload).setting?.setting;
+      if (setting) {
+        listed.push(setting);
+      }
+    });
+
+    handler.process(
+      Request.create({
+        listSettings: { scope: { source: 0xffffffff }, requireDefault: true },
+      }),
+    );
+
+    setTimeout(() => {
+      const byKey = new Map(listed.map((setting) => [setting.key, setting]));
+      // default_layer starts at 1 but its compile-time default is 0.
+      expect(byKey.get("default_layer")?.defaultValue?.int32Value).toBe(0);
+      // feature_enabled starts false but its compile-time default is true.
+      expect(byKey.get("feature_enabled")?.defaultValue?.boolValue).toBe(true);
+      // profile_name is unchanged from its default, so no defaultValue.
+      expect(byKey.get("profile_name")?.defaultValue).toBeUndefined();
+      done();
+    }, 400);
+  });
+
+  it("omits defaultValue when requireDefault is not set", (done) => {
+    const handler = new CustomSettingsHandler(3);
+    const listed: Setting[] = [];
+    handler.notify((payload) => {
+      const setting = Notification.decode(payload).setting?.setting;
+      if (setting) {
+        listed.push(setting);
+      }
+    });
+
+    handler.process(
+      Request.create({ listSettings: { scope: { source: 0xffffffff } } }),
+    );
+
+    setTimeout(() => {
+      expect(
+        listed.every((setting) => setting.defaultValue === undefined),
+      ).toBe(true);
+      done();
+    }, 400);
   });
 });

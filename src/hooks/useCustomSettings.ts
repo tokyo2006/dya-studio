@@ -262,6 +262,10 @@ export function useCustomSettings(
             listSettings: {
               scope: listScope,
               requireMeta: true,
+              // Ask the device to report the compile-time default alongside the
+              // current value (present only when they differ) so the UI can
+              // surface the blue "changed from default" indicator.
+              requireDefault: true,
             },
           }),
         ),

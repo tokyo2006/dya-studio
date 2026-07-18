@@ -121,6 +121,24 @@ function createMockSettings(customSubsystemIndex: number): Setting[] {
   ];
 }
 
+// A couple of demo settings start persisted at a value that differs from their
+// compile-time default (createMockSettings), so the blue "changed from default"
+// dot is visible on load without the user editing anything. Keyed by setting
+// key. Reset restores these to their default and the blue dot disappears.
+const DEMO_MODIFIED_FROM_DEFAULT: Record<string, SettingValue> = {
+  default_layer: { int32Value: 1 },
+  feature_enabled: { boolValue: false },
+};
+
+// The initial persisted/current state: the compile-time defaults with the
+// overrides above applied.
+function createInitialSettings(customSubsystemIndex: number): Setting[] {
+  return createMockSettings(customSubsystemIndex).map((setting) => {
+    const override = DEMO_MODIFIED_FROM_DEFAULT[setting.key];
+    return override ? { ...setting, value: cloneValue(override) } : setting;
+  });
+}
+
 function cloneValue(value: SettingValue | undefined): SettingValue | undefined {
   if (!value) {
     return undefined;
@@ -189,6 +207,43 @@ function sameSetting(a: Setting, b: Setting): boolean {
   );
 }
 
+function settingValuesEqual(
+  a: SettingValue | undefined,
+  b: SettingValue | undefined,
+): boolean {
+  if (a === b) {
+    return true;
+  }
+  if (!a || !b) {
+    return false;
+  }
+  if (a.int32Value !== undefined || b.int32Value !== undefined) {
+    return a.int32Value === b.int32Value;
+  }
+  if (a.boolValue !== undefined || b.boolValue !== undefined) {
+    return a.boolValue === b.boolValue;
+  }
+  if (a.stringValue !== undefined || b.stringValue !== undefined) {
+    return a.stringValue === b.stringValue;
+  }
+  if (a.bytesValue !== undefined || b.bytesValue !== undefined) {
+    const ab = a.bytesValue;
+    const bb = b.bytesValue;
+    if (!ab || !bb || ab.length !== bb.length) {
+      return false;
+    }
+    return ab.every((byte, index) => byte === bb[index]);
+  }
+  if (a.behaviorValue !== undefined || b.behaviorValue !== undefined) {
+    return (
+      a.behaviorValue?.behaviorId === b.behaviorValue?.behaviorId &&
+      a.behaviorValue?.param1 === b.behaviorValue?.param1 &&
+      a.behaviorValue?.param2 === b.behaviorValue?.param2
+    );
+  }
+  return true;
+}
+
 function matchesScope(setting: Setting, scope: SettingScope | undefined) {
   if (!scope) {
     return true;
@@ -247,8 +302,9 @@ export class CustomSettingsHandler {
   constructor(customSubsystemIndex: number) {
     this.customSubsystemIndex = customSubsystemIndex;
     this.defaults = createMockSettings(customSubsystemIndex);
-    this.persistent = this.defaults.map(cloneSetting);
-    this.settings = this.defaults.map(cloneSetting);
+    const initial = createInitialSettings(customSubsystemIndex);
+    this.persistent = initial.map(cloneSetting);
+    this.settings = initial.map(cloneSetting);
   }
 
   // Lets other demo handlers (e.g. demo-runtime-macro.ts) read/react to the
@@ -285,10 +341,17 @@ export class CustomSettingsHandler {
       const listedSettings = this.settings.filter((setting) =>
         matchesScope(setting, request.listSettings?.scope),
       );
+      const requireDefault = request.listSettings.requireDefault === true;
 
       setTimeout(() => {
         listedSettings.forEach((setting, index) => {
-          setTimeout(() => this.notifySetting(setting), index * 25);
+          // When the client asks for defaults, attach defaultValue only when
+          // the current value differs from the compile-time default (and never
+          // for array/keyspace settings) so the UI can show the blue dot.
+          const listItem = requireDefault
+            ? { ...setting, defaultValue: this.defaultValueFor(setting) }
+            : setting;
+          setTimeout(() => this.notifySetting(listItem), index * 25);
         });
       }, 25);
 
@@ -489,6 +552,24 @@ export class CustomSettingsHandler {
     );
     this.notifyKeyspaceChange();
     return { status: { affectedCount: 1, message: "written" } };
+  }
+
+  // The compile-time default for a setting, reported alongside a list item when
+  // it differs from the current value. Returns undefined for array/keyspace
+  // settings and for values that already equal their default.
+  private defaultValueFor(setting: Setting): SettingValue | undefined {
+    if (setting.value?.arrayValue !== undefined) {
+      return undefined;
+    }
+    const defaultSetting = this.defaults.find((candidate) =>
+      sameSetting(candidate, setting),
+    );
+    if (!defaultSetting) {
+      return undefined;
+    }
+    return settingValuesEqual(setting.value, defaultSetting.value)
+      ? undefined
+      : cloneValue(defaultSetting.value);
   }
 
   private notifyKeyspaceChange() {

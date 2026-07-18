@@ -453,6 +453,15 @@ const ja: Record<string, string> = {
   Current: "現在値",
   "Discard item changes": "項目の変更を破棄",
   "Reset item to default": "項目を既定値にリセット",
+  "Changed from default": "デフォルトから変更",
+  "Reset this macro to its default?":
+    "このマクロをデフォルトにリセットしますか？",
+  "Reset this macro to its default": "このマクロをデフォルトにリセット",
+  Legend: "凡例",
+  "Green: in memory, not yet saved. Discard reverts it.":
+    "緑: メモリ内で未保存。破棄で元に戻ります。",
+  "Blue: saved, but changed from the default. Reset restores the default.":
+    "青: 保存済みだがデフォルトから変更されています。リセットでデフォルトに戻ります。",
   "Advanced Settings": "詳細設定",
   "Changes are written to keyboard memory after a short delay. Save a section to persist them.":
     "変更は少し遅れてキーボードのメモリに書き込まれます。永続化するにはセクションを保存してください。",
