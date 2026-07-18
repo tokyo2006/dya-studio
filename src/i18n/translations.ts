@@ -334,6 +334,16 @@ const ja: Record<string, string> = {
   "{{count}}h": "{{count}}時間",
   ms: "ms",
 
+  "Macro&Combo": "マクロ&コンボ",
+  "Edit runtime macro and combo slots":
+    "ランタイムマクロとコンボのスロットを編集",
+  "Macro Global Settings": "マクロのグローバル設定",
+  "Combo Global Settings": "コンボのグローバル設定",
+  "Connect your keyboard to edit runtime macros and combos":
+    "ランタイムマクロとコンボを編集するにはキーボードを接続してください",
+  "Select a macro or combo": "マクロまたはコンボを選択",
+  "Choose an item from the lists on the left.":
+    "左のリストから項目を選択してください。",
   "Edit runtime macro slots": "ランタイムマクロスロットを編集",
   "Encoded macro is {{encodedSize}} bytes; limit is {{maxMacroBytes}}.":
     "エンコード後のマクロは {{encodedSize}} バイトです。上限は {{maxMacroBytes}} バイトです。",
@@ -343,6 +353,7 @@ const ja: Record<string, string> = {
     "ランタイムマクロサブシステムが見つかりません。ファームウェアに",
   Slots: "スロット",
   Macros: "マクロ一覧",
+  Combos: "コンボ一覧",
   "Macro {{slot}}": "マクロ {{slot}}",
   "{{encodedSize}}/{{maxMacroBytes}} bytes":
     "{{encodedSize}}/{{maxMacroBytes}} バイト",

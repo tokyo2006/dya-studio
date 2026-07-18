@@ -1,0 +1,591 @@
+/**
+ * Controller state for the runtime-macro half of the Macro&Combo page:
+ * selection, the loaded macro draft, step editing, debounced memory writes and
+ * the tap-ms global setting. Extracted from the former MacroPage.
+ */
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useDebouncedMemoryWrite } from "../../hooks/useDebouncedMemoryWrite";
+import type { UseRuntimeMacroReturn } from "../../hooks/useRuntimeMacro";
+import type {
+  BehaviorBinding as KeymapBehaviorBinding,
+  UseKeymapReturn,
+} from "../../hooks/useKeymap";
+import type { KeyboardLayoutType } from "../../lib/keyboardLayouts";
+import type { TranslationParams } from "../../i18n/translations";
+import { getRuntimeMacroEncodedSize } from "../../lib/runtimeMacroCodec";
+import { formatBehaviorBinding } from "../../lib/behaviorMetadata";
+import type {
+  MacroDetail,
+  MacroStep,
+  MacroSummary,
+} from "../../proto/cormoran/runtime_macro/runtime_macro";
+import {
+  DEFAULT_STEP,
+  HID_USAGE_TO_CHAR,
+  STRING_MIN_GROUP_LENGTH,
+  buildMacroStepRows,
+  canCommitSteps,
+  clampUInt32,
+  createStep,
+  getKeyPressBehaviorId,
+  getKeyTapSequenceString,
+  getStepAction,
+  getStepBinding,
+  stringToKeyTapSequenceStep,
+  type MacroStepRow,
+  type StepAction,
+  type StringDraftRow,
+} from "./macroStepUtils";
+
+type TranslateFn = (key: string, params?: TranslationParams) => string;
+
+/** Global-setting field keys tracked for the pending-change (green) dots. */
+export type MacroGlobalField = "tapMs";
+
+export interface UseMacroEditorArgs {
+  runtimeMacro: UseRuntimeMacroReturn;
+  keymap: UseKeymapReturn;
+  layers: Array<{ id: number; name: string }>;
+  keyboardLayout: KeyboardLayoutType;
+  requireUnlocked: () => boolean;
+  t: TranslateFn;
+  /** True while the macro editor owns (or may claim) the right column — gates
+   * the auto-select effect so it never steals selection from combos. */
+  canMaintainSelection: boolean;
+  /** Called when a macro gets auto-selected so the page can switch views. */
+  onAutoSelected: () => void;
+}
+
+export function useMacroEditor({
+  runtimeMacro,
+  keymap,
+  layers,
+  keyboardLayout,
+  requireUnlocked,
+  t,
+  canMaintainSelection,
+  onAutoSelected,
+}: UseMacroEditorArgs) {
+  const [selectedName, setSelectedName] = useState<string | null>(null);
+  const [loadedMacro, setLoadedMacro] = useState<MacroDetail | null>(null);
+  const [editingStepIndex, setEditingStepIndex] = useState<number | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [renameDraft, setRenameDraft] = useState("");
+  const [stringConversionError, setStringConversionError] = useState<
+    string | null
+  >(null);
+  const [stringDraft, setStringDraft] = useState<StringDraftRow | null>(null);
+  // Tap ms has no device-side unsaved flag (it is a global setting, not a
+  // MacroSummary slot), so its green dot stays client-tracked, per field.
+  const [globalModifiedFields, setGlobalModifiedFields] = useState<
+    Set<MacroGlobalField>
+  >(new Set());
+  // Local draft for the debounced tap-ms input so typing stays responsive
+  // while the memory write is deferred until the quiet period.
+  const [tapMsDraft, setTapMsDraft] = useState(0);
+
+  const encodedSize = useMemo(() => {
+    if (!loadedMacro) return 0;
+    try {
+      return getRuntimeMacroEncodedSize(loadedMacro.steps);
+    } catch {
+      return loadedMacro.encodedSize;
+    }
+  }, [loadedMacro]);
+
+  const encodedSizeError =
+    loadedMacro && encodedSize > runtimeMacro.maxMacroBytes
+      ? t(
+          "Encoded macro is {{encodedSize}} bytes; limit is {{maxMacroBytes}}.",
+          {
+            encodedSize,
+            maxMacroBytes: runtimeMacro.maxMacroBytes,
+          },
+        )
+      : null;
+
+  const keyPressBehaviorId = useMemo(
+    () =>
+      runtimeMacro.globalSettings?.keyPressBehaviorId ||
+      getKeyPressBehaviorId(keymap.behaviors),
+    [keymap.behaviors, runtimeMacro.globalSettings?.keyPressBehaviorId],
+  );
+
+  const stepRows = useMemo(
+    () =>
+      loadedMacro
+        ? buildMacroStepRows(loadedMacro.steps, keyPressBehaviorId, stringDraft)
+        : [],
+    [keyPressBehaviorId, loadedMacro, stringDraft],
+  );
+
+  const selectedStep =
+    editingStepIndex !== null ? loadedMacro?.steps[editingStepIndex] : null;
+
+  const loadMacro = useCallback(
+    async (slot: number) => {
+      const macro = await runtimeMacro.getMacro(slot);
+      if (macro) {
+        setSelectedName(macro.name);
+        setLoadedMacro(macro);
+        setRenameDraft(macro.name);
+        setStringDraft(null);
+        setStringConversionError(null);
+      }
+    },
+    [runtimeMacro],
+  );
+
+  /** Explicit list-click selection: highlight immediately, then load. */
+  const selectMacro = useCallback(
+    (macro: MacroSummary) => {
+      setSelectedName(macro.name);
+      void loadMacro(macro.slot);
+    },
+    [loadMacro],
+  );
+
+  /** Drop the macro selection (e.g. when a combo takes the right column). */
+  const clearSelection = useCallback(() => {
+    setSelectedName(null);
+    setLoadedMacro(null);
+    setEditingStepIndex(null);
+    setStringDraft(null);
+    setStringConversionError(null);
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (!runtimeMacro.isAvailable || runtimeMacro.macros.length === 0) {
+        setSelectedName(null);
+        setLoadedMacro(null);
+        return;
+      }
+      // Only maintain/auto-create a selection while the macro editor owns the
+      // right column (or nothing is shown yet) — never while a combo or a
+      // settings card is displayed.
+      if (!canMaintainSelection) return;
+
+      // Reselect by name (not slot) after a create/delete/rename, since a
+      // macro's slot can change identity across a re-list.
+      const stillSelected = runtimeMacro.macros.find(
+        (macro) => macro.name === selectedName,
+      );
+      const nextMacro = stillSelected ?? runtimeMacro.macros[0];
+      if (selectedName === null) {
+        setSelectedName(nextMacro.name);
+        onAutoSelected();
+      }
+      if (!loadedMacro || loadedMacro.slot !== nextMacro.slot) {
+        void loadMacro(nextMacro.slot);
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [
+    canMaintainSelection,
+    loadMacro,
+    loadedMacro,
+    onAutoSelected,
+    runtimeMacro.isAvailable,
+    runtimeMacro.macros,
+    selectedName,
+  ]);
+
+  const commitRename = useCallback(async () => {
+    if (!requireUnlocked()) return;
+    if (!loadedMacro) return;
+    const trimmedName = renameDraft.slice(0, runtimeMacro.maxNameLength).trim();
+    if (!trimmedName || trimmedName === loadedMacro.name) {
+      setRenameDraft(loadedMacro.name);
+      return;
+    }
+    const ok = await runtimeMacro.renameMacro(loadedMacro.name, trimmedName);
+    if (ok) {
+      setSelectedName(trimmedName);
+      setLoadedMacro({ ...loadedMacro, name: trimmedName });
+    } else {
+      setRenameDraft(loadedMacro.name);
+    }
+  }, [loadedMacro, renameDraft, runtimeMacro, requireUnlocked]);
+
+  const commitSteps = useCallback(
+    async (steps: MacroStep[]) => {
+      if (!requireUnlocked()) return false;
+      if (!loadedMacro) return false;
+      if (!canCommitSteps(steps)) {
+        return false;
+      }
+      try {
+        const size = getRuntimeMacroEncodedSize(steps);
+        if (size > runtimeMacro.maxMacroBytes) {
+          runtimeMacro.clearError();
+          return false;
+        }
+      } catch {
+        return false;
+      }
+
+      const countUpdated = await runtimeMacro.setMacroStepCount(
+        loadedMacro.slot,
+        steps.length,
+      );
+      if (!countUpdated) return false;
+
+      for (const [stepIndex, step] of steps.entries()) {
+        const stepUpdated = await runtimeMacro.setMacroStep(
+          loadedMacro.slot,
+          stepIndex,
+          step,
+        );
+        if (!stepUpdated) return false;
+      }
+
+      setLoadedMacro({ ...loadedMacro, steps });
+      await runtimeMacro.loadMacros();
+      return true;
+    },
+    [loadedMacro, runtimeMacro, requireUnlocked],
+  );
+
+  const updateStep = useCallback(
+    async (stepIndex: number, step: MacroStep) => {
+      if (!loadedMacro) return;
+      const steps = loadedMacro.steps.map((existingStep, index) =>
+        index === stepIndex ? step : existingStep,
+      );
+      const size = getRuntimeMacroEncodedSize(steps);
+      setLoadedMacro({ ...loadedMacro, steps, encodedSize: size });
+      if (size <= runtimeMacro.maxMacroBytes && canCommitSteps(steps)) {
+        await commitSteps(steps);
+      }
+    },
+    [commitSteps, loadedMacro, runtimeMacro.maxMacroBytes],
+  );
+
+  const handleActionChange = useCallback(
+    async (stepIndex: number, action: StepAction) => {
+      if (!loadedMacro) return;
+      const currentStep = loadedMacro.steps[stepIndex];
+      const currentAction = getStepAction(currentStep);
+      if (action === "string") {
+        const binding = getStepBinding(currentStep);
+        const initialString =
+          getKeyTapSequenceString(currentStep) ??
+          (binding && binding.behaviorId === keyPressBehaviorId
+            ? (HID_USAGE_TO_CHAR.get(binding.param1) ?? "")
+            : "");
+        const value =
+          initialString.length >= STRING_MIN_GROUP_LENGTH
+            ? initialString
+            : `${initialString || "a"}a`;
+        const step = stringToKeyTapSequenceStep(value);
+        if (!step) {
+          setStringConversionError(
+            t("Only HID keyboard-page printable characters are supported."),
+          );
+          return;
+        }
+        setStringConversionError(null);
+        setStringDraft({
+          startIndex: stepIndex,
+          length: 1,
+          value,
+        });
+        await commitSteps([
+          ...loadedMacro.steps.slice(0, stepIndex),
+          step,
+          ...loadedMacro.steps.slice(stepIndex + 1),
+        ]);
+        return;
+      }
+      setStringDraft(null);
+      const nextStep = createStep(
+        action,
+        getStepBinding(currentStep),
+        currentAction === "delay" ? currentStep.delay?.delayMs : 0,
+      );
+      await updateStep(stepIndex, nextStep);
+    },
+    [commitSteps, keyPressBehaviorId, loadedMacro, t, updateStep],
+  );
+
+  const handleStringChange = useCallback(
+    (row: MacroStepRow, value: string) => {
+      if (!loadedMacro) return;
+      const replacementStep = stringToKeyTapSequenceStep(value);
+      if (!replacementStep) {
+        setStringConversionError(
+          t("Only HID keyboard-page printable characters are supported."),
+        );
+        return;
+      }
+      setStringConversionError(null);
+      setStringDraft({
+        startIndex: row.startIndex,
+        length: 1,
+        value,
+      });
+      const steps = [
+        ...loadedMacro.steps.slice(0, row.startIndex),
+        replacementStep,
+        ...loadedMacro.steps.slice(row.startIndex + row.length),
+      ];
+      setLoadedMacro({
+        ...loadedMacro,
+        steps,
+        encodedSize: getRuntimeMacroEncodedSize(steps),
+      });
+    },
+    [loadedMacro, t],
+  );
+
+  const commitStringChange = useCallback(async () => {
+    if (!loadedMacro || stringConversionError) return;
+    const ok = await commitSteps(loadedMacro.steps);
+    if (ok) setStringDraft(null);
+  }, [commitSteps, loadedMacro, stringConversionError]);
+
+  const handleDelayChange = useCallback(
+    (stepIndex: number, delayMs: number) => {
+      if (!loadedMacro) return;
+      const steps = loadedMacro.steps.map((step, index) =>
+        index === stepIndex
+          ? { delay: { delayMs: clampUInt32(delayMs) } }
+          : step,
+      );
+      setLoadedMacro({ ...loadedMacro, steps });
+    },
+    [loadedMacro],
+  );
+
+  const commitDelay = useCallback(
+    async (stepIndex: number) => {
+      if (!loadedMacro) return;
+      await updateStep(stepIndex, loadedMacro.steps[stepIndex]);
+    },
+    [loadedMacro, updateStep],
+  );
+
+  // Debounced memory writes for free-text/number edits: typing auto-writes to
+  // keyboard memory after a quiet period (flushed on blur / before Save).
+  // Discrete dropdown selections keep committing immediately (see updateStep).
+  const delayDebounce = useDebouncedMemoryWrite<number>(
+    useCallback(
+      async (stepIndex: number) => {
+        await commitDelay(stepIndex);
+      },
+      [commitDelay],
+    ),
+  );
+
+  const stringDebounce = useDebouncedMemoryWrite<void>(
+    useCallback(async () => {
+      await commitStringChange();
+    }, [commitStringChange]),
+  );
+
+  const tapMsDebounce = useDebouncedMemoryWrite<number>(
+    useCallback(
+      async (tapMs: number) => {
+        if (!requireUnlocked()) return;
+        const ok = await runtimeMacro.setTapMs(clampUInt32(tapMs));
+        if (ok) {
+          setGlobalModifiedFields((prev) => new Set(prev).add("tapMs"));
+        }
+      },
+      [requireUnlocked, runtimeMacro],
+    ),
+  );
+
+  const handleBehaviorSelect = useCallback(
+    async (binding: KeymapBehaviorBinding) => {
+      if (!loadedMacro || editingStepIndex === null) return;
+      const action = getStepAction(loadedMacro.steps[editingStepIndex]);
+      if (action === "delay") return;
+      await updateStep(editingStepIndex, createStep(action, binding));
+      setEditingStepIndex(null);
+    },
+    [editingStepIndex, loadedMacro, updateStep],
+  );
+
+  const handleAddStep = useCallback(async () => {
+    if (!requireUnlocked()) return;
+    if (!loadedMacro) return;
+    const steps = [...loadedMacro.steps, DEFAULT_STEP];
+    try {
+      const size = getRuntimeMacroEncodedSize(steps);
+      if (size > runtimeMacro.maxMacroBytes) return;
+    } catch {
+      return;
+    }
+    setStringDraft(null);
+    const ok = await runtimeMacro.appendMacroStep(
+      loadedMacro.slot,
+      DEFAULT_STEP,
+    );
+    if (ok) {
+      setLoadedMacro({
+        ...loadedMacro,
+        steps,
+        encodedSize: getRuntimeMacroEncodedSize(steps),
+      });
+      await runtimeMacro.loadMacros();
+    }
+  }, [loadedMacro, runtimeMacro, requireUnlocked]);
+
+  const handleDeleteMacro = useCallback(async () => {
+    if (!requireUnlocked()) return;
+    if (!loadedMacro) return;
+    setIsDeleting(true);
+    try {
+      const ok = await runtimeMacro.deleteMacro(loadedMacro.name);
+      if (ok) {
+        setSelectedName(null);
+        setLoadedMacro(null);
+      }
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [loadedMacro, runtimeMacro, requireUnlocked]);
+
+  const generateMacroName = useCallback((): string => {
+    const existingNames = new Set(runtimeMacro.macros.map((m) => m.name));
+    let n = runtimeMacro.macros.length + 1;
+    while (existingNames.has(`Macro ${n}`)) n++;
+    return `Macro ${n}`;
+  }, [runtimeMacro.macros]);
+
+  const handleCreateMacro = useCallback(async () => {
+    if (!requireUnlocked()) return;
+    const name = generateMacroName();
+    setIsCreating(true);
+    try {
+      const ok = await runtimeMacro.createMacro(name);
+      if (ok) {
+        setSelectedName(name);
+      }
+    } finally {
+      setIsCreating(false);
+    }
+  }, [generateMacroName, runtimeMacro, requireUnlocked]);
+
+  const handleResetMacro = useCallback(async () => {
+    if (!requireUnlocked()) return;
+    if (!loadedMacro) return;
+    if (!window.confirm(t("Reset this macro to its default?"))) return;
+    setIsResetting(true);
+    try {
+      const ok = await runtimeMacro.resetMacro(loadedMacro.slot);
+      if (ok) {
+        await loadMacro(loadedMacro.slot);
+      }
+    } finally {
+      setIsResetting(false);
+    }
+  }, [loadMacro, loadedMacro, requireUnlocked, runtimeMacro, t]);
+
+  const handleTapMsChange = useCallback(
+    (tapMs: number) => {
+      setTapMsDraft(tapMs);
+      tapMsDebounce.queue(tapMs);
+    },
+    [tapMsDebounce],
+  );
+
+  const getStepDisplayName = useCallback(
+    (step: MacroStep) => {
+      const binding = getStepBinding(step);
+      if (!binding || binding.behaviorId === 0) return t("Select behavior");
+      const behavior = keymap.behaviors.get(binding.behaviorId);
+      if (!behavior) return t("Behavior {{id}}", { id: binding.behaviorId });
+      return formatBehaviorBinding(binding, behavior, {
+        layers,
+        keyboardLayout,
+        runtimeMacros: runtimeMacro.macros,
+      });
+    },
+    [keymap.behaviors, keyboardLayout, layers, runtimeMacro.macros, t],
+  );
+
+  // Keep the debounced tap-ms input in sync with device state (initial load,
+  // discard, external refresh) while leaving in-flight typing untouched.
+  useEffect(() => {
+    setTapMsDraft(runtimeMacro.globalSettings?.tapMs ?? 0);
+  }, [runtimeMacro.globalSettings?.tapMs]);
+
+  const loadedMacroHasUnsavedChanges =
+    loadedMacro !== null && runtimeMacro.isSlotUnsaved(loadedMacro.slot);
+
+  // --- Integration points for the page-level unified Save/Discard bar ---
+
+  /** Flush queued debounced edits so they are part of a persist. */
+  const flushPendingWrites = useCallback(async () => {
+    await tapMsDebounce.flush();
+    await delayDebounce.flush();
+    await stringDebounce.flush();
+  }, [delayDebounce, stringDebounce, tapMsDebounce]);
+
+  /** Drop queued edits — discard restores the persisted values. */
+  const cancelPendingWrites = useCallback(() => {
+    tapMsDebounce.cancel();
+    delayDebounce.cancel();
+    stringDebounce.cancel();
+  }, [delayDebounce, stringDebounce, tapMsDebounce]);
+
+  /** Clear client-side green tracking after a Save/Discard completed. */
+  const clearGlobalModified = useCallback(() => {
+    setGlobalModifiedFields(new Set());
+  }, []);
+
+  /** Re-read the loaded macro from the device (after Discard). */
+  const reloadLoadedMacro = useCallback(async () => {
+    if (loadedMacro) {
+      await loadMacro(loadedMacro.slot);
+    }
+  }, [loadMacro, loadedMacro]);
+
+  return {
+    selectedName,
+    loadedMacro,
+    editingStepIndex,
+    setEditingStepIndex,
+    isCreating,
+    isDeleting,
+    isResetting,
+    renameDraft,
+    setRenameDraft,
+    stringConversionError,
+    tapMsDraft,
+    globalModifiedFields,
+    encodedSize,
+    encodedSizeError,
+    stepRows,
+    selectedStep,
+    loadedMacroHasUnsavedChanges,
+    selectMacro,
+    clearSelection,
+    commitRename,
+    commitSteps,
+    handleActionChange,
+    handleStringChange,
+    handleDelayChange,
+    handleBehaviorSelect,
+    handleAddStep,
+    handleDeleteMacro,
+    handleCreateMacro,
+    handleResetMacro,
+    handleTapMsChange,
+    getStepDisplayName,
+    delayDebounce,
+    stringDebounce,
+    tapMsDebounce,
+    flushPendingWrites,
+    cancelPendingWrites,
+    clearGlobalModified,
+    reloadLoadedMacro,
+  };
+}
+
+export type MacroEditorController = ReturnType<typeof useMacroEditor>;

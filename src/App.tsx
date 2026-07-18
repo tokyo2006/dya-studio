@@ -3,13 +3,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   IconHome,
   IconKeyboard,
-  IconKeyboardShow,
-  IconListDetails,
   IconPlugConnected,
   IconPointer,
   IconPuzzle,
   IconSettings,
   IconStethoscope,
+  IconWand,
 } from "@tabler/icons-react";
 
 import { SplashScreen } from "./components/SplashScreen";
@@ -28,9 +27,8 @@ import { AppLayout } from "./layouts/AppLayout";
 import { HomePage } from "./pages/HomePage";
 import { ConnectionPage } from "./pages/ConnectionPage";
 import { KeymapPage } from "./pages/KeymapPage";
-import { ComboPage } from "./pages/ComboPage";
 import { TrackballPage } from "./pages/TrackballPage";
-import { MacroPage } from "./pages/MacroPage";
+import { MacroComboPage } from "./pages/MacroComboPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { CustomSubsystemsPage } from "./pages/CustomSubsystemsPage";
 import { TroubleshootingPage } from "./pages/TroubleshootingPage";
@@ -54,16 +52,10 @@ function getTabs(t: (key: string) => string): TabItem[] {
       content: <KeymapPage />,
     },
     {
-      id: "macro",
-      label: t("Macro"),
-      icon: <IconListDetails size={18} />,
-      content: <MacroPage />,
-    },
-    {
-      id: "combo",
-      label: t("Combo"),
-      icon: <IconKeyboardShow size={18} />,
-      content: <ComboPage />,
+      id: "macro-combo",
+      label: t("Macro&Combo"),
+      icon: <IconWand size={18} />,
+      content: <MacroComboPage />,
     },
     {
       id: "trackball",
