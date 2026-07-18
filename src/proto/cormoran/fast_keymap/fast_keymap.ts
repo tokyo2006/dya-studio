@@ -97,7 +97,11 @@ export interface Request {
     | GetPhysicalLayoutRequest
     | undefined;
   /** batch current/effective (cold load) */
-  getLayers?: GetLayersRequest | undefined;
+  getLayers?:
+    | GetLayersRequest
+    | undefined;
+  /** all layers' unsaved (pending) positions */
+  getPending?: boolean | undefined;
 }
 
 export interface Response {
@@ -111,6 +115,7 @@ export interface Response {
   getPhysicalLayouts?: PhysicalLayoutsResponse | undefined;
   getPhysicalLayout?: PhysicalLayoutResponse | undefined;
   getLayers?: GetLayersResponse | undefined;
+  getPending?: PendingResponse | undefined;
 }
 
 export interface GetLayerRequest {
@@ -292,6 +297,23 @@ export interface EditedLayer {
   bindings: EditedBinding[];
 }
 
+/**
+ * Positions (in the selected physical layout's binding order) whose binding has
+ * an unsaved, in-memory-only edit -- changed since the last save, i.e. ZMK
+ * core's pending bit (zmk_keymap_layer_binding_at_idx_is_pending). This reports
+ * only WHICH keys are unsaved, not their values: the client already holds the
+ * current bindings from get_layers/get_layer. Only layers with at least one
+ * pending position are included (a fully-saved keymap yields an empty list).
+ */
+export interface PendingLayer {
+  id: number;
+  positions: number[];
+}
+
+export interface PendingResponse {
+  layers: PendingLayer[];
+}
+
 export interface GetPhysicalLayoutsRequest {
   details: LayoutDetailsMode;
 }
@@ -357,6 +379,7 @@ function createBaseRequest(): Request {
     getPhysicalLayouts: undefined,
     getPhysicalLayout: undefined,
     getLayers: undefined,
+    getPending: undefined,
   };
 }
 
@@ -388,6 +411,9 @@ export const Request: MessageFns<Request> = {
     }
     if (message.getLayers !== undefined) {
       GetLayersRequest.encode(message.getLayers, writer.uint32(74).fork()).join();
+    }
+    if (message.getPending !== undefined) {
+      writer.uint32(80).bool(message.getPending);
     }
     return writer;
   },
@@ -471,6 +497,14 @@ export const Request: MessageFns<Request> = {
           message.getLayers = GetLayersRequest.decode(reader, reader.uint32());
           continue;
         }
+        case 10: {
+          if (tag !== 80) {
+            break;
+          }
+
+          message.getPending = reader.bool();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -510,6 +544,7 @@ export const Request: MessageFns<Request> = {
     message.getLayers = (object.getLayers !== undefined && object.getLayers !== null)
       ? GetLayersRequest.fromPartial(object.getLayers)
       : undefined;
+    message.getPending = object.getPending ?? undefined;
     return message;
   },
 };
@@ -526,6 +561,7 @@ function createBaseResponse(): Response {
     getPhysicalLayouts: undefined,
     getPhysicalLayout: undefined,
     getLayers: undefined,
+    getPending: undefined,
   };
 }
 
@@ -560,6 +596,9 @@ export const Response: MessageFns<Response> = {
     }
     if (message.getLayers !== undefined) {
       GetLayersResponse.encode(message.getLayers, writer.uint32(82).fork()).join();
+    }
+    if (message.getPending !== undefined) {
+      PendingResponse.encode(message.getPending, writer.uint32(90).fork()).join();
     }
     return writer;
   },
@@ -651,6 +690,14 @@ export const Response: MessageFns<Response> = {
           message.getLayers = GetLayersResponse.decode(reader, reader.uint32());
           continue;
         }
+        case 11: {
+          if (tag !== 90) {
+            break;
+          }
+
+          message.getPending = PendingResponse.decode(reader, reader.uint32());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -694,6 +741,9 @@ export const Response: MessageFns<Response> = {
       : undefined;
     message.getLayers = (object.getLayers !== undefined && object.getLayers !== null)
       ? GetLayersResponse.fromPartial(object.getLayers)
+      : undefined;
+    message.getPending = (object.getPending !== undefined && object.getPending !== null)
+      ? PendingResponse.fromPartial(object.getPending)
       : undefined;
     return message;
   },
@@ -2235,6 +2285,122 @@ export const EditedLayer: MessageFns<EditedLayer> = {
     const message = createBaseEditedLayer();
     message.id = object.id ?? 0;
     message.bindings = object.bindings?.map((e) => EditedBinding.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBasePendingLayer(): PendingLayer {
+  return { id: 0, positions: [] };
+}
+
+export const PendingLayer: MessageFns<PendingLayer> = {
+  encode(message: PendingLayer, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.id !== 0) {
+      writer.uint32(8).uint32(message.id);
+    }
+    writer.uint32(18).fork();
+    for (const v of message.positions) {
+      writer.uint32(v);
+    }
+    writer.join();
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): PendingLayer {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBasePendingLayer();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.id = reader.uint32();
+          continue;
+        }
+        case 2: {
+          if (tag === 16) {
+            message.positions.push(reader.uint32());
+
+            continue;
+          }
+
+          if (tag === 18) {
+            const end2 = reader.uint32() + reader.pos;
+            while (reader.pos < end2) {
+              message.positions.push(reader.uint32());
+            }
+
+            continue;
+          }
+
+          break;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<PendingLayer>): PendingLayer {
+    return PendingLayer.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<PendingLayer>): PendingLayer {
+    const message = createBasePendingLayer();
+    message.id = object.id ?? 0;
+    message.positions = object.positions?.map((e) => e) || [];
+    return message;
+  },
+};
+
+function createBasePendingResponse(): PendingResponse {
+  return { layers: [] };
+}
+
+export const PendingResponse: MessageFns<PendingResponse> = {
+  encode(message: PendingResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.layers) {
+      PendingLayer.encode(v!, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): PendingResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBasePendingResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.layers.push(PendingLayer.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<PendingResponse>): PendingResponse {
+    return PendingResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<PendingResponse>): PendingResponse {
+    const message = createBasePendingResponse();
+    message.layers = object.layers?.map((e) => PendingLayer.fromPartial(e)) || [];
     return message;
   },
 };

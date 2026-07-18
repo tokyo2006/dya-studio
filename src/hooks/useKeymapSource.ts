@@ -41,7 +41,9 @@ import {
 import {
   loadFastKeymap,
   loadPhysicalLayoutGeometry,
+  loadPendingPositions as fetchFastPendingPositions,
   type FastKeymapModel,
+  type FastKeymapPendingLayer,
 } from "../lib/fastKeymap";
 import {
   assertOfficialKeymapRpcAllowed,
@@ -211,6 +213,16 @@ export interface UseKeymapSourceReturn {
   loadDefaultKeymap: (
     layerIds: number[],
   ) => Promise<Map<number, BehaviorBinding[]>>;
+  /** Load the device's per-layer UNSAVED (pending) positions — the keys whose
+   * binding has an in-memory-only edit that has not been written to flash yet
+   * (ZMK core's pending bit). Only the fast-keymap subsystem exposes this
+   * (`get_pending`); on the official path there is no such request, so this
+   * returns an empty array. One round-trip; only layers with at least one
+   * pending position are returned. Used to restore the "unsaved" highlight
+   * after a fresh load (e.g. switching back to the keymap tab), since the
+   * device keeps the edits in memory but the client's just-loaded original
+   * bindings no longer show a diff. */
+  loadPendingPositions: () => Promise<FastKeymapPendingLayer[]>;
 }
 
 // -- fast-path helpers ------------------------------------------------------
@@ -548,6 +560,19 @@ export function useKeymapSource(): UseKeymapSourceReturn {
     [isFastAvailable, call],
   );
 
+  const loadPendingPositions = useCallback(async (): Promise<
+    FastKeymapPendingLayer[]
+  > => {
+    // Only the fast subsystem tracks/serves the pending (unsaved) bit; the
+    // official protocol has no such request. Return empty so callers treat it
+    // as "unavailable" (no restored highlight, which is the pre-existing
+    // behavior on that path).
+    if (!isFastAvailable) {
+      return [];
+    }
+    return fetchFastPendingPositions(call);
+  }, [isFastAvailable, call]);
+
   return {
     isFastAvailable,
     source,
@@ -556,5 +581,6 @@ export function useKeymapSource(): UseKeymapSourceReturn {
     loadLayerNames,
     loadLayoutGeometry,
     loadDefaultKeymap,
+    loadPendingPositions,
   };
 }

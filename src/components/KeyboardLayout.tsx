@@ -47,6 +47,11 @@ interface KeyboardLayoutProps {
   onKeyResetToDefault?: (keyPosition: number) => void;
   /** Function to check if a binding is modified */
   isBindingModified: (layerId: number, keyPosition: number) => boolean;
+  /** Whether a position's ORIGINAL (last-saved) binding is still known
+   * (optional; defaults to always-known). When it returns false for a modified
+   * key, the tooltip shows "original: unknown" and the per-key reset reverts to
+   * the hard-coded default instead of the original. */
+  isBindingOriginalKnown?: (layerId: number, keyPosition: number) => boolean;
   /** Function to check if a binding's persisted value differs from the default
    * keymap (optional; only available when the fast-keymap subsystem is present) */
   isBindingChangedFromDefault?: (
@@ -119,6 +124,7 @@ export function KeyboardLayout({
   onKeyReset,
   onKeyResetToDefault,
   isBindingModified,
+  isBindingOriginalKnown,
   isBindingChangedFromDefault,
   getOriginalBinding,
   getDefaultBinding,
@@ -307,8 +313,15 @@ export function KeyboardLayout({
         {layout.keys.map((key, position) => {
           const binding = layer.bindings[position];
           const modified = isBindingModified(layer.id, position);
+          const originalKnown =
+            isBindingOriginalKnown?.(layer.id, position) ?? true;
           const changedFromDefault =
             isBindingChangedFromDefault?.(layer.id, position) ?? false;
+          // Show the default binding both as the "changed-from-default"
+          // reference and as the fall-back reference for a modified key whose
+          // original was lost (unknown).
+          const showDefault =
+            changedFromDefault || (modified && !originalKnown);
 
           // Adjust position with offset for centering
           const adjustedKey: KeyPhysicalAttrs = {
@@ -324,14 +337,17 @@ export function KeyboardLayout({
               keyPosition={position}
               binding={binding}
               isModified={modified}
+              isOriginalKnown={originalKnown}
               isChangedFromDefault={changedFromDefault}
               displayName={getKeyDisplayName(position, binding)}
               longDisplayName={getKeyLongDisplayName(position, binding)}
               originalDisplayName={
-                modified ? getOriginalDisplayName(position) : undefined
+                modified && originalKnown
+                  ? getOriginalDisplayName(position)
+                  : undefined
               }
               defaultDisplayName={
-                changedFromDefault ? getDefaultDisplayName(position) : undefined
+                showDefault ? getDefaultDisplayName(position) : undefined
               }
               bindingDescription={getBindingDescription(binding)}
               isSelected={selectedKey === position}

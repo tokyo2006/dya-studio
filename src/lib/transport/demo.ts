@@ -813,7 +813,13 @@ class Keyboard {
     }
 
     if (req.getDefaultLayer) {
-      const l = findLayer(req.getDefaultLayer.layerId);
+      // The compiled-in (devicetree-stock) default never changes with edits, so
+      // read it from the pristine DEMO baseline rather than the live keymap --
+      // this is what real firmware's get_default_layer returns, and it lets the
+      // "changed from default" / "reset to default" features work in demo mode.
+      const l = DEMO.keymap.layers.find(
+        (layer) => layer.id === req.getDefaultLayer!.layerId,
+      );
       return {
         getDefaultLayer: {
           id: l?.id ?? req.getDefaultLayer.layerId,
@@ -828,6 +834,33 @@ class Keyboard {
       return {
         getEditedLayer: { id: req.getEditedLayer.layerId, bindings: [] },
       };
+    }
+
+    if (req.getPending) {
+      // Unsaved (pending) positions = the current in-memory bindings that
+      // differ from what was last saved (this.persistent), so the web can
+      // restore the "pending to save" highlight after a keymap-tab remount.
+      // Only layers with at least one pending position are included.
+      const savedLayers = this.persistent.keymap.layers;
+      const pendingLayers = km.layers
+        .map((l) => {
+          const saved = savedLayers.find((s: { id: number }) => s.id === l.id);
+          const positions: number[] = [];
+          l.bindings.forEach((b, position) => {
+            const s = saved?.bindings[position];
+            if (
+              !s ||
+              s.behaviorId !== b.behaviorId ||
+              s.param1 !== b.param1 ||
+              s.param2 !== b.param2
+            ) {
+              positions.push(position);
+            }
+          });
+          return { id: l.id, positions };
+        })
+        .filter((l) => l.positions.length > 0);
+      return { getPending: { layers: pendingLayers } };
     }
 
     if (req.getPhysicalLayouts) {

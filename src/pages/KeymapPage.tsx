@@ -837,6 +837,7 @@ export function KeymapPage() {
                   onKeyReset={handleKeyReset}
                   onKeyResetToDefault={handleKeyResetToDefault}
                   isBindingModified={keymap.isBindingModified}
+                  isBindingOriginalKnown={keymap.isBindingOriginalKnown}
                   isBindingChangedFromDefault={
                     keymap.isBindingChangedFromDefault
                   }

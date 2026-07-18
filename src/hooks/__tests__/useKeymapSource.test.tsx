@@ -29,10 +29,13 @@ jest.mock("@cormoran/zmk-studio-react-hook", () => ({
 // mapping, not the (separately-tested) fingerprint/cache loader.
 const mockLoadFastKeymap = jest.fn();
 const mockLoadPhysicalLayoutGeometry = jest.fn();
+const mockLoadPendingPositions = jest.fn();
 jest.mock("../../lib/fastKeymap", () => ({
   loadFastKeymap: (...args: unknown[]) => mockLoadFastKeymap(...args),
   loadPhysicalLayoutGeometry: (...args: unknown[]) =>
     mockLoadPhysicalLayoutGeometry(...args),
+  loadPendingPositions: (...args: unknown[]) =>
+    mockLoadPendingPositions(...args),
 }));
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -118,6 +121,13 @@ describe("useKeymapSource — official fallback", () => {
     const { result } = renderHook(() => useKeymapSource(), { wrapper });
     const defaults = await result.current.loadDefaultKeymap([1, 2]);
     expect(defaults.size).toBe(0);
+  });
+
+  it("loadPendingPositions returns [] without an RPC (no pending source on official)", async () => {
+    const { result } = renderHook(() => useKeymapSource(), { wrapper });
+    const pending = await result.current.loadPendingPositions();
+    expect(pending).toEqual([]);
+    expect(mockLoadPendingPositions).not.toHaveBeenCalled();
   });
 });
 
@@ -325,6 +335,24 @@ describe("useKeymapSource — fast path", () => {
     expect(defaults.get(2)).toEqual([{ behaviorId: 12, param1: 1, param2: 2 }]);
     // One get_default_layer round-trip per requested layer.
     expect(mockCallRPC).toHaveBeenCalledTimes(2);
+  });
+
+  it("loadPendingPositions delegates to the vendored get_pending loader", async () => {
+    mockLoadPendingPositions.mockResolvedValue([
+      { id: 0, positions: [1, 5] },
+      { id: 2, positions: [3] },
+    ]);
+
+    const { result } = renderHook(() => useKeymapSource(), { wrapper });
+    const pending = await result.current.loadPendingPositions();
+
+    expect(mockLoadPendingPositions).toHaveBeenCalledTimes(1);
+    // Passed the wrapped fast `call`, so the vendored loader can issue the RPC.
+    expect(mockLoadPendingPositions).toHaveBeenCalledWith(expect.any(Function));
+    expect(pending).toEqual([
+      { id: 0, positions: [1, 5] },
+      { id: 2, positions: [3] },
+    ]);
   });
 
   it("fetches one layout's geometry lazily via loadLayoutGeometry", async () => {
