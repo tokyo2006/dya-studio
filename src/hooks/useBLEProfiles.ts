@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useCustomSubsystem } from "./useCustomSubsystem";
+import { useCustomSubsystem, useLockAwareCall } from "./useCustomSubsystem";
 import {
   Request,
   Response,
@@ -41,14 +41,18 @@ export interface UseBLEProfilesReturn {
 }
 
 export function useBLEProfiles(): UseBLEProfilesReturn {
-  const { subsystem, ready, call } = useCustomSubsystem(
-    SUBSYSTEM_IDENTIFIER,
-    CODEC,
-  );
+  const {
+    subsystem,
+    ready,
+    call: gatedCall,
+  } = useCustomSubsystem(SUBSYSTEM_IDENTIFIER, CODEC);
   const [profiles, setProfiles] = useState<BLEProfile[]>([]);
   const [maxProfiles, setMaxProfiles] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Map a lock/cancel rejection from the gate to the shared "device is locked"
+  // message (rendered via t()); other outcomes pass through unchanged.
+  const call = useLockAwareCall(gatedCall, setError);
   const [outputPriority, setOutputPriorityState] =
     useState<OutputPriority | null>(null);
 

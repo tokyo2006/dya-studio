@@ -10,6 +10,8 @@ export const languageLabels: Record<Language, string> = {
 const ja: Record<string, string> = {
   "DYA Studio for DYA & ZMK Keyboards":
     "DYA & ZMK キーボードのための DYA Studio",
+  "The operation failed because the device is locked in ZMK Studio. Unlock the keyboard and try again.":
+    "デバイスが ZMK Studio ロック状態のため操作に失敗しました。キーボードのロックを解除してから再度お試しください。",
   Home: "ホーム",
   Keymap: "キーマップ",
   Macro: "マクロ",

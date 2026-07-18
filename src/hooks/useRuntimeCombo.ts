@@ -4,8 +4,9 @@
  * Provides access to cormoran/zmk-feature-runtime-combo through the custom ZMK
  * Studio RPC subsystem.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useCustomSubsystem } from "./useCustomSubsystem";
+import { studioLockErrorText } from "../lib/studioUnlock";
 import {
   Request,
   Response,
@@ -72,6 +73,7 @@ export interface UseRuntimeComboReturn {
 }
 
 export function useRuntimeCombo(): UseRuntimeComboReturn {
+  // `call` is unlock-gated by the shared useCustomSubsystem wrapper.
   const { subsystem, ready, call } = useCustomSubsystem(
     RUNTIME_COMBO_IDENTIFIER,
     CODEC,
@@ -91,7 +93,20 @@ export function useRuntimeCombo(): UseRuntimeComboReturn {
         return null;
       }
 
-      const response = await call(request);
+      // The shared gate handles the locked case (unlock modal + retry). If the
+      // user dismisses it (or a request lands during the cooldown), `call`
+      // rejects: surface the clear "device is locked" message.
+      let response;
+      try {
+        response = await call(request);
+      } catch (err) {
+        const locked = studioLockErrorText(err);
+        if (locked !== null) {
+          setError(locked);
+          return null;
+        }
+        throw err;
+      }
       if (!response) {
         return null;
       }
@@ -107,11 +122,19 @@ export function useRuntimeCombo(): UseRuntimeComboReturn {
     [ready, call],
   );
 
+  // Guard against starting a load while one is still in flight. When locked,
+  // these RPCs are parked by the unlock gate (pending until unlock/cancel);
+  // without the guard a re-triggered auto-load would keep firing requests.
+  const combosInFlightRef = useRef(false);
+  const globalSettingsInFlightRef = useRef(false);
+
   const loadCombos = useCallback(async () => {
     if (!ready) {
       setCombos([]);
       return;
     }
+    if (combosInFlightRef.current) return;
+    combosInFlightRef.current = true;
 
     setIsLoading(true);
     setError(null);
@@ -133,6 +156,7 @@ export function useRuntimeCombo(): UseRuntimeComboReturn {
       );
     } finally {
       setIsLoading(false);
+      combosInFlightRef.current = false;
     }
   }, [callRuntimeComboRPC, ready]);
 
@@ -141,6 +165,8 @@ export function useRuntimeCombo(): UseRuntimeComboReturn {
       setGlobalSettings(null);
       return;
     }
+    if (globalSettingsInFlightRef.current) return;
+    globalSettingsInFlightRef.current = true;
 
     setIsLoading(true);
     setError(null);
@@ -160,6 +186,7 @@ export function useRuntimeCombo(): UseRuntimeComboReturn {
       );
     } finally {
       setIsLoading(false);
+      globalSettingsInFlightRef.current = false;
     }
   }, [callRuntimeComboRPC, ready]);
 
@@ -495,10 +522,21 @@ export function useRuntimeCombo(): UseRuntimeComboReturn {
       }
     }, [callRuntimeComboRPC, reload]);
 
+  // Auto-load once per ready-transition. `reload` is in the dependency array
+  // (its identity changes as the connection/gate updates), but `autoLoadedRef`
+  // ensures we only *trigger* a reload the first time `ready` becomes true.
+  // Without this guard, a load that fails fast while the keyboard is locked
+  // (the gate rejects instead of parking) would let this effect re-run on every
+  // `reload` identity change, hammering the device with repeated load attempts
+  // while the unlock modal is open.
+  const autoLoadedRef = useRef(false);
   useEffect(() => {
     if (ready) {
+      if (autoLoadedRef.current) return;
+      autoLoadedRef.current = true;
       void reload();
     } else {
+      autoLoadedRef.current = false;
       setCombos([]);
       setGlobalSettings(null);
       setHasPendingChanges(false);

@@ -23,8 +23,6 @@ function basePmw3610(
     diagnostics: null,
     isLoading: false,
     error: null,
-    unlockRequired: false,
-    clearUnlockRequired: jest.fn(),
     refresh: jest.fn(),
     readDiagnostics: jest.fn(),
     frame: null,

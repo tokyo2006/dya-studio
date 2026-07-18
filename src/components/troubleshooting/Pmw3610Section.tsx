@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { IconLock, IconMouse, IconRefresh } from "@tabler/icons-react";
+import { IconMouse, IconRefresh } from "@tabler/icons-react";
 import type { UsePmw3610Return } from "../../hooks/usePmw3610";
 import { useLanguage } from "../../hooks/useLanguage";
 import { formatHex } from "../../lib/troubleshootingFormat";
@@ -50,7 +50,6 @@ export function Pmw3610Section({ pmw3610 }: { pmw3610: UsePmw3610Return }) {
     diagnostics,
     isLoading,
     error,
-    unlockRequired,
     refresh,
     readDiagnostics,
   } = pmw3610;
@@ -93,19 +92,6 @@ export function Pmw3610Section({ pmw3610 }: { pmw3610: UsePmw3610Return }) {
     >
       {!isAvailable ? (
         <NotAvailableNotice module={MODULE_NAME} moduleUrl={MODULE_URL} />
-      ) : unlockRequired ? (
-        <div className="p-4 rounded-lg bg-[var(--color-border)] border border-[var(--color-border-hover)] flex items-start gap-3">
-          <div className="p-1">
-            <IconLock size={20} className="text-[var(--color-electric)]" />
-          </div>
-          <p className="text-sm text-[var(--color-text-muted)]">
-            {t("Unlock your keyboard to read sensor diagnostics.")}
-            <br />
-            {t(
-              "Press the studio unlock key combination on your keyboard, then refresh.",
-            )}
-          </p>
-        </div>
       ) : (
         <>
           {error && <SectionError message={error} />}

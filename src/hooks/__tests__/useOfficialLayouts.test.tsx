@@ -1,8 +1,6 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { ZMKAppContext } from "@cormoran/zmk-studio-react-hook";
-import { MetaError } from "@zmkfirmware/zmk-studio-ts-client";
-import { ErrorConditions } from "@zmkfirmware/zmk-studio-ts-client/meta";
 import { useOfficialLayouts } from "../useOfficialLayouts";
 
 const mockCallRpc = jest.fn();
@@ -52,29 +50,14 @@ describe("useOfficialLayouts", () => {
     });
 
     expect(result.current.physicalLayouts?.layouts).toHaveLength(1);
-    expect(result.current.unlockRequired).toBe(false);
     expect(result.current.error).toBeNull();
   });
 
-  it("sets unlockRequired on an UNLOCK_REQUIRED MetaError", async () => {
-    mockCallRpc.mockRejectedValue(
-      new MetaError(ErrorConditions.UNLOCK_REQUIRED),
-    );
-
-    const { result } = renderHook(() => useOfficialLayouts(), {
-      wrapper: createWrapper(),
-    });
-
-    await act(async () => {
-      await result.current.load();
-    });
-
-    await waitFor(() => expect(result.current.unlockRequired).toBe(true));
-    expect(result.current.physicalLayouts).toBeNull();
-    expect(result.current.error).toBeNull();
-  });
-
-  it("sets a generic error for other failures", async () => {
+  // Unlock handling now lives in the shared StudioUnlockProvider (see
+  // StudioUnlockContext.test.tsx): a locked load is routed through
+  // `runWithUnlock`, which opens the modal and retries after unlock rather than
+  // surfacing an error on this hook.
+  it("sets a generic error for non-unlock failures", async () => {
     mockCallRpc.mockRejectedValue(new Error("boom"));
 
     const { result } = renderHook(() => useOfficialLayouts(), {
@@ -86,6 +69,5 @@ describe("useOfficialLayouts", () => {
     });
 
     expect(result.current.error).toBe("boom");
-    expect(result.current.unlockRequired).toBe(false);
   });
 });

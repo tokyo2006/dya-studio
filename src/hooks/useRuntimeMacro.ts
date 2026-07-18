@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useCustomSubsystem } from "./useCustomSubsystem";
+import { studioLockErrorText } from "../lib/studioUnlock";
 import {
   Request,
   Response,
@@ -98,7 +99,19 @@ export function useRuntimeMacro(
         return null;
       }
 
-      const response = await call(request);
+      let response;
+      try {
+        response = await call(request);
+      } catch (err) {
+        // Blocked by the unlock gate (modal dismissed / cooldown): show the
+        // shared "device is locked" message instead of a macro-specific error.
+        const locked = studioLockErrorText(err);
+        if (locked !== null) {
+          setError(locked);
+          return null;
+        }
+        throw err;
+      }
 
       if (!response) {
         setError("Runtime macro RPC returned an empty response");
@@ -147,12 +160,18 @@ export function useRuntimeMacro(
     [callRpc],
   );
 
+  const loadInFlightRef = useRef(false);
   const loadMacros = useCallback(async () => {
     if (!ready) {
       setMacros([]);
       setGlobalSettings(null);
       return;
     }
+    // Don't start another load while one is still in flight. When locked, the
+    // list RPCs are parked by the unlock gate (pending until unlock/cancel);
+    // without this guard a re-triggered auto-load would keep firing requests.
+    if (loadInFlightRef.current) return;
+    loadInFlightRef.current = true;
 
     setIsLoading(true);
     setError(null);
@@ -180,11 +199,18 @@ export function useRuntimeMacro(
       );
     } finally {
       setIsLoading(false);
+      loadInFlightRef.current = false;
     }
   }, [callRpc, ready]);
 
+  const getMacroInFlightRef = useRef(false);
   const getMacro = useCallback(
     async (slot: number): Promise<MacroDetail | null> => {
+      // As with loadMacros: don't stack another request while one is still in
+      // flight. When locked this RPC is parked by the unlock gate, so an
+      // auto-select re-fire must not keep issuing getMacro requests.
+      if (getMacroInFlightRef.current) return null;
+      getMacroInFlightRef.current = true;
       setIsLoading(true);
       setError(null);
 
@@ -201,6 +227,7 @@ export function useRuntimeMacro(
         return null;
       } finally {
         setIsLoading(false);
+        getMacroInFlightRef.current = false;
       }
     },
     [callRpc],
@@ -361,19 +388,28 @@ export function useRuntimeMacro(
     return status !== null;
   }, [loadMacros, runMutation]);
 
+  // Auto-load exactly once per connected subsystem. `loadMacros` is in the
+  // dependency array (its identity can change as the connection/gate updates),
+  // but `autoLoadedForRef` ensures we only *trigger* a load the first time we
+  // see a given subsystem. Without this guard, when a load fails fast while the
+  // keyboard is locked (the gate rejects instead of parking), the effect would
+  // re-run on every `loadMacros` identity change and hammer the device with
+  // repeated load attempts while the unlock modal is open.
+  const autoLoadedForRef = useRef<number | undefined>(undefined);
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      if (subsystemIndex === undefined) {
-        setMacros([]);
-        setGlobalSettings(null);
-        setHasUnsavedChanges(false);
-        return;
-      }
-      // Skip the automatic load when the caller drives load timing itself
-      // (autoLoad: false) -- the clear-on-absent above still runs.
-      if (autoLoad) void loadMacros();
-    }, 0);
-    return () => window.clearTimeout(timer);
+    if (subsystemIndex === undefined) {
+      autoLoadedForRef.current = undefined;
+      setMacros([]);
+      setGlobalSettings(null);
+      setHasUnsavedChanges(false);
+      return;
+    }
+    // Skip the automatic load when the caller drives load timing itself
+    // (autoLoad: false) -- the clear-on-absent above still runs.
+    if (!autoLoad) return;
+    if (autoLoadedForRef.current === subsystemIndex) return;
+    autoLoadedForRef.current = subsystemIndex;
+    void loadMacros();
   }, [autoLoad, loadMacros, subsystemIndex]);
 
   return {
