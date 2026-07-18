@@ -71,9 +71,21 @@ export function isStudioUnlockError(x: unknown): boolean {
   if (isKeymapUnlockRequired(x)) {
     return true;
   }
-  // Official-protocol responses resolve (rather than throw) with the unlock
-  // condition tucked into `meta.simpleError`.
-  if (x !== null && typeof x === "object" && "meta" in x) {
+  if (x !== null && typeof x === "object") {
+    // Duck-type a thrown `MetaError` by its `condition` field instead of relying
+    // on `instanceof MetaError`. Under a strict/pnpm node_modules layout the app
+    // and the react-hook can resolve to different copies of the ts-client
+    // package, so the library's `isUnlockRequiredError` (an `instanceof` check)
+    // may miss the error the transport actually threw. Missing it means the gate
+    // rejects instead of parking, and the tab retries the load in a tight loop.
+    if (
+      (x as { condition?: number }).condition ===
+      ErrorConditions.UNLOCK_REQUIRED
+    ) {
+      return true;
+    }
+    // Official-protocol responses resolve (rather than throw) with the unlock
+    // condition tucked into `meta.simpleError`.
     const meta = (x as { meta?: { simpleError?: number } }).meta;
     if (meta?.simpleError === ErrorConditions.UNLOCK_REQUIRED) {
       return true;

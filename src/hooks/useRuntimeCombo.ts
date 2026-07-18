@@ -522,10 +522,21 @@ export function useRuntimeCombo(): UseRuntimeComboReturn {
       }
     }, [callRuntimeComboRPC, reload]);
 
+  // Auto-load once per ready-transition. `reload` is in the dependency array
+  // (its identity changes as the connection/gate updates), but `autoLoadedRef`
+  // ensures we only *trigger* a reload the first time `ready` becomes true.
+  // Without this guard, a load that fails fast while the keyboard is locked
+  // (the gate rejects instead of parking) would let this effect re-run on every
+  // `reload` identity change, hammering the device with repeated load attempts
+  // while the unlock modal is open.
+  const autoLoadedRef = useRef(false);
   useEffect(() => {
     if (ready) {
+      if (autoLoadedRef.current) return;
+      autoLoadedRef.current = true;
       void reload();
     } else {
+      autoLoadedRef.current = false;
       setCombos([]);
       setGlobalSettings(null);
       setHasPendingChanges(false);

@@ -203,8 +203,14 @@ export function useRuntimeMacro(
     }
   }, [callRpc, ready]);
 
+  const getMacroInFlightRef = useRef(false);
   const getMacro = useCallback(
     async (slot: number): Promise<MacroDetail | null> => {
+      // As with loadMacros: don't stack another request while one is still in
+      // flight. When locked this RPC is parked by the unlock gate, so an
+      // auto-select re-fire must not keep issuing getMacro requests.
+      if (getMacroInFlightRef.current) return null;
+      getMacroInFlightRef.current = true;
       setIsLoading(true);
       setError(null);
 
@@ -221,6 +227,7 @@ export function useRuntimeMacro(
         return null;
       } finally {
         setIsLoading(false);
+        getMacroInFlightRef.current = false;
       }
     },
     [callRpc],
@@ -381,19 +388,28 @@ export function useRuntimeMacro(
     return status !== null;
   }, [loadMacros, runMutation]);
 
+  // Auto-load exactly once per connected subsystem. `loadMacros` is in the
+  // dependency array (its identity can change as the connection/gate updates),
+  // but `autoLoadedForRef` ensures we only *trigger* a load the first time we
+  // see a given subsystem. Without this guard, when a load fails fast while the
+  // keyboard is locked (the gate rejects instead of parking), the effect would
+  // re-run on every `loadMacros` identity change and hammer the device with
+  // repeated load attempts while the unlock modal is open.
+  const autoLoadedForRef = useRef<number | undefined>(undefined);
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      if (subsystemIndex === undefined) {
-        setMacros([]);
-        setGlobalSettings(null);
-        setHasUnsavedChanges(false);
-        return;
-      }
-      // Skip the automatic load when the caller drives load timing itself
-      // (autoLoad: false) -- the clear-on-absent above still runs.
-      if (autoLoad) void loadMacros();
-    }, 0);
-    return () => window.clearTimeout(timer);
+    if (subsystemIndex === undefined) {
+      autoLoadedForRef.current = undefined;
+      setMacros([]);
+      setGlobalSettings(null);
+      setHasUnsavedChanges(false);
+      return;
+    }
+    // Skip the automatic load when the caller drives load timing itself
+    // (autoLoad: false) -- the clear-on-absent above still runs.
+    if (!autoLoad) return;
+    if (autoLoadedForRef.current === subsystemIndex) return;
+    autoLoadedForRef.current = subsystemIndex;
+    void loadMacros();
   }, [autoLoad, loadMacros, subsystemIndex]);
 
   return {

@@ -28,6 +28,17 @@ describe("isStudioUnlockError", () => {
     ).toBe(true);
   });
 
+  it("is true for a MetaError-shaped error that is not instanceof (dual package copies)", () => {
+    // Simulates a MetaError thrown by a *different* copy of the ts-client
+    // package (strict/pnpm layout): same `condition` field, but `instanceof`
+    // MetaError is false. The gate must still recognize it and park, not loop.
+    const foreignMetaError = Object.assign(new Error("Meta error: 1"), {
+      condition: ErrorConditions.UNLOCK_REQUIRED,
+    });
+    expect(foreignMetaError instanceof MetaError).toBe(false);
+    expect(isStudioUnlockError(foreignMetaError)).toBe(true);
+  });
+
   it("is false for a MetaError with a different condition", () => {
     expect(isStudioUnlockError(new MetaError(ErrorConditions.GENERIC))).toBe(
       false,

@@ -166,6 +166,41 @@ describe("useRuntimeCombo", () => {
     expect(mockCallRPC).toHaveBeenCalledTimes(2);
   });
 
+  it("does not re-load on re-render when a load fails fast (locked, gate rejects)", async () => {
+    // If the unlock error is not recognized the gate *rejects* (fails fast)
+    // rather than parking. The auto-load must still fire only once per
+    // ready-transition -- re-renders must not re-trigger it, or the device is
+    // hammered with repeated load attempts while the unlock modal is open.
+    mockCallRPC.mockRejectedValue(new StudioUnlockCancelledError());
+
+    const wrapper = createWrapper({
+      state: {
+        connection: { isConnected: true },
+        customSubsystems: [{ index: 7, identifier: "cormoran__runtime_combo" }],
+      },
+      findSubsystem: (id: string) =>
+        id === "cormoran__runtime_combo"
+          ? { index: 7, identifier: "cormoran__runtime_combo" }
+          : null,
+    });
+
+    const { result, rerender } = renderHook(() => useRuntimeCombo(), {
+      wrapper,
+    });
+
+    // Mount auto-load fires listCombos + getGlobalSettings (2 calls), fails fast.
+    await waitFor(() => expect(mockCallRPC).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(result.current.error).toBe(STUDIO_LOCKED_MESSAGE),
+    );
+
+    // Re-rendering (e.g. gate/connection identity churn) must not re-load.
+    rerender();
+    rerender();
+    rerender();
+    expect(mockCallRPC).toHaveBeenCalledTimes(2);
+  });
+
   it("reports unavailable when the subsystem is missing", () => {
     const wrapper = createWrapper({
       state: { connection: { isConnected: true }, customSubsystems: [] },
