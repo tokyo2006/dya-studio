@@ -3,7 +3,6 @@ import {
   IconAlertTriangle,
   IconCircleCheck,
   IconKeyboard,
-  IconLock,
   IconRefresh,
 } from "@tabler/icons-react";
 import { KscanDriverType } from "../../proto/cormoran/kscan_diagnostics/kscan_diagnostics";
@@ -124,7 +123,6 @@ export function KscanDiagnosticsSection({
   }, [stats]);
 
   const showKeyboardPreview = physicalLayout && activeLayout;
-  const anyUnlockRequired = officialLayouts.unlockRequired;
 
   return (
     <SectionCard
@@ -196,16 +194,6 @@ export function KscanDiagnosticsSection({
               className="mb-4"
               label={t("Loading keyboard wiring…")}
             />
-          )}
-          {anyUnlockRequired && (
-            <div className="mb-4 p-4 rounded-lg bg-[var(--color-border)] border border-[var(--color-border-hover)] flex items-start gap-3">
-              <div className="p-1">
-                <IconLock size={20} className="text-[var(--color-electric)]" />
-              </div>
-              <p className="text-sm text-[var(--color-text-muted)]">
-                {t("Unlock your keyboard to show the interactive key map.")}
-              </p>
-            </div>
           )}
           {showKeyboardPreview && (
             <div className="mb-4">

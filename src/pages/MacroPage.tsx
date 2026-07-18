@@ -1,11 +1,4 @@
-import {
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import {
   IconAlertCircle,
   IconChevronDown,
@@ -22,9 +15,9 @@ import {
 } from "@tabler/icons-react";
 import { KeycodeSelector } from "../components/KeycodeSelector";
 import { StatusDot } from "../components/EditStatusIndicator";
-import { UnlockPrompt } from "../components/UnlockPrompt";
 import { KeyboardLayoutContext } from "../contexts/KeyboardLayoutContext";
 import { useStudioLockState } from "@cormoran/zmk-studio-react-hook";
+import { useStudioUnlock } from "../hooks/useStudioUnlock";
 import { useDebouncedMemoryWrite } from "../hooks/useDebouncedMemoryWrite";
 import { useKeymap } from "../hooks/useKeymap";
 import { useLanguage } from "../hooks/useLanguage";
@@ -369,7 +362,9 @@ export function MacroPage() {
   // Proactive lock state: prompt for unlock on edit intent and show a lock
   // badge in place of Save/Reset, instead of letting the edit fail first.
   const { locked } = useStudioLockState();
-  const [showUnlockPrompt, setShowUnlockPrompt] = useState(false);
+  // Proactive unlock gate (opens the shared unlock modal); the reactive
+  // fail→modal→retry path is handled inside the feature hooks via runWithUnlock.
+  const { requireUnlock: requireUnlocked } = useStudioUnlock();
   const [selectedName, setSelectedName] = useState<string | null>(null);
   const [loadedMacro, setLoadedMacro] = useState<MacroDetail | null>(null);
   const [editingStepIndex, setEditingStepIndex] = useState<number | null>(null);
@@ -482,32 +477,9 @@ export function MacroPage() {
     selectedName,
   ]);
 
-  // listMacros RPC requires unlock, so we manage loading around lock state:
-  // - While locked: show the unlock modal and suppress the error from the
-  //   failed initial load attempt (useRuntimeMacro fires loadMacros on mount
-  //   before we know the studio is locked).
-  // - On locked→unlocked transition: reload macros so data appears immediately
-  //   without requiring the user to manually retry.
-  const prevLockedRef = useRef(locked);
-  useEffect(() => {
-    if (locked) {
-      setShowUnlockPrompt(true);
-      runtimeMacro.clearError();
-    } else if (prevLockedRef.current) {
-      void runtimeMacro.loadMacros();
-    }
-    prevLockedRef.current = locked;
-  }, [locked, runtimeMacro]);
-
-  // Guard an edit action: if Studio is locked, open the unlock prompt instead
-  // of performing the edit (and let the caller bail out).
-  const requireUnlocked = useCallback((): boolean => {
-    if (locked) {
-      setShowUnlockPrompt(true);
-      return false;
-    }
-    return true;
-  }, [locked]);
+  // The listMacros RPC requires unlock: useRuntimeMacro fires loadMacros on
+  // mount, and while locked that call is parked by the shared unlock gate,
+  // which opens the modal and auto-retries the load once the user unlocks.
 
   const commitRename = useCallback(async () => {
     if (!requireUnlocked()) return;
@@ -916,7 +888,7 @@ export function MacroPage() {
               {locked ? (
                 <button
                   type="button"
-                  onClick={() => setShowUnlockPrompt(true)}
+                  onClick={() => requireUnlocked()}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-[var(--color-warning)]/40 bg-[var(--color-warning)]/10 text-[var(--color-warning)] hover:bg-[var(--color-warning)]/20 transition-colors"
                   title={t("Studio is locked — click to unlock")}
                 >
@@ -990,18 +962,17 @@ export function MacroPage() {
         {(runtimeMacro.error ||
           encodedSizeError ||
           stringConversionError ||
-          keymap.error) &&
-          !((showUnlockPrompt && locked) || keymap.unlockRequired) && (
-            <div className="glass-card p-4 mb-4 border-red-500/20 bg-red-500/10 flex items-center gap-3">
-              <IconAlertCircle size={20} className="text-red-400" />
-              <p className="text-sm text-red-400">
-                {runtimeMacro.error ||
-                  encodedSizeError ||
-                  stringConversionError ||
-                  keymap.error}
-              </p>
-            </div>
-          )}
+          keymap.error) && (
+          <div className="glass-card p-4 mb-4 border-red-500/20 bg-red-500/10 flex items-center gap-3">
+            <IconAlertCircle size={20} className="text-red-400" />
+            <p className="text-sm text-red-400">
+              {runtimeMacro.error ||
+                encodedSizeError ||
+                stringConversionError ||
+                keymap.error}
+            </p>
+          </div>
+        )}
 
         {runtimeMacro.isAvailable && (
           <div className="grid grid-cols-1 tablet:grid-cols-[240px_1fr] gap-4">
@@ -1342,20 +1313,6 @@ export function MacroPage() {
         keyboardLayout={keyboardLayoutContext.layout}
         behaviorQuickSelects={["kp", "rmacro", "none", "transparent"]}
         runtimeMacros={runtimeMacro.macros}
-      />
-
-      <UnlockPrompt
-        open={(showUnlockPrompt && locked) || keymap.unlockRequired}
-        onClose={() => {
-          setShowUnlockPrompt(false);
-          keymap.clearUnlockRequired();
-        }}
-        onRetry={() => {
-          setShowUnlockPrompt(false);
-          keymap.clearUnlockRequired();
-          keymap.loadKeymapData();
-          void runtimeMacro.loadMacros();
-        }}
       />
     </div>
   );

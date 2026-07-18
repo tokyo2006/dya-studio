@@ -31,9 +31,12 @@ export interface UseOsDetectionReturn {
 }
 
 export function useOsDetection(): UseOsDetectionReturn {
+  // Passive/background OS-detection subsystem: opt out of the unlock modal so
+  // it never pops on its own; lock-required just yields a no-op here.
   const { subsystem, ready, call } = useCustomSubsystem(
     SUBSYSTEM_IDENTIFIER,
     CODEC,
+    { unlockGate: false },
   );
   const [state, setState] = useState<StateResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);

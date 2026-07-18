@@ -374,6 +374,10 @@ class Keyboard {
     console.log("Demo received request:", req);
     if (req.core?.getDeviceInfo) {
       rr.core = { getDeviceInfo: this.data.device };
+    } else if (req.core?.getLockState) {
+      // The demo keyboard is always unlocked
+      // (LockState.ZMK_STUDIO_CORE_LOCK_STATE_UNLOCKED = 1).
+      rr.core = { getLockState: 1 };
     } else if (req.keymap?.getPhysicalLayouts) {
       rr.keymap = { getPhysicalLayouts: this.data.layouts };
     } else if (req.keymap?.getKeymap) {

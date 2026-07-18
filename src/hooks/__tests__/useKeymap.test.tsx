@@ -4,7 +4,7 @@
  * This test suite verifies the keymap state management,
  * including loading, modifying, and saving keymaps.
  */
-import { renderHook, act, waitFor } from "@testing-library/react";
+import { renderHook, waitFor } from "@testing-library/react";
 import { useKeymap } from "../useKeymap";
 import { ZMKAppContext } from "@cormoran/zmk-studio-react-hook";
 import type { ReactNode } from "react";
@@ -124,7 +124,6 @@ describe("useKeymap", () => {
       expect(result.current.isLoading).toBe(false);
       expect(result.current.isFullyLoaded).toBe(false);
       expect(result.current.error).toBeNull();
-      expect(result.current.unlockRequired).toBe(false);
     });
   });
 
@@ -179,7 +178,11 @@ describe("useKeymap", () => {
       expect(result.current.isFullyLoaded).toBe(true);
     });
 
-    it("should handle unlock required error", async () => {
+    it("surfaces an unlock error from a load (routed to the gate in the app)", async () => {
+      // In the app this load is wrapped by StudioUnlockProvider's runWithUnlock,
+      // which parks it and shows the unlock modal (see
+      // StudioUnlockContext.test.tsx). Rendered here without that provider, the
+      // gate is a passthrough, so the unlock error surfaces as a plain error.
       const mockConnection = { label: "test" };
       const zmkApp = {
         state: { connection: mockConnection },
@@ -196,10 +199,8 @@ describe("useKeymap", () => {
       });
 
       await waitFor(() => {
-        expect(result.current.unlockRequired).toBe(true);
+        expect(result.current.error).toContain("unlock");
       });
-
-      expect(result.current.error).toContain("unlock");
     });
 
     it("shows the keymap without unlock when only checkUnsavedChanges is locked", async () => {
@@ -248,7 +249,6 @@ describe("useKeymap", () => {
       });
 
       expect(result.current.keymap).toEqual(mockKeymap);
-      expect(result.current.unlockRequired).toBe(false);
       expect(result.current.hasUnsavedChanges).toBe(false);
     });
   });
@@ -395,32 +395,8 @@ describe("useKeymap", () => {
     });
   });
 
-  describe("clearUnlockRequired", () => {
-    it("should clear unlock required state", async () => {
-      const mockConnection = { label: "test" };
-      const zmkApp = {
-        state: { connection: mockConnection },
-        onNotification: jest.fn(() => jest.fn()),
-      };
-
-      mockCallRpc.mockResolvedValue({
-        meta: { simpleError: 1 }, // UNLOCK_REQUIRED
-      } as never);
-
-      const { result } = renderHook(() => useKeymap(), {
-        wrapper: createWrapper(zmkApp),
-      });
-
-      await waitFor(() => {
-        expect(result.current.unlockRequired).toBe(true);
-      });
-
-      act(() => {
-        result.current.clearUnlockRequired();
-      });
-
-      expect(result.current.unlockRequired).toBe(false);
-      expect(result.current.error).toBeNull();
-    });
-  });
+  // Unlock state is no longer owned by useKeymap: the shared StudioUnlockProvider
+  // opens the modal and retries the failed request after unlock (see
+  // StudioUnlockContext.test.tsx). useKeymap no longer exposes
+  // unlockRequired/clearUnlockRequired.
 });

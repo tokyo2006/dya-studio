@@ -94,9 +94,7 @@ export function TroubleshootingPage() {
           pmw3610.devices.length > 0 || pmw3610.diagnostics
             ? { devices: pmw3610.devices, diagnostics: pmw3610.diagnostics }
             : null,
-        error: pmw3610.unlockRequired
-          ? "Keyboard is locked (unlock required to read sensor diagnostics)"
-          : pmw3610.error,
+        error: pmw3610.error,
       },
     });
     await navigator.clipboard.writeText(report);

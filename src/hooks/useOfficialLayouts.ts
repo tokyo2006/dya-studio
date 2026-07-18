@@ -11,13 +11,13 @@
 import { useCallback, useContext, useState } from "react";
 import type { PhysicalLayouts } from "@zmkfirmware/zmk-studio-ts-client/keymap";
 import { ZMKAppContext } from "@cormoran/zmk-studio-react-hook";
-import { useKeymapSource, isKeymapUnlockRequired } from "./useKeymapSource";
+import { useKeymapSource } from "./useKeymapSource";
+import { useStudioUnlock } from "./useStudioUnlock";
+import { StudioUnlockCancelledError } from "../lib/studioUnlock";
 
 export interface UseOfficialLayoutsReturn {
   physicalLayouts: PhysicalLayouts | null;
   isLoading: boolean;
-  /** True when the last load failed because Studio is locked. */
-  unlockRequired: boolean;
   error: string | null;
   load: () => Promise<void>;
 }
@@ -26,11 +26,11 @@ export function useOfficialLayouts(): UseOfficialLayoutsReturn {
   const zmkApp = useContext(ZMKAppContext);
   const connection = zmkApp?.state.connection ?? null;
   const { loadPhysicalLayouts } = useKeymapSource();
+  const { runWithUnlock } = useStudioUnlock();
 
   const [physicalLayouts, setPhysicalLayouts] =
     useState<PhysicalLayouts | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [unlockRequired, setUnlockRequired] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -38,19 +38,20 @@ export function useOfficialLayouts(): UseOfficialLayoutsReturn {
     setIsLoading(true);
     setError(null);
     try {
-      const layouts = await loadPhysicalLayouts();
-      setUnlockRequired(false);
+      // A locked keyboard surfaces the shared unlock modal and the load is
+      // retried after unlock, so `layouts` is always a real result here.
+      const layouts = await runWithUnlock(() => loadPhysicalLayouts());
       setPhysicalLayouts(layouts);
     } catch (e) {
-      if (isKeymapUnlockRequired(e)) {
-        setUnlockRequired(true);
+      if (e instanceof StudioUnlockCancelledError) {
+        // User dismissed the unlock modal; leave layouts unloaded silently.
       } else {
         setError(e instanceof Error ? e.message : "Unknown error");
       }
     } finally {
       setIsLoading(false);
     }
-  }, [connection, loadPhysicalLayouts]);
+  }, [connection, loadPhysicalLayouts, runWithUnlock]);
 
-  return { physicalLayouts, isLoading, unlockRequired, error, load };
+  return { physicalLayouts, isLoading, error, load };
 }

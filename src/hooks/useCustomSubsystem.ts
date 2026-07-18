@@ -13,6 +13,12 @@
  *
  * All app hooks should import `useCustomSubsystem` from here rather than from
  * the library directly, so the raised timeout applies uniformly.
+ *
+ * This wrapper also routes every call through the shared Studio-unlock gate
+ * ({@link useStudioUnlock}): a call that fails because the subsystem is SECURED
+ * and Studio is locked opens the unlock modal and is retried after unlock, so
+ * consumers never have to detect the lock state themselves. Background/telemetry
+ * hooks that must NOT surface a modal can opt out with `{ unlockGate: false }`.
  */
 import { useCallback } from "react";
 import {
@@ -22,9 +28,20 @@ import {
   type UseCustomSubsystemTypedReturn,
 } from "@cormoran/zmk-studio-react-hook";
 import { logRpc } from "../lib/rpcLogging";
+import { useStudioUnlock } from "./useStudioUnlock";
+import { StudioUnlockCancelledError } from "../lib/studioUnlock";
 
 /** Default per-RPC timeout (ms) applied to every custom-subsystem call. */
 export const DEFAULT_CUSTOM_SUBSYSTEM_TIMEOUT_MS = 30_000;
+
+export interface UseCustomSubsystemOptions {
+  /**
+   * Route calls through the shared unlock gate (show the unlock modal and retry
+   * on an UNLOCK_REQUIRED failure). Defaults to `true`. Set `false` for passive
+   * background/telemetry subsystems that should never pop the modal on their own.
+   */
+  unlockGate?: boolean;
+}
 
 export function useCustomSubsystem(
   identifier: string,
@@ -32,11 +49,16 @@ export function useCustomSubsystem(
 export function useCustomSubsystem<TReq, TRes>(
   identifier: string,
   codec: Codec<TReq, TRes>,
+  options?: UseCustomSubsystemOptions,
 ): UseCustomSubsystemTypedReturn<TReq, TRes>;
 export function useCustomSubsystem<TReq, TRes>(
   identifier: string,
   codec?: Codec<TReq, TRes>,
+  options?: UseCustomSubsystemOptions,
 ): UseCustomSubsystemReturn | UseCustomSubsystemTypedReturn<TReq, TRes> {
+  const unlockGate = options?.unlockGate ?? true;
+  const { runWithUnlock } = useStudioUnlock();
+
   // The library handles an undefined codec (returns without `call`).
   const base = libUseCustomSubsystem(
     identifier,
@@ -48,52 +70,70 @@ export function useCustomSubsystem<TReq, TRes>(
     | UseCustomSubsystemTypedReturn<TReq, TRes>["call"]
     | undefined;
 
+  // Wrap a call in the unlock gate: a locked-subsystem failure opens the unlock
+  // modal and retries after unlock; a user-dismissed modal resolves to `null`
+  // (the same "no response" shape callers already handle) rather than surfacing
+  // StudioUnlockCancelledError as an error.
+  const gate = useCallback(
+    <T>(run: () => Promise<T>): Promise<T | null> => {
+      if (!unlockGate) return run();
+      return runWithUnlock(run).catch((err) => {
+        if (err instanceof StudioUnlockCancelledError) return null;
+        throw err;
+      });
+    },
+    [unlockGate, runWithUnlock],
+  );
+
   const callRPC = useCallback<UseCustomSubsystemReturn["callRPC"]>(
     (payload, options) =>
-      logRpc(
-        `custom:${identifier}`,
-        payload,
-        () =>
-          baseCallRPC(payload, {
-            timeout: DEFAULT_CUSTOM_SUBSYSTEM_TIMEOUT_MS,
-            ...options,
-          }),
-        {
-          request: () => payload.byteLength,
-          response: (res) => res?.byteLength,
-        },
+      gate(() =>
+        logRpc(
+          `custom:${identifier}`,
+          payload,
+          () =>
+            baseCallRPC(payload, {
+              timeout: DEFAULT_CUSTOM_SUBSYSTEM_TIMEOUT_MS,
+              ...options,
+            }),
+          {
+            request: () => payload.byteLength,
+            response: (res) => res?.byteLength,
+          },
+        ),
       ),
-    [baseCallRPC, identifier],
+    [gate, baseCallRPC, identifier],
   );
 
   const call = useCallback(
-    (request: TReq, options?: { timeout?: number }) => {
-      // Reimplement the library's typed call (encode → callRPC → decode)
-      // ourselves rather than delegating to `base.call`, so we can log the
-      // exact request/response payload sizes; the encode below is the same work
-      // `base.call` would do internally, not extra overhead.
-      const payload = codec!.encode(request);
-      let responseBytes: number | undefined;
-      return logRpc(
-        `custom:${identifier}`,
-        request,
-        async () => {
-          const responsePayload = await baseCallRPC(payload, {
-            timeout: DEFAULT_CUSTOM_SUBSYSTEM_TIMEOUT_MS,
-            ...options,
-          });
-          responseBytes = responsePayload?.byteLength;
-          return responsePayload === null
-            ? null
-            : codec!.decode(responsePayload);
-        },
-        {
-          request: () => payload.byteLength,
-          response: () => responseBytes,
-        },
-      );
-    },
-    [baseCallRPC, codec, identifier],
+    (request: TReq, options?: { timeout?: number }) =>
+      gate(() => {
+        // Reimplement the library's typed call (encode → callRPC → decode)
+        // ourselves rather than delegating to `base.call`, so we can log the
+        // exact request/response payload sizes; the encode below is the same
+        // work `base.call` would do internally, not extra overhead.
+        const payload = codec!.encode(request);
+        let responseBytes: number | undefined;
+        return logRpc(
+          `custom:${identifier}`,
+          request,
+          async () => {
+            const responsePayload = await baseCallRPC(payload, {
+              timeout: DEFAULT_CUSTOM_SUBSYSTEM_TIMEOUT_MS,
+              ...options,
+            });
+            responseBytes = responsePayload?.byteLength;
+            return responsePayload === null
+              ? null
+              : codec!.decode(responsePayload);
+          },
+          {
+            request: () => payload.byteLength,
+            response: () => responseBytes,
+          },
+        );
+      }),
+    [gate, baseCallRPC, codec, identifier],
   );
 
   return baseCall

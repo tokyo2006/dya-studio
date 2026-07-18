@@ -23,11 +23,11 @@ import { ConnectionContext } from "../components/DeviceConnection";
 import { KeyboardLayoutContext } from "../contexts/KeyboardLayoutContext";
 import { KeyboardLayout } from "../components/KeyboardLayout";
 import { KeycodeSelector } from "../components/KeycodeSelector";
-import { UnlockPrompt } from "../components/UnlockPrompt";
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import { StatusDot, type EditStatus } from "../components/EditStatusIndicator";
 import { useDebouncedMemoryWrite } from "../hooks/useDebouncedMemoryWrite";
 import { useStudioLockState } from "@cormoran/zmk-studio-react-hook";
+import { useStudioUnlock } from "../hooks/useStudioUnlock";
 import { useKeymap, getKeymapLoadingLabel } from "../hooks/useKeymap";
 import { useLanguage } from "../hooks/useLanguage";
 import type { BehaviorBinding, BehaviorDefinition } from "../hooks/useKeymap";
@@ -313,8 +313,10 @@ export function ComboPage() {
   // and show a lock badge in place of Save/Discard, instead of letting the edit
   // fail first.
   const { locked } = useStudioLockState();
+  // Proactive unlock gate (opens the shared unlock modal); the reactive
+  // fail→modal→retry path is handled inside the feature hooks via runWithUnlock.
+  const { requireUnlock: requireUnlocked } = useStudioUnlock();
 
-  const [showUnlockPrompt, setShowUnlockPrompt] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [draft, setDraft] = useState<ComboDraft>(() =>
     createDraft([], undefined, new Map()),
@@ -422,16 +424,6 @@ export function ComboPage() {
     },
     [comboMemoryWrite],
   );
-
-  // Guard an edit action: if Studio is locked, open the unlock prompt instead
-  // of performing the edit (and let the caller bail out).
-  const requireUnlocked = useCallback((): boolean => {
-    if (locked) {
-      setShowUnlockPrompt(true);
-      return false;
-    }
-    return true;
-  }, [locked]);
 
   // Single entry point for every per-combo field edit: update the local draft
   // (keeping inputs responsive) and, when the draft is valid, auto-write it to
@@ -654,7 +646,7 @@ export function ComboPage() {
               {locked ? (
                 <button
                   type="button"
-                  onClick={() => setShowUnlockPrompt(true)}
+                  onClick={() => requireUnlocked()}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-[var(--color-warning)]/40 bg-[var(--color-warning)]/10 text-[var(--color-warning)] hover:bg-[var(--color-warning)]/20 transition-colors"
                   title={t("Studio is locked — click to unlock")}
                 >
@@ -721,7 +713,7 @@ export function ComboPage() {
           </div>
         )}
 
-        {(runtimeCombo.error || keymap.error) && !keymap.unlockRequired && (
+        {(runtimeCombo.error || keymap.error) && (
           <div className="glass-card p-4 mb-4 border-red-500/20 bg-red-500/10 flex items-center gap-3">
             <IconAlertTriangle size={20} className="text-red-400" />
             <p className="text-sm text-red-400">
@@ -1304,19 +1296,6 @@ export function ComboPage() {
         keyboardLayout={keyboardLayoutContext.layout}
         behaviorQuickSelects={["kp", "lt", "mt", "none", "transparent"]}
         runtimeMacros={runtimeMacro.macros}
-      />
-
-      <UnlockPrompt
-        open={(showUnlockPrompt && locked) || keymap.unlockRequired}
-        onClose={() => {
-          setShowUnlockPrompt(false);
-          keymap.clearUnlockRequired();
-        }}
-        onRetry={() => {
-          setShowUnlockPrompt(false);
-          keymap.clearUnlockRequired();
-          keymap.loadKeymapData();
-        }}
       />
     </div>
   );

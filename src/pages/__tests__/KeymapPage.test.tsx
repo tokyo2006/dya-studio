@@ -38,6 +38,7 @@ jest.mock("@cormoran/zmk-studio-react-hook", () => ({
 import { useKeymap } from "../../hooks/useKeymap";
 import { usePhysicalLayoutModules } from "../../hooks/usePhysicalLayoutModules";
 import { useStudioLockState } from "@cormoran/zmk-studio-react-hook";
+import { StudioUnlockProvider } from "../../contexts/StudioUnlockContext";
 
 const mockUseKeymap = useKeymap as jest.MockedFunction<typeof useKeymap>;
 const mockUseStudioLockState = useStudioLockState as jest.MockedFunction<
@@ -123,7 +124,6 @@ describe("KeymapPage", () => {
       isLoading: false,
       loadingProgress: null,
       error: null,
-      unlockRequired: false,
       loadKeymapData: jest.fn(),
       setBinding: jest.fn().mockResolvedValue(true),
       resetBinding: jest.fn().mockResolvedValue(true),
@@ -151,7 +151,6 @@ describe("KeymapPage", () => {
       isKeymapChangedFromDefault: false,
       getBehavior: jest.fn(),
       getBindingDisplayName: jest.fn().mockReturnValue("Key"),
-      clearUnlockRequired: jest.fn(),
     });
 
     mockUsePhysicalLayoutModules.mockReturnValue({
@@ -181,7 +180,9 @@ describe("KeymapPage", () => {
     return render(
       <ConnectionContext.Provider value={connectionContext}>
         <ZMKAppProvider value={zmkApp}>
-          <KeymapPage />
+          <StudioUnlockProvider>
+            <KeymapPage />
+          </StudioUnlockProvider>
         </ZMKAppProvider>
       </ConnectionContext.Provider>,
     );
@@ -566,13 +567,8 @@ describe("KeymapPage", () => {
   });
 
   describe("Unlock Prompt", () => {
-    it("should not show unlock prompt by default", () => {
-      renderComponent(
-        { isConnected: true },
-        {
-          unlockRequired: false,
-        },
-      );
+    it("should not show unlock prompt by default (unlocked)", () => {
+      renderComponent({ isConnected: true });
 
       expect(
         screen.queryByText("Keyboard Unlock Required"),

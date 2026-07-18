@@ -72,6 +72,7 @@ export interface UseRuntimeComboReturn {
 }
 
 export function useRuntimeCombo(): UseRuntimeComboReturn {
+  // `call` is unlock-gated by the shared useCustomSubsystem wrapper.
   const { subsystem, ready, call } = useCustomSubsystem(
     RUNTIME_COMBO_IDENTIFIER,
     CODEC,
@@ -91,6 +92,8 @@ export function useRuntimeCombo(): UseRuntimeComboReturn {
         return null;
       }
 
+      // `call` handles the locked case (unlock modal + retry, or null if the
+      // user dismisses it) via the shared gate.
       const response = await call(request);
       if (!response) {
         return null;

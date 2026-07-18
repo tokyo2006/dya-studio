@@ -17,11 +17,12 @@
  * edit/save state. See {@link useKeymap}.
  */
 import { useCallback, useContext, useEffect, useMemo, useRef } from "react";
-import {
-  ZMKAppContext,
-  isUnlockRequiredError,
-} from "@cormoran/zmk-studio-react-hook";
+import { ZMKAppContext } from "@cormoran/zmk-studio-react-hook";
 import { useCustomSubsystem } from "./useCustomSubsystem";
+import {
+  KeymapUnlockRequiredError,
+  isKeymapUnlockRequired,
+} from "../lib/studioUnlock";
 import type { call_rpc } from "@zmkfirmware/zmk-studio-ts-client";
 import { loggedCallRpc } from "../lib/rpcLogging";
 import type {
@@ -127,22 +128,11 @@ export interface KeymapLoadProgress {
 /** Callback invoked as a load advances through its phases. */
 export type KeymapLoadProgressCallback = (progress: KeymapLoadProgress) => void;
 
-/**
- * Thrown when a load fails because the keyboard is locked. Callers should
- * detect it with {@link isKeymapUnlockRequired} (which also recognizes the
- * transport-level unlock error the fast path / official mutations throw).
- */
-export class KeymapUnlockRequiredError extends Error {
-  constructor() {
-    super("Keyboard needs to be unlocked");
-    this.name = "KeymapUnlockRequiredError";
-  }
-}
-
-/** True when `err` means "the keyboard is locked" — from either protocol. */
-export function isKeymapUnlockRequired(err: unknown): boolean {
-  return err instanceof KeymapUnlockRequiredError || isUnlockRequiredError(err);
-}
+// `KeymapUnlockRequiredError` / `isKeymapUnlockRequired` now live in
+// `../lib/studioUnlock` (so the shared unlock gate can recognize them without a
+// circular import). Imported above for internal use; re-exported here for
+// existing callers.
+export { KeymapUnlockRequiredError, isKeymapUnlockRequired };
 
 /**
  * Translate a {@link KeymapLoadProgress} into a human-readable label. Kept

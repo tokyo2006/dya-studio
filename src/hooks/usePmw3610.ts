@@ -1,7 +1,7 @@
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import {
   ZMKAppContext,
-  isUnlockRequiredError,
+  useStudioLockState,
 } from "@cormoran/zmk-studio-react-hook";
 import { useCustomSubsystem } from "./useCustomSubsystem";
 import {
@@ -49,9 +49,6 @@ export interface UsePmw3610Return {
   diagnostics: ReadDiagnosticsResponse | null;
   isLoading: boolean;
   error: string | null;
-  /** The subsystem is SECURED: true when ZMK Studio is locked. */
-  unlockRequired: boolean;
-  clearUnlockRequired: () => void;
   refresh: () => Promise<void>;
   readDiagnostics: (deviceIndex: number) => Promise<void>;
   /** Latest completed frame (one-shot capture or a completed streamed
@@ -69,6 +66,9 @@ export interface UsePmw3610Return {
 
 export function usePmw3610(): UsePmw3610Return {
   const zmkApp = useContext(ZMKAppContext);
+  const { locked } = useStudioLockState();
+  // `call` is unlock-gated by the shared useCustomSubsystem wrapper: a locked
+  // (SECURED) call opens the unlock modal and is retried after unlock.
   const { subsystem, ready, call } = useCustomSubsystem(
     PMW3610_SUBSYSTEM_IDENTIFIER,
     CODEC,
@@ -78,27 +78,16 @@ export function usePmw3610(): UsePmw3610Return {
     useState<ReadDiagnosticsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [unlockRequired, setUnlockRequired] = useState(false);
 
   const subsystemIndex = subsystem?.index;
 
   const callRpc = useCallback(
     async (request: Request): Promise<Response | null> => {
       if (!ready) return null;
-      try {
-        const resp = await call(request);
-        if (!resp) return null;
-        setUnlockRequired(false);
-        return resp;
-      } catch (err) {
-        // The pmw3610 subsystem is SECURED: RPC fails with UNLOCK_REQUIRED
-        // while ZMK Studio is locked.
-        if (isUnlockRequiredError(err)) {
-          setUnlockRequired(true);
-          return null;
-        }
-        throw err;
-      }
+      // `call` handles the locked case (unlock modal + retry, or null if the
+      // user dismisses it) via the shared gate.
+      const resp = await call(request);
+      return resp ?? null;
     },
     [ready, call],
   );
@@ -147,22 +136,8 @@ export function usePmw3610(): UsePmw3610Return {
     }
   }, [ready, refresh]);
 
-  // Retry automatically once the keyboard reports it was unlocked.
-  useEffect(() => {
-    if (!zmkApp) return;
-    return zmkApp.onNotification({
-      type: "core",
-      callback: (notification) => {
-        // LockState.ZMK_STUDIO_CORE_LOCK_STATE_UNLOCKED = 1
-        if (notification.lockStateChanged === 1 && unlockRequired) {
-          setUnlockRequired(false);
-          void refresh();
-        }
-      },
-    });
-  }, [zmkApp, unlockRequired, refresh]);
-
-  const clearUnlockRequired = useCallback(() => setUnlockRequired(false), []);
+  // Lock-state handling (unlock modal + auto-retry of the failed request on
+  // unlock) is centralized in StudioUnlockProvider via `runWithUnlock`.
 
   // --- Frame capture / streaming (Feature 3) -----------------------------
   const [frame, setFrame] = useState<CapturedFrame | null>(null);
@@ -383,14 +358,14 @@ export function usePmw3610(): UsePmw3610Return {
   // staying stuck showing "Stop Streaming" for a stream that no longer
   // exists.
   useEffect(() => {
-    if (unlockRequired && isStreaming) {
+    if (locked && isStreaming) {
       unsubscribeStreamRef.current?.();
       unsubscribeStreamRef.current = null;
       setIsStreaming(false);
     }
     // Only react to the lock transition, not every isStreaming change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [unlockRequired]);
+  }, [locked]);
 
   return {
     isAvailable: subsystem !== null,
@@ -398,8 +373,6 @@ export function usePmw3610(): UsePmw3610Return {
     diagnostics,
     isLoading,
     error,
-    unlockRequired,
-    clearUnlockRequired,
     refresh,
     readDiagnostics,
     frame,

@@ -12,12 +12,11 @@ import {
   useMemo,
   useRef,
 } from "react";
-import {
-  ZMKAppContext,
-  isUnlockRequiredError,
-} from "@cormoran/zmk-studio-react-hook";
+import { ZMKAppContext } from "@cormoran/zmk-studio-react-hook";
 import type { call_rpc } from "@zmkfirmware/zmk-studio-ts-client";
 import { loggedCallRpc } from "../lib/rpcLogging";
+import { useStudioUnlock } from "./useStudioUnlock";
+import { StudioUnlockCancelledError } from "../lib/studioUnlock";
 import type {
   Keymap,
   Layer,
@@ -26,11 +25,9 @@ import type {
   PhysicalLayout,
   KeyPhysicalAttrs,
 } from "@zmkfirmware/zmk-studio-ts-client/keymap";
-import { ErrorConditions } from "@zmkfirmware/zmk-studio-ts-client/meta";
 import {
   useKeymapSource,
   getKeymapLoadingLabel,
-  isKeymapUnlockRequired,
   type BehaviorDefinition,
   type KeymapLoadPhase,
   type KeymapLoadProgress,
@@ -101,8 +98,6 @@ export interface KeymapState {
   loadingProgress: KeymapLoadProgress | null;
   /** Error message if any */
   error: string | null;
-  /** Whether unlock is required */
-  unlockRequired: boolean;
 }
 
 /**
@@ -188,8 +183,6 @@ export interface UseKeymapReturn extends KeymapState {
   getBehavior: (behaviorId: number) => BehaviorDefinition | undefined;
   /** Get display name for a binding */
   getBindingDisplayName: (binding: BehaviorBinding) => string;
-  /** Clear unlock required state */
-  clearUnlockRequired: () => void;
   /** Get removed layer IDs that can be restored */
   removedLayerIds: number[];
 }
@@ -213,6 +206,7 @@ function bindingsEqual(a: BehaviorBinding, b: BehaviorBinding): boolean {
  */
 export function useKeymap(): UseKeymapReturn {
   const zmkApp = useContext(ZMKAppContext);
+  const { runWithUnlock } = useStudioUnlock();
 
   // State
   const [physicalLayouts, setPhysicalLayouts] =
@@ -239,7 +233,6 @@ export function useKeymap(): UseKeymapReturn {
   const [loadingProgress, setLoadingProgress] =
     useState<KeymapLoadProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [unlockRequired, setUnlockRequired] = useState(false);
   const [removedLayerIds, setRemovedLayerIds] = useState<number[]>([]);
 
   // Ref to track if data has been loaded
@@ -306,22 +299,21 @@ export function useKeymap(): UseKeymapReturn {
       }
 
       try {
-        // Guard: when fast-keymap is available, an official keymap/behaviors
-        // *read* here is a bug (must go through useKeymapSource) — throw
-        // rather than silently pay for a slow official round-trip. Edits and
-        // checkUnsavedChanges are not forbidden reads, so they pass through.
-        assertOfficialKeymapRpcAllowed(request);
-        const response = await loggedCallRpc(connection, request);
+        // Route through the shared unlock gate: a request that fails because
+        // Studio is locked opens the unlock modal and is retried after unlock,
+        // so `response` here is always a non-unlock result. `runWithUnlock`
+        // rejects with StudioUnlockCancelledError if the user dismisses it.
+        const response = await runWithUnlock(() => {
+          // Guard: when fast-keymap is available, an official keymap/behaviors
+          // *read* here is a bug (must go through useKeymapSource) — throw
+          // rather than silently pay for a slow official round-trip. Edits and
+          // checkUnsavedChanges are not forbidden reads, so they pass through.
+          assertOfficialKeymapRpcAllowed(request);
+          return loggedCallRpc(connection, request);
+        });
 
-        // Check for meta errors
+        // Check for (non-unlock) meta errors
         if (response.meta?.simpleError !== undefined) {
-          if (response.meta.simpleError === ErrorConditions.UNLOCK_REQUIRED) {
-            setUnlockRequired(true);
-            setError(
-              "Keyboard needs to be unlocked. Please unlock your keyboard.",
-            );
-            return null;
-          }
           setErrorWithAutoClear(`RPC error: ${response.meta.simpleError}`);
           return null;
         }
@@ -334,11 +326,8 @@ export function useKeymap(): UseKeymapReturn {
         clearError();
         return result;
       } catch (err) {
-        if (isUnlockRequiredError(err)) {
-          setUnlockRequired(true);
-          setError(
-            "Keyboard needs to be unlocked. Please unlock your keyboard.",
-          );
+        if (err instanceof StudioUnlockCancelledError) {
+          // User dismissed the unlock modal instead of unlocking; not an error.
           return null;
         }
         console.error("RPC call failed:", err);
@@ -348,7 +337,7 @@ export function useKeymap(): UseKeymapReturn {
         return null;
       }
     },
-    [connection, clearError, setErrorWithAutoClear],
+    [connection, clearError, setErrorWithAutoClear, runWithUnlock],
   );
 
   // Store original bindings from keymap
@@ -375,7 +364,6 @@ export function useKeymap(): UseKeymapReturn {
     setIsFullyLoaded(false);
     setLoadingProgress({ phase: "layouts" });
     setError(null);
-    setUnlockRequired(false);
 
     // Guard for the background (incremental) layer load: a load that has been
     // superseded (reconnect/reload) must not apply its late layer update.
@@ -444,10 +432,15 @@ export function useKeymap(): UseKeymapReturn {
       // read — either way, this is the call whose unlock error should surface.
       let loaded = false;
       try {
-        const data = await loadFromSource(
-          (progress) => setLoadingProgress(progress),
-          applyBackgroundLayers,
-          applyBackgroundBehaviors,
+        // A locked keyboard surfaces the shared unlock modal via the gate and
+        // the load is retried after unlock, so `data` here is always a real
+        // result (or the gate rejects with StudioUnlockCancelledError).
+        const data = await runWithUnlock(() =>
+          loadFromSource(
+            (progress) => setLoadingProgress(progress),
+            applyBackgroundLayers,
+            applyBackgroundBehaviors,
+          ),
         );
         pendingLayerIds = data.pendingLayerIds;
 
@@ -467,11 +460,8 @@ export function useKeymap(): UseKeymapReturn {
         }
         loaded = true;
       } catch (err) {
-        if (isKeymapUnlockRequired(err)) {
-          setUnlockRequired(true);
-          setError(
-            "Keyboard needs to be unlocked. Please unlock your keyboard.",
-          );
+        if (err instanceof StudioUnlockCancelledError) {
+          // User dismissed the unlock modal; leave the tab unloaded silently.
         } else {
           console.error("Failed to load keymap data:", err);
           setErrorWithAutoClear(
@@ -508,6 +498,7 @@ export function useKeymap(): UseKeymapReturn {
     loadFromSource,
     storeOriginalBindings,
     setErrorWithAutoClear,
+    runWithUnlock,
   ]);
 
   // Set a key binding
@@ -1008,12 +999,6 @@ export function useKeymap(): UseKeymapReturn {
     [behaviors],
   );
 
-  // Clear unlock required state
-  const clearUnlockRequired = useCallback(() => {
-    setUnlockRequired(false);
-    setError(null);
-  }, []);
-
   // Subscribe to keymap notifications
   useEffect(() => {
     if (!zmkApp) return;
@@ -1030,27 +1015,8 @@ export function useKeymap(): UseKeymapReturn {
     return unsubscribe;
   }, [zmkApp]);
 
-  // Subscribe to core notifications (for lock state changes)
-  useEffect(() => {
-    if (!zmkApp) return;
-
-    const unsubscribe = zmkApp.onNotification({
-      type: "core",
-      callback: (notification) => {
-        // LockState.ZMK_STUDIO_CORE_LOCK_STATE_UNLOCKED = 1
-        if (notification.lockStateChanged === 1) {
-          // Keyboard was unlocked, try loading again
-          if (unlockRequired) {
-            setUnlockRequired(false);
-            setError(null);
-            loadKeymapData();
-          }
-        }
-      },
-    });
-
-    return unsubscribe;
-  }, [zmkApp, unlockRequired, loadKeymapData]);
+  // Lock-state handling (open unlock modal, auto-retry the failed request on
+  // unlock) is centralized in StudioUnlockProvider via `runWithUnlock`.
 
   // Auto-load keymap data when connected
   useEffect(() => {
@@ -1102,7 +1068,6 @@ export function useKeymap(): UseKeymapReturn {
       setDefaultBindings(new Map());
       setHasUnsavedChanges(false);
       setError(null);
-      setUnlockRequired(false);
       setRemovedLayerIds([]);
       setLoadingProgress(null);
       dataLoadedRef.current = false;
@@ -1134,7 +1099,6 @@ export function useKeymap(): UseKeymapReturn {
     isFullyLoaded,
     loadingProgress,
     error,
-    unlockRequired,
     loadKeymapData,
     setBinding,
     resetBinding,
@@ -1159,6 +1123,5 @@ export function useKeymap(): UseKeymapReturn {
     isKeymapChangedFromDefault,
     getBehavior,
     getBindingDisplayName,
-    clearUnlockRequired,
   };
 }
