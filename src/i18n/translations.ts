@@ -177,7 +177,6 @@ const ja: Record<string, string> = {
   "PMW3610 Drivers": "PMW3610 ドライバー",
   "This driver is no longer available.":
     "このドライバーは利用できなくなりました。",
-  Reload: "再読み込み",
   "Active on layer": "有効なレイヤー",
   "Temp layer": "一時レイヤー",
   "{{layer}} — active": "{{layer}} — 有効",
