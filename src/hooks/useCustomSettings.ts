@@ -47,8 +47,6 @@ export interface UseCustomSettingsReturn {
   saveSection: (customSubsystemIndex: number) => Promise<void>;
   discardSection: (customSubsystemIndex: number) => Promise<void>;
   resetSection: (customSubsystemIndex: number) => Promise<void>;
-  discardSetting: (setting: Setting) => Promise<void>;
-  resetSetting: (setting: Setting) => Promise<void>;
   createSetting: (
     key: string,
     value: SettingValue,
@@ -71,14 +69,6 @@ function scopeForSection(customSubsystemIndex: number): SettingScope {
   return {
     customSubsystemIndex,
     source: CUSTOM_SETTINGS_SOURCE_ALL,
-  };
-}
-
-function scopeForSetting(setting: Setting): SettingScope {
-  return {
-    customSubsystemIndex: setting.customSubsystemIndex,
-    key: setting.key,
-    source: setting.source,
   };
 }
 
@@ -506,10 +496,6 @@ export function useCustomSettings(
       mutateScope(scopeForSection(customSubsystemIndex), "discardSettings"),
     resetSection: (customSubsystemIndex) =>
       mutateScope(scopeForSection(customSubsystemIndex), "resetSettings"),
-    discardSetting: (setting) =>
-      mutateScope(scopeForSetting(setting), "discardSettings"),
-    resetSetting: (setting) =>
-      mutateScope(scopeForSetting(setting), "resetSettings"),
     createSetting,
     deleteSetting,
     clearError: () => setError(null),

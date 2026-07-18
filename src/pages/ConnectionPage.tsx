@@ -229,7 +229,7 @@ export function ConnectionPage() {
         {/* Show error if any */}
         {error && (
           <div className="glass-card p-4 mb-4 border-red-500/20 bg-red-500/10">
-            <p className="text-sm text-red-400">⚠️ {error}</p>
+            <p className="text-sm text-red-400">⚠️ {t(error)}</p>
           </div>
         )}
 

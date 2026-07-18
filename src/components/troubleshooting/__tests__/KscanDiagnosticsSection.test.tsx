@@ -68,7 +68,6 @@ function mockOfficialLayoutsReturn(
   mockUseOfficialLayouts.mockReturnValue({
     physicalLayouts: null,
     isLoading: false,
-    unlockRequired: false,
     error: null,
     load: jest.fn(),
     ...overrides,
@@ -225,14 +224,9 @@ describe("KscanDiagnosticsSection", () => {
     expect(screen.getByTestId("kscan-key-0")).toBeInTheDocument();
   });
 
-  it("shows an unlock hint when the official layout requires unlocking", () => {
-    mockOfficialLayoutsReturn({ unlockRequired: true });
-    render(<KscanDiagnosticsSection kscan={baseKscan()} />);
-    fireEvent.click(screen.getByRole("button", { name: "Key Switches" }));
-    expect(
-      screen.getByText("Unlock your keyboard to show the interactive key map."),
-    ).toBeInTheDocument();
-  });
+  // The inline unlock hint was removed: a locked layout load is now routed
+  // through the shared StudioUnlockProvider, which shows the unlock modal and
+  // retries after unlock (see StudioUnlockContext.test.tsx).
 
   it("does not render the external diagnostics link (removed)", () => {
     render(<KscanDiagnosticsSection kscan={baseKscan()} />);

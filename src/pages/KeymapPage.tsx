@@ -30,7 +30,6 @@ import { ConnectionContext } from "../components/DeviceConnection";
 import { KeyboardLayoutContext } from "../contexts/KeyboardLayoutContext";
 import { KeyboardLayout } from "../components/KeyboardLayout";
 import { KeycodeSelector } from "../components/KeycodeSelector";
-import { UnlockPrompt } from "../components/UnlockPrompt";
 import { SensorRotationConfig } from "../components/SensorRotationConfig";
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import { useKeymap, getKeymapLoadingLabel } from "../hooks/useKeymap";
@@ -40,6 +39,7 @@ import { useRuntimeMacro } from "../hooks/useRuntimeMacro";
 import { useInputStream } from "../hooks/useInputStream";
 import { getAvailableLayouts, getLayoutLabel } from "../lib/keyboardLayouts";
 import type { BehaviorBinding } from "../hooks/useKeymap";
+import { useStudioUnlock } from "../hooks/useStudioUnlock";
 import { useLanguage } from "../hooks/useLanguage";
 
 export function KeymapPage() {
@@ -59,9 +59,11 @@ export function KeymapPage() {
   // place of Save/Reset and (b) prompt for unlock the moment the user tries to
   // edit — rather than letting the edit fail and then reacting.
   const { locked } = useStudioLockState();
+  // Proactive unlock gate (opens the shared unlock modal); the reactive
+  // fail→modal→retry path is handled inside useKeymap via runWithUnlock.
+  const { requireUnlock: requireUnlocked } = useStudioUnlock();
 
   // Local UI state
-  const [showUnlockPrompt, setShowUnlockPrompt] = useState(false);
   const [selectedLayerIndex, setSelectedLayerIndex] = useState(0);
   const [selectedKeyPosition, setSelectedKeyPosition] = useState<number | null>(
     null,
@@ -104,18 +106,11 @@ export function KeymapPage() {
     return currentLayer.bindings[selectedKeyPosition] ?? null;
   }, [selectedKeyPosition, currentLayer]);
 
-  // Guard an edit action: if Studio is locked, open the unlock prompt instead
-  // of performing the edit (and let the caller bail out). Returns false when
-  // blocked. `unknown` lock state is treated as unlocked (optimistic) — a rare
-  // edit during that brief window still surfaces the prompt via the reactive
-  // unlockRequired fallback.
-  const requireUnlocked = useCallback((): boolean => {
-    if (locked) {
-      setShowUnlockPrompt(true);
-      return false;
-    }
-    return true;
-  }, [locked]);
+  // `requireUnlocked` (from the shared unlock gate) guards an edit action: if
+  // Studio is locked it opens the unlock modal and returns false so the caller
+  // bails out. `unknown` lock state is treated as unlocked (optimistic) — a
+  // rare edit during that brief window still surfaces the modal reactively when
+  // the request fails (see useKeymap's runWithUnlock).
 
   // Handle key click
   const handleKeyClick = useCallback(
@@ -288,21 +283,6 @@ export function KeymapPage() {
     }
   }, [keymap, selectedLayerIndex, renameValue]);
 
-  // Close the unlock prompt (both the proactive edit prompt and the reactive
-  // load-time one).
-  const handleUnlockClose = useCallback(() => {
-    setShowUnlockPrompt(false);
-    keymap.clearUnlockRequired();
-  }, [keymap]);
-
-  // Handle unlock retry: dismiss the prompt and re-load (the reactive path
-  // needs a reload; the proactive path is harmless to reload).
-  const handleUnlockRetry = useCallback(() => {
-    setShowUnlockPrompt(false);
-    keymap.clearUnlockRequired();
-    keymap.loadKeymapData();
-  }, [keymap]);
-
   useEffect(() => {
     if (
       inputStream.activeLayerIndex === null ||
@@ -386,7 +366,7 @@ export function KeymapPage() {
               {locked ? (
                 <button
                   type="button"
-                  onClick={() => setShowUnlockPrompt(true)}
+                  onClick={() => requireUnlocked()}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium flex-shrink-0 border border-[var(--color-warning)]/40 bg-[var(--color-warning)]/10 text-[var(--color-warning)] hover:bg-[var(--color-warning)]/20 transition-colors"
                   title={t("Studio is locked — click to unlock")}
                 >
@@ -481,17 +461,17 @@ export function KeymapPage() {
           </div>
         )}
 
-        {/* Error State */}
-        {keymap.error && !keymap.unlockRequired && (
+        {/* Error State (unlock errors are handled by the shared unlock modal) */}
+        {keymap.error && (
           <div className="glass-card p-4 mb-4 border-red-500/20 bg-red-500/10 flex items-center gap-3">
             <IconAlertCircle size={20} className="text-red-400" />
-            <p className="text-sm text-red-400">{keymap.error}</p>
+            <p className="text-sm text-red-400">{t(keymap.error)}</p>
           </div>
         )}
         {inputStream.error && (
           <div className="glass-card p-4 mb-4 border-red-500/20 bg-red-500/10 flex items-center gap-3">
             <IconAlertCircle size={20} className="text-red-400" />
-            <p className="text-sm text-red-400">{inputStream.error}</p>
+            <p className="text-sm text-red-400">{t(inputStream.error)}</p>
             <button
               className="ml-auto text-xs text-red-300 hover:text-red-200"
               onClick={inputStream.clearError}
@@ -1030,14 +1010,6 @@ export function KeymapPage() {
         layers={layersForSelector}
         keyboardLayout={keyboardLayoutContext.layout}
         runtimeMacros={runtimeMacro.macros}
-      />
-
-      {/* Unlock Prompt — shown proactively when the user tries to edit while
-          locked, or reactively if a load actually required unlock. */}
-      <UnlockPrompt
-        open={(showUnlockPrompt && locked) || keymap.unlockRequired}
-        onClose={handleUnlockClose}
-        onRetry={handleUnlockRetry}
       />
     </div>
   );

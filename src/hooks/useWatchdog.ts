@@ -40,9 +40,12 @@ export interface UseWatchdogReturn {
 
 export function useWatchdog(): UseWatchdogReturn {
   const zmkApp = useContext(ZMKAppContext);
+  // Passive/background watchdog subsystem: opt out of the unlock modal so it
+  // never pops on its own; lock-required just yields a no-op here.
   const { subsystem, ready, call } = useCustomSubsystem(
     WATCHDOG_SUBSYSTEM_IDENTIFIER,
     CODEC,
+    { unlockGate: false },
   );
   const [source, setSource] = useState(0);
   const [status, setStatus] = useState<StatusResponse | null>(null);

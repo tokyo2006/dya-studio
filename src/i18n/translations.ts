@@ -10,6 +10,8 @@ export const languageLabels: Record<Language, string> = {
 const ja: Record<string, string> = {
   "DYA Studio for DYA & ZMK Keyboards":
     "DYA & ZMK キーボードのための DYA Studio",
+  "The operation failed because the device is locked in ZMK Studio. Unlock the keyboard and try again.":
+    "デバイスが ZMK Studio ロック状態のため操作に失敗しました。キーボードのロックを解除してから再度お試しください。",
   Home: "ホーム",
   Keymap: "キーマップ",
   Macro: "マクロ",
@@ -506,12 +508,16 @@ const ja: Record<string, string> = {
   "● Unsaved": "● 未保存",
   "What Source means": "ソースの意味",
   "Source legend": "ソースの凡例",
-  "Local: the split side you are connected to.":
-    "Local: 現在接続している側（分割キーボードの片側）です。",
-  "Source N: another split side's own independently stored copy.":
-    "Source N: もう一方の側が個別に保持している設定値です。",
+  "Central: the split side you are connected to.":
+    "中央側: 現在接続している側（分割キーボードの片側）です。",
+  "Peripheral N: another split side's own independently stored copy.":
+    "周辺側 N: もう一方の側が個別に保持している設定値です。",
   "All: every split side at once, used for section-wide actions.":
     "All: 両側をまとめて扱う値で、セクション単位の操作に使われます。",
+  "Saving…": "書き込み中…",
+  "Default:": "デフォルト:",
+  "Click to restore the default value.":
+    "クリックするとデフォルト値に戻します。",
   "What Status means": "状態の意味",
   "Status legend": "状態の凡例",
   "Current: matches the value persisted on the keyboard.":

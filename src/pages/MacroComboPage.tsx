@@ -6,7 +6,7 @@
  * global settings, or an empty placeholder. A single top action bar refreshes,
  * saves and discards both domains at once.
  */
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useState } from "react";
 import {
   IconAlertCircle,
   IconAlertTriangle,
@@ -23,8 +23,8 @@ import { ConnectionContext } from "../components/DeviceConnection";
 import { KeyboardLayoutContext } from "../contexts/KeyboardLayoutContext";
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import { StatusDot } from "../components/EditStatusIndicator";
-import { UnlockPrompt } from "../components/UnlockPrompt";
 import { useStudioLockState } from "@cormoran/zmk-studio-react-hook";
+import { useStudioUnlock } from "../hooks/useStudioUnlock";
 import { useKeymap, getKeymapLoadingLabel } from "../hooks/useKeymap";
 import { useLanguage } from "../hooks/useLanguage";
 import { useRuntimeCombo } from "../hooks/useRuntimeCombo";
@@ -60,10 +60,12 @@ export function MacroComboPage() {
   const keymap = useKeymap();
   const runtimeMacro = useRuntimeMacro();
   const runtimeCombo = useRuntimeCombo();
-  // Proactive lock state: prompt for unlock on edit intent and show a lock
-  // badge in place of Save/Discard, instead of letting the edit fail first.
+  // Proactive lock state: show a lock badge in place of Save/Discard when
+  // Studio is locked. Editing is guarded by the shared unlock gate below.
   const { locked } = useStudioLockState();
-  const [showUnlockPrompt, setShowUnlockPrompt] = useState(false);
+  // Proactive unlock gate (opens the shared unlock modal); the reactive
+  // fail→modal→retry path is handled inside the feature hooks via runWithUnlock.
+  const { requireUnlock: requireUnlocked } = useStudioUnlock();
   const [rightView, setRightView] = useState<RightView>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isDiscarding, setIsDiscarding] = useState(false);
@@ -74,16 +76,6 @@ export function MacroComboPage() {
   const anyLoading = runtimeMacro.isLoading || runtimeCombo.isLoading;
   const hasPendingChanges =
     runtimeMacro.hasUnsavedChanges || runtimeCombo.hasPendingChanges;
-
-  // Guard an edit action: if Studio is locked, open the unlock prompt instead
-  // of performing the edit (and let the caller bail out).
-  const requireUnlocked = useCallback((): boolean => {
-    if (locked) {
-      setShowUnlockPrompt(true);
-      return false;
-    }
-    return true;
-  }, [locked]);
 
   const layersForSelector = useMemo(() => {
     if (!keymap.keymap?.layers) return [];
@@ -121,24 +113,13 @@ export function MacroComboPage() {
     onComboSelected,
   });
 
-  // listMacros RPC requires unlock, so we manage loading around lock state:
-  // - While locked: show the unlock modal and suppress the error from the
-  //   failed initial load attempt (the hooks fire their loads on mount before
-  //   we know the studio is locked).
-  // - On locked→unlocked transition: reload both domains so data appears
-  //   immediately without requiring the user to manually retry.
-  const prevLockedRef = useRef(locked);
+  // The macro/combo list RPCs require unlock. Proactively open the shared
+  // unlock modal whenever this tab is viewed while locked, so the user is
+  // prompted up front instead of only when an edit is attempted. The reactive
+  // gate additionally parks any failed load and auto-retries it once unlocked.
   useEffect(() => {
-    if (locked) {
-      setShowUnlockPrompt(true);
-      runtimeMacro.clearError();
-      runtimeCombo.clearError();
-    } else if (prevLockedRef.current) {
-      if (runtimeMacro.isAvailable) void runtimeMacro.loadMacros();
-      if (runtimeCombo.isAvailable) void runtimeCombo.reload();
-    }
-    prevLockedRef.current = locked;
-  }, [locked, runtimeMacro, runtimeCombo]);
+    if (locked) requireUnlocked();
+  }, [locked, requireUnlocked]);
 
   // --- Selection routing (exclusive across the two lists) ---
 
@@ -304,7 +285,7 @@ export function MacroComboPage() {
               {locked ? (
                 <button
                   type="button"
-                  onClick={() => setShowUnlockPrompt(true)}
+                  onClick={() => requireUnlocked()}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-[var(--color-warning)]/40 bg-[var(--color-warning)]/10 text-[var(--color-warning)] hover:bg-[var(--color-warning)]/20 transition-colors"
                   title={t("Studio is locked — click to unlock")}
                 >
@@ -397,21 +378,20 @@ export function MacroComboPage() {
           </div>
         )}
 
-        {firstError &&
-          !((showUnlockPrompt && locked) || keymap.unlockRequired) && (
-            <div className="glass-card p-4 mb-4 border-red-500/20 bg-red-500/10 flex items-center gap-3">
-              <IconAlertCircle size={20} className="text-red-400" />
-              <p className="text-sm text-red-400">{firstError}</p>
-              {runtimeCombo.error && (
-                <button
-                  className="ml-auto text-xs text-red-300 hover:text-red-200"
-                  onClick={runtimeCombo.clearError}
-                >
-                  {t("Dismiss")}
-                </button>
-              )}
-            </div>
-          )}
+        {firstError && (
+          <div className="glass-card p-4 mb-4 border-red-500/20 bg-red-500/10 flex items-center gap-3">
+            <IconAlertCircle size={20} className="text-red-400" />
+            <p className="text-sm text-red-400">{t(firstError)}</p>
+            {runtimeCombo.error && (
+              <button
+                className="ml-auto text-xs text-red-300 hover:text-red-200"
+                onClick={runtimeCombo.clearError}
+              >
+                {t("Dismiss")}
+              </button>
+            )}
+          </div>
+        )}
 
         {comboEditor.statusMessage && (
           <div className="glass-card p-3 mb-4 border-[var(--color-electric)]/20 bg-[var(--color-electric)]/10">
@@ -690,21 +670,6 @@ export function MacroComboPage() {
           </div>
         )}
       </div>
-
-      <UnlockPrompt
-        open={(showUnlockPrompt && locked) || keymap.unlockRequired}
-        onClose={() => {
-          setShowUnlockPrompt(false);
-          keymap.clearUnlockRequired();
-        }}
-        onRetry={() => {
-          setShowUnlockPrompt(false);
-          keymap.clearUnlockRequired();
-          keymap.loadKeymapData();
-          if (runtimeMacro.isAvailable) void runtimeMacro.loadMacros();
-          if (runtimeCombo.isAvailable) void runtimeCombo.reload();
-        }}
-      />
     </div>
   );
 }

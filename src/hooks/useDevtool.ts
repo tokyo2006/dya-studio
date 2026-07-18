@@ -12,9 +12,12 @@ const CODEC = {
 
 export function useDevtool() {
   const zmkApp = useContext(ZMKAppContext);
+  // Passive/background devtool subsystem: opt out of the unlock modal so it
+  // never pops on its own; lock-required just yields a no-op here.
   const { subsystem, ready, call } = useCustomSubsystem(
     DEVTOOL_SUBSYSTEM_IDENTIFIER,
     CODEC,
+    { unlockGate: false },
   );
 
   return {
