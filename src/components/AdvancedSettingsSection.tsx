@@ -295,17 +295,6 @@ function scalarToInputValue(setting: Setting): string {
   return "";
 }
 
-function formatValue(
-  setting: Setting,
-  t: (key: string, params?: Record<string, number | string>) => string,
-): string {
-  if (!setting.value) return t("(hidden)");
-  const arrayPrefix = setting.value.arrayValue
-    ? `[${setting.value.arrayValue.index + 1}/${setting.value.arrayValue.size}] `
-    : "";
-  return `${arrayPrefix}${scalarToInputValue(setting)}`;
-}
-
 function sourceLabel(
   source: number,
   t: (key: string, params?: Record<string, number | string>) => string,
@@ -774,11 +763,11 @@ function SettingEditor({
   );
 }
 
-// Shared between the header row and each SettingRow so columns line up.
-// Setting gets most of the room; Source is wide enough for "Peripheral N";
-// Editor holds the input plus the optional default-value hint below it.
+// Shared by each SettingRow so the name and editor columns line up. Source is
+// no longer a column (it is chosen once via the selector above the list), so
+// only two columns remain: the setting name and its editor.
 const SETTINGS_TABLE_GRID_COLS =
-  "md:grid-cols-[minmax(12rem,1.6fr)_7rem_minmax(12rem,1fr)]";
+  "md:grid-cols-[minmax(12rem,1.5fr)_minmax(12rem,1fr)]";
 
 // Transient write state shown next to the setting name (in place of the old
 // standalone Status column). Only rendered while a write is queued/in flight;
@@ -867,7 +856,6 @@ function SettingRow({
   behaviors,
   onWrite,
 }: SettingRowProps) {
-  const { t } = useLanguage();
   const [saveState, setSaveState] = useState<"idle" | "queued" | "saving">(
     "idle",
   );
@@ -926,19 +914,12 @@ function SettingRow({
           </p>
           <RowStatusIndicator saveState={saveState} editStatus={editStatus} />
         </div>
-        <p className="mt-1 truncate font-mono text-xs text-[var(--color-text-muted)]">
-          {formatValue(setting, t)}
-        </p>
         {description && (
           <p className="mt-1 text-[11px] leading-snug text-[var(--color-text-muted)]">
             {description}
           </p>
         )}
       </div>
-
-      <span className="text-xs text-[var(--color-text-muted)]">
-        {sourceLabel(setting.source, t)}
-      </span>
 
       <div className="min-w-0 space-y-1.5">
         <SettingEditor
@@ -1022,9 +1003,22 @@ export function CustomSettingsSectionCard({
   const hasModifiedFromDefault = section.settings.some(
     (setting) => setting.defaultValue !== undefined,
   );
-  const sortedSettings = [...section.settings].sort((a, b) =>
-    settingSortValue(a).localeCompare(settingSortValue(b)),
-  );
+
+  // The same setting can be reported by more than one split side (source);
+  // rather than listing every copy inline, the user picks one source and the
+  // list shows only that side's settings. Central (0) sorts first.
+  const availableSources = Array.from(
+    new Set(section.settings.map((setting) => setting.source)),
+  ).sort((a, b) => sourceSortValue(a) - sourceSortValue(b));
+  const [selectedSource, setSelectedSource] = useState<number | null>(null);
+  const activeSource =
+    selectedSource !== null && availableSources.includes(selectedSource)
+      ? selectedSource
+      : availableSources[0];
+
+  const sortedSettings = [...section.settings]
+    .filter((setting) => setting.source === activeSource)
+    .sort((a, b) => settingSortValue(a).localeCompare(settingSortValue(b)));
 
   const isPmw3610 = section.identifier === PMW3610_CUSTOM_SETTINGS_IDENTIFIER;
   const groups = isPmw3610
@@ -1134,12 +1128,30 @@ export function CustomSettingsSectionCard({
 
       {isExpanded && (
         <div className="px-4 pb-2">
-          <div
-            className={`hidden gap-3 py-3 text-xs font-medium uppercase text-[var(--color-text-muted)] md:grid ${SETTINGS_TABLE_GRID_COLS}`}
-          >
-            <span>{t("Setting")}</span>
-            <span className="flex items-center gap-1">
-              {t("Source")}
+          {availableSources.length > 1 && (
+            <div className="flex flex-wrap items-center gap-2 py-3">
+              <span className="text-[11px] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">
+                {t("Source")}
+              </span>
+              <div className="inline-flex rounded-md border border-[var(--color-border)] p-0.5">
+                {availableSources.map((source) => {
+                  const isActive = source === activeSource;
+                  return (
+                    <button
+                      key={source}
+                      type="button"
+                      onClick={() => setSelectedSource(source)}
+                      className={`rounded px-2 py-0.5 text-xs transition-colors ${
+                        isActive
+                          ? "bg-[var(--color-electric)]/20 text-[var(--color-electric)]"
+                          : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+                      }`}
+                    >
+                      {sourceLabel(source, t)}
+                    </button>
+                  );
+                })}
+              </div>
               <InfoTooltip label={t("What Source means")}>
                 <div className="mb-1 font-semibold text-[var(--color-electric)]">
                   {t("Source legend")}
@@ -1151,47 +1163,45 @@ export function CustomSettingsSectionCard({
                       "Peripheral N: another split side's own independently stored copy.",
                     )}
                   </li>
-                  <li>
-                    {t(
-                      "All: every split side at once, used for section-wide actions.",
-                    )}
-                  </li>
                 </ul>
               </InfoTooltip>
-            </span>
-            <span>{t("Editor")}</span>
-          </div>
+            </div>
+          )}
 
           {groups?.map((group) => (
-            <div key={group.title}>
-              <div className="pt-3 pb-1">
-                <h5 className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
+            <div key={group.title} className="mt-4 first:mt-2">
+              <div className="pb-1">
+                <h5 className="text-xs font-semibold uppercase tracking-wide text-[var(--color-electric)]">
                   {t(group.title)}
                 </h5>
                 <p className="text-[11px] text-[var(--color-text-muted)]">
                   {t(group.description)}
                 </p>
               </div>
-              <SettingRowList
-                settings={group.settings}
-                layers={layers}
-                behaviors={behaviors}
-                customSettings={customSettings}
-                describeField={(field) => {
-                  const description = PMW3610_FIELD_DESCRIPTIONS[field];
-                  return description ? t(description) : undefined;
-                }}
-              />
+              <div className="border-l-2 border-[var(--color-border)] pl-4">
+                <SettingRowList
+                  settings={group.settings}
+                  layers={layers}
+                  behaviors={behaviors}
+                  customSettings={customSettings}
+                  describeField={(field) => {
+                    const description = PMW3610_FIELD_DESCRIPTIONS[field];
+                    return description ? t(description) : undefined;
+                  }}
+                />
+              </div>
             </div>
           ))}
 
           {ungroupedSettings.length > 0 && (
-            <SettingRowList
-              settings={ungroupedSettings}
-              layers={layers}
-              behaviors={behaviors}
-              customSettings={customSettings}
-            />
+            <div className={groups ? "mt-4" : ""}>
+              <SettingRowList
+                settings={ungroupedSettings}
+                layers={layers}
+                behaviors={behaviors}
+                customSettings={customSettings}
+              />
+            </div>
           )}
         </div>
       )}
