@@ -316,10 +316,17 @@ export function HomePage() {
               <p className="text-sm text-[var(--color-text-muted)]">
                 {language === "ja" ? (
                   <>
-                    A: 現時点ではできません。DYA Studio
-                    は、強くカスタマイズされた zmk-fork
-                    への依存を避けるため、現在クローズドソースです。フィードバックや機能要望がある場合は、X
-                    で{" "}
+                    A: はい、DYA Studio
+                    はオープンソースになりました。ソースコードは{" "}
+                    <a
+                      href="https://github.com/cormoran/dya-studio"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline text-[var(--color-electric)] hover:text-[var(--color-neon)] transition-colors mx-1"
+                    >
+                      GitHub
+                    </a>{" "}
+                    で公開しています。フィードバックや機能要望がある場合は、X で{" "}
                     <a
                       href="https://x.com/intent/tweet?hashtags=dya_studio"
                       target="_blank"
@@ -332,10 +339,18 @@ export function HomePage() {
                   </>
                 ) : (
                   <>
-                    A: No, for now. DYA Studio is currently closed source to
-                    avoid people relying on my heavily customized zmk-fork. If
-                    you have feedback or feature request, please complaint on X
-                    with{" "}
+                    A: Yes, DYA Studio is now open source. You can find the
+                    source code on{" "}
+                    <a
+                      href="https://github.com/cormoran/dya-studio"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline text-[var(--color-electric)] hover:text-[var(--color-neon)] transition-colors mx-1"
+                    >
+                      GitHub
+                    </a>
+                    . If you have feedback or feature request, please complaint
+                    on X with{" "}
                     <a
                       href="https://x.com/intent/tweet?hashtags=dya_studio"
                       target="_blank"
@@ -354,7 +369,9 @@ export function HomePage() {
                 {t("Q: Are there plan to migrate the ZMK fork to ZMK v0.4.0?")}
               </p>
               <p className="text-sm text-[var(--color-text-muted)]">
-                {t("A: Yes, I'm willing but not soon...")}
+                {t(
+                  "A: Yes, it's already done. The ZMK fork now tracks recent ZMK (Zephyr 4.x).",
+                )}
               </p>
             </div>
           </div>

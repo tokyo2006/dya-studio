@@ -88,12 +88,10 @@ const ja: Record<string, string> = {
     "警告: cormoran の ZMK fork は非常に実験的で、DYA キーボード向けに最適化されています。不安定な変更や破壊的変更を含む可能性があります。自己責任で使用してください。まれにキーボードハードウェアの誤動作や損傷につながる場合があります。",
   "Q: Can I get source code of DYA Studio?":
     "Q: DYA Studio のソースコードを入手できますか？",
-  "A: No, for now. DYA Studio is currently closed source to avoid people relying on my heavily customized zmk-fork. If you have feedback or feature request, please complaint on X with #dya_studio hashtag.":
-    "A: 現時点ではできません。DYA Studio は、強くカスタマイズされた zmk-fork への依存を避けるため、現在クローズドソースです。フィードバックや機能要望がある場合は、X で #dya_studio ハッシュタグを付けて投稿してください。",
   "Q: Are there plan to migrate the ZMK fork to ZMK v0.4.0?":
     "Q: ZMK fork を ZMK v0.4.0 へ移行する予定はありますか？",
-  "A: Yes, I'm willing but not soon...":
-    "A: はい、やる気はありますが、すぐではありません...",
+  "A: Yes, it's already done. The ZMK fork now tracks recent ZMK (Zephyr 4.x).":
+    "A: はい、すでに移行済みです。ZMK fork は最新の ZMK（Zephyr 4.x）に追従しています。",
 
   "Configure key bindings and layers": "キー割り当てとレイヤーを設定します",
   "Unsaved changes": "未保存の変更",
