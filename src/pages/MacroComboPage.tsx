@@ -6,7 +6,7 @@
  * global settings, or an empty placeholder. A single top action bar refreshes,
  * saves and discards both domains at once.
  */
-import { useCallback, useContext, useState } from "react";
+import { useCallback, useContext, useEffect, useState } from "react";
 import {
   IconAlertCircle,
   IconAlertTriangle,
@@ -113,9 +113,13 @@ export function MacroComboPage() {
     onComboSelected,
   });
 
-  // The macro/combo list RPCs require unlock: the hooks fire their loads on
-  // mount, and while locked those calls are parked by the shared unlock gate,
-  // which opens the modal and auto-retries the load once the user unlocks.
+  // The macro/combo list RPCs require unlock. Proactively open the shared
+  // unlock modal whenever this tab is viewed while locked, so the user is
+  // prompted up front instead of only when an edit is attempted. The reactive
+  // gate additionally parks any failed load and auto-retries it once unlocked.
+  useEffect(() => {
+    if (locked) requireUnlocked();
+  }, [locked, requireUnlocked]);
 
   // --- Selection routing (exclusive across the two lists) ---
 

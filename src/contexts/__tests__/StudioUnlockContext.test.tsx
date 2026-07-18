@@ -1,4 +1,5 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
+import { useEffect } from "react";
 import userEvent from "@testing-library/user-event";
 import { MetaError } from "@zmkfirmware/zmk-studio-ts-client";
 import { ErrorConditions } from "@zmkfirmware/zmk-studio-ts-client/meta";
@@ -80,6 +81,46 @@ describe("StudioUnlockProvider", () => {
 
     // Still exactly one identity after the provider re-rendered to open the modal.
     expect(runWithUnlockRefs.size).toBe(1);
+  });
+
+  it("opens the modal proactively via requireUnlock while locked (Macro&Combo tab pattern)", async () => {
+    // Mirrors MacroComboPage: a tab whose data needs unlock proactively opens
+    // the modal on mount when the device is locked (mockLockState="locked").
+    function ProactiveGate() {
+      const { requireUnlock } = useStudioUnlock();
+      useEffect(() => {
+        requireUnlock();
+      }, [requireUnlock]);
+      return null;
+    }
+
+    render(
+      <StudioUnlockProvider>
+        <ProactiveGate />
+      </StudioUnlockProvider>,
+    );
+
+    await screen.findByText("Keyboard Unlock Required");
+  });
+
+  it("requireUnlock does not open the modal when unlocked", async () => {
+    mockLockState = "unlocked";
+    function Gate() {
+      const { requireUnlock } = useStudioUnlock();
+      return (
+        <button onClick={() => requireUnlock()}>gate</button>
+      );
+    }
+
+    render(
+      <StudioUnlockProvider>
+        <Gate />
+      </StudioUnlockProvider>,
+    );
+    await userEvent.click(screen.getByText("gate"));
+    expect(
+      screen.queryByText("Keyboard Unlock Required"),
+    ).not.toBeInTheDocument();
   });
 
   it("resolves immediately when the request succeeds (no modal)", async () => {
