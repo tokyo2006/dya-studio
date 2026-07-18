@@ -124,9 +124,17 @@ export function useMacroEditor({
   const selectedStep =
     editingStepIndex !== null ? loadedMacro?.steps[editingStepIndex] : null;
 
+  // Depend on the stable `getMacro` callback, NOT the whole `runtimeMacro`
+  // object. `runtimeMacro` is a fresh object every render, so depending on it
+  // gave `loadMacro` a new identity each render, which re-fired the auto-select
+  // effect below on every render. While locked that effect issues `getMacro`,
+  // whose isLoading toggle re-renders, which re-fires the effect again -- an
+  // infinite macro-load loop while the unlock modal is open. `getMacro` is
+  // stable (its RPC chain is memoized), so this keeps `loadMacro` stable too.
+  const getMacro = runtimeMacro.getMacro;
   const loadMacro = useCallback(
     async (slot: number) => {
-      const macro = await runtimeMacro.getMacro(slot);
+      const macro = await getMacro(slot);
       if (macro) {
         setSelectedName(macro.name);
         setLoadedMacro(macro);
@@ -135,7 +143,7 @@ export function useMacroEditor({
         setStringConversionError(null);
       }
     },
-    [runtimeMacro],
+    [getMacro],
   );
 
   /** Explicit list-click selection: highlight immediately, then load. */
