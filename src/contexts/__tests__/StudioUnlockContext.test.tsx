@@ -25,12 +25,14 @@ const unlockError = () => new MetaError(ErrorConditions.UNLOCK_REQUIRED);
  */
 function Harness({
   fn,
-  onResolve,
-  onReject,
+  onResolve = jest.fn(),
+  onReject = jest.fn(),
+  label = "run",
 }: {
   fn: () => Promise<unknown>;
-  onResolve: (value: unknown) => void;
-  onReject: (reason: unknown) => void;
+  onResolve?: (value: unknown) => void;
+  onReject?: (reason: unknown) => void;
+  label?: string;
 }) {
   const { runWithUnlock } = useStudioUnlock();
   return (
@@ -39,7 +41,7 @@ function Harness({
         runWithUnlock(fn).then(onResolve, onReject);
       }}
     >
-      run
+      {label}
     </button>
   );
 }
@@ -178,5 +180,116 @@ describe("StudioUnlockProvider", () => {
     );
 
     await waitFor(() => expect(onResolve).toHaveBeenCalledWith({ ok: true }));
+  });
+
+  describe("cancel cooldown", () => {
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    it("auto-cancels a follow-up unlock request within the cooldown (no modal)", async () => {
+      const onReject1 = jest.fn();
+      const onReject2 = jest.fn();
+      const fn1 = jest.fn().mockRejectedValue(unlockError());
+      const fn2 = jest.fn().mockRejectedValue(unlockError());
+
+      render(
+        <StudioUnlockProvider>
+          <Harness fn={fn1} onReject={onReject1} label="run1" />
+          <Harness fn={fn2} onReject={onReject2} label="run2" />
+        </StudioUnlockProvider>,
+      );
+
+      // First request opens the modal; the user cancels it.
+      await userEvent.click(screen.getByText("run1"));
+      await screen.findByText("Keyboard Unlock Required");
+      await userEvent.click(screen.getByRole("button", { name: /Cancel/i }));
+      await waitFor(() =>
+        expect(onReject1).toHaveBeenCalledWith(
+          expect.any(StudioUnlockCancelledError),
+        ),
+      );
+
+      // A follow-up unlock request within the cooldown is auto-cancelled: it
+      // rejects with StudioUnlockCancelledError and the modal stays closed.
+      await userEvent.click(screen.getByText("run2"));
+      await waitFor(() =>
+        expect(onReject2).toHaveBeenCalledWith(
+          expect.any(StudioUnlockCancelledError),
+        ),
+      );
+      expect(
+        screen.queryByText("Keyboard Unlock Required"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("re-opens the modal once the cooldown has elapsed", async () => {
+      const nowSpy = jest.spyOn(Date, "now").mockReturnValue(1_000);
+      const fn1 = jest.fn().mockRejectedValue(unlockError());
+      const fn2 = jest.fn().mockRejectedValue(unlockError());
+
+      render(
+        <StudioUnlockProvider>
+          <Harness fn={fn1} label="run1" />
+          <Harness fn={fn2} label="run2" />
+        </StudioUnlockProvider>,
+      );
+
+      await userEvent.click(screen.getByText("run1"));
+      await screen.findByText("Keyboard Unlock Required");
+      await userEvent.click(screen.getByRole("button", { name: /Cancel/i }));
+      await waitFor(() =>
+        expect(
+          screen.queryByText("Keyboard Unlock Required"),
+        ).not.toBeInTheDocument(),
+      );
+
+      // Advance well past the cooldown window, then a new unlock request should
+      // open the modal again.
+      nowSpy.mockReturnValue(1_000 + 11_000);
+      await userEvent.click(screen.getByText("run2"));
+      await screen.findByText("Keyboard Unlock Required");
+    });
+
+    it("clears the cooldown when the device is unlocked", async () => {
+      const fn1 = jest.fn().mockRejectedValue(unlockError());
+      const fn2 = jest.fn().mockRejectedValue(unlockError());
+
+      const { rerender } = render(
+        <StudioUnlockProvider>
+          <Harness fn={fn1} label="run1" />
+          <Harness fn={fn2} label="run2" />
+        </StudioUnlockProvider>,
+      );
+
+      await userEvent.click(screen.getByText("run1"));
+      await screen.findByText("Keyboard Unlock Required");
+      await userEvent.click(screen.getByRole("button", { name: /Cancel/i }));
+      await waitFor(() =>
+        expect(
+          screen.queryByText("Keyboard Unlock Required"),
+        ).not.toBeInTheDocument(),
+      );
+
+      // An actual unlock supersedes the recent cancel and clears the cooldown.
+      act(() => setLockState("unlocked"));
+      rerender(
+        <StudioUnlockProvider>
+          <Harness fn={fn1} label="run1" />
+          <Harness fn={fn2} label="run2" />
+        </StudioUnlockProvider>,
+      );
+      act(() => setLockState("locked"));
+      rerender(
+        <StudioUnlockProvider>
+          <Harness fn={fn1} label="run1" />
+          <Harness fn={fn2} label="run2" />
+        </StudioUnlockProvider>,
+      );
+
+      // The next unlock request opens the modal again (cooldown was cleared).
+      await userEvent.click(screen.getByText("run2"));
+      await screen.findByText("Keyboard Unlock Required");
+    });
   });
 });

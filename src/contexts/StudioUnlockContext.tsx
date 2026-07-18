@@ -12,6 +12,12 @@
  * `requireUnlock` is the proactive counterpart used by editor pages: it opens
  * the same modal *before* sending a doomed request when Studio is already known
  * to be locked.
+ *
+ * Cancel cooldown: after the user dismisses the modal, a further unlock error
+ * within {@link CANCEL_COOLDOWN_MS} is auto-cancelled (no modal), and each such
+ * suppressed request slides the window forward. This keeps a burst of follow-up
+ * requests — e.g. a load that fans out into several RPCs — from immediately
+ * re-popping the modal the user just closed. An actual unlock clears it.
  */
 import type { ReactNode } from "react";
 import { createContext, useEffect, useRef, useState } from "react";
@@ -45,6 +51,9 @@ export interface StudioUnlockContextValue {
   requireUnlock: () => boolean;
 }
 
+/** How long after a Cancel to auto-suppress the unlock modal (see file doc). */
+export const CANCEL_COOLDOWN_MS = 10_000;
+
 // Default (no provider): a transparent passthrough so hooks that call device
 // RPCs still work when rendered outside the provider (e.g. isolated unit
 // tests) — they simply don't get the unlock modal. The real gate is supplied
@@ -62,6 +71,9 @@ export function StudioUnlockProvider({ children }: { children: ReactNode }) {
   const parkedRef = useRef<ParkedOp[]>([]);
   // True when the proactive gate opened the modal without a parked op.
   const proactiveOpenRef = useRef(false);
+  // Epoch-ms of the last Cancel (or last cooldown-suppressed request); null once
+  // there's no active cooldown. Drives the cancel cooldown (see file doc).
+  const lastCancelAtRef = useRef<number | null>(null);
 
   const [isOpen, setIsOpen] = useState(false);
 
@@ -96,6 +108,7 @@ export function StudioUnlockProvider({ children }: { children: ReactNode }) {
   };
 
   const cancel = () => {
+    lastCancelAtRef.current = Date.now();
     const ops = parkedRef.current;
     parkedRef.current = [];
     proactiveOpenRef.current = false;
@@ -105,13 +118,14 @@ export function StudioUnlockProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Auto-retry the moment the device reports it's unlocked.
+  // On unlock: clear the cancel cooldown (a real unlock supersedes any recent
+  // dismissal) and auto-retry any parked requests.
   useEffect(() => {
-    if (
-      lockState === "unlocked" &&
-      (parkedRef.current.length > 0 || proactiveOpenRef.current)
-    ) {
-      void retryAll();
+    if (lockState === "unlocked") {
+      lastCancelAtRef.current = null;
+      if (parkedRef.current.length > 0 || proactiveOpenRef.current) {
+        void retryAll();
+      }
     }
     // retryAll reads only refs; re-run solely on lock-state transitions.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -131,6 +145,15 @@ export function StudioUnlockProvider({ children }: { children: ReactNode }) {
     return attempt().catch((err) => {
       if (!isStudioUnlockError(err)) {
         throw err;
+      }
+      // Cancel cooldown: if the modal was dismissed recently, auto-cancel this
+      // request instead of re-opening the modal, and slide the window forward
+      // so an ongoing burst stays suppressed until it quiets for the interval.
+      const now = Date.now();
+      const lastCancel = lastCancelAtRef.current;
+      if (lastCancel !== null && now - lastCancel <= CANCEL_COOLDOWN_MS) {
+        lastCancelAtRef.current = now;
+        throw new StudioUnlockCancelledError();
       }
       return new Promise<T>((resolve, reject) => {
         parkedRef.current.push({
