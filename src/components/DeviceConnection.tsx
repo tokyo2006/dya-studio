@@ -22,6 +22,11 @@ import {
   resolveCustomSubsystemIdentifier,
   withLoggedNotifications,
 } from "../lib/rpcLogging";
+import {
+  trackKeyboardConnected,
+  trackConnectFailed,
+  classifyConnectError,
+} from "../lib/analytics";
 
 export type ConnectionMethod = "serial" | "ble" | "demo";
 
@@ -112,6 +117,45 @@ export function DeviceConnectionProvider({
   // Bridges the cancel button (outside the effect) to the in-flight attempt.
   const cancelReconnectRef = useRef<() => void>(() => {});
 
+  // Method of the connection attempt currently in flight, used to attribute the
+  // success/failure analytics event. Cleared once its outcome is reported so a
+  // single attempt is never counted twice (whether the failure surfaces as a
+  // thrown error or via `zmkApp.state.error`).
+  const attemptedMethodRef = useRef<ConnectionMethod | null>(null);
+  // Whether the current connected session's `keyboard_connected` event already
+  // fired, so a later device-info refresh doesn't re-report it.
+  const connectedTrackedRef = useRef(false);
+
+  const reportConnectFailed = useCallback((error: unknown) => {
+    const method = attemptedMethodRef.current;
+    if (!method) return;
+    attemptedMethodRef.current = null;
+    trackConnectFailed(method, classifyConnectError(error));
+  }, []);
+
+  // Report connection outcomes exactly once per attempt. Reading them from
+  // committed state (rather than only from the connect() promise) covers the
+  // case where the library surfaces errors via `state.error` instead of
+  // throwing.
+  useEffect(() => {
+    const name = zmkApp.state.deviceInfo?.name;
+    if (zmkApp.isConnected && name && !connectedTrackedRef.current) {
+      connectedTrackedRef.current = true;
+      // Auto-reconnect is always over paired serial and leaves the ref unset.
+      trackKeyboardConnected(attemptedMethodRef.current ?? "serial", name);
+      attemptedMethodRef.current = null;
+    }
+    if (!zmkApp.isConnected) {
+      connectedTrackedRef.current = false;
+    }
+  }, [zmkApp.isConnected, zmkApp.state.deviceInfo?.name]);
+
+  useEffect(() => {
+    if (zmkApp.state.error) {
+      reportConnectFailed(zmkApp.state.error);
+    }
+  }, [zmkApp.state.error, reportConnectFailed]);
+
   useEffect(() => {
     if (autoReconnectAttemptedRef.current) return;
     autoReconnectAttemptedRef.current = true;
@@ -187,9 +231,18 @@ export function DeviceConnectionProvider({
       } else {
         connectFn = connectUSB;
       }
-      await zmkApp.connect(connectFn);
+      attemptedMethodRef.current = method;
+      try {
+        await zmkApp.connect(connectFn);
+      } catch (error) {
+        // Covers errors thrown before the library commits them to `state.error`
+        // (e.g. the user dismissing the browser device picker). `reportConnectFailed`
+        // dedupes against the `state.error` effect so the attempt counts once.
+        reportConnectFailed(error);
+        throw error;
+      }
     },
-    [zmkApp],
+    [zmkApp, reportConnectFailed],
   );
 
   const handleDisconnect = useCallback(() => {

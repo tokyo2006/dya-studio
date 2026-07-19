@@ -36,6 +36,7 @@ import { useLanguage } from "./hooks/useLanguage";
 import { useUrlTab, pathnameFromTabId } from "./hooks/useUrlTab";
 import { useDevtool } from "./hooks/useDevtool";
 import { DevtoolWindow } from "./components/DevtoolWindow";
+import { trackPageView } from "./lib/analytics";
 
 function getTabs(t: (key: string) => string): TabItem[] {
   return [
@@ -124,24 +125,17 @@ function AppContent() {
 
   const setActiveTabWithTracking = useCallback(
     (tabId: string) => {
-      // Google Analytics pageview tracking
-      if (window.gtag) {
-        window.gtag("event", "page_view", {
-          page_title: tabs.find((tab) => tab.id === tabId)?.label || "Unknown",
-          page_path: pathnameFromTabId(tabId),
-        });
-      }
+      // Google Analytics pageview tracking. The keyboard_connected /
+      // keyboard_connect_failed events live in DeviceConnection, where the
+      // connection method is known.
+      trackPageView(
+        tabs.find((tab) => tab.id === tabId)?.label || "Unknown",
+        pathnameFromTabId(tabId),
+      );
       navigateToTab(tabId);
     },
     [navigateToTab, tabs],
   );
-  useEffect(() => {
-    if (connection.deviceName && window.gtag) {
-      window.gtag("event", "keyboard_connected", {
-        name: connection.deviceName,
-      });
-    }
-  }, [connection.deviceName]);
 
   return (
     <>
