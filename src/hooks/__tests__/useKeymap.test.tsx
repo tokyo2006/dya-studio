@@ -255,6 +255,61 @@ describe("useKeymap", () => {
     });
   });
 
+  describe("Layer restoration", () => {
+    // Regression: after reconnecting, a layer that was removed and saved in an
+    // earlier session must still be restorable. removedLayerIds is derived from
+    // device state (the fixed layer pool `activeLayers + availableLayers` minus
+    // the active ids) rather than from in-session tracking, which is cleared on
+    // disconnect. Here the device reports 2 active layers (ids 0,1) with
+    // availableLayers=4 — i.e. a 6-slot pool with ids 2..5 removed — so those
+    // four ids must surface as restorable straight after a fresh load.
+    it("derives restorable layer ids from device state on load", async () => {
+      const mockConnection = { label: "test" };
+      const zmkApp = {
+        state: { connection: mockConnection },
+        onNotification: jest.fn(() => jest.fn()),
+      };
+
+      mockCallRpc.mockImplementation(async (_conn, req) => {
+        if (req.keymap?.getPhysicalLayouts) {
+          return {
+            keymap: { getPhysicalLayouts: mockPhysicalLayouts },
+          } as never;
+        }
+        if (req.keymap?.getKeymap) {
+          return { keymap: { getKeymap: mockKeymap } } as never;
+        }
+        if (req.behaviors?.listAllBehaviors) {
+          return {
+            behaviors: { listAllBehaviors: { behaviors: mockBehaviors } },
+          } as never;
+        }
+        if (req.behaviors?.getBehaviorDetails) {
+          const id = req.behaviors.getBehaviorDetails.behaviorId;
+          return {
+            behaviors: { getBehaviorDetails: mockBehaviorDetails[id] },
+          } as never;
+        }
+        if (req.keymap?.checkUnsavedChanges) {
+          return { keymap: { checkUnsavedChanges: false } } as never;
+        }
+        return {} as never;
+      });
+
+      const { result } = renderHook(() => useKeymap(), {
+        wrapper: createWrapper(zmkApp),
+      });
+
+      await waitFor(() => {
+        expect(result.current.keymap).not.toBeNull();
+      });
+
+      // mockKeymap: active ids [0,1], availableLayers 4 -> pool of 6, ids 2..5
+      // are removed and restorable.
+      expect(result.current.removedLayerIds).toEqual([2, 3, 4, 5]);
+    });
+  });
+
   describe("Binding Operations", () => {
     it("should check if binding is modified correctly", async () => {
       const mockConnection = { label: "test" };
