@@ -74,6 +74,9 @@ export function KeymapPage() {
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [showRenameDialog, setShowRenameDialog] = useState(false);
+  // Popup listing the device's deleted (restorable) layers, opened from the
+  // restore button in the layer toolbar.
+  const [showRestoreMenu, setShowRestoreMenu] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const [isRenaming, setIsRenaming] = useState(false);
   const renameInputRef = useRef<HTMLInputElement>(null);
@@ -270,17 +273,19 @@ export function KeymapPage() {
     [selectedLayerIndex, keymap, t, withUnlock],
   );
 
-  // Handle restore of a single deleted layer (click its ghost chip). Restores
-  // the chosen layer id at the end of the layer list and selects it.
+  // Handle restore of a single deleted layer (picked from the restore popup).
+  // Restores the chosen layer id at the end of the layer list and selects it.
   const handleRestoreLayer = useCallback(
-    (layerId: number) =>
+    (layerId: number) => {
+      setShowRestoreMenu(false);
       withUnlock(async () => {
         const atIndex = keymap.keymap?.layers.length ?? 0;
         const layer = await keymap.restoreLayer(layerId, atIndex);
         if (layer) {
           setSelectedLayerIndex(atIndex);
         }
-      }),
+      });
+    },
     [keymap, withUnlock],
   );
 
@@ -288,20 +293,19 @@ export function KeymapPage() {
   // each to the end. removedLayerIds is snapshotted first since it shrinks as
   // each restore completes, and atIndex is advanced manually (the closure's
   // keymap.layers length is the render snapshot, so it doesn't grow mid-loop).
-  const handleRestoreAllLayers = useCallback(
-    () =>
-      withUnlock(async () => {
-        const ids = [...keymap.removedLayerIds];
-        if (ids.length === 0) return;
-        let atIndex = keymap.keymap?.layers.length ?? 0;
-        for (const layerId of ids) {
-          const layer = await keymap.restoreLayer(layerId, atIndex);
-          if (layer) atIndex += 1;
-        }
-        if (atIndex > 0) setSelectedLayerIndex(atIndex - 1);
-      }),
-    [keymap, withUnlock],
-  );
+  const handleRestoreAllLayers = useCallback(() => {
+    setShowRestoreMenu(false);
+    withUnlock(async () => {
+      const ids = [...keymap.removedLayerIds];
+      if (ids.length === 0) return;
+      let atIndex = keymap.keymap?.layers.length ?? 0;
+      for (const layerId of ids) {
+        const layer = await keymap.restoreLayer(layerId, atIndex);
+        if (layer) atIndex += 1;
+      }
+      if (atIndex > 0) setSelectedLayerIndex(atIndex - 1);
+    });
+  }, [keymap, withUnlock]);
 
   // Handle open rename dialog
   const handleOpenRenameDialog = useCallback(
@@ -556,22 +560,6 @@ export function KeymapPage() {
                     {layer.name || t("Layer {{id}}", { id: index })}
                   </button>
                 ))}
-                {/* Deleted layers still held by the device: click a ghost chip
-                    to restore that specific layer (with its saved bindings). */}
-                {keymap.removedLayerIds.map((layerId) => (
-                  <button
-                    key={`removed-${layerId}`}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap border border-dashed border-[var(--color-border-hover)] text-[var(--color-text-muted)] hover:text-[var(--color-electric)] hover:border-[var(--color-electric)]/40 transition-colors"
-                    onClick={() => handleRestoreLayer(layerId)}
-                    title={t("Click to restore deleted layer")}
-                  >
-                    <IconRestore
-                      size={14}
-                      className="text-[var(--color-electric)]"
-                    />
-                    {t("Layer {{id}}", { id: layerId })}
-                  </button>
-                ))}
               </div>
 
               {/* Layer Management Buttons */}
@@ -715,36 +703,85 @@ export function KeymapPage() {
                     </Tooltip.Portal>
                   </Tooltip.Root>
 
-                  {/* Restore All Layers Button (individual restore is done by
-                      clicking a deleted-layer ghost chip in the tab row). */}
-                  <Tooltip.Root>
-                    <Tooltip.Trigger asChild>
-                      <button
-                        className="p-2 rounded-lg hover:bg-[var(--color-border)] disabled:opacity-30 disabled:cursor-not-allowed"
-                        onClick={handleRestoreAllLayers}
-                        disabled={keymap.removedLayerIds.length === 0}
-                        aria-label={t("Restore all deleted layers")}
-                      >
-                        <IconRestore
-                          size={16}
-                          className="text-[var(--color-electric)]"
+                  {/* Restore Layer Button — opens a popup listing the device's
+                      deleted (restorable) layers: a "restore all" action on top,
+                      then one row per deleted layer. */}
+                  <div className="relative">
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <button
+                          className="p-2 rounded-lg hover:bg-[var(--color-border)] disabled:opacity-30 disabled:cursor-not-allowed"
+                          onClick={() => setShowRestoreMenu((open) => !open)}
+                          disabled={keymap.removedLayerIds.length === 0}
+                          aria-label={t("Restore deleted layer")}
+                          aria-haspopup="menu"
+                          aria-expanded={showRestoreMenu}
+                        >
+                          <IconRestore
+                            size={16}
+                            className="text-[var(--color-electric)]"
+                          />
+                        </button>
+                      </Tooltip.Trigger>
+                      <Tooltip.Portal>
+                        <Tooltip.Content
+                          className="px-2 py-1 rounded bg-[var(--color-surface-elevated)] border border-[var(--color-border)] text-xs text-[var(--color-text-secondary)] shadow-lg z-50"
+                          sideOffset={5}
+                        >
+                          {keymap.removedLayerIds.length > 0
+                            ? t("Restore deleted layer ({{count}} available)", {
+                                count: keymap.removedLayerIds.length,
+                              })
+                            : t("No deleted layers to restore")}
+                          <Tooltip.Arrow className="fill-[var(--color-surface-elevated)]" />
+                        </Tooltip.Content>
+                      </Tooltip.Portal>
+                    </Tooltip.Root>
+
+                    {showRestoreMenu && keymap.removedLayerIds.length > 0 && (
+                      <>
+                        {/* Click-away backdrop */}
+                        <button
+                          type="button"
+                          aria-hidden="true"
+                          tabIndex={-1}
+                          className="fixed inset-0 z-40 cursor-default"
+                          onClick={() => setShowRestoreMenu(false)}
                         />
-                      </button>
-                    </Tooltip.Trigger>
-                    <Tooltip.Portal>
-                      <Tooltip.Content
-                        className="px-2 py-1 rounded bg-[var(--color-surface-elevated)] border border-[var(--color-border)] text-xs text-[var(--color-text-secondary)] shadow-lg z-50"
-                        sideOffset={5}
-                      >
-                        {keymap.removedLayerIds.length > 0
-                          ? t("Restore all deleted layers ({{count}})", {
+                        <div
+                          role="menu"
+                          aria-label={t("Restore deleted layer")}
+                          className="absolute right-0 top-full mt-1 z-50 min-w-[12rem] max-h-64 overflow-y-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-elevated)] shadow-xl py-1"
+                        >
+                          <button
+                            role="menuitem"
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium text-left text-[var(--color-electric)] hover:bg-[var(--color-border)]"
+                            onClick={handleRestoreAllLayers}
+                          >
+                            <IconRestore size={14} />
+                            {t("Restore all deleted layers ({{count}})", {
                               count: keymap.removedLayerIds.length,
-                            })
-                          : t("No deleted layers to restore")}
-                        <Tooltip.Arrow className="fill-[var(--color-surface-elevated)]" />
-                      </Tooltip.Content>
-                    </Tooltip.Portal>
-                  </Tooltip.Root>
+                            })}
+                          </button>
+                          <div className="my-1 border-t border-[var(--color-border)]" />
+                          {keymap.removedLayerIds.map((layerId) => (
+                            <button
+                              key={`restore-${layerId}`}
+                              role="menuitem"
+                              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-[var(--color-text-secondary)] hover:bg-[var(--color-border)] hover:text-[var(--color-text)]"
+                              onClick={() => handleRestoreLayer(layerId)}
+                            >
+                              <IconRestore
+                                size={14}
+                                className="text-[var(--color-text-muted)]"
+                              />
+                              {t("Layer {{id}}", { id: layerId })}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               </Tooltip.Provider>
             </div>

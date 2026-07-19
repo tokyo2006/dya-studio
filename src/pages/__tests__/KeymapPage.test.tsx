@@ -4,7 +4,7 @@
  * This test suite verifies the keymap editor UI,
  * including layer selection, key interaction, and save/discard operations.
  */
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { KeymapPage } from "../KeymapPage";
 import { ConnectionContext } from "../../components/DeviceConnection";
@@ -567,7 +567,7 @@ describe("KeymapPage", () => {
   });
 
   describe("Layer Restoration", () => {
-    it("renders a clickable ghost chip per deleted layer and restores that one", async () => {
+    it("opens a popup listing deleted layers and restores the chosen one", async () => {
       const user = userEvent.setup();
       const mockRestoreLayer = jest
         .fn()
@@ -583,19 +583,21 @@ describe("KeymapPage", () => {
         },
       );
 
-      // One chip per deleted layer, each labelled with its layer id.
-      const chips = screen.getAllByTitle("Click to restore deleted layer");
-      expect(chips).toHaveLength(2);
+      // The popup is closed until the restore button is clicked.
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+      await user.click(screen.getByLabelText("Restore deleted layer"));
 
-      // Clicking a specific chip restores exactly that id, at the end of the
-      // current layer list (2 active layers -> atIndex 2).
-      const chip3 = chips.find((el) => el.textContent?.includes("3"))!;
-      await user.click(chip3);
+      // Clicking a specific layer row restores exactly that id, appended to the
+      // end of the current layer list (2 active layers -> atIndex 2).
+      const menu = screen.getByRole("menu");
+      await user.click(within(menu).getByRole("menuitem", { name: /Layer 3/ }));
 
       expect(mockRestoreLayer).toHaveBeenCalledWith(3, 2);
+      // The popup closes after a selection.
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     });
 
-    it("restore-all button restores every deleted layer in id order", async () => {
+    it("restore-all row restores every deleted layer in id order", async () => {
       const user = userEvent.setup();
       const mockRestoreLayer = jest
         .fn()
@@ -611,14 +613,20 @@ describe("KeymapPage", () => {
         },
       );
 
-      await user.click(screen.getByLabelText("Restore all deleted layers"));
+      await user.click(screen.getByLabelText("Restore deleted layer"));
+      const menu = screen.getByRole("menu");
+      await user.click(
+        within(menu).getByRole("menuitem", {
+          name: /Restore all deleted layers/,
+        }),
+      );
 
       // Restored in id order, each appended (atIndex advances as they land).
       expect(mockRestoreLayer).toHaveBeenNthCalledWith(1, 2, 2);
       expect(mockRestoreLayer).toHaveBeenNthCalledWith(2, 3, 3);
     });
 
-    it("disables the restore-all button when there are no deleted layers", () => {
+    it("disables the restore button when there are no deleted layers", () => {
       renderComponent(
         { isConnected: true },
         {
@@ -629,12 +637,8 @@ describe("KeymapPage", () => {
         },
       );
 
-      expect(
-        screen.getByLabelText("Restore all deleted layers"),
-      ).toBeDisabled();
-      expect(
-        screen.queryByTitle("Click to restore deleted layer"),
-      ).not.toBeInTheDocument();
+      expect(screen.getByLabelText("Restore deleted layer")).toBeDisabled();
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     });
   });
 

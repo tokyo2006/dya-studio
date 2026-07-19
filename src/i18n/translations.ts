@@ -132,8 +132,9 @@ const ja: Record<string, string> = {
   "Move layer down (lower priority)": "レイヤーを下へ移動（優先度を下げる）",
   "Add new layer": "新しいレイヤーを追加",
   "Delete current layer": "現在のレイヤーを削除",
-  "Click to restore deleted layer": "クリックして削除したレイヤーを復元",
-  "Restore all deleted layers": "削除したレイヤーをすべて復元",
+  "Restore deleted layer": "削除したレイヤーを復元",
+  "Restore deleted layer ({{count}} available)":
+    "削除したレイヤーを復元（{{count}} 件利用可能）",
   "Restore all deleted layers ({{count}})":
     "削除したレイヤーをすべて復元（{{count}} 件）",
   "No deleted layers to restore": "復元できる削除済みレイヤーはありません",
