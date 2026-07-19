@@ -37,6 +37,11 @@ test("dya-studio (real app) talks to the real firmware in Renode over WebSerial"
     }
   });
 
+  // The splash screen animates continuously (framer-motion rings/opacity), which
+  // keeps the connect button from ever being "stable" for a normal click in CI.
+  // Reduce motion and force the click (the button is present and visible).
+  await page.emulateMedia({ reducedMotion: "reduce" });
+
   await page.goto("/");
 
   // 3) click the REAL "Connect via USB" button -> the app's ts-client serial
@@ -44,7 +49,7 @@ test("dya-studio (real app) talks to the real firmware in Renode over WebSerial"
   //    bridge -> Renode UART -> the real ZMK firmware.
   const usbButton = page.getByRole("button", { name: /Connect via USB/i });
   await expect(usbButton).toBeVisible();
-  await usbButton.click();
+  await usbButton.click({ force: true });
 
   // 4) PROOF of the end-to-end loop: the real firmware's GetDeviceInfo reply,
   //    which carries the device's own name, must arrive back in the browser's
