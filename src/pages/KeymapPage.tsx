@@ -270,22 +270,35 @@ export function KeymapPage() {
     [selectedLayerIndex, keymap, t, withUnlock],
   );
 
-  // Handle restore layer
+  // Handle restore of a single deleted layer (click its ghost chip). Restores
+  // the chosen layer id at the end of the layer list and selects it.
   const handleRestoreLayer = useCallback(
-    () =>
+    (layerId: number) =>
       withUnlock(async () => {
-        if (keymap.removedLayerIds.length === 0) return;
-
-        // Restore the most recently removed layer at the end
-        const layerId =
-          keymap.removedLayerIds[keymap.removedLayerIds.length - 1];
         const atIndex = keymap.keymap?.layers.length ?? 0;
-
         const layer = await keymap.restoreLayer(layerId, atIndex);
         if (layer) {
-          // Select the restored layer
           setSelectedLayerIndex(atIndex);
         }
+      }),
+    [keymap, withUnlock],
+  );
+
+  // Handle "restore all": restore every deleted layer in id order, appending
+  // each to the end. removedLayerIds is snapshotted first since it shrinks as
+  // each restore completes, and atIndex is advanced manually (the closure's
+  // keymap.layers length is the render snapshot, so it doesn't grow mid-loop).
+  const handleRestoreAllLayers = useCallback(
+    () =>
+      withUnlock(async () => {
+        const ids = [...keymap.removedLayerIds];
+        if (ids.length === 0) return;
+        let atIndex = keymap.keymap?.layers.length ?? 0;
+        for (const layerId of ids) {
+          const layer = await keymap.restoreLayer(layerId, atIndex);
+          if (layer) atIndex += 1;
+        }
+        if (atIndex > 0) setSelectedLayerIndex(atIndex - 1);
       }),
     [keymap, withUnlock],
   );
@@ -543,6 +556,22 @@ export function KeymapPage() {
                     {layer.name || t("Layer {{id}}", { id: index })}
                   </button>
                 ))}
+                {/* Deleted layers still held by the device: click a ghost chip
+                    to restore that specific layer (with its saved bindings). */}
+                {keymap.removedLayerIds.map((layerId) => (
+                  <button
+                    key={`removed-${layerId}`}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap border border-dashed border-[var(--color-border-hover)] text-[var(--color-text-muted)] hover:text-[var(--color-electric)] hover:border-[var(--color-electric)]/40 transition-colors"
+                    onClick={() => handleRestoreLayer(layerId)}
+                    title={t("Click to restore deleted layer")}
+                  >
+                    <IconRestore
+                      size={14}
+                      className="text-[var(--color-electric)]"
+                    />
+                    {t("Layer {{id}}", { id: layerId })}
+                  </button>
+                ))}
               </div>
 
               {/* Layer Management Buttons */}
@@ -686,14 +715,15 @@ export function KeymapPage() {
                     </Tooltip.Portal>
                   </Tooltip.Root>
 
-                  {/* Restore Layer Button */}
+                  {/* Restore All Layers Button (individual restore is done by
+                      clicking a deleted-layer ghost chip in the tab row). */}
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>
                       <button
                         className="p-2 rounded-lg hover:bg-[var(--color-border)] disabled:opacity-30 disabled:cursor-not-allowed"
-                        onClick={handleRestoreLayer}
+                        onClick={handleRestoreAllLayers}
                         disabled={keymap.removedLayerIds.length === 0}
-                        aria-label={t("Restore deleted layer")}
+                        aria-label={t("Restore all deleted layers")}
                       >
                         <IconRestore
                           size={16}
@@ -707,7 +737,7 @@ export function KeymapPage() {
                         sideOffset={5}
                       >
                         {keymap.removedLayerIds.length > 0
-                          ? t("Restore deleted layer ({{count}} available)", {
+                          ? t("Restore all deleted layers ({{count}})", {
                               count: keymap.removedLayerIds.length,
                             })
                           : t("No deleted layers to restore")}

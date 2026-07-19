@@ -566,6 +566,78 @@ describe("KeymapPage", () => {
     });
   });
 
+  describe("Layer Restoration", () => {
+    it("renders a clickable ghost chip per deleted layer and restores that one", async () => {
+      const user = userEvent.setup();
+      const mockRestoreLayer = jest
+        .fn()
+        .mockResolvedValue({ id: 3, name: "Sym", bindings: [] });
+      renderComponent(
+        { isConnected: true },
+        {
+          keymap: mockKeymap,
+          physicalLayouts: mockPhysicalLayouts,
+          behaviors: mockBehaviors,
+          removedLayerIds: [2, 3],
+          restoreLayer: mockRestoreLayer,
+        },
+      );
+
+      // One chip per deleted layer, each labelled with its layer id.
+      const chips = screen.getAllByTitle("Click to restore deleted layer");
+      expect(chips).toHaveLength(2);
+
+      // Clicking a specific chip restores exactly that id, at the end of the
+      // current layer list (2 active layers -> atIndex 2).
+      const chip3 = chips.find((el) => el.textContent?.includes("3"))!;
+      await user.click(chip3);
+
+      expect(mockRestoreLayer).toHaveBeenCalledWith(3, 2);
+    });
+
+    it("restore-all button restores every deleted layer in id order", async () => {
+      const user = userEvent.setup();
+      const mockRestoreLayer = jest
+        .fn()
+        .mockResolvedValue({ id: 0, name: "R", bindings: [] });
+      renderComponent(
+        { isConnected: true },
+        {
+          keymap: mockKeymap,
+          physicalLayouts: mockPhysicalLayouts,
+          behaviors: mockBehaviors,
+          removedLayerIds: [2, 3],
+          restoreLayer: mockRestoreLayer,
+        },
+      );
+
+      await user.click(screen.getByLabelText("Restore all deleted layers"));
+
+      // Restored in id order, each appended (atIndex advances as they land).
+      expect(mockRestoreLayer).toHaveBeenNthCalledWith(1, 2, 2);
+      expect(mockRestoreLayer).toHaveBeenNthCalledWith(2, 3, 3);
+    });
+
+    it("disables the restore-all button when there are no deleted layers", () => {
+      renderComponent(
+        { isConnected: true },
+        {
+          keymap: mockKeymap,
+          physicalLayouts: mockPhysicalLayouts,
+          behaviors: mockBehaviors,
+          removedLayerIds: [],
+        },
+      );
+
+      expect(
+        screen.getByLabelText("Restore all deleted layers"),
+      ).toBeDisabled();
+      expect(
+        screen.queryByTitle("Click to restore deleted layer"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
   describe("Unlock Prompt", () => {
     it("should not show unlock prompt by default (unlocked)", () => {
       renderComponent({ isConnected: true });
