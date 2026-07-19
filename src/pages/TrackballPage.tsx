@@ -17,6 +17,8 @@ import {
 } from "../components/AdvancedSettingsSection";
 import { StatusDot } from "../components/EditStatusIndicator";
 import { LoadingIndicator } from "../components/LoadingIndicator";
+import { DocTip } from "../components/DocTip";
+import { processorDoc, pmw3610Doc } from "../i18n/featureDocs";
 import { AxisSnapMode } from "../proto/zmk/runtime_input_processor/runtime_input_processor";
 import { useCustomSettings } from "../hooks/useCustomSettings";
 import { useDebouncedSave } from "../hooks/useDebouncedSave";
@@ -526,6 +528,7 @@ export function TrackballPage() {
                   <h2 className="text-sm font-medium text-[var(--color-text)]">
                     {t("Processors")}
                   </h2>
+                  <DocTip content={processorDoc(t)} />
                 </div>
                 {isLoading && (
                   <IconLoader2
@@ -605,6 +608,7 @@ export function TrackballPage() {
                   <h2 className="text-sm font-medium text-[var(--color-text)]">
                     {t("PMW3610 Drivers")}
                   </h2>
+                  <DocTip content={pmw3610Doc(t)} />
                 </div>
                 <div className="flex items-center gap-1">
                   {customSettings.isLoading && (

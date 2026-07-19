@@ -23,6 +23,8 @@ import { useLanguage } from "../hooks/useLanguage";
 import { OsBadge } from "../components/OsBadge";
 import { LayerSelect } from "../components/LayerSelect";
 import { InfoTip } from "../components/InfoTip";
+import { DocTip } from "../components/DocTip";
+import { defaultLayerDoc } from "../i18n/featureDocs";
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import {
   mergeConnectionCards,
@@ -363,9 +365,14 @@ export function ConnectionPage() {
 
             {cards.length > 0 && (
               <div className="mb-3">
-                <h3 className="text-sm font-medium text-[var(--color-text)] mb-1">
-                  {t("Connections")}
-                </h3>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <h3 className="text-sm font-medium text-[var(--color-text)]">
+                    {t("Connections")}
+                  </h3>
+                  {defaultLayer.isAvailable && (
+                    <DocTip content={defaultLayerDoc(t)} />
+                  )}
+                </div>
                 {defaultLayer.isAvailable && (
                   <p className="text-xs text-[var(--color-text-muted)]">
                     {t(

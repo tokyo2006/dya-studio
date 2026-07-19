@@ -1013,6 +1013,79 @@ const ja: Record<string, string> = {
   "{{count}} thread(s) · sorted by usage": "{{count}} スレッド · 使用率順",
   "No stack data yet — press Refresh or enable Auto-refresh.":
     "まだデータがありません。「更新」ボタンを押すか「自動更新」を有効にしてください。",
+
+  // Feature docs (DocTip) — Macros
+  "What are Macros?": "マクロとは？",
+  "A macro plays back a saved sequence of key actions when you trigger it with a single key.":
+    "マクロは、1 つのキーで発動すると、保存したキー操作の連続動作を再生します。",
+  "Typical uses": "主な用途",
+  "Type text, symbols, or emoji that need several keystrokes":
+    "複数の打鍵が必要な文字・記号・絵文字を入力する",
+  "Fire an app or OS shortcut with one press":
+    "アプリや OS のショートカットを 1 押しで実行する",
+  "Chain presses, holds, and waits into one action":
+    "押下・長押し・待機を 1 つの動作にまとめる",
+  "In DYA Studio": "DYA Studio では",
+  "Create and edit the action sequence of each macro":
+    "各マクロの動作シーケンスを作成・編集できます",
+  "Bind a macro to a key from the Keymap tab":
+    "キーマップタブからマクロをキーに割り当てられます",
+  "Tune global timing such as wait and tap time":
+    "待機時間やタップ時間などの全体タイミングを調整できます",
+
+  // Feature docs (DocTip) — Combos
+  "What are Combos?": "コンボとは？",
+  "A combo turns pressing several keys at once into a different key or behavior.":
+    "コンボは、複数のキーの同時押しを別のキーや動作に変換します。",
+  "Add extra keys without extra physical keys (e.g. Esc from J+K)":
+    "物理キーを増やさずにキーを追加する（例：J+K で Esc）",
+  "Reach symbols or layer switches from your home row":
+    "ホームポジションから記号やレイヤー切り替えに届く",
+  "How it works": "仕組み",
+  "Press the chosen key positions together within a time window":
+    "指定したキー位置を制限時間内に同時に押す",
+  "Tune the timeout, active layers, and release behavior per combo":
+    "コンボごとにタイムアウト・有効レイヤー・離し時の挙動を調整できます",
+
+  // Feature docs (DocTip) — Processors
+  "What are Processors?": "プロセッサとは？",
+  "Input processors transform trackball motion before it becomes pointer or scroll output, and can be turned on per layer.":
+    "入力プロセッサは、トラックボールの動きをポインタやスクロール出力になる前に変換し、レイヤーごとに有効化できます。",
+  "Switch the trackball between moving the cursor and scrolling":
+    "トラックボールをカーソル移動とスクロールで切り替える",
+  "Adjust sensitivity, or swap and invert the axes":
+    "感度を調整したり、軸を入れ替え・反転したりする",
+  "Choose which layers each processor is active on":
+    "各プロセッサを有効にするレイヤーを選ぶ",
+  "Optionally hold a temporary layer while the trackball moves":
+    "トラックボールの動作中に一時レイヤーを保持する（任意）",
+
+  // Feature docs (DocTip) — Default layers
+  "What are Default Layers?": "デフォルトレイヤーとは？",
+  "A default layer is the keymap layer your keyboard activates automatically for a given connection.":
+    "デフォルトレイヤーは、特定の接続に対してキーボードが自動的に有効化するキーマップレイヤーです。",
+  "Per connection": "接続ごと",
+  "Pick a layer for each connection target (USB and BLE profiles)":
+    "接続先（USB や BLE プロファイル）ごとにレイヤーを選ぶ",
+  "It switches automatically when that connection becomes active":
+    "その接続がアクティブになると自動的に切り替わる",
+  "Choose 'Follow OS detection' to use the Per-OS Default Layers instead":
+    "「OS 検出に従う」を選ぶと、代わりに OS 別デフォルトレイヤーが使われる",
+  "The layer set for the detected OS (Windows, macOS, …) is applied":
+    "検出された OS（Windows、macOS など）に設定したレイヤーが適用される",
+
+  // Feature docs (DocTip) — PMW3610 driver
+  "What is the PMW3610 driver?": "PMW3610 ドライバとは？",
+  "PMW3610 is the optical sensor inside the trackball. Its driver exposes low-level tuning for how motion is read.":
+    "PMW3610 はトラックボール内部の光学センサです。ドライバは動きの読み取り方を低レベルで調整する項目を提供します。",
+  "Typical settings": "主な設定",
+  "CPI / sensitivity of the sensor": "センサの CPI／感度",
+  "Orientation, axis rotation, and inversion": "向き・軸の回転・反転",
+  "Polling rate and sleep / power behavior":
+    "ポーリングレートやスリープ／電力の挙動",
+  Note: "補足",
+  "These values are read from and written to your keyboard's firmware. Change them in small steps.":
+    "これらの値はキーボードのファームウェアから読み書きされます。少しずつ変更してください。",
 };
 
 const dictionaries: Record<Language, Record<string, string>> = {
