@@ -91,7 +91,7 @@ function LayerGrid({
   );
 }
 
-const SCALING_MIN = 0.1;
+const SCALING_MIN = 0.01;
 const SCALING_MAX = 10;
 const SCALING_STEPS = 100;
 const SCALING_BUTTON_STEP = 0.05;
@@ -850,7 +850,7 @@ export function TrackballPage() {
                             {t("Scaling")}
                           </h3>
                           <p className="text-xs text-[var(--color-text-muted)]">
-                            {t("Adjust sensitivity from 0.1x to 10x")}
+                            {t("Adjust sensitivity from 0.01x to 10x")}
                           </p>
                         </div>
                         <span className="text-lg font-mono text-[var(--color-electric)]">
@@ -898,8 +898,8 @@ export function TrackballPage() {
                       [&::-moz-range-thumb]:shadow-[0_0_8px_var(--color-electric)]"
                           />
                           <div className="mt-2 flex justify-between text-xs text-[var(--color-text-muted)]">
-                            <span>0.1x</span>
-                            <span>10x</span>
+                            <span>{formatScalingValue(SCALING_MIN)}x</span>
+                            <span>{SCALING_MAX}x</span>
                           </div>
                         </div>
 

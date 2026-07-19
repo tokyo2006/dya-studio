@@ -193,8 +193,8 @@ const ja: Record<string, string> = {
     "プロセッサーはすべてのレイヤーで有効です",
   "Loading layers...": "レイヤーを読み込み中...",
   Scaling: "スケーリング",
-  "Adjust sensitivity from 0.1x to 10x":
-    "感度を 0.1x から 10x の範囲で調整します",
+  "Adjust sensitivity from 0.01x to 10x":
+    "感度を 0.01x から 10x の範囲で調整します",
   "Decrease scaling": "スケーリングを下げる",
   "Increase scaling": "スケーリングを上げる",
   "Sensor Rotation": "センサー回転",
