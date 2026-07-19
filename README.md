@@ -11,6 +11,10 @@
 
 <p align="center">
   <a href="https://studio.dya.cormoran.works"><strong>🚀 Open DYA Studio →</strong></a>
+  &nbsp;·&nbsp;
+  <a href="https://dya-studio-dev.cormoran707.workers.dev/">🧪 Dev preview</a>
+  <br />
+  <sub><strong>Open DYA Studio</strong> is the stable release. <strong>Dev preview</strong> tracks the latest <code>main</code> and may be unstable.</sub>
   <br />
   <sub>No keyboard at hand? Hit the <em>Demo</em> button on the splash screen to explore every feature with a simulated keyboard.</sub>
 </p>

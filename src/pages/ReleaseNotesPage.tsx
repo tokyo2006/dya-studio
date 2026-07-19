@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { IconArrowLeft, IconTag } from "@tabler/icons-react";
+import DyaLogo from "../assets/dya.svg?react";
 import { useLanguage } from "../hooks/useLanguage";
 import { LanguageToggle } from "../components/LanguageToggle";
 import {
@@ -150,26 +151,43 @@ export function ReleaseNotesPage({ onBack }: { onBack: () => void }) {
   return (
     <div className="fixed inset-0 z-40 overflow-auto bg-[var(--color-bg)]">
       <div className="absolute inset-0 bg-gradient-cyber opacity-20 pointer-events-none" />
-      <div className="relative max-w-3xl mx-auto px-6 py-10">
-        <div className="flex items-center justify-between mb-8">
-          <button
-            onClick={onBack}
-            className="btn-ghost border border-[var(--color-border)] flex items-center gap-2 text-sm"
-          >
-            <IconArrowLeft size={18} />
-            {t("Back")}
-          </button>
-          <LanguageToggle />
-        </div>
 
-        <header className="mb-8">
-          <h1 className="text-2xl font-light tracking-wide text-[var(--color-text)]">
+      {/* Top bar: brand on the left (mirrors the app header), controls right */}
+      <header className="sticky top-0 z-10 border-b border-[var(--color-border)] bg-[var(--color-surface)]/80 backdrop-blur-sm">
+        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <DyaLogo className="w-8 h-8 [&_polygon]:fill-[var(--color-text)]" />
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-light tracking-widest text-[var(--color-text)]">
+                DYA
+              </span>
+              <span className="text-xs font-light tracking-wider text-[var(--color-text-muted)] uppercase pt-1">
+                Studio
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onBack}
+              className="btn-ghost border border-[var(--color-border)] flex items-center gap-2 text-sm"
+            >
+              <IconArrowLeft size={18} />
+              <span className="hidden sm:inline">{t("Back")}</span>
+            </button>
+            <LanguageToggle />
+          </div>
+        </div>
+      </header>
+
+      <div className="relative max-w-5xl mx-auto px-6 py-10">
+        <div className="mb-8">
+          <h1 className="text-3xl font-light tracking-wide text-[var(--color-text)]">
             {t("Release Notes")}
           </h1>
           <p className="text-sm text-[var(--color-text-muted)] mt-1">
             {t("What's new in DYA Studio")}
           </p>
-        </header>
+        </div>
 
         {releases.map((release) => (
           <ReleaseSection key={release.version} release={release} />
