@@ -378,6 +378,10 @@ class Keyboard {
       // The demo keyboard is always unlocked
       // (LockState.ZMK_STUDIO_CORE_LOCK_STATE_UNLOCKED = 1).
       rr.core = { getLockState: 1 };
+    } else if (req.core?.resetSettings) {
+      // Factory reset: acknowledge success. The demo keeps its in-memory
+      // keymap as-is (a real device would wipe flash and reload defaults).
+      rr.core = { resetSettings: true };
     } else if (req.keymap?.getPhysicalLayouts) {
       rr.keymap = { getPhysicalLayouts: this.data.layouts };
     } else if (req.keymap?.getKeymap) {
