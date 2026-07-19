@@ -6,7 +6,7 @@
  * global settings, or an empty placeholder. A single top action bar refreshes,
  * saves and discards both domains at once.
  */
-import { useCallback, useContext, useEffect, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import {
   IconAlertCircle,
   IconAlertTriangle,
@@ -119,6 +119,28 @@ export function MacroComboPage() {
   useEffect(() => {
     if (locked) requireUnlocked();
   }, [locked, requireUnlocked]);
+
+  // Clear stale errors and reload on the locked -> unlocked transition. A load
+  // RPC that failed while the unlock modal was open surfaces an error into
+  // `runtimeMacro.error` / `runtimeCombo.error` whenever it was *not* parked and
+  // auto-retried — e.g. the user dismissed the modal (or a request landed during
+  // the post-cancel cooldown), so `callRpc` set the "device is locked" message.
+  // Unlock's `retryAll` only replays parked ops, and the auto-load effects fire
+  // once per subsystem, so nothing else clears that error. Reacting to the
+  // transition here clears both hooks' errors and refetches so the page reflects
+  // the now-unlocked device. (`loadMacros`/`reload` are in-flight-guarded, so
+  // this no-ops when a parked op is already being retried.)
+  const wasLockedRef = useRef(locked);
+  useEffect(() => {
+    const wasLocked = wasLockedRef.current;
+    wasLockedRef.current = locked;
+    if (wasLocked && !locked) {
+      runtimeMacro.clearError();
+      runtimeCombo.clearError();
+      if (macroAvailable) void runtimeMacro.loadMacros();
+      if (comboAvailable) void runtimeCombo.reload();
+    }
+  }, [locked, macroAvailable, comboAvailable, runtimeMacro, runtimeCombo]);
 
   // --- Selection routing (exclusive across the two lists) ---
 
