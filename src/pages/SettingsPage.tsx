@@ -1,13 +1,26 @@
-import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import {
+  useState,
+  useMemo,
+  useRef,
+  useEffect,
+  useCallback,
+  useContext,
+} from "react";
 import { createPortal } from "react-dom";
 import {
   IconSettings,
   IconChevronDown,
   IconAlertTriangleFilled,
+  IconAlertTriangle,
+  IconTrash,
+  IconLoader2,
 } from "@tabler/icons-react";
+import * as Dialog from "@radix-ui/react-dialog";
 import { AdvancedSettingsSection } from "../components/AdvancedSettingsSection";
 import { LoadingIndicator } from "../components/LoadingIndicator";
+import { ConnectionContext } from "../components/DeviceConnection";
 import { useSettings } from "../hooks/useSettings";
+import { useResetSettings } from "../hooks/useResetSettings";
 import { useDebouncedMemoryWrite } from "../hooks/useDebouncedMemoryWrite";
 import { useLanguage } from "../hooks/useLanguage";
 
@@ -230,8 +243,25 @@ function TimeDropdown({ value, onChange, presets }: TimeDropdownProps) {
 
 export function SettingsPage() {
   const { t } = useLanguage();
+  const connection = useContext(ConnectionContext);
   const { isAvailable, devices, isLoading, error, setActivitySettings } =
     useSettings();
+  const {
+    resetAllSettings,
+    isResetting,
+    error: resetError,
+    clearError: clearResetError,
+  } = useResetSettings();
+
+  // Confirmation modal for the full "reset all settings" action.
+  const [showResetAllDialog, setShowResetAllDialog] = useState(false);
+
+  const handleResetAll = useCallback(async () => {
+    const ok = await resetAllSettings();
+    if (ok) {
+      setShowResetAllDialog(false);
+    }
+  }, [resetAllSettings]);
 
   // Get central device settings (source 0)
   const centralSettings = useMemo(
@@ -422,52 +452,6 @@ export function SettingsPage() {
             </div>
 
             <AdvancedSettingsSection />
-
-            {/* Danger Zone
-            <div className="glass-card p-6 border-red-500/20">
-              <h3 className="text-sm font-medium text-red-400 mb-4">
-                Danger Zone
-              </h3>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-[var(--color-text-secondary)]">
-                      Reset to Defaults
-                    </p>
-                    <p className="text-xs text-[var(--color-text-muted)]">
-                      Restore power settings to factory defaults (Idle: 30s,
-                      Sleep: 15m)
-                    </p>
-                  </div>
-                  {!showResetConfirm ? (
-                    <button
-                      className="px-4 py-2 rounded-lg text-sm font-medium text-red-400 border border-red-500/30 hover:bg-red-500/10 transition-colors"
-                      onClick={() => setShowResetConfirm(true)}
-                      disabled={isLoading}
-                    >
-                      Reset
-                    </button>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <button
-                        className="px-4 py-2 rounded-lg text-sm font-medium text-[var(--color-text-secondary)] border border-[var(--color-border)] hover:bg-[var(--color-border)] transition-colors"
-                        onClick={() => setShowResetConfirm(false)}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-red-500 hover:bg-red-600 transition-colors flex items-center gap-2"
-                        onClick={handleResetToDefaults}
-                        disabled={isLoading}
-                      >
-                        <IconAlertTriangle size={16} />
-                        {isLoading ? "Resetting..." : "Confirm Reset"}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div> */}
           </div>
         ) : (
           !isLoading && (
@@ -478,7 +462,87 @@ export function SettingsPage() {
             </div>
           )
         )}
+
+        {/* Danger Zone: a full factory reset that wipes every persisted
+            setting — keymap and all custom settings included. Available
+            whenever a device is connected, independent of the settings RPC
+            subsystem, since it is a core-protocol call. */}
+        {connection.isConnected && (
+          <div className="glass-card p-6 border border-red-500/20 mt-6">
+            <h3 className="text-sm font-medium text-red-400 mb-4">
+              {t("Danger Zone")}
+            </h3>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm text-[var(--color-text-secondary)]">
+                  {t("Reset all settings")}
+                </p>
+                <p className="text-xs text-[var(--color-text-muted)]">
+                  {t(
+                    "Erase every saved setting on the keyboard — including the keymap and all custom settings — and restore firmware defaults.",
+                  )}
+                </p>
+              </div>
+              <button
+                className="px-4 py-2 rounded-lg text-sm font-medium text-red-400 border border-red-500/30 hover:bg-red-500/10 transition-colors flex items-center gap-2 flex-shrink-0"
+                onClick={() => {
+                  clearResetError();
+                  setShowResetAllDialog(true);
+                }}
+                disabled={isResetting}
+              >
+                <IconTrash size={16} />
+                {t("Reset all settings")}
+              </button>
+            </div>
+            {resetError && (
+              <p className="mt-3 text-xs text-red-400">{t(resetError)}</p>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Reset-all Confirmation Dialog */}
+      <Dialog.Root
+        open={showResetAllDialog}
+        onOpenChange={(open) => {
+          if (!open && !isResetting) setShowResetAllDialog(false);
+        }}
+      >
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" />
+          <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-md bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] shadow-2xl z-50 p-6">
+            <Dialog.Title className="text-base font-medium text-[var(--color-text)] mb-2 flex items-center gap-2">
+              <IconAlertTriangle size={18} className="text-red-400" />
+              {t("Reset all settings?")}
+            </Dialog.Title>
+            <Dialog.Description className="text-sm text-[var(--color-text-muted)] mb-5">
+              {t(
+                "This erases every saved setting on your keyboard — the keymap and all custom settings — and restores firmware defaults. This cannot be undone.",
+              )}
+            </Dialog.Description>
+            <div className="flex gap-3">
+              <button
+                className="flex-1 btn-ghost border border-[var(--color-border)]"
+                onClick={() => setShowResetAllDialog(false)}
+                disabled={isResetting}
+              >
+                {t("Cancel")}
+              </button>
+              <button
+                className="flex-1 px-4 py-2 rounded-lg text-sm font-medium text-white bg-red-500 hover:bg-red-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                onClick={() => void handleResetAll()}
+                disabled={isResetting}
+              >
+                {isResetting && (
+                  <IconLoader2 size={16} className="animate-spin" />
+                )}
+                {t("Reset all settings")}
+              </button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </div>
   );
 }

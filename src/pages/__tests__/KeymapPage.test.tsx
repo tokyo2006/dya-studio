@@ -332,8 +332,35 @@ describe("KeymapPage", () => {
       );
 
       expect(screen.getByText("Save")).toBeInTheDocument();
-      expect(screen.getByText("Discard")).toBeInTheDocument();
       expect(screen.getByText("Reset")).toBeInTheDocument();
+    });
+
+    it("hides the Discard button when there are no unsaved changes", () => {
+      renderComponent(
+        { isConnected: true },
+        {
+          keymap: mockKeymap,
+          physicalLayouts: mockPhysicalLayouts,
+          behaviors: mockBehaviors,
+          hasUnsavedChanges: false,
+        },
+      );
+
+      expect(screen.queryByText("Discard")).not.toBeInTheDocument();
+    });
+
+    it("shows the Discard button only when there are unsaved changes", () => {
+      renderComponent(
+        { isConnected: true },
+        {
+          keymap: mockKeymap,
+          physicalLayouts: mockPhysicalLayouts,
+          behaviors: mockBehaviors,
+          hasUnsavedChanges: true,
+        },
+      );
+
+      expect(screen.getByText("Discard")).toBeInTheDocument();
     });
 
     it("disables Reset when the fast-keymap subsystem is unavailable", () => {

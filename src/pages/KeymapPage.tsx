@@ -426,23 +426,23 @@ export function KeymapPage() {
                 </button>
               ) : (
                 <>
-                  <button
-                    className="btn-ghost text-sm flex items-center gap-1.5 flex-shrink-0"
-                    onClick={handleDiscard}
-                    disabled={
-                      isDiscarding ||
-                      !keymap.hasUnsavedChanges ||
-                      keymap.isLoading
-                    }
-                    title={t("Discard unsaved changes and reload the keymap")}
-                  >
-                    {isDiscarding ? (
-                      <IconLoader2 size={16} className="animate-spin" />
-                    ) : (
-                      <IconRestore size={16} />
-                    )}
-                    {t("Discard")}
-                  </button>
+                  {/* Discard only makes sense with on-memory (unsaved) edits,
+                      so it's hidden entirely when there's nothing to discard. */}
+                  {keymap.hasUnsavedChanges && (
+                    <button
+                      className="btn-ghost text-sm flex items-center gap-1.5 flex-shrink-0"
+                      onClick={handleDiscard}
+                      disabled={isDiscarding || keymap.isLoading}
+                      title={t("Discard unsaved changes and reload the keymap")}
+                    >
+                      {isDiscarding ? (
+                        <IconLoader2 size={16} className="animate-spin" />
+                      ) : (
+                        <IconRestore size={16} />
+                      )}
+                      {t("Discard")}
+                    </button>
+                  )}
                   <Tooltip.Provider delayDuration={200}>
                     <Tooltip.Root>
                       <Tooltip.Trigger asChild>
@@ -476,7 +476,7 @@ export function KeymapPage() {
                           {keymap.isFastKeymapAvailable
                             ? t("Reset the saved keymap to the default keymap")
                             : t(
-                                "Resetting to the default keymap requires the fast-keymap firmware module, which this keyboard does not expose.",
+                                'This keyboard cannot reset the keymap on its own. To clear the keymap, use "Reset all settings" in the Settings tab, which restores every setting to its firmware default.',
                               )}
                           <Tooltip.Arrow className="fill-[var(--color-surface-elevated)]" />
                         </Tooltip.Content>

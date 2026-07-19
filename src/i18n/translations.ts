@@ -106,8 +106,8 @@ const ja: Record<string, string> = {
     "未保存の変更を破棄してキーマップを再読み込みします",
   "Reset the saved keymap to the default keymap":
     "保存済みのキーマップをデフォルトのキーマップにリセットします",
-  "Resetting to the default keymap requires the fast-keymap firmware module, which this keyboard does not expose.":
-    "デフォルトのキーマップへのリセットには fast-keymap ファームウェアモジュールが必要ですが、このキーボードは対応していません。",
+  'This keyboard cannot reset the keymap on its own. To clear the keymap, use "Reset all settings" in the Settings tab, which restores every setting to its firmware default.':
+    "このキーボードはキーマップ単体をリセットできません。キーマップを消去するには、設定タブの「すべての設定をリセット」を使用してください。すべての設定がファームウェアのデフォルトに戻ります。",
   "Reset to default keymap?": "デフォルトのキーマップにリセットしますか？",
   "This resets the saved keymap on your keyboard back to its hard-coded default and writes it to flash immediately. All saved key bindings will be lost. This cannot be undone.":
     "キーボードに保存されたキーマップをハードコードされたデフォルトに戻し、直ちにフラッシュへ書き込みます。保存済みのすべてのキー割り当ては失われます。この操作は元に戻せません。",
@@ -325,6 +325,14 @@ const ja: Record<string, string> = {
   "Current Settings by Device": "デバイス別の現在の設定",
   "Idle: {{idle}}, Sleep: {{sleep}}": "アイドル: {{idle}}, スリープ: {{sleep}}",
   "Waiting for device connection...": "デバイス接続を待機中...",
+  "Danger Zone": "危険な操作",
+  "Reset all settings": "すべての設定をリセット",
+  "Erase every saved setting on the keyboard — including the keymap and all custom settings — and restore firmware defaults.":
+    "キーマップやすべてのカスタム設定を含む、キーボードに保存されたすべての設定を消去し、ファームウェアのデフォルトに戻します。",
+  "Reset all settings?": "すべての設定をリセットしますか？",
+  "This erases every saved setting on your keyboard — the keymap and all custom settings — and restores firmware defaults. This cannot be undone.":
+    "キーマップやすべてのカスタム設定を含む、キーボードに保存されたすべての設定を消去し、ファームウェアのデフォルトに戻します。この操作は元に戻せません。",
+  "Not connected to keyboard": "キーボードに接続されていません",
   Never: "なし",
   "30 seconds": "30 秒",
   "1 minute": "1 分",
