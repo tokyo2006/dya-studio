@@ -25,6 +25,27 @@ export const CHANGE_CATEGORIES: ChangeCategory[] = ["major", "minor", "patch"];
 export interface LocalizedChange {
   en: string;
   ja: string;
+  /**
+   * Optional related pull request number(s) on GitHub. Rendered as links on
+   * the release notes page. Accepts a single number or an array.
+   */
+  pr?: number | number[];
+}
+
+/** GitHub repository the release notes link back to. */
+export const GITHUB_REPO_URL = "https://github.com/cormoran/dya-studio";
+
+/** Normalize a change's optional `pr` field to a list of PR numbers. */
+export function prNumbers(change: LocalizedChange): number[] {
+  if (change.pr == null) {
+    return [];
+  }
+  return Array.isArray(change.pr) ? change.pr : [change.pr];
+}
+
+/** GitHub URL for a pull request number. */
+export function pullRequestUrl(pr: number): string {
+  return `${GITHUB_REPO_URL}/pull/${pr}`;
 }
 
 export interface Release {

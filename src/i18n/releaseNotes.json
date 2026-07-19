@@ -11,11 +11,13 @@
           },
           {
             "en": "Redesigned Trackball tab with live sensor streaming and advanced PMW3610 driver settings.",
-            "ja": "トラックボールタブを再設計。センサーのライブストリーミング表示と PMW3610 ドライバの詳細設定に対応しました。"
+            "ja": "トラックボールタブを再設計。センサーのライブストリーミング表示と PMW3610 ドライバの詳細設定に対応しました。",
+            "pr": 138
           },
           {
             "en": "Macro and Combo tabs merged into a single Macro & Combo tab, with runtime macro and combo editors.",
-            "ja": "マクロタブとコンボタブを 1 つの Macro & Combo タブに統合し、ランタイムマクロ・コンボエディタを追加しました。"
+            "ja": "マクロタブとコンボタブを 1 つの Macro & Combo タブに統合し、ランタイムマクロ・コンボエディタを追加しました。",
+            "pr": 136
           },
           {
             "en": "Custom Subsystems support: browse and edit vendor-specific settings (e.g. fast-keymap, setting-expose) exposed by the keyboard.",
@@ -27,7 +29,8 @@
           },
           {
             "en": "Japanese localization: the entire UI is now available in Japanese, auto-detected from your browser.",
-            "ja": "日本語ローカライズに対応。UI 全体が日本語で利用でき、ブラウザ設定から自動判定します。"
+            "ja": "日本語ローカライズに対応。UI 全体が日本語で利用でき、ブラウザ設定から自動判定します。",
+            "pr": 142
           },
           {
             "en": "Faster keymap loading via the fast-keymap module with incremental per-layer loading and an official-protocol fallback.",
@@ -41,7 +44,8 @@
           },
           {
             "en": "Keymap: rename layers, delete and individually restore layers, and a key-layout mode in the keycode selector.",
-            "ja": "キーマップ：レイヤー名の変更、レイヤーの削除と個別復元、キーコードセレクタのキーレイアウト表示モードを追加しました。"
+            "ja": "キーマップ：レイヤー名の変更、レイヤーの削除と個別復元、キーコードセレクタのキーレイアウト表示モードを追加しました。",
+            "pr": 143
           },
           {
             "en": "Keymap: highlight keys that differ from the default, per-key reset-to-default, and Discard/Reset controls.",
@@ -49,7 +53,8 @@
           },
           {
             "en": "Settings: factory reset action and a redesigned, lazy-loaded advanced settings table.",
-            "ja": "設定：ファクトリーリセット操作と、遅延読み込み対応の刷新された詳細設定テーブルを追加しました。"
+            "ja": "設定：ファクトリーリセット操作と、遅延読み込み対応の刷新された詳細設定テーブルを追加しました。",
+            "pr": [150, 128]
           },
           {
             "en": "Auto-reconnect to the last used serial port on page load, with a reconnecting indicator.",
@@ -65,7 +70,8 @@
           },
           {
             "en": "Anonymous usage analytics to help prioritize improvements (no keymap or configuration data is ever sent).",
-            "ja": "改善の優先度付けのため匿名の利用状況分析を追加しました（キーマップや設定データは一切送信されません）。"
+            "ja": "改善の優先度付けのため匿名の利用状況分析を追加しました（キーマップや設定データは一切送信されません）。",
+            "pr": 145
           }
         ],
         "patch": [

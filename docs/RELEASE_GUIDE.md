@@ -53,6 +53,14 @@ the `upcoming` section of `src/i18n/releaseNotes.json`.**
   { "en": "Short user-facing description.", "ja": "利用者向けの短い説明。" }
   ```
 
+- Optionally reference the pull request(s) with a `pr` field — a single number
+  or an array. It renders as a `#123` link to GitHub on the release notes page:
+
+  ```json
+  { "en": "Added X.", "ja": "X を追加しました。", "pr": 153 }
+  { "en": "Reworked Y.", "ja": "Y を刷新しました。", "pr": [150, 128] }
+  ```
+
 - Write from the user's perspective (what changed for them), not the
   implementation. Keep each entry to one sentence.
 

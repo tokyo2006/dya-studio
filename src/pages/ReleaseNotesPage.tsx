@@ -8,7 +8,10 @@ import {
   isEmptyRelease,
   isUpcoming,
   localizeChange,
+  prNumbers,
+  pullRequestUrl,
   type ChangeCategory,
+  type LocalizedChange,
   type Release,
 } from "../i18n/releaseNotes";
 
@@ -26,6 +29,30 @@ const CATEGORY_ACCENT: Record<ChangeCategory, string> = {
   minor: "var(--color-neon)",
   patch: "var(--color-cyber)",
 };
+
+/** Renders the optional PR reference(s) for a change as GitHub links. */
+function PrLinks({ change }: { change: LocalizedChange }) {
+  const prs = prNumbers(change);
+  if (prs.length === 0) {
+    return null;
+  }
+  return (
+    <>
+      {prs.map((pr) => (
+        <a
+          key={pr}
+          href={pullRequestUrl(pr)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="ml-1.5 align-baseline text-xs text-[var(--color-electric)] hover:text-[var(--color-neon)] hover:underline whitespace-nowrap"
+          title={`Pull request #${pr}`}
+        >
+          #{pr}
+        </a>
+      ))}
+    </>
+  );
+}
 
 function CategoryGroup({
   category,
@@ -59,6 +86,7 @@ function CategoryGroup({
             className="text-sm text-[var(--color-text-secondary)] leading-relaxed"
           >
             {localizeChange(change, language)}
+            <PrLinks change={change} />
           </li>
         ))}
       </ul>
