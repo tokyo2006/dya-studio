@@ -1,0 +1,114 @@
+{
+  "releases": [
+    {
+      "version": "upcoming",
+      "date": null,
+      "summary": {
+        "lead": {
+          "en": "A big update across the board.",
+          "ja": "全体的に大規模にアップデートしました。"
+        },
+        "highlights": [
+          {
+            "en": "Added the long-awaited Macro and Combo features.",
+            "ja": "待望のマクロ・コンボ機能を追加しました。"
+          },
+          {
+            "en": "Dramatically faster loading over wireless — especially the second and later loads are now fast enough for everyday use.",
+            "ja": "無線接続での読み込みを爆速化。特に 2 回目以降の読み込みが超高速になり、実用的になりました。"
+          },
+          {
+            "en": "Added a Troubleshooting tab — smoother support, plus tools that help debug keyboards during development.",
+            "ja": "トラブルシューティング用のタブを追加。サポート対応を円滑にするほか、キーボード開発時のデバッグを支援する機能も含みます。"
+          }
+        ]
+      },
+      "changes": {
+        "major": [
+          {
+            "en": "New Connection tab (evolved from the BLE tab) with OS detection and a default-layer selector for supported keyboards.",
+            "ja": "接続タブを刷新（旧 BLE タブ）。対応キーボード向けに OS 検出とデフォルトレイヤー選択の UI を追加しました。"
+          },
+          {
+            "en": "Redesigned Trackball tab with live sensor streaming and advanced PMW3610 driver settings.",
+            "ja": "トラックボールタブを再設計。センサーのライブストリーミング表示と PMW3610 ドライバの詳細設定に対応しました。",
+            "pr": 138
+          },
+          {
+            "en": "Added Macro and Combo support — a unified Macro & Combo tab with runtime macro and combo editors.",
+            "ja": "マクロ・コンボに対応。統合された Macro & Combo タブと、ランタイムマクロ・コンボエディタを追加しました。",
+            "pr": 136
+          },
+          {
+            "en": "Custom Subsystems support: browse and edit vendor-specific settings (e.g. fast-keymap, setting-expose) exposed by the keyboard.",
+            "ja": "カスタムサブシステムに対応。キーボードが公開するベンダー独自設定（fast-keymap、setting-expose など）を参照・編集できます。"
+          },
+          {
+            "en": "New Troubleshooting tab (replacing the Battery tab) with human-readable crash reasons and accurate device counts.",
+            "ja": "トラブルシューティングタブを追加（旧バッテリータブを置き換え）。クラッシュ理由を分かりやすく表示し、デバイス数を正確に集計します。"
+          },
+          {
+            "en": "Japanese localization: the entire UI is now available in Japanese, auto-detected from your browser.",
+            "ja": "日本語ローカライズに対応。UI 全体が日本語で利用でき、ブラウザ設定から自動判定します。",
+            "pr": 142
+          },
+          {
+            "en": "Faster keymap loading via the fast-keymap module with incremental per-layer loading and an official-protocol fallback.",
+            "ja": "fast-keymap モジュールによりキーマップ読み込みを高速化。レイヤーごとの逐次読み込みに対応し、非対応時は公式プロトコルにフォールバックします。"
+          }
+        ],
+        "minor": [
+          {
+            "en": "URL-based routing for tabs — every tab is now directly linkable, shareable, and works with browser back/forward.",
+            "ja": "タブの URL ルーティングに対応。各タブに直接リンク・共有でき、ブラウザの戻る/進むにも対応しました。"
+          },
+          {
+            "en": "Keymap: rename layers, delete and individually restore layers, and a key-layout mode in the keycode selector.",
+            "ja": "キーマップ：レイヤー名の変更、レイヤーの削除と個別復元、キーコードセレクタのキーレイアウト表示モードを追加しました。",
+            "pr": 143
+          },
+          {
+            "en": "Keymap: highlight keys that differ from the default, per-key reset-to-default, and Discard/Reset controls.",
+            "ja": "キーマップ：デフォルトと異なるキーのハイライト、キー単位のデフォルト復元、破棄/リセット操作を追加しました。"
+          },
+          {
+            "en": "Settings: factory reset action and a redesigned, lazy-loaded advanced settings table.",
+            "ja": "設定：ファクトリーリセット操作と、遅延読み込み対応の刷新された詳細設定テーブルを追加しました。",
+            "pr": [150, 128]
+          },
+          {
+            "en": "Auto-reconnect to the last used serial port on page load, with a reconnecting indicator.",
+            "ja": "ページ読み込み時に前回使用したシリアルポートへ自動再接続し、再接続中インジケータを表示します。"
+          },
+          {
+            "en": "Feature-doc tooltips on card headers explaining what each feature does.",
+            "ja": "各カード見出しに機能説明のツールチップを追加しました。"
+          },
+          {
+            "en": "Unified studio-unlock retry flow with a clear \"device is locked\" message across all tabs.",
+            "ja": "全タブで共通の Studio ロック解除リトライフローと、分かりやすい「デバイスがロックされています」表示を追加しました。"
+          },
+          {
+            "en": "Anonymous usage analytics to help prioritize improvements (no keymap or configuration data is ever sent).",
+            "ja": "改善の優先度付けのため匿名の利用状況分析を追加しました（キーマップや設定データは一切送信されません）。",
+            "pr": 145
+          }
+        ],
+        "patch": [
+          {
+            "en": "Numerous stability fixes for the studio-unlock flow, including stopping infinite request loops while the device is locked.",
+            "ja": "Studio ロック解除まわりの安定性を多数改善。ロック中にリクエストが無限ループする問題などを修正しました。"
+          },
+          {
+            "en": "Rewrote the README and refreshed the on-app FAQ and home content for end users.",
+            "ja": "README を書き直し、アプリ内の FAQ・ホーム内容をエンドユーザー向けに更新しました。"
+          },
+          {
+            "en": "Improved combo validation warning contrast and various UI polish across tabs.",
+            "ja": "コンボ検証警告のコントラストを改善し、各タブの UI を細かく調整しました。"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -11,11 +11,14 @@ import { ConnectionNoticeDialog } from "./ConnectionNoticeDialog";
 import { hasAcceptedNotice } from "../lib/connectionNoticeStorage";
 import { LanguageToggle } from "./LanguageToggle";
 import { useLanguage } from "../hooks/useLanguage";
+import { getCurrentVersion } from "../i18n/releaseNotes";
 
 interface SplashScreenProps {
   onConnect: (method: ConnectionMethod) => void;
   isConnecting: boolean;
   error: string | null;
+  /** Navigate to the standalone release notes page. */
+  onShowReleaseNotes: () => void;
 }
 
 function LoadingDots() {
@@ -53,8 +56,10 @@ export function SplashScreen({
   onConnect,
   isConnecting,
   error,
+  onShowReleaseNotes,
 }: SplashScreenProps) {
   const { t } = useLanguage();
+  const version = getCurrentVersion();
   // Dialog state
   const [showNotice, setShowNotice] = useState(false);
   const [pendingMethod, setPendingMethod] = useState<ConnectionMethod | null>(
@@ -280,6 +285,19 @@ export function SplashScreen({
         </a>
         .
       </motion.p>
+
+      {/* Release notes link */}
+      <motion.button
+        onClick={onShowReleaseNotes}
+        className="absolute bottom-5 text-xs font-light tracking-wider text-[var(--color-text-muted)] hover:text-[var(--color-electric)] transition-colors underline"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 1.1 }}
+      >
+        {version
+          ? t("Release notes ({{version}})", { version })
+          : t("Release notes")}
+      </motion.button>
 
       {/* Connection Notice Dialog */}
       <ConnectionNoticeDialog

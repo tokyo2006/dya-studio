@@ -12,6 +12,7 @@ import {
 } from "@tabler/icons-react";
 
 import { SplashScreen } from "./components/SplashScreen";
+import { ReleaseNotesPage, RELEASE_NOTES_PATH } from "./pages/ReleaseNotesPage";
 import { ReconnectingOverlay } from "./components/ReconnectingOverlay";
 import {
   DeviceConnectionProvider,
@@ -116,12 +117,34 @@ function AppContent() {
   const [devtoolOpen, setDevtoolOpen] = useState(false);
   const activeTab = tabs.some((tab) => tab.id === urlTab) ? urlTab : "home";
 
+  // The release notes page is a standalone, connection-independent route so it
+  // stays reachable from the splash screen and via GitHub Release deep links.
+  const [pathname, setPathname] = useState(() => window.location.pathname);
   useEffect(() => {
-    // Canonicalize unknown paths (e.g. a stale/typo'd link) to the home tab.
-    if (urlTab !== activeTab && window.location.pathname !== "/") {
+    const onPopState = () => setPathname(window.location.pathname);
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+  const navigatePath = useCallback((path: string) => {
+    if (window.location.pathname !== path) {
+      window.history.pushState(null, "", path);
+    }
+    // Notify both this route state and useUrlTab's own popstate listener.
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  }, []);
+  const onReleaseNotes = pathname === RELEASE_NOTES_PATH;
+
+  useEffect(() => {
+    // Canonicalize unknown paths (e.g. a stale/typo'd link) to the home tab,
+    // but leave the standalone release notes route alone.
+    if (
+      !onReleaseNotes &&
+      urlTab !== activeTab &&
+      window.location.pathname !== "/"
+    ) {
       window.history.replaceState(null, "", "/");
     }
-  }, [urlTab, activeTab]);
+  }, [urlTab, activeTab, onReleaseNotes]);
 
   const setActiveTabWithTracking = useCallback(
     (tabId: string) => {
@@ -136,6 +159,10 @@ function AppContent() {
     },
     [navigateToTab, tabs],
   );
+
+  if (onReleaseNotes) {
+    return <ReleaseNotesPage onBack={() => navigatePath("/")} />;
+  }
 
   return (
     <>
@@ -157,6 +184,7 @@ function AppContent() {
                 onConnect={connection.onConnect}
                 isConnecting={connection.isLoading}
                 error={connection.error}
+                onShowReleaseNotes={() => navigatePath(RELEASE_NOTES_PATH)}
               />
             </motion.div>
           )

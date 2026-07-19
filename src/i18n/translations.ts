@@ -620,6 +620,18 @@ const ja: Record<string, string> = {
   "DYA Studio is maintained by": "DYA Studio のメンテナー",
   "Special thanks to": "Special thanks to",
   "ZMK community": "ZMK community",
+  "Release notes": "リリースノート",
+  "Release notes ({{version}})": "リリースノート ({{version}})",
+  "Release Notes": "リリースノート",
+  "What's new in DYA Studio": "DYA Studio の新機能",
+  Back: "戻る",
+  Upcoming: "次回リリース予定",
+  "No upcoming changes yet.": "次回リリース予定の変更はまだありません。",
+  "No changes recorded for this release.":
+    "このリリースに記録された変更はありません。",
+  Major: "メジャー",
+  Minor: "マイナー",
+  Patch: "パッチ",
   "Connect via {{method}}": "{{method}} で接続",
   "Data Collection Notice": "データ収集に関するお知らせ",
   "DYA Studio collects your keyboard name and anonymous usage data — such as which features you use, how you connect, and connection errors — for usage analysis. No keymaps, settings, or other keyboard configuration data is ever sent; everything is handled locally on your device.":
