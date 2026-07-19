@@ -11,7 +11,11 @@
  *
  * `requireUnlock` is the proactive counterpart used by editor pages: it opens
  * the same modal *before* sending a doomed request when Studio is already known
- * to be locked.
+ * to be locked. Callers may hand it an `onUnlocked` callback — the action the
+ * user was trying to take (open the keycode selector, apply the edit, …) — and
+ * it is *parked* just like a failed request: once the user unlocks, the action
+ * runs, so a locked click resumes into what it was going to do instead of being
+ * silently dropped.
  *
  * Cancel cooldown: after the user dismisses the modal, further unlock errors
  * are auto-cancelled (no modal) until every unlock-gated request has finished
@@ -56,8 +60,13 @@ export interface StudioUnlockContextValue {
   /**
    * Proactive gate for editor actions: if Studio is currently locked, open the
    * unlock modal and return `false` (caller should bail); otherwise `true`.
+   *
+   * Pass `onUnlocked` to have the action the user attempted resume after they
+   * unlock — it is parked while locked and invoked once unlocked (or discarded
+   * if the modal is cancelled). When already unlocked the callback is ignored:
+   * `requireUnlock` returns `true` and the caller proceeds inline.
    */
-  requireUnlock: () => boolean;
+  requireUnlock: (onUnlocked?: () => void | Promise<void>) => boolean;
 }
 
 /**
@@ -96,6 +105,9 @@ export function StudioUnlockProvider({
   const parkedRef = useRef<ParkedOp[]>([]);
   // True when the proactive gate opened the modal without a parked op.
   const proactiveOpenRef = useRef(false);
+  // Actions handed to `requireUnlock(onUnlocked)` while locked: the operation
+  // the user was attempting, replayed once the device is actually unlocked.
+  const pendingActionsRef = useRef<Array<() => void | Promise<void>>>([]);
   // Cancel cooldown state: `suppressing` is true from a Cancel until things go
   // quiet; `inFlight` counts executing unlock-gated requests; `quietTimer` fires
   // once no request has been in flight for `quietMs`.
@@ -150,7 +162,15 @@ export function StudioUnlockProvider({
     // Snapshot and clear: any op that is still locked re-parks itself below.
     const ops = parkedRef.current;
     parkedRef.current = [];
-    proactiveOpenRef.current = false;
+    // Proactive resume actions only fire once the device is actually unlocked.
+    // If the user hit Retry while still locked, keep them parked (and the modal
+    // open) so the pending edit isn't dropped.
+    const unlocked = !lockedRef.current;
+    const pendingActions = unlocked ? pendingActionsRef.current : [];
+    if (unlocked) {
+      pendingActionsRef.current = [];
+      proactiveOpenRef.current = false;
+    }
     syncOpen();
 
     await Promise.all(
@@ -168,6 +188,17 @@ export function StudioUnlockProvider({
         }
       }),
     );
+
+    // Replay the operations the user originally attempted (open the selector,
+    // apply the edit, …) now that we're unlocked. Best-effort: a throwing
+    // resume must not take down the others.
+    for (const action of pendingActions) {
+      try {
+        await action();
+      } catch {
+        // Swallow — resume is best-effort; the action owns its error handling.
+      }
+    }
   }, [syncOpen]);
 
   const cancel = useCallback(() => {
@@ -178,6 +209,9 @@ export function StudioUnlockProvider({
     const ops = parkedRef.current;
     parkedRef.current = [];
     proactiveOpenRef.current = false;
+    // Dismissing the modal drops the pending edits too — the user chose not to
+    // unlock, so nothing should resume.
+    pendingActionsRef.current = [];
     syncOpen();
     for (const op of ops) {
       op.reject(new StudioUnlockCancelledError());
@@ -246,14 +280,21 @@ export function StudioUnlockProvider({
     [beginActivity, endActivity, syncOpen],
   );
 
-  const requireUnlock = useCallback((): boolean => {
-    if (lockedRef.current) {
-      proactiveOpenRef.current = true;
-      syncOpen();
-      return false;
-    }
-    return true;
-  }, [syncOpen]);
+  const requireUnlock = useCallback(
+    (onUnlocked?: () => void | Promise<void>): boolean => {
+      if (lockedRef.current) {
+        // Park the attempted action so it resumes after unlock (see retryAll).
+        if (onUnlocked) {
+          pendingActionsRef.current.push(onUnlocked);
+        }
+        proactiveOpenRef.current = true;
+        syncOpen();
+        return false;
+      }
+      return true;
+    },
+    [syncOpen],
+  );
 
   // Stable context value: `runWithUnlock`/`requireUnlock` never change identity,
   // so consumers don't re-render (and their `call`/auto-load effects don't

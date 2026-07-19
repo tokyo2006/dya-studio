@@ -51,6 +51,9 @@ function setLockState(next: StudioLockState) {
   mockLockState = next;
 }
 
+const sleepMs = (ms: number) =>
+  act(() => new Promise<void>((r) => setTimeout(r, ms)));
+
 describe("StudioUnlockProvider", () => {
   beforeEach(() => {
     mockLockState = "locked";
@@ -101,6 +104,124 @@ describe("StudioUnlockProvider", () => {
     );
 
     await screen.findByText("Keyboard Unlock Required");
+  });
+
+  it("resumes the parked action after unlock (requireUnlock onUnlocked)", async () => {
+    // Mirrors KeymapPage's key click while locked: the gate returns false and
+    // opens the modal, and the attempted action must replay once unlocked.
+    const resumed = jest.fn();
+    function Gate() {
+      const { requireUnlock } = useStudioUnlock();
+      return (
+        <button
+          onClick={() => {
+            if (!requireUnlock(resumed)) return;
+            resumed();
+          }}
+        >
+          edit
+        </button>
+      );
+    }
+
+    const { rerender } = render(
+      <StudioUnlockProvider>
+        <Gate />
+      </StudioUnlockProvider>,
+    );
+
+    // Locked: click parks the action and opens the modal without running it.
+    await userEvent.click(screen.getByText("edit"));
+    await screen.findByText("Keyboard Unlock Required");
+    expect(resumed).not.toHaveBeenCalled();
+
+    // Device unlocks -> the parked action runs exactly once, modal closes.
+    act(() => setLockState("unlocked"));
+    rerender(
+      <StudioUnlockProvider>
+        <Gate />
+      </StudioUnlockProvider>,
+    );
+
+    await waitFor(() => expect(resumed).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(
+        screen.queryByText("Keyboard Unlock Required"),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
+  it("runs the action inline (not parked) when already unlocked", async () => {
+    mockLockState = "unlocked";
+    const resumed = jest.fn();
+    function Gate() {
+      const { requireUnlock } = useStudioUnlock();
+      return (
+        <button
+          onClick={() => {
+            if (!requireUnlock(resumed)) return;
+            resumed();
+          }}
+        >
+          edit
+        </button>
+      );
+    }
+
+    render(
+      <StudioUnlockProvider>
+        <Gate />
+      </StudioUnlockProvider>,
+    );
+
+    await userEvent.click(screen.getByText("edit"));
+    // Runs once, inline — the onUnlocked callback is ignored when unlocked.
+    expect(resumed).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByText("Keyboard Unlock Required"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("discards the parked action when the modal is cancelled", async () => {
+    const resumed = jest.fn();
+    function Gate() {
+      const { requireUnlock } = useStudioUnlock();
+      return (
+        <button
+          onClick={() => {
+            if (!requireUnlock(resumed)) return;
+            resumed();
+          }}
+        >
+          edit
+        </button>
+      );
+    }
+
+    const { rerender } = render(
+      <StudioUnlockProvider>
+        <Gate />
+      </StudioUnlockProvider>,
+    );
+
+    await userEvent.click(screen.getByText("edit"));
+    await screen.findByText("Keyboard Unlock Required");
+    await userEvent.click(screen.getByRole("button", { name: /Cancel/i }));
+    await waitFor(() =>
+      expect(
+        screen.queryByText("Keyboard Unlock Required"),
+      ).not.toBeInTheDocument(),
+    );
+
+    // A later unlock must not replay the dismissed action.
+    act(() => setLockState("unlocked"));
+    rerender(
+      <StudioUnlockProvider>
+        <Gate />
+      </StudioUnlockProvider>,
+    );
+    await sleepMs(20);
+    expect(resumed).not.toHaveBeenCalled();
   });
 
   it("requireUnlock does not open the modal when unlocked", async () => {

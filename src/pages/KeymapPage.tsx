@@ -111,47 +111,59 @@ export function KeymapPage() {
   // bails out. `unknown` lock state is treated as unlocked (optimistic) — a
   // rare edit during that brief window still surfaces the modal reactively when
   // the request fails (see useKeymap's runWithUnlock).
-
-  // Handle key click
-  const handleKeyClick = useCallback(
-    (keyPosition: number) => {
-      if (!requireUnlocked()) return;
-      setSelectedKeyPosition(keyPosition);
-      setShowKeycodeSelector(true);
+  //
+  // `withUnlock` wraps an edit behind that gate *and* resumes it after unlock:
+  // run the action now if unlocked, otherwise hand it to the modal so it
+  // replays the exact operation the user attempted once they unlock — instead
+  // of silently dropping the click.
+  const withUnlock = useCallback(
+    (action: () => void | Promise<void>) => {
+      if (!requireUnlocked(action)) return;
+      void action();
     },
     [requireUnlocked],
   );
 
+  // Handle key click
+  const handleKeyClick = useCallback(
+    (keyPosition: number) =>
+      withUnlock(() => {
+        setSelectedKeyPosition(keyPosition);
+        setShowKeycodeSelector(true);
+      }),
+    [withUnlock],
+  );
+
   // Handle key reset
   const handleKeyReset = useCallback(
-    async (keyPosition: number) => {
-      if (!requireUnlocked()) return;
-      if (!currentLayer) return;
-      await keymap.resetBinding(currentLayer.id, keyPosition);
-    },
-    [currentLayer, keymap, requireUnlocked],
+    (keyPosition: number) =>
+      withUnlock(async () => {
+        if (!currentLayer) return;
+        await keymap.resetBinding(currentLayer.id, keyPosition);
+      }),
+    [currentLayer, keymap, withUnlock],
   );
 
   // Handle key reset-to-default (in-memory edit; becomes an unsaved change)
   const handleKeyResetToDefault = useCallback(
-    async (keyPosition: number) => {
-      if (!requireUnlocked()) return;
-      if (!currentLayer) return;
-      await keymap.resetBindingToDefault(currentLayer.id, keyPosition);
-    },
-    [currentLayer, keymap, requireUnlocked],
+    (keyPosition: number) =>
+      withUnlock(async () => {
+        if (!currentLayer) return;
+        await keymap.resetBindingToDefault(currentLayer.id, keyPosition);
+      }),
+    [currentLayer, keymap, withUnlock],
   );
 
   // Handle binding selection
   const handleBindingSelect = useCallback(
-    async (binding: BehaviorBinding) => {
-      if (!requireUnlocked()) return;
-      if (!currentLayer || selectedKeyPosition === null) return;
-      await keymap.setBinding(currentLayer.id, selectedKeyPosition, binding);
-      setShowKeycodeSelector(false);
-      setSelectedKeyPosition(null);
-    },
-    [currentLayer, selectedKeyPosition, keymap, requireUnlocked],
+    (binding: BehaviorBinding) =>
+      withUnlock(async () => {
+        if (!currentLayer || selectedKeyPosition === null) return;
+        await keymap.setBinding(currentLayer.id, selectedKeyPosition, binding);
+        setShowKeycodeSelector(false);
+        setSelectedKeyPosition(null);
+      }),
+    [currentLayer, selectedKeyPosition, keymap, withUnlock],
   );
 
   // Handle save
@@ -178,96 +190,118 @@ export function KeymapPage() {
   // Handle reset-to-default: reset the persistent keymap to the hard-coded
   // default, then close the confirmation dialog. Gated on unlock (it edits +
   // saves) like every other keymap edit.
-  const handleResetToDefault = useCallback(async () => {
-    if (!requireUnlocked()) return;
-    setIsResetting(true);
-    try {
-      const ok = await keymap.resetToDefault();
-      if (ok) {
-        setShowResetDialog(false);
-      }
-    } finally {
-      setIsResetting(false);
-    }
-  }, [keymap, requireUnlocked]);
+  const handleResetToDefault = useCallback(
+    () =>
+      withUnlock(async () => {
+        setIsResetting(true);
+        try {
+          const ok = await keymap.resetToDefault();
+          if (ok) {
+            setShowResetDialog(false);
+          }
+        } finally {
+          setIsResetting(false);
+        }
+      }),
+    [keymap, withUnlock],
+  );
 
   // Handle layer move up
-  const handleMoveLayerUp = useCallback(async () => {
-    if (!requireUnlocked()) return;
-    if (selectedLayerIndex <= 0) return;
-    const success = await keymap.moveLayer(
-      selectedLayerIndex,
-      selectedLayerIndex - 1,
-    );
-    if (success) {
-      setSelectedLayerIndex(selectedLayerIndex - 1);
-    }
-  }, [selectedLayerIndex, keymap, requireUnlocked]);
+  const handleMoveLayerUp = useCallback(
+    () =>
+      withUnlock(async () => {
+        if (selectedLayerIndex <= 0) return;
+        const success = await keymap.moveLayer(
+          selectedLayerIndex,
+          selectedLayerIndex - 1,
+        );
+        if (success) {
+          setSelectedLayerIndex(selectedLayerIndex - 1);
+        }
+      }),
+    [selectedLayerIndex, keymap, withUnlock],
+  );
 
   // Handle layer move down
-  const handleMoveLayerDown = useCallback(async () => {
-    if (!requireUnlocked()) return;
-    if (!keymap.keymap?.layers) return;
-    if (selectedLayerIndex >= keymap.keymap.layers.length - 1) return;
-    const success = await keymap.moveLayer(
-      selectedLayerIndex,
-      selectedLayerIndex + 1,
-    );
-    if (success) {
-      setSelectedLayerIndex(selectedLayerIndex + 1);
-    }
-  }, [selectedLayerIndex, keymap, requireUnlocked]);
+  const handleMoveLayerDown = useCallback(
+    () =>
+      withUnlock(async () => {
+        if (!keymap.keymap?.layers) return;
+        if (selectedLayerIndex >= keymap.keymap.layers.length - 1) return;
+        const success = await keymap.moveLayer(
+          selectedLayerIndex,
+          selectedLayerIndex + 1,
+        );
+        if (success) {
+          setSelectedLayerIndex(selectedLayerIndex + 1);
+        }
+      }),
+    [selectedLayerIndex, keymap, withUnlock],
+  );
 
   // Handle add layer
-  const handleAddLayer = useCallback(async () => {
-    if (!requireUnlocked()) return;
-    const result = await keymap.addLayer();
-    if (result) {
-      // Select the new layer
-      setSelectedLayerIndex(result.index);
-    }
-  }, [keymap, requireUnlocked]);
+  const handleAddLayer = useCallback(
+    () =>
+      withUnlock(async () => {
+        const result = await keymap.addLayer();
+        if (result) {
+          // Select the new layer
+          setSelectedLayerIndex(result.index);
+        }
+      }),
+    [keymap, withUnlock],
+  );
 
   // Handle delete layer
-  const handleDeleteLayer = useCallback(async () => {
-    if (!requireUnlocked()) return;
-    if (!keymap.keymap?.layers || keymap.keymap.layers.length <= 1) return;
-    if (!confirm(t("Are you sure you want to delete this layer?"))) return;
+  const handleDeleteLayer = useCallback(
+    () =>
+      withUnlock(async () => {
+        if (!keymap.keymap?.layers || keymap.keymap.layers.length <= 1) return;
+        if (!confirm(t("Are you sure you want to delete this layer?"))) return;
 
-    const success = await keymap.removeLayer(selectedLayerIndex);
-    if (success) {
-      // Adjust selected index if we deleted the last layer
-      if (selectedLayerIndex >= keymap.keymap.layers.length - 1) {
-        setSelectedLayerIndex(Math.max(0, selectedLayerIndex - 1));
-      }
-    }
-  }, [selectedLayerIndex, keymap, t, requireUnlocked]);
+        const success = await keymap.removeLayer(selectedLayerIndex);
+        if (success) {
+          // Adjust selected index if we deleted the last layer
+          if (selectedLayerIndex >= keymap.keymap.layers.length - 1) {
+            setSelectedLayerIndex(Math.max(0, selectedLayerIndex - 1));
+          }
+        }
+      }),
+    [selectedLayerIndex, keymap, t, withUnlock],
+  );
 
   // Handle restore layer
-  const handleRestoreLayer = useCallback(async () => {
-    if (!requireUnlocked()) return;
-    if (keymap.removedLayerIds.length === 0) return;
+  const handleRestoreLayer = useCallback(
+    () =>
+      withUnlock(async () => {
+        if (keymap.removedLayerIds.length === 0) return;
 
-    // Restore the most recently removed layer at the end
-    const layerId = keymap.removedLayerIds[keymap.removedLayerIds.length - 1];
-    const atIndex = keymap.keymap?.layers.length ?? 0;
+        // Restore the most recently removed layer at the end
+        const layerId =
+          keymap.removedLayerIds[keymap.removedLayerIds.length - 1];
+        const atIndex = keymap.keymap?.layers.length ?? 0;
 
-    const layer = await keymap.restoreLayer(layerId, atIndex);
-    if (layer) {
-      // Select the restored layer
-      setSelectedLayerIndex(atIndex);
-    }
-  }, [keymap, requireUnlocked]);
+        const layer = await keymap.restoreLayer(layerId, atIndex);
+        if (layer) {
+          // Select the restored layer
+          setSelectedLayerIndex(atIndex);
+        }
+      }),
+    [keymap, withUnlock],
+  );
 
   // Handle open rename dialog
-  const handleOpenRenameDialog = useCallback(() => {
-    if (!requireUnlocked()) return;
-    if (!keymap.keymap?.layers) return;
-    const layer = keymap.keymap.layers[selectedLayerIndex];
-    if (!layer) return;
-    setRenameValue(layer.name);
-    setShowRenameDialog(true);
-  }, [keymap.keymap?.layers, selectedLayerIndex, requireUnlocked]);
+  const handleOpenRenameDialog = useCallback(
+    () =>
+      withUnlock(() => {
+        if (!keymap.keymap?.layers) return;
+        const layer = keymap.keymap.layers[selectedLayerIndex];
+        if (!layer) return;
+        setRenameValue(layer.name);
+        setShowRenameDialog(true);
+      }),
+    [keymap.keymap?.layers, selectedLayerIndex, withUnlock],
+  );
 
   // Handle rename confirm
   const handleRenameConfirm = useCallback(async () => {
