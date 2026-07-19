@@ -44,6 +44,8 @@ import {
 } from "../components/macroCombo/comboUtils";
 import { useComboEditor } from "../components/macroCombo/useComboEditor";
 import { useMacroEditor } from "../components/macroCombo/useMacroEditor";
+import { DocTip } from "../components/DocTip";
+import { macroDoc, comboDoc } from "../i18n/featureDocs";
 import type { Combo } from "../hooks/useRuntimeCombo";
 import type { MacroSummary } from "../proto/cormoran/runtime_macro/runtime_macro";
 
@@ -449,9 +451,12 @@ export function MacroComboPage() {
               {macroAvailable && (
                 <section className="glass-card p-3">
                   <div className="flex items-center justify-between mb-3">
-                    <h2 className="text-sm font-medium text-[var(--color-text)]">
-                      {t("Macros")}
-                    </h2>
+                    <div className="flex items-center gap-1.5">
+                      <h2 className="text-sm font-medium text-[var(--color-text)]">
+                        {t("Macros")}
+                      </h2>
+                      <DocTip content={macroDoc(t)} />
+                    </div>
                     <div className="flex items-center gap-1">
                       {runtimeMacro.isLoading && (
                         <IconLoader2
@@ -525,10 +530,11 @@ export function MacroComboPage() {
               {comboAvailable && keymap.keymap && (
                 <section className="glass-card p-3">
                   <div className="flex items-center justify-between mb-3">
-                    <div>
+                    <div className="flex items-center gap-1.5">
                       <h2 className="text-sm font-medium text-[var(--color-text)]">
                         {t("Combos")}
                       </h2>
+                      <DocTip content={comboDoc(t)} />
                     </div>
                     <div className="flex items-center gap-1">
                       {runtimeCombo.isLoading && (
