@@ -28,6 +28,10 @@ jobs:
           # Dev and PR preview deployments keep RPC debug logging on; the
           # production release build (release.yml) leaves this unset.
           VITE_ENABLE_RPC_LOG: "true"
+          # Header badge marking a non-production build: "PR" for pull-request
+          # preview deployments, "Dev" for the main-branch dev deployment. The
+          # production release build (release.yml) leaves this unset → no badge.
+          VITE_BUILD_LABEL: ${{ github.event_name == 'pull_request' && 'PR' || 'Dev' }}
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:

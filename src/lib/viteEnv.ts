@@ -18,3 +18,19 @@
  */
 export const RPC_LOG_ENABLED: boolean =
   import.meta.env.DEV || import.meta.env.VITE_ENABLE_RPC_LOG === "true";
+
+/**
+ * Short badge shown in the header to mark non-production builds, or `null` to
+ * show nothing. The value comes from:
+ * - `VITE_BUILD_LABEL` — set at build time by `.github/workflows/test.yml` to
+ *   `"PR"` for pull-request preview deployments and `"Dev"` for the `main`
+ *   dev deployment.
+ * - a local `vite dev` server falls back to `"Dev"` (`import.meta.env.DEV`).
+ *
+ * The production release build (`.github/workflows/release.yml`) leaves
+ * `VITE_BUILD_LABEL` unset and runs in production mode, so this folds to `null`
+ * and the badge is tree-shaken away.
+ */
+export const BUILD_LABEL: string | null =
+  (import.meta.env.VITE_BUILD_LABEL as string | undefined) ||
+  (import.meta.env.DEV ? "Dev" : null);
