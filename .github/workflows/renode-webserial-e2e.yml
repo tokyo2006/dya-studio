@@ -1,0 +1,111 @@
+# POC: run the REAL dya-studio in a headless browser and have it talk to REAL
+# ZMK firmware running in the Renode emulator over (a shim of) the WebSerial API
+# -- no hardware. See e2e/renode/README.md for the architecture and the one
+# known limitation (Renode's UARTE TX-IRQ model stalls Studio replies >~30B, so
+# only the GetDeviceInfo round-trip is asserted today).
+#
+# Opt-in / path-scoped so it never burdens ordinary PRs (the firmware build is
+# a full Zephyr build, ~15-20 min).
+name: renode-webserial-e2e (POC)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "e2e/renode/**"
+      - ".github/workflows/renode-webserial-e2e.yml"
+
+env:
+  # cormoran/zmk-west-commands provides the Renode harness + the Studio-on-UART
+  # DUT build config. Pin a ref for reproducibility.
+  ZMK_WC_REPO: cormoran/zmk-west-commands
+  ZMK_WC_REF: main
+  # Keyboard name the DUT advertises via GetDeviceInfo (zmk-west-commands'
+  # renode_tester shield). Swap both this and the DUT below for a real dya build.
+  DEVICE_NAME: Renode
+
+jobs:
+  build-dut:
+    name: Build Studio-on-UART DUT (Renode firmware)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container:
+      image: zmkfirmware/zmk-build-arm:4.1
+    steps:
+      - name: Checkout zmk-west-commands
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.ZMK_WC_REPO }}
+          ref: ${{ env.ZMK_WC_REF }}
+      - name: West init/update (Renode manifest)
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          west init -l . --mf scripts/west-test-renode-standalone.yml
+          west update --narrow
+          west zephyr-export
+      - name: Build DUT (renode-studio-uart snippet image)
+        run: west zmk-build tests/zmk-config --build-yaml tests/zmk-config/build-renode.yaml -af renode -d build
+      - name: Upload DUT ELF
+        uses: actions/upload-artifact@v4
+        with:
+          name: dut-elf
+          path: build/renode/zephyr/zmk.elf
+
+  e2e:
+    name: dya-studio ⇄ WebSerial ⇄ Renode
+    needs: build-dut
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout dya-studio
+        uses: actions/checkout@v5
+
+      - name: Build dya-studio dist
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm run build
+        env:
+          VITE_BASE: /
+
+      - name: Checkout zmk-west-commands (Renode harness)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.ZMK_WC_REPO }}
+          ref: ${{ env.ZMK_WC_REF }}
+          path: zmk-west-commands
+      - name: Install Renode 1.16.1
+        run: bash zmk-west-commands/scripts/lib/renode/install_renode.sh
+
+      - name: Download DUT ELF
+        uses: actions/download-artifact@v4
+        with:
+          name: dut-elf
+          path: fw
+
+      - name: Install e2e deps (Playwright + ws)
+        working-directory: e2e/renode
+        run: |
+          npm install
+          npx playwright install --with-deps chromium
+
+      - name: Run WebSerial ⇄ Renode e2e
+        working-directory: e2e/renode
+        env:
+          ZMK_WC_RENODE_LIB: ${{ github.workspace }}/zmk-west-commands/scripts/lib/renode
+          DIST_DIR: ${{ github.workspace }}/dist
+          DEVICE_NAME: ${{ env.DEVICE_NAME }}
+        run: bash run-local.sh "${{ github.workspace }}/fw/zmk.elf"
+
+      - name: Upload Playwright artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts
+          path: |
+            e2e/renode/playwright-report
+            e2e/renode/test-results
+            e2e/renode/renode_serve.err
+            e2e/renode/bridge.out
+          if-no-files-found: ignore
