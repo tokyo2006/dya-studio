@@ -612,8 +612,8 @@ const ja: Record<string, string> = {
   "ZMK community": "ZMK community",
   "Connect via {{method}}": "{{method}} で接続",
   "Data Collection Notice": "データ収集に関するお知らせ",
-  "DYA Studio collects your keyboard name for usage analysis purposes. However, no other keyboard data is sent to any servers. All of your keyboard configurations, keymaps, or settings are handled locally.":
-    "DYA Studio は利用状況分析のためにキーボード名を収集します。ただし、それ以外のキーボードデータはサーバーへ送信されません。キーボード設定、キーマップ、各種設定はすべてローカルで処理されます。",
+  "DYA Studio collects your keyboard name and anonymous usage data — such as which features you use, how you connect, and connection errors — for usage analysis. No keymaps, settings, or other keyboard configuration data is ever sent; everything is handled locally on your device.":
+    "DYA Studio は利用状況分析のために、キーボード名と匿名の利用データ（使用する機能、接続方法、接続エラーなど）を収集します。キーマップや各種設定など、その他のキーボード設定データが送信されることは一切なく、すべてお使いのデバイス上でローカルに処理されます。",
   "BLE Not Supported on your Browser":
     "このブラウザーは BLE に対応していません",
   "Your browser does not support Web Bluetooth API. Please use a compatible browser like Chrome, Edge, or Bluefy (iOS). BLE device discovery on non-Linux system requires cormoran's ZMK fork + press the studio unlock key on your keyboard.":

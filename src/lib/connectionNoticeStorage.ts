@@ -5,7 +5,7 @@
 import type { ConnectionMethod } from "../components/DeviceConnection";
 
 // Version of the notice - increment when notice content changes
-const NOTICE_VERSION = "1.0.0";
+const NOTICE_VERSION = "1.1.0";
 const NOTICE_STORAGE_KEY = "dya-studio-connection-notice-accepted";
 
 /**
