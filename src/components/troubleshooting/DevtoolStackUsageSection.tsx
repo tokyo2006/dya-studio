@@ -12,6 +12,7 @@ import {
   SectionError,
   SectionSummaryBadge,
 } from "./SectionCard";
+import { LoadingIndicator } from "../LoadingIndicator";
 
 const MODULE_NAME = "zmk-module-devtool";
 const MODULE_URL = "https://github.com/cormoran/zmk-module-devtool";
@@ -194,8 +195,9 @@ export function DevtoolStackUsageSection({
                 })}
               </p>
             </div>
+          ) : isLoading ? (
+            <LoadingIndicator variant="inline" label={t("Loading")} />
           ) : (
-            !isLoading &&
             !error && (
               <p className="text-sm text-[var(--color-text-muted)]">
                 {t("No stack data yet — press Refresh or enable Auto-refresh.")}

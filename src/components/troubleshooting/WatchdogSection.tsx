@@ -25,6 +25,7 @@ import {
   SectionError,
   SectionSummaryBadge,
 } from "./SectionCard";
+import { LoadingIndicator } from "../LoadingIndicator";
 
 const MODULE_NAME = "cormoran/zmk-feature-watchdog";
 const MODULE_URL = "https://github.com/cormoran/zmk-feature-watchdog";
@@ -309,8 +310,10 @@ export function WatchdogSection({
             <ElfUploadBar elfAnalysis={elfAnalysis} t={t} />
           )}
 
-          {/* Incident table / empty state */}
-          {incidents.length === 0 ? (
+          {/* Incident table / loading / empty state */}
+          {isLoading && !status ? (
+            <LoadingIndicator variant="inline" label={t("Loading")} />
+          ) : incidents.length === 0 ? (
             <div className="p-4 rounded-lg border border-dashed border-[var(--color-border)] flex items-center gap-2">
               <IconCircleCheck size={18} className="text-green-400" />
               <span className="text-sm text-[var(--color-text-muted)]">
