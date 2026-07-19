@@ -9,6 +9,7 @@ import {
   SectionError,
   SectionSummaryBadge,
 } from "./SectionCard";
+import { LoadingIndicator } from "../LoadingIndicator";
 import { Pmw3610FrameViewer } from "./Pmw3610FrameViewer";
 
 const DEFAULT_FRAME_SIDE = 22;
@@ -95,6 +96,10 @@ export function Pmw3610Section({ pmw3610 }: { pmw3610: UsePmw3610Return }) {
       ) : (
         <>
           {error && <SectionError message={error} />}
+
+          {devices.length === 0 && isLoading && !error && (
+            <LoadingIndicator variant="inline" label={t("Loading")} />
+          )}
 
           {devices.length === 0 && !isLoading && !error && (
             <p className="text-sm text-[var(--color-text-muted)]">

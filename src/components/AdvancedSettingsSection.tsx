@@ -29,6 +29,7 @@ import {
 } from "../hooks/useCustomSettings";
 import { MEMORY_WRITE_DEBOUNCE_MS } from "../hooks/useDebouncedMemoryWrite";
 import { StatusBadge, StatusDot, type EditStatus } from "./EditStatusIndicator";
+import { LoadingIndicator } from "./LoadingIndicator";
 import { useKeymap, type BehaviorDefinition } from "../hooks/useKeymap";
 import { useLanguage } from "../hooks/useLanguage";
 import {
@@ -1288,7 +1289,11 @@ export function AdvancedSettingsSection() {
               onClick={customSettings.loadSettings}
               disabled={customSettings.isLoading}
             >
-              <IconRefresh size={16} />
+              {customSettings.isLoading ? (
+                <IconLoader2 size={16} className="animate-spin" />
+              ) : (
+                <IconRefresh size={16} />
+              )}
               {t("Reload")}
             </button>
           </div>
@@ -1313,9 +1318,10 @@ export function AdvancedSettingsSection() {
             </p>
           ) : customSettings.isLoading &&
             customSettings.sections.length === 0 ? (
-            <p className="text-sm text-[var(--color-text-muted)]">
-              {t("Loading advanced settings...")}
-            </p>
+            <LoadingIndicator
+              variant="inline"
+              label={t("Loading advanced settings...")}
+            />
           ) : customSettings.sections.length === 0 ? (
             <p className="text-sm text-[var(--color-text-muted)]">
               {t("No advanced settings were reported by the keyboard.")}
