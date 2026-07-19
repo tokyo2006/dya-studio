@@ -38,7 +38,6 @@ import {
 } from "../components/macroCombo/GlobalSettingsCards";
 import {
   comboEditStatus,
-  comboSourceLabel,
   defaultBehaviorBinding,
   formatComboBehavior,
   formatLayerScope,
@@ -494,12 +493,6 @@ export function MacroComboPage() {
                             <StatusDot status="unsaved" />
                           )}
                         </div>
-                        <span className="block text-xs text-[var(--color-text-muted)]">
-                          {t("{{encodedSize}}/{{maxMacroBytes}} bytes", {
-                            encodedSize: macro.encodedSize,
-                            maxMacroBytes: runtimeMacro.maxMacroBytes,
-                          })}
-                        </span>
                       </button>
                     ))}
                   </div>
@@ -514,13 +507,6 @@ export function MacroComboPage() {
                       <h2 className="text-sm font-medium text-[var(--color-text)]">
                         {t("Combos")}
                       </h2>
-                      <p className="text-xs text-[var(--color-text-muted)]">
-                        {runtimeCombo.combos.length}
-                        {comboEditor.maxCombo
-                          ? ` / ${comboEditor.maxCombo}`
-                          : ""}{" "}
-                        {t("configured")}
-                      </p>
                     </div>
                     <div className="flex items-center gap-1">
                       {runtimeCombo.isLoading && (
@@ -589,12 +575,6 @@ export function MacroComboPage() {
                                   comboEditor.modifiedIndices,
                                 )}
                               />
-                              <span className="text-xs font-mono text-[var(--color-text-muted)]">
-                                #{combo.index}
-                              </span>
-                              <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-[var(--color-border)] text-[var(--color-text-muted)]">
-                                {comboSourceLabel(combo.source, t)}
-                              </span>
                             </span>
                           </div>
                           <div className="mt-1 text-xs text-[var(--color-text-muted)] truncate">
