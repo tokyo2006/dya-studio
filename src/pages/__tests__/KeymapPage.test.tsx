@@ -4,7 +4,7 @@
  * This test suite verifies the keymap editor UI,
  * including layer selection, key interaction, and save/discard operations.
  */
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { KeymapPage } from "../KeymapPage";
 import { ConnectionContext } from "../../components/DeviceConnection";
@@ -563,6 +563,82 @@ describe("KeymapPage", () => {
       await user.click(moveDownButton);
 
       expect(mockMoveLayer).toHaveBeenCalledWith(0, 1);
+    });
+  });
+
+  describe("Layer Restoration", () => {
+    it("opens a popup listing deleted layers and restores the chosen one", async () => {
+      const user = userEvent.setup();
+      const mockRestoreLayer = jest
+        .fn()
+        .mockResolvedValue({ id: 3, name: "Sym", bindings: [] });
+      renderComponent(
+        { isConnected: true },
+        {
+          keymap: mockKeymap,
+          physicalLayouts: mockPhysicalLayouts,
+          behaviors: mockBehaviors,
+          removedLayerIds: [2, 3],
+          restoreLayer: mockRestoreLayer,
+        },
+      );
+
+      // The popup is closed until the restore button is clicked.
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+      await user.click(screen.getByLabelText("Restore deleted layer"));
+
+      // Clicking a specific layer row restores exactly that id, appended to the
+      // end of the current layer list (2 active layers -> atIndex 2).
+      const menu = screen.getByRole("menu");
+      await user.click(within(menu).getByRole("menuitem", { name: /Layer 3/ }));
+
+      expect(mockRestoreLayer).toHaveBeenCalledWith(3, 2);
+      // The popup closes after a selection.
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    });
+
+    it("restore-all row restores every deleted layer in id order", async () => {
+      const user = userEvent.setup();
+      const mockRestoreLayer = jest
+        .fn()
+        .mockResolvedValue({ id: 0, name: "R", bindings: [] });
+      renderComponent(
+        { isConnected: true },
+        {
+          keymap: mockKeymap,
+          physicalLayouts: mockPhysicalLayouts,
+          behaviors: mockBehaviors,
+          removedLayerIds: [2, 3],
+          restoreLayer: mockRestoreLayer,
+        },
+      );
+
+      await user.click(screen.getByLabelText("Restore deleted layer"));
+      const menu = screen.getByRole("menu");
+      await user.click(
+        within(menu).getByRole("menuitem", {
+          name: /Restore all deleted layers/,
+        }),
+      );
+
+      // Restored in id order, each appended (atIndex advances as they land).
+      expect(mockRestoreLayer).toHaveBeenNthCalledWith(1, 2, 2);
+      expect(mockRestoreLayer).toHaveBeenNthCalledWith(2, 3, 3);
+    });
+
+    it("disables the restore button when there are no deleted layers", () => {
+      renderComponent(
+        { isConnected: true },
+        {
+          keymap: mockKeymap,
+          physicalLayouts: mockPhysicalLayouts,
+          behaviors: mockBehaviors,
+          removedLayerIds: [],
+        },
+      );
+
+      expect(screen.getByLabelText("Restore deleted layer")).toBeDisabled();
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     });
   });
 

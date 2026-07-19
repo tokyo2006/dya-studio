@@ -135,6 +135,8 @@ const ja: Record<string, string> = {
   "Restore deleted layer": "削除したレイヤーを復元",
   "Restore deleted layer ({{count}} available)":
     "削除したレイヤーを復元（{{count}} 件利用可能）",
+  "Restore all deleted layers ({{count}})":
+    "削除したレイヤーをすべて復元（{{count}} 件）",
   "No deleted layers to restore": "復元できる削除済みレイヤーはありません",
   "Physical Layout": "物理レイアウト",
   "Layout {{id}}": "レイアウト {{id}}",

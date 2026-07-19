@@ -250,7 +250,14 @@ export function useKeymap(): UseKeymapReturn {
   const [loadingProgress, setLoadingProgress] =
     useState<KeymapLoadProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [removedLayerIds, setRemovedLayerIds] = useState<number[]>([]);
+  // Total number of layer slots this keyboard has (active + removed). ZMK has no
+  // spare layer capacity beyond the devicetree-defined layers, so this is a
+  // per-keyboard constant captured at load: `active layers + availableLayers`
+  // (availableLayers is the count of free — i.e. removed — slots). Any layer id
+  // in [0, totalLayerCount) that isn't currently active is a REMOVED layer the
+  // device still holds and can restore; `removedLayerIds` derives from this.
+  // null until the first load completes.
+  const [totalLayerCount, setTotalLayerCount] = useState<number | null>(null);
 
   // Ref to track if data has been loaded
   const dataLoadedRef = useRef(false);
@@ -479,6 +486,14 @@ export function useKeymap(): UseKeymapReturn {
 
         setPhysicalLayouts(data.physicalLayouts);
         setKeymap(data.keymap);
+        // Capture the keyboard's fixed layer-slot count. availableLayers is the
+        // number of free (removed) slots, so active + available = the pool size.
+        // Removed layer ids are derived from this (see removedLayerIds), which is
+        // what lets a layer removed & saved in an earlier session still be
+        // restored after a reconnect.
+        setTotalLayerCount(
+          data.keymap.layers.length + data.keymap.availableLayers,
+        );
         // Only store original bindings on first load
         if (isFirstLoad) {
           storeOriginalBindings(data.keymap);
@@ -715,16 +730,15 @@ export function useKeymap(): UseKeymapReturn {
   // Remove a layer
   const removeLayer = useCallback(
     async (layerIndex: number): Promise<boolean> => {
-      // Get the layer ID before removing
-      const layerId = keymap?.layers[layerIndex]?.id;
-
       const result = await callRpc(
         { keymap: { removeLayer: { layerIndex } } },
         (response) => response.keymap?.removeLayer,
       );
 
       if (result?.ok !== undefined) {
-        // Update keymap by removing the layer
+        // Update keymap by removing the layer. The removed id drops out of the
+        // active set, so removedLayerIds (derived) picks it up automatically —
+        // no separate bookkeeping needed.
         setKeymap((prev) => {
           if (!prev) return prev;
           const newLayers = prev.layers.filter((_, i) => i !== layerIndex);
@@ -733,11 +747,6 @@ export function useKeymap(): UseKeymapReturn {
             layers: newLayers,
           };
         });
-
-        // Track removed layer ID for potential restoration
-        if (layerId !== undefined) {
-          setRemovedLayerIds((prev) => [...prev, layerId]);
-        }
 
         setHasUnsavedChanges(true);
         clearError();
@@ -752,7 +761,7 @@ export function useKeymap(): UseKeymapReturn {
 
       return false;
     },
-    [callRpc, keymap?.layers, clearError, setErrorWithAutoClear],
+    [callRpc, clearError, setErrorWithAutoClear],
   );
 
   // Restore a deleted layer
@@ -766,7 +775,8 @@ export function useKeymap(): UseKeymapReturn {
       if (result?.ok) {
         const restoredLayer = result.ok;
 
-        // Update keymap with the restored layer
+        // Update keymap with the restored layer. It re-enters the active set, so
+        // removedLayerIds (derived) drops it automatically.
         setKeymap((prev) => {
           if (!prev) return prev;
           const newLayers = [...prev.layers];
@@ -776,9 +786,6 @@ export function useKeymap(): UseKeymapReturn {
             layers: newLayers,
           };
         });
-
-        // Remove from tracked removed layer IDs
-        setRemovedLayerIds((prev) => prev.filter((id) => id !== layerId));
 
         setHasUnsavedChanges(true);
         clearError();
@@ -1097,6 +1104,24 @@ export function useKeymap(): UseKeymapReturn {
     [behaviors],
   );
 
+  // Layer ids the device still holds but that aren't currently active — i.e.
+  // removed layers that can be restored. Derived from device state (the fixed
+  // layer pool minus the active ids) rather than tracked only in session memory,
+  // so a layer that was removed and saved in an EARLIER session is still
+  // restorable after a reconnect (ZMK preserves the layer's bindings/name and
+  // `restore_layer` brings them back). In-session removals are covered too — a
+  // removed id leaves the active set immediately — and anything re-added or
+  // restored drops out because it re-enters the active set.
+  const removedLayerIds = useMemo(() => {
+    if (totalLayerCount === null || !keymap) return [];
+    const active = new Set(keymap.layers.map((layer) => layer.id));
+    const removed: number[] = [];
+    for (let id = 0; id < totalLayerCount; id++) {
+      if (!active.has(id)) removed.push(id);
+    }
+    return removed;
+  }, [totalLayerCount, keymap]);
+
   // Subscribe to keymap notifications
   useEffect(() => {
     if (!zmkApp) return;
@@ -1172,7 +1197,7 @@ export function useKeymap(): UseKeymapReturn {
       setPendingPositions(new Set());
       setHasUnsavedChanges(false);
       setError(null);
-      setRemovedLayerIds([]);
+      setTotalLayerCount(null);
       setLoadingProgress(null);
       dataLoadedRef.current = false;
       defaultKeymapRequestedRef.current = false;
