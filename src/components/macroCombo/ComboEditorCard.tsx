@@ -26,7 +26,6 @@ import {
 } from "../../proto/cormoran/runtime_combo/runtime_combo";
 import {
   comboEditStatus,
-  comboSourceLabel,
   formatComboBehavior,
   formatLayerScope,
   hasLayer,
@@ -75,9 +74,6 @@ export function ComboEditorCard({
             <h2 className="text-sm font-medium text-[var(--color-text)]">
               {t("Combo Editor")}
             </h2>
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-[var(--color-border)] text-[var(--color-text-muted)]">
-              {comboSourceLabel(combo.editorSource, t)}
-            </span>
             <StatusDot
               status={comboEditStatus(
                 combo.editorSource,
