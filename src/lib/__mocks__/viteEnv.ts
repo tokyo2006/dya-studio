@@ -4,3 +4,4 @@
  * build, so dev-only logging stays off.
  */
 export const RPC_LOG_ENABLED = false;
+export const BUILD_LABEL: string | null = null;

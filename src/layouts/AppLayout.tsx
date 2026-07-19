@@ -5,6 +5,7 @@ import { useTheme } from "../hooks/useTheme";
 import { useLanguage } from "../hooks/useLanguage";
 import type { ConnectionMethod } from "../components/DeviceConnection";
 import { LanguageToggle } from "../components/LanguageToggle";
+import { BUILD_LABEL } from "../lib/viteEnv";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -41,6 +42,14 @@ export function AppLayout({
               Studio
             </span>
           </div>
+          {BUILD_LABEL && (
+            <span
+              className="rounded-full border border-[var(--color-warning)] px-2 py-0.5 text-[10px] font-semibold tracking-widest text-[var(--color-warning)] uppercase leading-none"
+              title={`${BUILD_LABEL} build — not the production release`}
+            >
+              {BUILD_LABEL}
+            </span>
+          )}
         </div>
 
         {/* Connection Status & Theme Toggle */}
