@@ -1,14 +1,16 @@
 import { useEffect } from "react";
-import { IconArrowLeft, IconTag } from "@tabler/icons-react";
+import { IconArrowLeft, IconSparkles, IconTag } from "@tabler/icons-react";
 import DyaLogo from "../assets/dya.svg?react";
 import { useLanguage } from "../hooks/useLanguage";
 import { LanguageToggle } from "../components/LanguageToggle";
 import {
   CHANGE_CATEGORIES,
   getReleases,
+  hasSummary,
   isEmptyRelease,
   isUpcoming,
   localizeChange,
+  localizeText,
   prNumbers,
   pullRequestUrl,
   type ChangeCategory,
@@ -95,6 +97,40 @@ function CategoryGroup({
   );
 }
 
+/** Headline summary block shown above the categorized changes. */
+function SummaryBlock({ release }: { release: Release }) {
+  const { language } = useLanguage();
+  if (!hasSummary(release)) {
+    return null;
+  }
+  const { lead, highlights } = release.summary!;
+  return (
+    <div className="mb-6 rounded-lg border border-[var(--color-electric)]/25 bg-[var(--color-electric)]/5 p-4">
+      {lead && (
+        <p className="text-[15px] font-medium text-[var(--color-text)] leading-relaxed flex items-start gap-2">
+          <IconSparkles
+            size={18}
+            className="text-[var(--color-electric)] mt-0.5 flex-shrink-0"
+          />
+          <span>{localizeText(lead, language)}</span>
+        </p>
+      )}
+      {highlights && highlights.length > 0 && (
+        <ul className="mt-3 space-y-1.5 list-disc pl-5">
+          {highlights.map((h, i) => (
+            <li
+              key={i}
+              className="text-sm text-[var(--color-text-secondary)] leading-relaxed"
+            >
+              {localizeText(h, language)}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function ReleaseSection({ release }: { release: Release }) {
   const { t } = useLanguage();
   const upcoming = isUpcoming(release);
@@ -122,9 +158,16 @@ function ReleaseSection({ release }: { release: Release }) {
             : t("No changes recorded for this release.")}
         </p>
       ) : (
-        CHANGE_CATEGORIES.map((category) => (
-          <CategoryGroup key={category} category={category} release={release} />
-        ))
+        <>
+          <SummaryBlock release={release} />
+          {CHANGE_CATEGORIES.map((category) => (
+            <CategoryGroup
+              key={category}
+              category={category}
+              release={release}
+            />
+          ))}
+        </>
       )}
     </section>
   );

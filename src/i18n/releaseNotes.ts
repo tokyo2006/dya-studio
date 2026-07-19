@@ -21,15 +21,28 @@ export type ChangeCategory = "major" | "minor" | "patch";
 
 export const CHANGE_CATEGORIES: ChangeCategory[] = ["major", "minor", "patch"];
 
-/** A single change entry, authored in both supported languages. */
-export interface LocalizedChange {
+/** A piece of text authored in both supported languages. */
+export interface LocalizedText {
   en: string;
   ja: string;
+}
+
+/** A single change entry, authored in both supported languages. */
+export interface LocalizedChange extends LocalizedText {
   /**
    * Optional related pull request number(s) on GitHub. Rendered as links on
    * the release notes page. Accepts a single number or an array.
    */
   pr?: number | number[];
+}
+
+/**
+ * Optional free-form summary shown above the categorized changes — a lead
+ * sentence and a few headline highlights for the release.
+ */
+export interface ReleaseSummary {
+  lead?: LocalizedText;
+  highlights?: LocalizedText[];
 }
 
 /** GitHub repository the release notes link back to. */
@@ -53,6 +66,8 @@ export interface Release {
   version: string;
   /** Release date `YYYY-MM-DD`, or `null` for the upcoming section. */
   date: string | null;
+  /** Optional headline summary shown above the categorized changes. */
+  summary?: ReleaseSummary;
   changes: Record<ChangeCategory, LocalizedChange[]>;
 }
 
@@ -72,10 +87,17 @@ export function isUpcoming(release: Release): boolean {
   return release.version === UPCOMING;
 }
 
-/** True when a release has no change entries in any category. */
+/** True when a release has a non-empty summary (lead or highlights). */
+export function hasSummary(release: Release): boolean {
+  const s = release.summary;
+  return !!s && (!!s.lead || (s.highlights?.length ?? 0) > 0);
+}
+
+/** True when a release has no summary and no change entries in any category. */
 export function isEmptyRelease(release: Release): boolean {
-  return CHANGE_CATEGORIES.every(
-    (c) => (release.changes[c]?.length ?? 0) === 0,
+  return (
+    !hasSummary(release) &&
+    CHANGE_CATEGORIES.every((c) => (release.changes[c]?.length ?? 0) === 0)
   );
 }
 
@@ -89,10 +111,15 @@ export function getCurrentVersion(): string | null {
   return released ? released.version : null;
 }
 
+/** Pick the text of a localized value in the active language. */
+export function localizeText(text: LocalizedText, language: Language): string {
+  return text[language] || text.en;
+}
+
 /** Pick the text for a change in the active language. */
 export function localizeChange(
   change: LocalizedChange,
   language: Language,
 ): string {
-  return change[language] || change.en;
+  return localizeText(change, language);
 }

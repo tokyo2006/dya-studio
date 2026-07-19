@@ -84,6 +84,26 @@ describe("applyRelease", () => {
     expect(input.releases).toHaveLength(2);
   });
 
+  it("carries the upcoming summary into the release and clears it on the fresh upcoming", () => {
+    const data: ReleaseNotesData = {
+      releases: [
+        {
+          version: UPCOMING,
+          date: null,
+          summary: {
+            lead: { en: "Big update.", ja: "大型アップデート。" },
+            highlights: [{ en: "Added X.", ja: "X を追加。" }],
+          },
+          changes: { major: [], minor: [], patch: [] },
+        },
+      ],
+    };
+    const out = applyRelease(data, "2026.04.01.0", "2026-04-01");
+    expect(out.releases[0].summary).toBeUndefined();
+    expect(out.releases[1].summary?.lead?.en).toBe("Big update.");
+    expect(out.releases[1].summary?.highlights).toHaveLength(1);
+  });
+
   it("throws when there is no upcoming section", () => {
     const data: ReleaseNotesData = {
       releases: [

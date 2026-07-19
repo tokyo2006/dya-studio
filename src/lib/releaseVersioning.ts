@@ -78,6 +78,8 @@ export function applyRelease(
   const released: Release = {
     version,
     date: dateIso,
+    // Carry the upcoming section's summary (if any) into the release.
+    ...(upcoming.summary ? { summary: upcoming.summary } : {}),
     changes: {
       major: [...(upcoming.changes.major ?? [])],
       minor: [...(upcoming.changes.minor ?? [])],

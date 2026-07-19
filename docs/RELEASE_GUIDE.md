@@ -64,6 +64,28 @@ the `upcoming` section of `src/i18n/releaseNotes.json`.**
 - Write from the user's perspective (what changed for them), not the
   implementation. Keep each entry to one sentence.
 
+### Optional release summary
+
+A release can carry an optional `summary` above the categorized changes — a
+`lead` sentence and a few `highlights` — for a human overview of a big release.
+Both are bilingual `{ "en": ..., "ja": ... }`. Add it to the `upcoming` section
+(it carries into the release), and only when it adds value:
+
+```json
+{
+  "version": "upcoming",
+  "date": null,
+  "summary": {
+    "lead": {
+      "en": "A big update across the board.",
+      "ja": "全体的に大規模にアップデートしました。"
+    },
+    "highlights": [{ "en": "Added X.", "ja": "X を追加しました。" }]
+  },
+  "changes": { "major": [], "minor": [], "patch": [] }
+}
+```
+
 Purely internal changes (refactors, test-only changes, CI tweaks, dependency
 bumps with no user-visible effect) do **not** need an entry.
 
