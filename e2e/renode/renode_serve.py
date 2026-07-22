@@ -1,17 +1,27 @@
 #!/usr/bin/env python3
-"""Boot a Studio-on-UART ZMK ELF under Renode and hold the emulation running,
-exposing the Studio-RPC UART as a plain TCP server socket (Renode's own
-CreateServerSocketTerminal). Prints `RPC_PORT=<n>` on stdout once ready, then
-blocks until killed.
+"""Boot a real, hardware-flashable ZMK `studio-rpc-usb-uart` ELF under Renode and
+hold the emulation running, exposing its ZMK Studio RPC endpoint -- carried over
+the emulated **USB CDC-ACM** -- as a plain TCP server socket. Prints `RPC_PORT=<n>`
+on stdout once ready, then blocks until killed.
 
-Design (see POC README): Python attaches ONLY to the console UART (drains it so
-the firmware never back-pressures on logs, and so we capture a boot log for
-debugging). It deliberately does NOT connect to the Studio-RPC UART -- Renode's
-ServerSocketTerminal only serves its first client for the life of the process,
-so we leave that socket free for the Node WebSocket bridge, which becomes the
-single RPC client. Losing the unsolicited boot notification that the firmware
-emits before the bridge attaches is harmless: the real ts-client re-issues
-GetDeviceInfo itself.
+Why USB CDC (not UART): this is the SAME image you flash to hardware, and its
+Studio transport is USB CDC. Renode's nRF52840 UARTE TX-IRQ model stalls Studio
+replies of ~>=30 framed bytes, which capped an earlier UART-based version of this
+POC at a bare `GetDeviceInfo`; the emulated USB CDC path (NRF_USBD_Full +
+DualCdcAcmBridge, from zmk-west-commands) has no such limit, so the browser can
+complete dya-studio's full connect handshake (which fetches replies far larger
+than that). See e2e/renode/README.md.
+
+How the endpoint is exposed: zmk-west-commands' harness attaches a
+DualCdcAcmBridge USB host and hands us the Studio CDC channel as a Python socket
+(Renode serves a ServerSocketTerminal to only its first client, so we must own
+it here rather than let the browser bridge connect to Renode directly). This
+process then runs a tiny transparent TCP relay -- `RPC_PORT` -- that pipes those
+raw Studio bytes to/from the single Node `bridge.mjs` client, keeping the exact
+`RPC_PORT=` contract the rest of the harness (bridge, shim, test) already speaks.
+The console CDC channel (present on CONFIG_ZMK_USB_LOGGING images) and the UART
+console are drained in the background so the firmware never back-pressures on an
+unread terminal.
 """
 import os
 import socket
@@ -28,82 +38,179 @@ HARNESS = Path(
 )
 sys.path.insert(0, str(HARNESS))
 
-from renode_harness import RenodeSession, PLATFORMS_DIR  # noqa: E402
+import renode_harness as H  # noqa: E402
+
+USB_REPL_TEMPLATE = "xiao_nrf52840_usb.repl"
+BRIDGE_NAME = "bridge"
+
+
+def _mon_is_wired(mon, channel: str) -> bool:
+    """True/False for a `sysbus.<channel> IsWired` monitor query (parses the
+    ANSI-colored, echo-prefixed reply); False when nothing parseable is found."""
+    import re
+
+    text = re.sub(r"\x1b\[[0-9;]*m", "", mon.execute(f"sysbus.{channel} IsWired", settle=0.3))
+    for line in text.splitlines():
+        if line.strip() in ("True", "False"):
+            return line.strip() == "True"
+    return False
+
+
+def _drain_forever(sock, label: str) -> None:
+    """Continuously read + discard (echo to stderr) a console socket so the
+    firmware never back-pressures on an unread terminal."""
+    sock.settimeout(1.0)
+    while True:
+        try:
+            chunk = sock.recv(4096)
+            if not chunk:
+                time.sleep(0.2)
+                continue
+            sys.stderr.buffer.write(f"[{label}] ".encode() + chunk)
+            sys.stderr.flush()
+        except socket.timeout:
+            continue
+        except OSError:
+            return
+
+
+def _pump(src: socket.socket, dst: socket.socket) -> None:
+    """Copy bytes from `src` to `dst` until either side closes. Never closes the
+    Renode-facing socket -- the caller keeps it for the process lifetime."""
+    src.settimeout(0.5)
+    while True:
+        try:
+            data = src.recv(4096)
+        except socket.timeout:
+            continue
+        except OSError:
+            return
+        if not data:
+            return
+        try:
+            dst.sendall(data)
+        except OSError:
+            return
+
+
+def _serve_relay(srv: socket.socket, studio_sock: socket.socket) -> None:
+    """Accept the single Node bridge client and transparently pipe its bytes
+    to/from the Studio CDC socket. Loops so a bridge restart re-attaches; the
+    Renode-facing `studio_sock` is never closed here (it lives for the session)."""
+    while True:
+        try:
+            conn, _ = srv.accept()
+        except OSError:
+            return
+        print("relay: bridge client attached", file=sys.stderr, flush=True)
+        threading.Thread(target=_pump, args=(conn, studio_sock), daemon=True).start()
+        _pump(studio_sock, conn)  # returns when the bridge disconnects
+        print("relay: bridge client detached", file=sys.stderr, flush=True)
+        try:
+            conn.close()
+        except OSError:
+            pass
 
 
 def main() -> None:
     elf = Path(sys.argv[1]).resolve()
     if not elf.exists():
         raise SystemExit(f"ELF not found: {elf}")
-    renode = os.environ.get("RENODE_BIN", str(Path.home() / ".renode" / "1.16.1" / "renode"))
+
+    renode = os.environ.get("RENODE_BIN") or H.find_or_install_renode(
+        version=os.environ.get("RENODE_VERSION", "1.16.1")
+    )
+    if not renode:
+        raise SystemExit("Renode is not installed and could not be auto-installed")
 
     import random
 
     port_base = int(os.environ.get("RENODE_PORT_BASE", "0")) or random.randint(26000, 40000)
     console_port = port_base + 1
-    rpc_port = port_base + 2
+    relay_port = port_base + 6
+    boot_settle = float(os.environ.get("RENODE_BOOT_SETTLE", "8"))
+    wiring_timeout = float(os.environ.get("RENODE_WIRING_TIMEOUT", "30"))
+    # Renode's mono cold-start can take ~15-20s on a loaded box; boot_single_real
+    # waits boot_wait + 10s for the monitor, so give margin.
+    boot_wait = float(os.environ.get("RENODE_BOOT_WAIT", "20"))
 
-    session = RenodeSession(
+    # Boot the real flashable image on the NRF_USBD_Full usb platform. console =
+    # uart0 (silent on a real image), rpc = idle uart1 -- both owned for symmetry.
+    session, console, rpc = H.boot_single_real(
         renode,
-        PLATFORMS_DIR / "single.resc",
-        monitor_port=port_base,
-        variables={
-            "bin": f"@{elf}",
-            "console_port": console_port,
-            "rpc_port": rpc_port,
-        },
-        cwd=HARNESS,
+        elf,
+        port_base=port_base,
+        repl_template=USB_REPL_TEMPLATE,
+        boot_wait=boot_wait,
     )
-    # Renode's mono cold-start can take ~15-20s on a loaded box before the
-    # monitor port opens; start()'s deadline is boot_wait + 10s, so give margin.
-    session.start(boot_wait=float(os.environ.get("RENODE_BOOT_WAIT", "20")))
-
-    # Attach to the console UART with a RAW socket and drain it continuously in
-    # the background. This is essential, not just for logs: a client that
-    # connects to Renode's console ServerSocketTerminal but never reads will
-    # back-pressure the firmware's log writes and stall it before it can service
-    # RPC. (We deliberately do NOT touch the RPC UART socket -- that is left free
-    # for the Node bridge, which becomes its single client.)
-    deadline = time.monotonic() + 20.0
-    console = None
-    while time.monotonic() < deadline:
-        try:
-            console = socket.create_connection(("127.0.0.1", console_port), timeout=2.0)
-            break
-        except OSError:
-            time.sleep(0.3)
-    if console is None:
-        raise SystemExit("could not connect to console UART socket")
-    console.settimeout(1.0)
-
-    def _drain_console() -> None:
-        while True:
-            try:
-                chunk = console.recv(4096)
-                if not chunk:
-                    time.sleep(0.2)
-                    continue
-                sys.stderr.buffer.write(chunk)
-                sys.stderr.flush()
-            except socket.timeout:
-                continue
-            except OSError:
-                return
-
-    threading.Thread(target=_drain_console, daemon=True).start()
-
-    session.go()  # start the emulation
-
-    print(f"RPC_PORT={rpc_port}", flush=True)
-    print(f"CONSOLE_PORT={console_port}", flush=True)
-    print("RENODE_READY", flush=True)
-
+    assert session.mon is not None
+    mon = session.mon
+    cdc: list = []
     try:
-        while True:
-            time.sleep(3600)
-    except KeyboardInterrupt:
-        pass
+        # Let the guest finish USB bring-up (ENABLE + USBPULLUP) before the host
+        # attaches -- a SETUP fired before the guest's INTEN is set is lost.
+        t0 = time.monotonic()
+        while time.monotonic() - t0 < boot_settle:
+            H.drain_text(console._sock, timeout=0.5)
+
+        # Attach the USB host + expose both CDC channels as sockets (Python owns
+        # them, as the harness requires: one client per Renode terminal).
+        cdc = list(H.attach_dual_cdc_bridge(session, port_base + 4, port_base + 5))
+
+        deadline = time.monotonic() + wiring_timeout
+        while time.monotonic() < deadline:
+            if _mon_is_wired(mon, f"{BRIDGE_NAME}_cdc0"):
+                break
+        else:
+            raise SystemExit(
+                "USB enumeration never wired the first CDC channel -- is the ELF a "
+                "studio-rpc-usb-uart (USB-CDC) image?"
+            )
+        dual = _mon_is_wired(mon, f"{BRIDGE_NAME}_cdc1")
+        # Let the bridge finish its post-wiring control sequence (SET_LINE_CODING /
+        # DTR) and arm the device->host pumps.
+        time.sleep(2.0)
+
+        # Single-CDC studio-rpc-usb-uart image: cdc0 IS Studio, no console CDC.
+        # CONFIG_ZMK_USB_LOGGING image: console CDC enumerates first (cdc0),
+        # Studio second (cdc1) -- drain the console CDC so it can't back-pressure.
+        if dual:
+            studio = cdc[1]
+            threading.Thread(
+                target=_drain_forever, args=(cdc[0]._sock, "usb-console"), daemon=True
+            ).start()
+            print("two CDC functions (console + Studio); Studio = cdc1", file=sys.stderr)
+        else:
+            studio = cdc[0]
+            print("single CDC function (Studio only); Studio = cdc0", file=sys.stderr)
+
+        # Drain the (usually silent) UART console too.
+        threading.Thread(
+            target=_drain_forever, args=(console._sock, "uart0"), daemon=True
+        ).start()
+
+        # Transparent TCP relay carrying the raw Studio byte stream -- the exact
+        # RPC_PORT= contract bridge.mjs already connects to.
+        srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        srv.bind(("127.0.0.1", relay_port))
+        srv.listen(1)
+        threading.Thread(target=_serve_relay, args=(srv, studio._sock), daemon=True).start()
+
+        print(f"RPC_PORT={relay_port}", flush=True)
+        print(f"CONSOLE_PORT={console_port}", flush=True)
+        print("RENODE_READY", flush=True)
+
+        try:
+            while True:
+                time.sleep(3600)
+        except KeyboardInterrupt:
+            pass
     finally:
+        for sock in cdc:
+            sock.close()
+        rpc.close()
+        console.close()
         session.stop()
 
 

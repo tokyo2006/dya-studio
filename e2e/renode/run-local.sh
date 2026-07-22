@@ -1,19 +1,20 @@
 #!/usr/bin/env bash
 # Local (and CI) driver for the WebSerial<->Renode e2e:
-#   Renode(real fw over UART) <- TCP - bridge - WS -> shimmed navigator.serial
-#   in headless Chromium running the built dya-studio, driven by Playwright.
+#   Renode(real fw, Studio over emulated USB CDC) <- TCP - bridge - WS ->
+#   shimmed navigator.serial in headless Chromium running the built dya-studio,
+#   driven by Playwright.
 #
 # Requirements:
 #   - Renode 1.16.1 at ~/.renode/1.16.1 (RENODE_BIN to override)
 #   - ZMK_WC_RENODE_LIB -> a checkout of cormoran/zmk-west-commands'
 #     scripts/lib/renode (the Renode harness + platforms)
 #   - DIST_DIR -> a built dya-studio dist (defaults to <repo>/dist)
-#   - a Studio-on-UART DUT ELF (arg $1)
+#   - a real studio-rpc-usb-uart DUT ELF (arg $1)
 set -euo pipefail
 cd "$(dirname "$0")"
 REPO_ROOT="$(cd ../.. && pwd)"
 
-ELF="${1:?usage: run-local.sh <studio-on-uart.elf>}"
+ELF="${1:?usage: run-local.sh <studio-rpc-usb-uart.elf>}"
 export DIST_DIR="${DIST_DIR:-$REPO_ROOT/dist}"
 export ZMK_WC_RENODE_LIB="${ZMK_WC_RENODE_LIB:?set ZMK_WC_RENODE_LIB to zmk-west-commands/scripts/lib/renode}"
 export WS_PORT="${WS_PORT:-8788}"
@@ -28,18 +29,21 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo ">>> [1/3] booting Renode with $ELF"
+echo ">>> [1/3] booting Renode with $ELF (real image; Studio over USB CDC)"
 python3 renode_serve.py "$ELF" > renode_serve.out 2> renode_serve.err &
 pids+=($!)
 
+# Booting the real image, enumerating USB and wiring the CDC bridge is slower
+# than a bare UART boot -- and Renode's mono cold-start can take ~20s on a loaded
+# box -- so allow generous time for RENODE_READY.
 RPC_PORT=""
-for _ in $(seq 1 60); do
+for _ in $(seq 1 "${RENODE_READY_TIMEOUT:-180}"); do
   RPC_PORT="$(sed -n 's/^RPC_PORT=//p' renode_serve.out | head -1)"
   [ -n "$RPC_PORT" ] && grep -q RENODE_READY renode_serve.out && break
   sleep 1
 done
 [ -n "$RPC_PORT" ] || { echo "!! Renode never reported RPC_PORT"; cat renode_serve.err; exit 1; }
-echo ">>> Renode RPC UART on TCP :$RPC_PORT"
+echo ">>> Renode Studio USB CDC relayed on TCP :$RPC_PORT"
 
 echo ">>> [2/3] starting WS bridge on $WS_URL"
 RPC_PORT="$RPC_PORT" WS_PORT="$WS_PORT" node bridge.mjs > bridge.out 2>&1 &

@@ -1,51 +1,59 @@
 # WebSerial ⇄ Renode end-to-end (POC)
 
-Run the **real dya-studio** in a headless browser and have it talk to **real ZMK
-firmware** running in the [Renode](https://renode.io) emulator over the
+Run the **real dya-studio** in a headless browser and have it **fully connect** to
+**real ZMK firmware** running in the [Renode](https://renode.io) emulator over the
 **WebSerial** API — with no hardware, in CI.
 
 ## What this proves
 
 The built dya-studio app, in headless Chromium, using the real
-`@zmkfirmware/zmk-studio-ts-client` serial transport (unchanged), performs a full
-protobuf `GetDeviceInfo` round-trip against real firmware emulated in Renode, and
-the device's own name comes back over the (shimmed) WebSerial stream.
+`@zmkfirmware/zmk-studio-ts-client` serial transport (unchanged), completes its
+full Studio connect handshake against real firmware emulated in Renode and reaches
+the **connected screen** (the device's own name appears in the app header). The
+DUT is the exact hardware-flashable `studio-rpc-usb-uart` image; its Studio RPC
+rides the **emulated USB CDC-ACM**, so it is the same transport class the browser
+uses on real hardware.
 
 ```
 dya-studio (dist, headless Chromium)
    │  navigator.serial  ← injected shim: real API surface, ts-client unchanged
    ▼  WebSocket
-bridge.mjs (Node)  ──raw TCP (transparent bytes)──▶  Renode ServerSocketTerminal (uart1)
+bridge.mjs (Node)  ──raw TCP (transparent bytes)──▶  renode_serve.py relay
+                                                          │  (Studio CDC bytes)
+                                    DualCdcAcmBridge USB host ⇄ NRF_USBD_Full
                                                           │
-                                                   renode_serve.py  holds real fw.elf running
+                                                   real ZMK fw.elf in Renode
 ```
 
 Everything except the browser↔OS serial-driver layer is real: the app, the
 transport, the RPC/protobuf framing, and the firmware. Only the last-mile serial
 driver is replaced by a WebSocket — there is no serial device in CI anyway.
 
-## Known limitation (why only `GetDeviceInfo` is asserted)
+## Why USB CDC (and what changed)
 
-A full app connect next issues `GetCustomSubsystems`, whose reply is >30 bytes.
-Renode's nRF52840 **UARTE TX-IRQ model stalls partway through any Studio reply of
-~≥30 framed bytes** (confirmed: raising `CONFIG_ZMK_STUDIO_RPC_TX_BUF_SIZE`
-64→2048 does not move the stall point → it's the emulator's UARTE model, not
-buffer size). So the UI does not reach the connected screen under Renode today.
-This is a Renode-fidelity issue in
-[zmk-west-commands](https://github.com/cormoran/zmk-west-commands), orthogonal to
-the browser integration — on real hardware, or once that TX model drains large
-bursts, the same test can assert the connected UI instead.
+An earlier version of this POC carried Studio RPC over a **UART** TCP socket and
+could only assert a bare `GetDeviceInfo`: Renode's nRF52840 **UARTE TX-IRQ model
+stalls partway through any Studio reply of ~≥30 framed bytes**, and the app's full
+connect fetches replies far larger than that, so the UI never reached the
+connected screen.
+
+zmk-west-commands' **usb mode** (NRF_USBD_Full + DualCdcAcmBridge) has no such
+limit — it drains large device→host bursts — so this POC now boots the exact
+hardware-flashable `studio-rpc-usb-uart` image and asserts the app reaches the
+**fully-connected** screen. `renode_serve.py` attaches the USB CDC bridge via the
+zmk-west-commands harness and relays the Studio CDC byte stream over a plain TCP
+socket (`RPC_PORT`) that the Node bridge speaks to, unchanged.
 
 ## Files
 
-| file                    | role                                                                                                                                                                                                                                                                                                                                    |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `renode_serve.py`       | boots the DUT ELF via the zmk-west-commands Renode harness and holds it running; exposes the Studio-RPC UART as a TCP socket. Drains the console UART on a raw socket (an unread console terminal back-pressures the firmware and stalls it); leaves the RPC UART free for the bridge (Renode serves only the first client per socket). |
-| `bridge.mjs`            | transparent WebSocket ⇄ Renode-UART-TCP byte pipe (the browser can't open raw TCP).                                                                                                                                                                                                                                                     |
-| `serial-shim.mjs`       | injects a `navigator.serial` shim implementing only the SerialPort surface the ts-client uses, bridged to the WebSocket.                                                                                                                                                                                                                |
-| `serve.mjs`             | dependency-free static server for the built `dist/`.                                                                                                                                                                                                                                                                                    |
-| `tests/connect.spec.ts` | Playwright: clicks the real "Connect via USB" button and asserts the device name round-trips.                                                                                                                                                                                                                                           |
-| `run-local.sh`          | orchestrates renode_serve → bridge → Playwright.                                                                                                                                                                                                                                                                                        |
+| file                    | role                                                                                                                                                                                                                                                                   |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `renode_serve.py`       | boots the real DUT ELF on the zmk-west-commands USB platform, attaches the DualCdcAcmBridge, and relays the Studio USB-CDC byte stream as a TCP socket (`RPC_PORT`). Drains the console CDC + UART console so the firmware never back-pressures on an unread terminal. |
+| `bridge.mjs`            | transparent WebSocket ⇄ TCP byte pipe (the browser can't open raw TCP); the single client of the relay.                                                                                                                                                                |
+| `serial-shim.mjs`       | injects a `navigator.serial` shim implementing only the SerialPort surface the ts-client uses, bridged to the WebSocket.                                                                                                                                               |
+| `serve.mjs`             | dependency-free static server for the built `dist/`.                                                                                                                                                                                                                   |
+| `tests/connect.spec.ts` | Playwright: clicks the real "Connect via USB" button, asserts the device name round-trips **and** the app reaches the connected screen.                                                                                                                                |
+| `run-local.sh`          | orchestrates renode_serve → bridge → Playwright.                                                                                                                                                                                                                       |
 
 ## Run locally
 
@@ -54,24 +62,28 @@ bursts, the same test can assert the connected UI instead.
 #   - Renode 1.16.1 at ~/.renode/1.16.1
 #   - a checkout of cormoran/zmk-west-commands (for the Renode harness)
 #   - a built dist/ (npm run build at the repo root)
-#   - a Studio-on-UART DUT ELF (CONFIG_ZMK_STUDIO=y + the renode-studio-uart snippet)
+#   - a real studio-rpc-usb-uart DUT ELF. Build one from zmk-west-commands:
+#       west init -l . --mf scripts/west-test-standalone.yml
+#       west update --narrow && west zephyr-export
+#       west zmk-build tests/zmk-config --build-yaml tests/zmk-config/build-ble.yaml -af ble -d build
+#     -> build/ble/zephyr/zmk.elf (advertises the name "Renode")
 cd e2e/renode
 npm install && npx playwright install chromium
 ZMK_WC_RENODE_LIB=/path/to/zmk-west-commands/scripts/lib/renode \
 DEVICE_NAME=Renode \
-  bash run-local.sh /path/to/studio-on-uart.elf
+  bash run-local.sh /path/to/build/ble/zephyr/zmk.elf
 POC_DEBUG=1 ...   # verbose page/shim/bridge byte logging
 ```
 
-CI wiring lives in `.github/workflows/renode-webserial-e2e.yml` (builds the DUT
-from zmk-west-commands' Renode fixtures, then runs this). To point at a real dya
-keyboard, build its firmware with the `renode-studio-uart` snippet and set
-`DEVICE_NAME` to its keyboard name.
+CI wiring lives in `.github/workflows/renode-webserial-e2e.yml` (builds the real
+DUT from zmk-west-commands' fixtures, then runs this). To point at a real dya
+keyboard, build its own `studio-rpc-usb-uart` firmware and set `DEVICE_NAME` to
+its keyboard name.
 
-## Toward the real flashable image over real USB-CDC (next step)
+## Toward the real flashable image over a real OS serial port (next step)
 
-This POC uses the UART path (the only one a browser can reach). Driving the exact
-hardware-flashable image over **real** USB-CDC would require wiring Renode's
-`NRF_USBD` and exporting it to the host as `/dev/ttyACM*` via USB/IP → real
-WebSerial (untested; a zmk-west-commands concern), plus resolving the ≥30B UARTE
-stall above.
+This POC drives the DUT's USB CDC through Renode's in-emulator DualCdcAcmBridge and
+relays it to the browser over a WebSocket shim. The last fidelity step would be to
+export that emulated USB device to the host OS as a real `/dev/ttyACM*` (e.g. via
+USB/IP) so an **unshimmed** `navigator.serial` opens it — removing the shim
+entirely. That is a zmk-west-commands concern and is untested here.

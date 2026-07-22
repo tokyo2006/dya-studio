@@ -1,8 +1,9 @@
 # POC: run the REAL dya-studio in a headless browser and have it talk to REAL
 # ZMK firmware running in the Renode emulator over (a shim of) the WebSerial API
-# -- no hardware. See e2e/renode/README.md for the architecture and the one
-# known limitation (Renode's UARTE TX-IRQ model stalls Studio replies >~30B, so
-# only the GetDeviceInfo round-trip is asserted today).
+# -- no hardware. The DUT is the exact hardware-flashable studio-rpc-usb-uart
+# image; Studio RPC rides the emulated USB CDC (NRF_USBD_Full + DualCdcAcmBridge
+# from zmk-west-commands), which drains large replies, so the app reaches the
+# fully-connected screen. See e2e/renode/README.md for the architecture.
 #
 # Opt-in / path-scoped so it never burdens ordinary PRs (the firmware build is
 # a full Zephyr build, ~15-20 min).
@@ -16,8 +17,8 @@ on:
       - ".github/workflows/renode-webserial-e2e.yml"
 
 env:
-  # cormoran/zmk-west-commands provides the Renode harness + the Studio-on-UART
-  # DUT build config. Pin a ref for reproducibility.
+  # cormoran/zmk-west-commands provides the Renode harness + the real-image DUT
+  # build config. Pin a ref for reproducibility.
   ZMK_WC_REPO: cormoran/zmk-west-commands
   ZMK_WC_REF: main
   # Keyboard name the DUT advertises via GetDeviceInfo (zmk-west-commands'
@@ -26,30 +27,33 @@ env:
 
 jobs:
   build-dut:
-    name: Build Studio-on-UART DUT (Renode firmware)
+    name: Build studio-rpc-usb-uart DUT (real image)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     container:
-      image: zmkfirmware/zmk-build-arm:4.1
+      image: zmkfirmware/zmk-build-arm:stable
     steps:
       - name: Checkout zmk-west-commands
         uses: actions/checkout@v4
         with:
           repository: ${{ env.ZMK_WC_REPO }}
           ref: ${{ env.ZMK_WC_REF }}
-      - name: West init/update (Renode manifest)
+      - name: West init/update
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          west init -l . --mf scripts/west-test-renode-standalone.yml
+          west init -l . --mf scripts/west-test-standalone.yml
           west update --narrow
           west zephyr-export
-      - name: Build DUT (renode-studio-uart snippet image)
-        run: west zmk-build tests/zmk-config --build-yaml tests/zmk-config/build-renode.yaml -af renode -d build
+      - name: Build DUT (real studio-rpc-usb-uart image)
+        # The EXACT hardware-flashable image (xiao_ble//zmk + renode_tester shield
+        # + studio-rpc-usb-uart snippet). Renode's usb mode boots this same image;
+        # no Renode-specific build config. Produces build/ble/zephyr/zmk.elf.
+        run: west zmk-build tests/zmk-config --build-yaml tests/zmk-config/build-ble.yaml -af ble -d build
       - name: Upload DUT ELF
         uses: actions/upload-artifact@v4
         with:
           name: dut-elf
-          path: build/renode/zephyr/zmk.elf
+          path: build/ble/zephyr/zmk.elf
 
   e2e:
     name: dya-studio ⇄ WebSerial ⇄ Renode

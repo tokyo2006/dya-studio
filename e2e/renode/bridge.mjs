@@ -1,13 +1,13 @@
-// WebSocket <-> Renode-UART-TCP bridge.
+// WebSocket <-> TCP bridge.
 //
 // The browser cannot open a raw TCP socket, so this tiny Node process is the
-// single TCP client of Renode's Studio-RPC UART server socket and relays its
-// bytes, transparently and unframed, over a WebSocket that the injected
+// single TCP client of renode_serve.py's Studio relay (RPC_PORT) -- which
+// carries the DUT's raw Studio USB-CDC byte stream -- and relays those bytes,
+// transparently and unframed, over a WebSocket that the injected
 // `navigator.serial` shim in the page connects to.
 //
-// It opens the TCP connection to Renode ONCE at startup (so it is the first and
-// only client Renode's ServerSocketTerminal will serve) and buffers any
-// device->host bytes until a browser WebSocket attaches.
+// It opens the TCP connection ONCE at startup and buffers any device->host
+// bytes until a browser WebSocket attaches.
 import net from "node:net";
 import { WebSocketServer } from "ws";
 
@@ -23,7 +23,7 @@ let ws = null; // current browser socket (single client for the POC)
 const pending = []; // device->host bytes buffered until a browser attaches
 
 const tcp = net.createConnection({ host: "127.0.0.1", port: RPC_PORT }, () => {
-  console.error(`bridge: TCP connected to Renode RPC UART :${RPC_PORT}`);
+  console.error(`bridge: TCP connected to Studio relay :${RPC_PORT}`);
 });
 tcp.on("data", (buf) => {
   if (DEBUG) console.error(`bridge: device->host ${buf.length}B ${buf.subarray(0, 16).toString("hex")}`);
