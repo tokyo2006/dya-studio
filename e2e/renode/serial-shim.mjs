@@ -1,9 +1,9 @@
 // Returns the source of an init script that installs a fake `navigator.serial`
-// backed by a WebSocket. This is the shim approach ("案B"): the real dya-studio
-// app, the real @zmkfirmware/zmk-studio-ts-client serial transport, the real
-// RPC/protobuf framing and the real firmware (in Renode) all run unchanged --
-// only the browser<->OS serial driver layer is replaced by a WebSocket to the
-// bridge (there is no real serial device in CI).
+// backed by a WebSocket: the real dya-studio app, the real
+// @zmkfirmware/zmk-studio-ts-client serial transport, the real RPC/protobuf
+// framing and the real firmware (in Renode) all run unchanged -- only the
+// browser<->OS serial driver layer is replaced by a WebSocket to the bridge
+// (there is no real serial device in CI).
 //
 // It implements exactly the SerialPort surface the ts-client uses
 // (requestPort/getPorts, port.open/getInfo/close, port.readable/.writable as
@@ -11,7 +11,7 @@
 export function serialShimSource(wsUrl) {
   return `(() => {
   const WS_URL = ${JSON.stringify(wsUrl)};
-  const DEBUG = ${JSON.stringify(process.env.POC_DEBUG ? true : false)};
+  const DEBUG = ${JSON.stringify(process.env.E2E_DEBUG ? true : false)};
   const log = (...a) => { if (DEBUG) console.log("SHIM", ...a); };
 
   class FakeSerialPort extends EventTarget {

@@ -1,13 +1,14 @@
-# POC: run the REAL dya-studio in a headless browser and have it talk to REAL
-# ZMK firmware running in the Renode emulator over (a shim of) the WebSerial API
-# -- no hardware. The DUT is the exact hardware-flashable studio-rpc-usb-uart
-# image; Studio RPC rides the emulated USB CDC (NRF_USBD_Full + DualCdcAcmBridge
-# from zmk-west-commands), which drains large replies, so the app reaches the
-# fully-connected screen. See e2e/renode/README.md for the architecture.
+# End-to-end: run the real dya-studio in a headless browser and have it fully
+# connect to real ZMK firmware running in the Renode emulator over (a shim of)
+# the WebSerial API -- no hardware. The DUT is the exact hardware-flashable
+# studio-rpc-usb-uart image; Studio RPC rides the emulated USB CDC (NRF_USBD_Full
+# + DualCdcAcmBridge from zmk-west-commands), which drains large replies, so the
+# app reaches the fully-connected screen. See e2e/renode/README.md for the
+# architecture.
 #
 # Opt-in / path-scoped so it never burdens ordinary PRs (the firmware build is
-# a full Zephyr build, ~15-20 min).
-name: renode-webserial-e2e (POC)
+# a full Zephyr build, ~15-20 min cold).
+name: renode-webserial-e2e
 
 on:
   workflow_dispatch:

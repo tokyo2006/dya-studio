@@ -13,13 +13,13 @@ import { WebSocketServer } from "ws";
 
 const RPC_PORT = Number(process.env.RPC_PORT);
 const WS_PORT = Number(process.env.WS_PORT || 8788);
-const DEBUG = !!process.env.POC_DEBUG;
+const DEBUG = !!process.env.E2E_DEBUG;
 if (!RPC_PORT) {
   console.error("RPC_PORT env var required");
   process.exit(1);
 }
 
-let ws = null; // current browser socket (single client for the POC)
+let ws = null; // current browser socket (single browser client)
 const pending = []; // device->host bytes buffered until a browser attaches
 
 const tcp = net.createConnection({ host: "127.0.0.1", port: RPC_PORT }, () => {

@@ -1,4 +1,4 @@
-# WebSerial ⇄ Renode end-to-end (POC)
+# WebSerial ⇄ Renode end-to-end
 
 Run the **real dya-studio** in a headless browser and have it **fully connect** to
 **real ZMK firmware** running in the [Renode](https://renode.io) emulator over the
@@ -29,16 +29,15 @@ Everything except the browser↔OS serial-driver layer is real: the app, the
 transport, the RPC/protobuf framing, and the firmware. Only the last-mile serial
 driver is replaced by a WebSocket — there is no serial device in CI anyway.
 
-## Why USB CDC (and what changed)
+## Why USB CDC
 
-An earlier version of this POC carried Studio RPC over a **UART** TCP socket and
-could only assert a bare `GetDeviceInfo`: Renode's nRF52840 **UARTE TX-IRQ model
-stalls partway through any Studio reply of ~≥30 framed bytes**, and the app's full
-connect fetches replies far larger than that, so the UI never reached the
-connected screen.
+Renode's nRF52840 **UARTE TX-IRQ model stalls partway through any Studio reply of
+~≥30 framed bytes**, and the app's full connect fetches replies far larger than
+that — so a UART-based Studio transport can only round-trip a bare
+`GetDeviceInfo` and never reaches the connected screen.
 
 zmk-west-commands' **usb mode** (NRF_USBD_Full + DualCdcAcmBridge) has no such
-limit — it drains large device→host bursts — so this POC now boots the exact
+limit — it drains large device→host bursts — so this harness boots the exact
 hardware-flashable `studio-rpc-usb-uart` image and asserts the app reaches the
 **fully-connected** screen. `renode_serve.py` attaches the USB CDC bridge via the
 zmk-west-commands harness and relays the Studio CDC byte stream over a plain TCP
@@ -72,7 +71,7 @@ npm install && npx playwright install chromium
 ZMK_WC_RENODE_LIB=/path/to/zmk-west-commands/scripts/lib/renode \
 DEVICE_NAME=Renode \
   bash run-local.sh /path/to/build/ble/zephyr/zmk.elf
-POC_DEBUG=1 ...   # verbose page/shim/bridge byte logging
+E2E_DEBUG=1 ...   # verbose page/shim/bridge byte logging
 ```
 
 CI wiring lives in `.github/workflows/renode-webserial-e2e.yml` (builds the real
@@ -82,8 +81,8 @@ its keyboard name.
 
 ## Toward the real flashable image over a real OS serial port (next step)
 
-This POC drives the DUT's USB CDC through Renode's in-emulator DualCdcAcmBridge and
-relays it to the browser over a WebSocket shim. The last fidelity step would be to
+This harness drives the DUT's USB CDC through Renode's in-emulator DualCdcAcmBridge
+and relays it to the browser over a WebSocket shim. The last fidelity step would be to
 export that emulated USB device to the host OS as a real `/dev/ttyACM*` (e.g. via
 USB/IP) so an **unshimmed** `navigator.serial` opens it — removing the shim
 entirely. That is a zmk-west-commands concern and is untested here.

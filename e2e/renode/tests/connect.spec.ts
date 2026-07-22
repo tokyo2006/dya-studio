@@ -3,8 +3,8 @@ import { serialShimSource } from "../serial-shim.mjs";
 
 const WS_URL = process.env.WS_URL || "ws://127.0.0.1:8788";
 
-// Name the DUT firmware advertises via GetDeviceInfo. The POC ships the
-// zmk-west-commands real studio-rpc-usb-uart DUT (renode_tester shield → name
+// Name the DUT firmware advertises via GetDeviceInfo. The default DUT is
+// zmk-west-commands' real studio-rpc-usb-uart image (renode_tester shield → name
 // "Renode"); override for a real dya build.
 const DEVICE_NAME = process.env.DEVICE_NAME || "Renode";
 
@@ -15,10 +15,10 @@ test("dya-studio (real app) fully connects to real firmware in Renode over WebSe
   page.on("console", (m) => {
     const line = `[${m.type()}] ${m.text()}`;
     logs.push(line);
-    if (process.env.POC_DEBUG) console.log("PAGE " + line);
+    if (process.env.E2E_DEBUG) console.log("PAGE " + line);
   });
   page.on("pageerror", (e) => {
-    if (process.env.POC_DEBUG) console.log("PAGE ERROR " + e.message);
+    if (process.env.E2E_DEBUG) console.log("PAGE ERROR " + e.message);
   });
 
   // 1) install the fake navigator.serial (backed by the WS bridge -> the DUT's
@@ -67,8 +67,7 @@ test("dya-studio (real app) fully connects to real firmware in Renode over WebSe
   // 5) SECOND PROOF — the app reaches the FULLY-CONNECTED screen. The app's
   //    connect handshake (via @cormoran/zmk-studio-react-hook's useZMKApp) does
   //    far more than GetDeviceInfo — including replies well over the ~30 bytes
-  //    that Renode's UARTE TX-IRQ model used to stall (which capped the earlier
-  //    UART-based version of this POC at GetDeviceInfo). The emulated USB CDC
+  //    that Renode's UARTE TX-IRQ model stalls on. The emulated USB CDC
   //    path drains those large bursts, so `isConnected` flips true and the app
   //    swaps the splash for the connected layout: the header shows the device's
   //    own name and the splash "Connect via USB" button is gone.

@@ -6,8 +6,7 @@ on stdout once ready, then blocks until killed.
 
 Why USB CDC (not UART): this is the SAME image you flash to hardware, and its
 Studio transport is USB CDC. Renode's nRF52840 UARTE TX-IRQ model stalls Studio
-replies of ~>=30 framed bytes, which capped an earlier UART-based version of this
-POC at a bare `GetDeviceInfo`; the emulated USB CDC path (NRF_USBD_Full +
+replies of ~>=30 framed bytes; the emulated USB CDC path (NRF_USBD_Full +
 DualCdcAcmBridge, from zmk-west-commands) has no such limit, so the browser can
 complete dya-studio's full connect handshake (which fetches replies far larger
 than that). See e2e/renode/README.md.

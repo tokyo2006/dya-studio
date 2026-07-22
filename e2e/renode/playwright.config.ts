@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 const SERVE_PORT = Number(process.env.SERVE_PORT || 4173);
 
-// renode_serve.py + bridge.mjs are started by run-local.sh (local proof) or the
+// renode_serve.py + bridge.mjs are started by run-local.sh (local runs) or the
 // CI workflow BEFORE playwright runs; they export WS_URL. This config only owns
 // the static server for the built dya-studio dist.
 export default defineConfig({
