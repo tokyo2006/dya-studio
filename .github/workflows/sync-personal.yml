@@ -1,0 +1,77 @@
+# Fork-only: rebuild `personal` = upstream main + every pr/* branch of this fork.
+name: Sync personal branch
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-personal
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: github.repository == 'tokyo2006/dya-studio'
+    runs-on: ubuntu-latest
+    env:
+      UPSTREAM_REPO: cormoran/dya-studio
+      UPSTREAM_BRANCH: main
+      PREFIX: pr/
+      TARGET: personal
+    steps:
+      # GITHUB_TOKEN cannot push commits that touch .github/workflows, so a PAT
+      # with Contents + Workflows write is required.
+      - name: Require SYNC_TOKEN
+        env:
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          if [ -z "$SYNC_TOKEN" ]; then
+            echo "::error::Secret SYNC_TOKEN is not set"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.SYNC_TOKEN }}
+
+      - name: Rebuild and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream "https://github.com/$UPSTREAM_REPO.git"
+          git fetch --no-tags upstream "$UPSTREAM_BRANCH"
+          git checkout -B "$TARGET" "upstream/$UPSTREAM_BRANCH"
+
+          branches=$(git for-each-ref --format='%(refname:short)' "refs/remotes/origin/$PREFIX")
+          if [ -z "$branches" ]; then
+            echo "::error::No origin/$PREFIX* branches"
+            exit 1
+          fi
+
+          # Skip when nothing changed, so a conflict resolved locally is not rebuilt away.
+          if git rev-parse -q --verify "origin/$TARGET" >/dev/null; then
+            up_to_date=1
+            for ref in "upstream/$UPSTREAM_BRANCH" $branches; do
+              git merge-base --is-ancestor "$ref" "origin/$TARGET" || up_to_date=0
+            done
+            if [ "$up_to_date" = 1 ]; then
+              echo "origin/$TARGET already contains upstream and all $PREFIX* branches"
+              exit 0
+            fi
+          fi
+
+          for b in $branches; do
+            echo "==> merging $b"
+            if ! git merge --no-ff --no-edit "$b"; then
+              echo "::error::Conflict merging $b. Run 'git sync-personal' locally to resolve and push."
+              git diff --name-only --diff-filter=U
+              exit 1
+            fi
+          done
+
+          git push -f origin "$TARGET"
