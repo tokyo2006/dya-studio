@@ -1,0 +1,95 @@
+syntax = "proto3";
+package tokyo2006.cirque;
+
+enum DataMode {
+    DATA_MODE_ABSOLUTE = 0;
+    DATA_MODE_RELATIVE = 1;
+}
+
+enum Sensitivity {
+    SENSITIVITY_1X = 0;
+    SENSITIVITY_2X = 1;
+}
+
+message CirqueState {
+    optional DataMode data_mode = 1;
+    optional Sensitivity sensitivity = 2;
+
+    optional bool invert_x = 3;
+    optional bool invert_y = 4;
+    optional bool swap_xy = 5;
+    optional uint32 rotate_degrees = 6;
+
+    optional bool primary_tap_enable = 10;
+    optional bool secondary_tap_enable = 11;
+    optional bool aux_tap_enable = 12;
+    optional uint32 tap_max_ms = 13;
+    optional uint32 tap_max_movement = 14;
+    optional uint32 tap_click_ms = 15;
+    optional bool tap_drag_enable = 16;
+    optional uint32 tap_drag_timeout_ms = 17;
+    optional uint32 tap_drag_max_movement = 18;
+    optional uint32 secondary_tap_area_width = 19;
+    optional uint32 secondary_tap_area_height = 20;
+    optional uint32 aux_tap_area_width = 21;
+    optional uint32 aux_tap_area_height = 22;
+
+    optional bool edge_motion_enable = 30;
+    optional uint32 edge_motion_zone = 31;
+    optional uint32 edge_motion_speed = 32;
+    optional uint32 edge_motion_interval_ms = 33;
+    optional uint32 edge_motion_start_ms = 34;
+
+    optional bool right_edge_scroll_enable = 40;
+    optional bool top_edge_scroll_enable = 41;
+    optional uint32 scroll_zone = 42;
+    optional uint32 scroll_divisor = 43;
+    optional bool invert_scroll = 44;
+
+    optional uint32 relative_multiplier = 50;
+    optional uint32 relative_divisor = 51;
+    optional uint32 absolute_relative_multiplier = 52;
+    optional uint32 absolute_relative_divisor = 53;
+
+    optional bool sleep_mode_enable = 60;
+    optional bool drag_scroll_enabled = 80;
+    optional uint32 pointer_speed_position = 90;
+    optional uint32 scroll_speed_position = 91;
+}
+
+message GetStateRequest {}
+message GetStateResponse { CirqueState state = 1; }
+
+message SetStateRequest {
+    CirqueState state = 1;
+    bool persist = 2;
+}
+
+message SetStateResponse {
+    CirqueState state = 1;
+    bool persisted = 2;
+}
+
+message ResetRequest {
+    bool factory_defaults = 1;
+}
+message ResetResponse { CirqueState state = 1; }
+
+message Request {
+    oneof request_type {
+        GetStateRequest get_state = 1;
+        SetStateRequest set_state = 2;
+        ResetRequest reset = 3;
+    }
+}
+
+message ErrorResponse { string message = 1; }
+
+message Response {
+    oneof response_type {
+        ErrorResponse error = 1;
+        GetStateResponse get_state = 2;
+        SetStateResponse set_state = 3;
+        ResetResponse reset = 4;
+    }
+}

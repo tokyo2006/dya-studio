@@ -56,6 +56,7 @@ import {
   DefaultLayerHandler,
   DEFAULT_LAYER_IDENTIFIER,
 } from "./demo-default-layer";
+import { CirqueHandler, CIRQUE_IDENTIFIER } from "./demo-cirque";
 import {
   Request as BLERequest,
   Response as BLEResponse,
@@ -116,6 +117,10 @@ import {
   Request as DefaultLayerRequest,
   Response as DefaultLayerResponse,
 } from "../../proto/cormoran/default_layer/default_layer";
+import {
+  Request as CirqueRequest,
+  Response as CirqueResponse,
+} from "../../proto/tokyo2006/cirque/cirque";
 import {
   Request as FastKeymapRequest,
   Response as FastKeymapResponse,
@@ -245,6 +250,7 @@ class Keyboard {
   private customSettingsHandler: CustomSettingsHandler;
   private osDetectionHandler = new OsDetectionHandler();
   private defaultLayerHandler: DefaultLayerHandler;
+  private cirqueHandler = new CirqueHandler();
 
   // Custom subsystems registry
   private readonly BLE_SUBSYSTEM_INDEX = 0;
@@ -264,6 +270,7 @@ class Keyboard {
   private readonly DEFAULT_LAYER_SUBSYSTEM_INDEX = 14;
   private readonly FAST_KEYMAP_SUBSYSTEM_INDEX = 15;
   private readonly SETTING_EXPOSE_SUBSYSTEM_INDEX = 16;
+  private readonly CIRQUE_SUBSYSTEM_INDEX = 17;
 
   constructor() {
     this.customSettingsHandler = new CustomSettingsHandler(
@@ -365,6 +372,11 @@ class Keyboard {
       index: this.SETTING_EXPOSE_SUBSYSTEM_INDEX,
       identifier: SETTING_EXPOSE_IDENTIFIER,
       uiUrl: [SETTING_EXPOSE_UI_URL],
+    },
+    {
+      index: this.CIRQUE_SUBSYSTEM_INDEX,
+      identifier: CIRQUE_IDENTIFIER,
+      uiUrl: [],
     },
   ];
 
@@ -675,6 +687,14 @@ class Keyboard {
           responseData = DefaultLayerResponse.encode(defaultLayerResp).finish();
         } catch (e) {
           console.error("Default Layer subsystem error:", e);
+        }
+      } else if (subsystemIndex === this.CIRQUE_SUBSYSTEM_INDEX) {
+        try {
+          const cirqueReq = CirqueRequest.decode(data);
+          const cirqueResp = this.cirqueHandler.process(cirqueReq);
+          responseData = CirqueResponse.encode(cirqueResp).finish();
+        } catch (e) {
+          console.error("Cirque subsystem error:", e);
         }
       } else if (subsystemIndex === this.FAST_KEYMAP_SUBSYSTEM_INDEX) {
         // Fast Keymap (read-only fast loader) — serves the same keymap /

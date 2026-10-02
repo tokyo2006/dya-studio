@@ -6,6 +6,7 @@ import {
   IconHome,
   IconKeyboard,
   IconPlugConnected,
+  IconHandFinger,
   IconPointer,
   IconPuzzle,
   IconSettings,
@@ -29,6 +30,7 @@ import { HomePage } from "./pages/HomePage";
 import { ConnectionPage } from "./pages/ConnectionPage";
 import { KeymapPage } from "./pages/KeymapPage";
 import { TrackballPage } from "./pages/TrackballPage";
+import { TrackpadPage } from "./pages/TrackpadPage";
 import { MacroComboPage } from "./pages/MacroComboPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { CustomSubsystemsPage } from "./pages/CustomSubsystemsPage";
@@ -77,6 +79,12 @@ function getTabs(t: (key: string) => string): TabItem[] {
       label: t("Trackball"),
       icon: <IconPointer size={18} />,
       content: <TrackballPage />,
+    },
+    {
+      id: "trackpad",
+      label: t("Trackpad"),
+      icon: <IconHandFinger size={18} />,
+      content: <TrackpadPage />,
     },
     {
       id: "connection",
