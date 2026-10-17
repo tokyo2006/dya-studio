@@ -1,0 +1,63 @@
+syntax = "proto3";
+
+package tokyo2006.tps43;
+
+// The full set of runtime-tunable TPS43 (Azoteq IQS5xx) parameters.
+message Tps43State {
+    // Gesture configuration.
+    optional bool one_finger_tap = 1;
+    optional bool press_and_hold = 2;
+    optional bool two_finger_tap = 3;
+    optional uint32 press_and_hold_time = 4;
+
+    // Scrolling configuration.
+    optional bool scroll = 5;
+    optional bool natural_scroll_x = 6;
+    optional bool natural_scroll_y = 7;
+
+    // Axes configuration.
+    optional bool switch_xy = 8;
+    optional bool flip_x = 9;
+    optional bool flip_y = 10;
+
+    // Sensitivity / filtering.
+    optional uint32 bottom_beta = 11;
+    optional uint32 stationary_threshold = 12;
+}
+
+message GetStateRequest {}
+message GetStateResponse { Tps43State state = 1; }
+
+message SetStateRequest {
+    Tps43State state = 1;
+    bool persist = 2;
+}
+
+message SetStateResponse {
+    Tps43State state = 1;
+    bool persisted = 2;
+}
+
+message ResetRequest {
+    bool factory_defaults = 1;
+}
+message ResetResponse { Tps43State state = 1; }
+
+message Request {
+    oneof request_type {
+        GetStateRequest get_state = 1;
+        SetStateRequest set_state = 2;
+        ResetRequest reset = 3;
+    }
+}
+
+message ErrorResponse { string message = 1; }
+
+message Response {
+    oneof response_type {
+        ErrorResponse error = 1;
+        GetStateResponse get_state = 2;
+        SetStateResponse set_state = 3;
+        ResetResponse reset = 4;
+    }
+}
