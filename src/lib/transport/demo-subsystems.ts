@@ -25,6 +25,7 @@ import { INPUT_STREAM_IDENTIFIER } from "./demo-input-stream";
 import { OS_DETECTION_IDENTIFIER } from "./demo-os-detection";
 import { DEFAULT_LAYER_IDENTIFIER } from "./demo-default-layer";
 import { CIRQUE_IDENTIFIER } from "./demo-cirque";
+import { TPS43_IDENTIFIER } from "./demo-tps43";
 
 /** Identifier the fast-keymap module registers on the device. */
 export const FAST_KEYMAP_IDENTIFIER = "cormoran__fast_keymap";
@@ -164,6 +165,12 @@ export const DEMO_SUBSYSTEMS: DemoSubsystemInfo[] = [
     index: 17,
     identifier: CIRQUE_IDENTIFIER,
     label: "Cirque Trackpad",
+    defaultEnabled: true,
+  },
+  {
+    index: 18,
+    identifier: TPS43_IDENTIFIER,
+    label: "TPS43 Trackpad",
     defaultEnabled: true,
   },
 ];

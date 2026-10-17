@@ -1,0 +1,4 @@
+# Nanopb options file for tps43.proto (see tokyo2006/cirque/cirque.options for
+# why max_size lives in a sidecar rather than inline). ts-proto (the web
+# codegen) ignores nanopb options entirely.
+tokyo2006.tps43.ErrorResponse.message   max_size:128

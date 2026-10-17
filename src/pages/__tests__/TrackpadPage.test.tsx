@@ -2,14 +2,22 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TrackpadPage } from "../TrackpadPage";
 import { useCirque, type UseCirqueReturn } from "../../hooks/useCirque";
+import { useTps43, type UseTps43Return } from "../../hooks/useTps43";
 import { CIRQUE_DEFAULT_STATE } from "../../lib/transport/demo-cirque";
+import { TPS43_DEFAULT_STATE } from "../../lib/transport/demo-tps43";
 
 jest.mock("../../hooks/useCirque", () => ({
   ...jest.requireActual("../../hooks/useCirque"),
   useCirque: jest.fn(),
 }));
 
+jest.mock("../../hooks/useTps43", () => ({
+  ...jest.requireActual("../../hooks/useTps43"),
+  useTps43: jest.fn(),
+}));
+
 const mockUseCirque = useCirque as jest.MockedFunction<typeof useCirque>;
+const mockUseTps43 = useTps43 as jest.MockedFunction<typeof useTps43>;
 
 function mockHook(overrides: Partial<UseCirqueReturn> = {}): UseCirqueReturn {
   const value: UseCirqueReturn = {
@@ -28,6 +36,31 @@ function mockHook(overrides: Partial<UseCirqueReturn> = {}): UseCirqueReturn {
   mockUseCirque.mockReturnValue(value);
   return value;
 }
+
+function mockTps43Hook(
+  overrides: Partial<UseTps43Return> = {},
+): UseTps43Return {
+  const value: UseTps43Return = {
+    isAvailable: false,
+    state: null,
+    values: null,
+    isLoading: false,
+    isResetting: false,
+    error: null,
+    writeState: "idle",
+    load: jest.fn(),
+    update: jest.fn(),
+    reset: jest.fn().mockResolvedValue(true),
+    ...overrides,
+  };
+  mockUseTps43.mockReturnValue(value);
+  return value;
+}
+
+beforeEach(() => {
+  // TrackpadPage renders the Cirque panel unless a TPS43 subsystem is present.
+  mockTps43Hook({ isAvailable: false });
+});
 
 describe("TrackpadPage", () => {
   it("explains how to enable the module when the subsystem is missing", () => {
@@ -152,5 +185,27 @@ describe("TrackpadPage", () => {
     );
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent("boom");
+  });
+
+  it("renders the TPS43 panel when the TPS43 subsystem is present", async () => {
+    const hook = mockTps43Hook({
+      isAvailable: true,
+      state: TPS43_DEFAULT_STATE,
+      values: TPS43_DEFAULT_STATE,
+    });
+    render(<TrackpadPage />);
+
+    expect(screen.getByText("Gestures")).toBeInTheDocument();
+    expect(screen.getByText("Filtering")).toBeInTheDocument();
+    expect(
+      screen.getByRole("switch", { name: "One-finger Tap" }),
+    ).not.toBeChecked();
+
+    await userEvent.click(screen.getByRole("switch", { name: "Flip X" }));
+    expect(hook.update).toHaveBeenCalledWith({ flipX: true });
+
+    expect(screen.getByRole("slider", { name: "Bottom Beta" })).toHaveValue(
+      "5",
+    );
   });
 });

@@ -1635,6 +1635,28 @@ const ja: Record<string, string> = {
   "Reset trackpad settings?": "トラックパッド設定をリセットしますか？",
   "This restores every trackpad setting to the firmware defaults and clears the saved values. This cannot be undone.":
     "すべてのトラックパッド設定をファームウェアのデフォルトに戻し、保存済みの値を消去します。元に戻せません。",
+  // TPS43 (Azoteq IQS5xx) trackpad
+  Gestures: "ジェスチャー",
+  "Tap and hold gestures": "タップ・長押しジェスチャー",
+  "One-finger Tap": "1本指タップ",
+  "Two-finger Tap": "2本指タップ",
+  "Press and Hold": "長押し",
+  "Press and Hold Time": "長押し時間",
+  "Left click": "左クリック",
+  "Right click": "右クリック",
+  Scrolling: "スクロール",
+  "Scroll gesture configuration": "スクロールジェスチャーの設定",
+  "Enable Scroll": "スクロールを有効化",
+  "Natural Scroll X": "自然なスクロール X",
+  "Natural Scroll Y": "自然なスクロール Y",
+  Axes: "軸",
+  "Switch X/Y": "X/Y を入れ替え",
+  "Flip X": "X を反転",
+  "Flip Y": "Y を反転",
+  Filtering: "フィルタリング",
+  "Sensitivity and filtering": "感度とフィルタリング",
+  "Bottom Beta": "ボトムベータ",
+  "Stationary Threshold": "静止閾値",
 };
 
 const zh: Record<string, string> = {
@@ -3157,6 +3179,28 @@ const zh: Record<string, string> = {
   "Reset trackpad settings?": "重置触控板设置？",
   "This restores every trackpad setting to the firmware defaults and clears the saved values. This cannot be undone.":
     "这会把所有触控板设置恢复为固件默认值，并清除已保存的值。此操作无法撤销。",
+  // TPS43 (Azoteq IQS5xx) trackpad
+  Gestures: "手势",
+  "Tap and hold gestures": "轻触与按住手势",
+  "One-finger Tap": "单指轻触",
+  "Two-finger Tap": "双指轻触",
+  "Press and Hold": "按住",
+  "Press and Hold Time": "按住时间",
+  "Left click": "左键",
+  "Right click": "右键",
+  Scrolling: "滚动",
+  "Scroll gesture configuration": "滚动手势配置",
+  "Enable Scroll": "启用滚动",
+  "Natural Scroll X": "自然滚动 X",
+  "Natural Scroll Y": "自然滚动 Y",
+  Axes: "坐标",
+  "Switch X/Y": "交换 X/Y",
+  "Flip X": "翻转 X",
+  "Flip Y": "翻转 Y",
+  Filtering: "滤波",
+  "Sensitivity and filtering": "灵敏度与滤波",
+  "Bottom Beta": "底部滤波强度",
+  "Stationary Threshold": "静止阈值",
 };
 
 const dictionaries: Record<Language, Record<string, string>> = {

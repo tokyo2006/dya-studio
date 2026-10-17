@@ -17,10 +17,12 @@ import {
   IconSettings,
 } from "@tabler/icons-react";
 import { useLanguage } from "../hooks/useLanguage";
-import { useCirque } from "../hooks/useCirque";
+import { useCirque, type UseCirqueReturn } from "../hooks/useCirque";
+import { useTps43, type UseTps43Return } from "../hooks/useTps43";
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import { ResponsiveButton } from "../components/ResponsiveButton";
 import type { CirqueState } from "../proto/tokyo2006/cirque/cirque";
+import type { Tps43State } from "../proto/tokyo2006/tps43/tps43";
 
 type NumericKey = {
   [K in keyof CirqueState]-?: NonNullable<CirqueState[K]> extends number
@@ -33,8 +35,21 @@ type BooleanKey = {
     : never;
 }[keyof CirqueState];
 
+type Tps43NumericKey = {
+  [K in keyof Tps43State]-?: NonNullable<Tps43State[K]> extends number
+    ? K
+    : never;
+}[keyof Tps43State];
+type Tps43BooleanKey = {
+  [K in keyof Tps43State]-?: NonNullable<Tps43State[K]> extends boolean
+    ? K
+    : never;
+}[keyof Tps43State];
+
 const MODULE_NAME = "tokyo2006/cirque-input-module";
 const MODULE_URL = "https://github.com/tokyo2006/cirque-input-module";
+const TPS43_MODULE_NAME = "tokyo2006/tps43-input-module";
+const TPS43_MODULE_URL = "https://github.com/tokyo2006/tps43-input-module";
 const U16_MAX = 65535;
 const U32_MAX = 4294967295;
 
@@ -248,7 +263,7 @@ function NumberRow({
   );
 }
 
-export function TrackpadPage() {
+function CirquePanel(props: UseCirqueReturn) {
   const { t } = useLanguage();
   const {
     isAvailable,
@@ -260,7 +275,7 @@ export function TrackpadPage() {
     load,
     update,
     reset,
-  } = useCirque();
+  } = props;
   const [showResetDialog, setShowResetDialog] = useState(false);
 
   const num = (key: NumericKey) => values?.[key] ?? 0;
@@ -730,4 +745,287 @@ export function TrackpadPage() {
       </Dialog.Root>
     </div>
   );
+}
+
+function Tps43Panel(props: UseTps43Return) {
+  const { t } = useLanguage();
+  const {
+    isAvailable,
+    values,
+    isLoading,
+    isResetting,
+    error,
+    writeState,
+    load,
+    update,
+    reset,
+  } = props;
+  const [showResetDialog, setShowResetDialog] = useState(false);
+
+  const num = (key: Tps43NumericKey) => values?.[key] ?? 0;
+  const bool = (key: Tps43BooleanKey) => values?.[key] ?? false;
+  const setNum = (key: Tps43NumericKey) => (v: number) => update({ [key]: v });
+  const setBool = (key: Tps43BooleanKey) => (v: boolean) => update({ [key]: v });
+
+  const handleReset = async () => {
+    if (await reset()) setShowResetDialog(false);
+  };
+
+  return (
+    <div className="app-page p-4 sm:p-6 h-full">
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4 mb-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="shrink-0 p-2 rounded-lg bg-[var(--color-cyber)]/10 border border-[var(--color-cyber)]/20">
+              <IconHandFinger size={24} className="text-[var(--color-cyber)]" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-xl font-medium text-[var(--color-text)]">
+                {t("Trackpad Settings")}
+              </h1>
+              <p className="text-sm text-[var(--color-text-muted)]">
+                {t(
+                  "Changes are applied and saved to the keyboard automatically",
+                )}
+              </p>
+            </div>
+          </div>
+          {isAvailable && (
+            <div className="flex items-center gap-2">
+              {writeState !== "idle" && (
+                <span
+                  role="status"
+                  className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]"
+                >
+                  <IconLoader2 size={14} className="animate-spin" />
+                  {writeState === "queued" ? t("Pending...") : t("Saving...")}
+                </span>
+              )}
+              <ResponsiveButton
+                label={t("Reload")}
+                className="btn-ghost text-sm flex items-center gap-1.5"
+                onClick={() => void load()}
+                disabled={isLoading || writeState !== "idle"}
+              >
+                {isLoading ? (
+                  <IconLoader2 size={16} className="animate-spin" />
+                ) : (
+                  <IconRefresh size={16} />
+                )}
+              </ResponsiveButton>
+              <ResponsiveButton
+                label={t("Reset to defaults")}
+                className="btn-ghost text-sm flex items-center gap-1.5"
+                onClick={() => setShowResetDialog(true)}
+                disabled={!values || isResetting}
+              >
+                <IconRestore size={16} />
+              </ResponsiveButton>
+            </div>
+          )}
+        </div>
+
+        {!isAvailable && (
+          <div className="mb-6 p-4 rounded-lg bg-[var(--color-border)] border border-[var(--color-border-hover)] flex items-start gap-3">
+            <div className="p-2">
+              <IconAlertTriangleFilled size={24} className="text-red-500" />
+            </div>
+            <p className="text-sm text-[var(--color-text-muted)]">
+              {t("Trackpad subsystem is not available for your keyboard.")}
+              <br />
+              {t("Make sure your firmware has the {{module}} enabled.", {
+                module: TPS43_MODULE_NAME,
+              })}
+              <a
+                href={TPS43_MODULE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[var(--color-electric)] underline mx-1"
+              >
+                {TPS43_MODULE_NAME}
+              </a>
+            </p>
+          </div>
+        )}
+
+        {error && (
+          <div
+            role="alert"
+            className="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/20"
+          >
+            <p className="text-sm text-red-400">{t(error)}</p>
+          </div>
+        )}
+
+        {isAvailable && isLoading && !values && (
+          <LoadingIndicator
+            className="mb-6"
+            label={t("Loading trackpad settings...")}
+          />
+        )}
+
+        {values && (
+          <div className="grid grid-cols-1 desktop:grid-cols-2 gap-4">
+            <Card
+              icon={<IconHandClick size={16} />}
+              title={t("Gestures")}
+              description={t("Tap and hold gestures")}
+            >
+              <ToggleRow
+                label={t("One-finger Tap")}
+                description={t("Left click")}
+                checked={bool("oneFingerTap")}
+                onChange={setBool("oneFingerTap")}
+              />
+              <ToggleRow
+                label={t("Two-finger Tap")}
+                description={t("Right click")}
+                checked={bool("twoFingerTap")}
+                onChange={setBool("twoFingerTap")}
+              />
+              <ToggleRow
+                label={t("Press and Hold")}
+                checked={bool("pressAndHold")}
+                onChange={setBool("pressAndHold")}
+              />
+              <SliderRow
+                label={t("Press and Hold Time")}
+                value={num("pressAndHoldTime")}
+                min={100}
+                max={2000}
+                step={50}
+                unit="ms"
+                onChange={setNum("pressAndHoldTime")}
+              />
+            </Card>
+
+            <Card
+              icon={<IconMouse size={16} />}
+              title={t("Scrolling")}
+              description={t("Scroll gesture configuration")}
+            >
+              <ToggleRow
+                label={t("Enable Scroll")}
+                checked={bool("scroll")}
+                onChange={setBool("scroll")}
+              />
+              <ToggleRow
+                label={t("Natural Scroll X")}
+                checked={bool("naturalScrollX")}
+                onChange={setBool("naturalScrollX")}
+              />
+              <ToggleRow
+                label={t("Natural Scroll Y")}
+                checked={bool("naturalScrollY")}
+                onChange={setBool("naturalScrollY")}
+              />
+            </Card>
+
+            <Card
+              icon={<IconRotate size={16} />}
+              title={t("Axes")}
+              description={t("Match the trackpad's mounting direction")}
+            >
+              <ToggleRow
+                label={t("Switch X/Y")}
+                checked={bool("switchXy")}
+                onChange={setBool("switchXy")}
+              />
+              <ToggleRow
+                label={t("Flip X")}
+                checked={bool("flipX")}
+                onChange={setBool("flipX")}
+              />
+              <ToggleRow
+                label={t("Flip Y")}
+                checked={bool("flipY")}
+                onChange={setBool("flipY")}
+              />
+            </Card>
+
+            <Card
+              icon={<IconSettings size={16} />}
+              title={t("Filtering")}
+              description={t("Sensitivity and filtering")}
+            >
+              <SliderRow
+                label={t("Bottom Beta")}
+                value={num("bottomBeta")}
+                min={0}
+                max={255}
+                onChange={setNum("bottomBeta")}
+              />
+              <SliderRow
+                label={t("Stationary Threshold")}
+                value={num("stationaryThreshold")}
+                min={0}
+                max={255}
+                onChange={setNum("stationaryThreshold")}
+              />
+            </Card>
+          </div>
+        )}
+      </div>
+
+      <Dialog.Root
+        open={showResetDialog}
+        onOpenChange={(open) => {
+          if (!open && !isResetting) setShowResetDialog(false);
+        }}
+      >
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" />
+          <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-md bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] shadow-2xl z-50 p-6">
+            <Dialog.Title className="text-base font-medium text-[var(--color-text)] mb-2 flex items-center gap-2">
+              <IconAlertTriangle size={18} className="text-red-400" />
+              {t("Reset trackpad settings?")}
+            </Dialog.Title>
+            <Dialog.Description className="text-sm text-[var(--color-text-muted)] mb-5">
+              {t(
+                "This restores every trackpad setting to the firmware defaults and clears the saved values. This cannot be undone.",
+              )}
+            </Dialog.Description>
+            {error && (
+              <p role="alert" className="mb-4 text-sm text-red-400">
+                {t(error)}
+              </p>
+            )}
+            <div className="flex gap-3">
+              <button
+                className="flex-1 btn-ghost border border-[var(--color-border)]"
+                onClick={() => setShowResetDialog(false)}
+                disabled={isResetting}
+              >
+                {t("Cancel")}
+              </button>
+              <button
+                className="flex-1 px-4 py-2 rounded-lg text-sm font-medium text-white bg-red-500 hover:bg-red-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                onClick={() => void handleReset()}
+                disabled={isResetting}
+              >
+                {isResetting && (
+                  <IconLoader2 size={16} className="animate-spin" />
+                )}
+                {t("Reset to defaults")}
+              </button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+    </div>
+  );
+}
+
+export function TrackpadPage() {
+  const cirque = useCirque();
+  const tps43 = useTps43();
+
+  // A keyboard advertises at most one of these trackpad subsystems. Prefer the
+  // TPS43 (Azoteq IQS5xx); fall back to Cirque, whose panel also renders the
+  // "not available" notice when neither subsystem is present.
+  if (tps43.isAvailable) {
+    return <Tps43Panel {...tps43} />;
+  }
+  return <CirquePanel {...cirque} />;
 }
