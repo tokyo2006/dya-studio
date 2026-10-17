@@ -267,20 +267,18 @@ export function KeyboardLayout({
     [],
   );
 
+  // Untagged: also the key's accessible name. PhysicalKey adds the tag in its tooltip.
   const getKeyLongDisplayName = useCallback(
     (_keyPosition: number, binding: BehaviorBinding | undefined): string => {
       if (!binding) return "—";
       const behavior = behaviors.get(binding.behaviorId) || null;
-      return withTag(
-        behavior,
-        formatBehaviorBinding(binding, behavior, {
-          layers: layers,
-          keyboardLayout,
-          runtimeMacros,
-        }),
-      );
+      return formatBehaviorBinding(binding, behavior, {
+        layers: layers,
+        keyboardLayout,
+        runtimeMacros,
+      });
     },
-    [behaviors, layers, keyboardLayout, runtimeMacros, withTag],
+    [behaviors, layers, keyboardLayout, runtimeMacros],
   );
 
   // Get original display name for tooltip
@@ -402,6 +400,9 @@ export function KeyboardLayout({
             ...key,
             x: key.x + (rawBounds.offsetX / BASE_UNIT_SIZE) * 100,
             y: key.y + (rawBounds.offsetY / BASE_UNIT_SIZE) * 100,
+            // The pivot is in layout coordinates, so translate it with the key.
+            rx: key.rx + (rawBounds.offsetX / BASE_UNIT_SIZE) * 100,
+            ry: key.ry + (rawBounds.offsetY / BASE_UNIT_SIZE) * 100,
           };
 
           return (

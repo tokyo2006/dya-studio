@@ -241,6 +241,7 @@ export function PhysicalKey({
                 {/* Always show displayName */}
                 <div>
                   <span className="font-medium">
+                    {behaviorTag && `${behaviorTag} `}
                     {longDisplayName || displayName}
                   </span>
                 </div>
@@ -359,7 +360,10 @@ export function PhysicalKey({
 // icon for it, so mirror the backspace one.
 function IconDelete(props: React.ComponentProps<typeof IconBackspace>) {
   return (
-    <IconBackspace {...props} style={{ ...props.style, transform: "scaleX(-1)" }} />
+    <IconBackspace
+      {...props}
+      style={{ ...props.style, transform: "scaleX(-1)" }}
+    />
   );
 }
 

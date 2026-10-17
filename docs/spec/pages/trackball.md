@@ -48,6 +48,8 @@ UI の数値範囲は scaling 0.01–10、rotation -180–180°、temporary laye
 | TRACK-009 | `Versions` から snapshot を選ぶ                                 | diff modal を経て restore の入口                                                                                        | IndexedDB 等の履歴契約は [version history](../modules/version-history.md)。processor firmware default reset は提供しない | S1    |
 | TRACK-010 | mobile dropdown で processor / PMW3610 driver を選ぶ            | menu が閉じ、選択種別と項目名を二段表示して直下の detail を切り替える。driver の未保存 dot は trigger / item に表示する | 選択だけでは書込まない。隣接 Reload は選択中の subsystem だけを再読込する                                                | S1/S4 |
 
+TRACK-003〜007 の processor switch は、表示中の設定名と選択中 processor 名を含むローカライズ済み accessible name を持ち、`checked` 状態をその processor の現在値に一致させる。日本語・英語の両方で確認する。
+
 ### 慣性と動作確認（2026-09-26 追加）
 
 根拠 S6: [InertiaPreviewGraph](../../../src/components/trackball/InertiaPreviewGraph.tsx)、[inertiaSimulation](../../../src/lib/inertiaSimulation.ts)、[C参照値との比較テスト](../../../src/lib/__tests__/inertiaSimulation.test.ts)。#28 commitのC関数をホストでコンパイルして生成した7ケースの全出力tick列との一致を確認（物理デバイスの検証とは別）。参照値の再生成は[ホストC検証スクリプト](../../../scripts/generate-inertia-simulation-fixtures.py)を参照する。
@@ -129,3 +131,5 @@ UI の数値範囲は scaling 0.01–10、rotation -180–180°、temporary laye
 
 - #28 firmwareの物理入力による慣性/Fast input通知、USB/BLE実機での設定読戻し、Pointer Lockの全ブラウザ対応は別途検証。Demoは物理慣性をシミュレーションしない。
 - processor RPC の power-cycle persistence、sensor の物理的 tracking 品質、custom settings の flash 境界、遅延 failure rollback は未検証。
+
+- 2026-10-15、`b3f0ea5`、Demo の `trackpad` / inertia `Input threshold` で、基準値 `10` → `-1` または空欄 → debounce より長い 2 秒待機 → `Reload processors` の後も local draft と `aria-invalid=true` が残った。Orca で両条件、Chrome で `-1` を観測した。`InertiaNumber` は不正入力時に queued write を取消し、読戻し値が前と同じなら local draft を消さない（S5）。TRACK-001 のデバイス再取得と TRACK-012 の不正入力保持は別で、Reload が無効 draft を破棄するべきかは要求が未確定。RPC の失敗や不正値の device 保存と断定せず、復帰仕様の不足として残す。実測した復帰は有効な `10` の再入力 → 2 秒待機 → Reload → `10` / `aria-invalid=false`。実機条件は未実行。

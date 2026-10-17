@@ -10,19 +10,19 @@ import type {
   Layer,
 } from "../hooks/useKeymap";
 import {
+  getKeycodeDisplayName,
   getKeycodeByCode,
-  getHidUsageCode,
   getHidUsagePage,
-  HID_USAGE_PAGE_CONSUMER,
+  getHidUsageCode,
+  dropModifierFlags,
+  HID_USAGE_PAGE_KEYBOARD,
   extractModifierFlags,
   MODIFIER_FLAGS,
   MOUSE_KEYCODES,
   MOUSE_MOVEMENTS,
   MOUSE_SCROLLS,
-  dropModifierFlags,
   decodeMouseMove,
 } from "./keycodes";
-import { getLayoutDisplayName } from "./keyboardLayouts";
 import type { BehaviorParameterValueDescription } from "@zmkfirmware/zmk-studio-ts-client/behaviors";
 
 /**
@@ -82,6 +82,19 @@ const SHIFT_MODIFIER_BITS: number[] = MODIFIER_FLAGS.filter(
 ).map((mod) => mod.value);
 
 /**
+ * Keyboard-page keys labeled "<unshifted><shifted>" (e.g. "1!", ",<"). Other
+ * two-character names ("☀+", "かな") are a single label and must stay whole.
+ */
+function isShiftedPairLabel(hidUsage: number, displayName: string): boolean {
+  if (displayName.length !== 2) return false;
+  const usage = dropModifierFlags(hidUsage);
+  const page = getHidUsagePage(usage);
+  if (page !== 0 && page !== HID_USAGE_PAGE_KEYBOARD) return false;
+  const category = getKeycodeByCode(getHidUsageCode(usage))?.category;
+  return category === "numbers" || category === "punctuation";
+}
+
+/**
  * Format a keycode (HID usage) with modifiers for display.
  * Returns a human-readable string representation.
  */
@@ -90,34 +103,13 @@ function formatKeycode(
   keyboardLayout?: import("./keyboardLayouts").KeyboardLayoutType,
 ): string {
   const modifiers = extractModifierFlags(hidUsage);
-  const hidUsageWithoutModifiers = dropModifierFlags(hidUsage);
-  const page = getHidUsagePage(hidUsage);
-  const code =
-    page === 0 ? hidUsageWithoutModifiers : getHidUsageCode(hidUsage);
-
-  // Try keyboard page first
-  let keycode = getKeycodeByCode(code);
-
-  // Try consumer page if not found
-  if (!keycode && (page === HID_USAGE_PAGE_CONSUMER || page === 0)) {
-    keycode = getKeycodeByCode(hidUsageWithoutModifiers);
-  }
-
-  // Apply keyboard layout override
-  let displayName =
-    keycode?.displayName || `0x${code.toString(16).toUpperCase()}`;
-  if (keyboardLayout) {
-    const layoutDisplayName = getLayoutDisplayName(code, keyboardLayout);
-    if (layoutDisplayName) {
-      displayName = layoutDisplayName;
-    }
-  }
+  const displayName = getKeycodeDisplayName(hidUsage, keyboardLayout);
 
   // Punctuation keys are conventionally labeled "<unshifted><shifted>" (e.g.
   // ",<" for Comma). Show only the character this specific keycode actually
   // produces: the first when unmodified, the second under a lone Shift
   // (rather than wrapping the whole pair in "LS(,<)").
-  if (displayName.length === 2) {
+  if (isShiftedPairLabel(hidUsage, displayName)) {
     if (modifiers === 0) {
       return displayName[0];
     }
@@ -224,7 +216,12 @@ const BEHAVIOR_METADATA_BASE: BehaviorMetadata[] = [
   // ============================================================================
   {
     category: "layer",
-    displayNameVariants: ["Momentary Layer", "mo", "momentary", "momentary_layer"],
+    displayNameVariants: [
+      "Momentary Layer",
+      "mo",
+      "momentary",
+      "momentary_layer",
+    ],
     shortCode: "MO",
     param1Type: "layer",
     param1Description: "Layer active while held",
@@ -692,9 +689,7 @@ export function findBehaviorByPredicate(
 function abbreviateCustomBehaviorName(displayName: string): string {
   const words = displayName.split(/[\s_-]+/).filter(Boolean);
   const short =
-    words.length > 1
-      ? words.map((word) => word[0]).join("")
-      : displayName;
+    words.length > 1 ? words.map((word) => word[0]).join("") : displayName;
   return `&${short.toLowerCase()}`;
 }
 
@@ -775,7 +770,13 @@ export function formatBehaviorBinding(
     }
     return param1;
   } else if (binding.param2 !== 0) {
-    return formatBehaviorParam(behavior, binding.param1, binding.param2, 2, context);
+    return formatBehaviorParam(
+      behavior,
+      binding.param1,
+      binding.param2,
+      2,
+      context,
+    );
   }
 
   return behavior.displayName;

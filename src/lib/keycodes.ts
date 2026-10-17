@@ -14,7 +14,11 @@
  * - bits 24-31 (8bits): modifier flags (custom for zmk)
  */
 
-import { mapToLayout, type KeyboardLayoutType } from "./keyboardLayouts";
+import {
+  getLayoutDisplayName,
+  mapToLayout,
+  type KeyboardLayoutType,
+} from "./keyboardLayouts";
 
 // HID Usage Page definitions
 export const HID_USAGE_PAGE_KEYBOARD = 0x07;
@@ -908,6 +912,26 @@ export function getKeycodeByCode(code: number): KeycodeDefinition | undefined {
   return keycodeByCode.get(code);
 }
 
+/** Resolve a HID usage name without allowing another page to alias a keyboard key. */
+export function getKeycodeDisplayName(
+  hidUsage: number,
+  keyboardLayout?: KeyboardLayoutType,
+): string {
+  const page = getHidUsagePage(hidUsage);
+  const usage = dropModifierFlags(hidUsage);
+  const isKeyboard = page === 0 || page === HID_USAGE_PAGE_KEYBOARD;
+  const code = isKeyboard ? getHidUsageCode(usage) : usage;
+  const layoutName =
+    isKeyboard && keyboardLayout
+      ? getLayoutDisplayName(code, keyboardLayout)
+      : undefined;
+  return (
+    layoutName ||
+    getKeycodeByCode(code)?.displayName ||
+    `0x${usage.toString(16).toUpperCase()}`
+  );
+}
+
 /**
  * Get keycode definition by name or alias
  */
@@ -1040,6 +1064,57 @@ export function combineWithModifiers(
   }
   // Otherwise, create full HID usage with keyboard page and modifiers
   return createHidUsage(HID_USAGE_PAGE_KEYBOARD, keycode) | (modifiers << 24);
+}
+
+/**
+ * Format keycode with modifiers for display.
+ * Returns both human-readable text and raw code.
+ *
+ * @param hidUsage - HID usage value with optional modifier flags
+ * @param keyboardLayout - Optional keyboard layout for localized display names
+ * @returns Object with display string and raw code hex string
+ */
+export function formatKeycodeWithModifiers(
+  hidUsage: number,
+  keyboardLayout?: KeyboardLayoutType,
+): {
+  display: string;
+  rawCode: string;
+} {
+  if (hidUsage === 0) {
+    return {
+      display: "Not set",
+      rawCode: "0x0",
+    };
+  }
+  const modifiers = extractModifierFlags(hidUsage);
+  const baseName = getKeycodeDisplayName(hidUsage, keyboardLayout);
+
+  const rawCodeHex = `0x${(hidUsage >>> 0).toString(16).toUpperCase()}`;
+
+  if (modifiers === 0) {
+    return {
+      display:
+        baseName != rawCodeHex ? `${baseName} (${rawCodeHex})` : baseName,
+      rawCode: rawCodeHex,
+    };
+  }
+
+  // Build modifier prefix
+  const modParts: string[] = [];
+  MODIFIER_FLAGS.forEach((mod) => {
+    if (modifiers & mod.value) {
+      modParts.push(mod.shortLabel);
+    }
+  });
+
+  const modPrefix = modParts.join("+");
+  return {
+    display:
+      `${modPrefix}(${baseName})` +
+      (baseName !== rawCodeHex ? ` (${rawCodeHex})` : ""),
+    rawCode: rawCodeHex,
+  };
 }
 
 // =============================================================================
