@@ -87,7 +87,7 @@ it("distinguishes A/B and A/Ctrl+C with behavior context and exact parameters", 
   expect(format(A)).toContain("Key Press: A");
   expect(format(B)).toContain("Key Press: B");
   expect(format(CTRL_C)).toMatch(/Key Press: .*C/);
-  expect(format(CTRL_C)).toContain("Key Press: LC(C)");
+  expect(format(CTRL_C)).toContain("Key Press: LCtrl+C");
   expect(new Set([format(A), format(B), format(CTRL_C)]).size).toBe(3);
   expect(format(CTRL_C)).toContain(`param1=${CTRL_C}, param2=0`);
 });
@@ -114,9 +114,9 @@ it("formats non-key behaviors and makes layer/second parameter differences visib
   const { result } = renderHook(() => useKeymapVersionHistory(makeKeymap(), t));
   const format = (value: string) =>
     result.current.labeler.formatValue!(path, value);
-  expect(format("3:0:0")).toContain("Momentary Layer: MO 0");
+  expect(format("3:0:0")).toContain("Momentary Layer: 0");
   expect(format("3:1:0")).not.toBe(format("3:0:0"));
-  expect(format(`5:0:${A}`)).toContain("Layer-Tap: LT 0 A");
+  expect(format(`5:0:${A}`)).toContain("Layer-Tap: 0 A");
   expect(format(`5:0:${B}`)).not.toBe(format(`5:0:${A}`));
   expect(format("2:0:0")).toContain("Transparent");
 });
