@@ -9,6 +9,87 @@ export const languageLabels: Record<Language, string> = {
 };
 
 const ja: Record<string, string> = {
+  "Update Abyss keymap": "Abyss のキーマップを更新",
+  "Module settings for new layers require Keymap to be selected.":
+    "新しいレイヤーのモジュール設定を転送するには、キーマップも選択してください。",
+  // Keymap sharing preview
+  "Save/share keymap": "キーマップ保存/共有",
+  "Keyboard Abyss is a keymap sharing service developed by @cormoran707, the developer of DYA Studio.":
+    "Keyboard Abyss は、DYA Studio 開発者の @cormoran707 が開発しているキーマップ共有サービスです。",
+  "Refresh your keymaps": "自分のキーマップを更新",
+  "Preview {{name}}": "{{name}} をプレビュー",
+  "Preview format": "プレビュー形式",
+  "Keymap preview": "キーマッププレビュー",
+  "Code diff": "コード差分",
+  "Preview direction": "比較の方向",
+  "Apply from Abyss to keyboard": "Abyss からキーボードに適用",
+  "Upload from keyboard to Abyss": "キーボードから Abyss にアップロード",
+  Changes: "変更一覧",
+  "Filter changes by layer": "変更をレイヤーで絞り込む",
+  "Compare the Abyss keymap with the keyboard settings to save.":
+    "Abyss のキーマップと、保存するキーボードの設定を比較します。",
+  "Compare the current keyboard with the keymap to apply.":
+    "現在のキーボードと、適用するキーマップを比較します。",
+  "Replace the keyboard settings with this keymap and save them to the keyboard.":
+    "このキーマップをキーボードに適用し、キーボード本体に保存します。",
+  "Update this Abyss keymap with the keyboard's current settings as a new version.":
+    "現在のキーボードの設定で、この Abyss キーマップを新しいバージョンとして更新します。",
+
+  // Keymap sharing
+  "Keymap sharing": "キーマップ共有",
+  "Apply {{name}}": "{{name}} を適用",
+  "Save to {{name}}": "{{name}} に保存",
+  "Current keymap": "現在のキーマップ",
+  "Your keymaps": "自分のキーマップ",
+  "In sync": "同期済み",
+  "This keyboard cannot identify its current keymap. Keymap identity RPC is not supported.":
+    "このキーボードはキーマップ識別 RPC に未対応のため、現在のキーマップを判定できません。",
+  "No keymap identity is stored on this keyboard.":
+    "このキーボードにはキーマップの識別情報が保存されていません。",
+  "The current keymap could not be identified.":
+    "現在のキーマップを判定できませんでした。",
+  "No keymaps for this keyboard.": "このキーボードのキーマップはありません。",
+  "Find on Abyss": "Abyss で探す",
+  "Save new to Abyss": "Abyss に新規保存",
+  "Save to file": "ファイルに保存",
+  "Apply from file": "ファイルから反映",
+  "Apply keymap": "キーマップを適用",
+  "Left: what is on the keyboard now. Right: the keymap to apply.":
+    "左：現在のキーボードの内容。右：適用するキーマップ。",
+  "Applying writes and saves to the keyboard immediately. Partial failures may leave mixed settings.":
+    "適用すると、キーボードに直ちに書き込み・保存します。途中で失敗した場合、設定が一部だけ反映されることがあります。",
+  "Save to Abyss": "Abyss に保存",
+  "Apply to keyboard": "キーボードに反映",
+  "Save the keyboard's current settings as a new Abyss keymap.":
+    "現在のキーボードの設定を、新しいキーマップとして Abyss に保存します。",
+  "The keymap file is too large (maximum 5 MB).":
+    "キーマップファイルが大きすぎます（最大 5 MB）。",
+  "This file is not a valid KeyboardHub keymap.":
+    "有効な KeyboardHub 形式のキーマップではありません。",
+  "Saved to Abyss.": "Abyss に保存しました。",
+  "Applied to keyboard.": "キーボードに適用しました。",
+  "The keyboard or account changed. Reopen Keymap sharing.":
+    "キーボードまたはアカウントが変わりました。キーマップ保存/共有を開き直してください。",
+  "No keyboard connected.": "キーボードが接続されていません。",
+  "Keymap data unavailable": "キーマップデータを取得できません。",
+  "The keymap was saved, but its identity could not be stored. Refresh to check the keyboard.":
+    "キーマップは保存されましたが、識別情報を保存できませんでした。更新してキーボードの状態を確認してください。",
+  "The keymap identity could not be verified. Refresh to check the keyboard.":
+    "キーマップの識別情報を確認できませんでした。更新してキーボードの状態を確認してください。",
+  "The keyboard changed. Close this preview and open it again.":
+    "キーボードの内容が変わりました。プレビューを閉じ、開き直して差分を確認してください。",
+  "The Abyss keymap changed. Close this preview and open it again.":
+    "Abyss のキーマップが変わりました。プレビューを閉じ、開き直して差分を確認してください。",
+  "The keyboard does not yet match this keymap. Review and try again.":
+    "キーボードの内容がキーマップと一致していません。状態を確認して再試行してください。",
+  "Could not open the keyboard connection.\nAnother DYA Studio tab or app may be using it.\nDisconnect or close that tab or app, then try again.\nIf it still fails, check the device permissions and reconnect the USB cable.":
+    "キーボードへの接続を開けませんでした。\n別のタブの DYA Studio や他のアプリが使用している可能性があります。\n接続中のタブやアプリで切断するか、閉じてからもう一度お試しください。\n解決しない場合は、デバイスへのアクセス権限を確認し、USB ケーブルを接続し直してください。",
+  "The keyboard did not respond in time.\nCheck the connection and that ZMK Studio is enabled on the keyboard, then try again.":
+    "キーボードからの応答がなく、接続がタイムアウトしました。\n接続状態とキーボードの ZMK Studio が有効になっていることを確認し、もう一度お試しください。",
+  "Could not connect to the keyboard.\nCheck the connection and browser permissions, then try again.\nSee error details for more information.":
+    "キーボードに接続できませんでした。\n接続状態とブラウザのアクセス権限を確認し、もう一度お試しください。\n詳しい原因は「エラーの詳細」で確認できます。",
+  "Error details": "エラーの詳細",
+
   "Inertia simulation": "慣性シミュレーション",
   "Five-second input and simulated output": "5秒の入力とシミュレーション出力",
   "Example input peak before scaling": "スケーリング前の想定入力の最大値",
@@ -281,6 +362,8 @@ const ja: Record<string, string> = {
   "Move layer up (higher priority)": "レイヤーを上へ移動（優先度を上げる）",
   "Move layer down (lower priority)": "レイヤーを下へ移動（優先度を下げる）",
   "Rename current layer": "現在のレイヤー名を変更",
+  "Failed to rename layer. Please try again.":
+    "レイヤー名の変更に失敗しました。もう一度お試しください。",
   "Add new layer": "新しいレイヤーを追加",
   "Delete current layer": "現在のレイヤーを削除",
   "Restore deleted layer": "削除したレイヤーを復元",
@@ -320,6 +403,8 @@ const ja: Record<string, string> = {
   "Loading trackball settings...": "トラックボール設定を読み込み中...",
   "No runtime input processor found. Make sure your firmware has the runtime input processor module enabled.":
     "ランタイム入力プロセッサーが見つかりません。ファームウェアでランタイム入力プロセッサーモジュールが有効になっていることを確認してください。",
+  "{{setting}} ({{processor}}: {{name}})":
+    "{{setting}}（{{processor}}: {{name}}）",
   "Advanced (PMW3610 Sensor Driver)": "詳細設定（PMW3610 センサードライバー）",
   "Sensor-level tuning exposed by the pmw3610 driver's custom Studio RPC":
     "pmw3610 ドライバーのカスタム Studio RPC が公開するセンサーレベルの調整項目です",
@@ -475,6 +560,7 @@ const ja: Record<string, string> = {
   "Loading settings...": "設定を読み込み中...",
   "Power Management": "電源管理",
   "Idle Timeout": "アイドルタイムアウト",
+  "{{label}} options": "{{label}}の選択肢",
   "Time before keyboard enters idle mode":
     "キーボードがアイドルモードに入るまでの時間",
   "Sleep Timeout": "スリープタイムアウト",
@@ -584,6 +670,9 @@ const ja: Record<string, string> = {
   "Global settings are pending.": "グローバル設定の変更が保留中です。",
   "Saved {{count}} runtime combo changes.":
     "ランタイムコンボの変更を {{count}} 件保存しました。",
+  "Saved runtime macro changes.": "ランタイムマクロの変更を保存しました。",
+  "Saved runtime macros and {{count}} runtime combo changes.":
+    "ランタイムマクロの変更とランタイムコンボの変更 {{count}} 件を保存しました。",
   "Discarded {{count}} runtime combo changes.":
     "ランタイムコンボの変更を {{count}} 件破棄しました。",
   "● Pending changes": "● 保留中の変更",
@@ -795,7 +884,8 @@ const ja: Record<string, string> = {
   "Connect via Bluetooth": "Bluetooth で接続",
   "Try Demo Mode": "デモモードを試す",
   "Try Demo Mode (no device required)": "デモモードを試す（デバイス不要）",
-  "Try demo mode without a keyboard": "キーボードなしでデモモードを試せます",
+  "Try the Beta version": "Beta 版を試す",
+  "DYA Studio on GitHub": "DYA Studio の GitHub リポジトリ",
   "Reconnecting to your keyboard...": "キーボードに再接続中...",
   "DYA Studio is maintained by": "DYA Studio のメンテナー",
   "Special thanks to": "Special thanks to",
@@ -995,6 +1085,8 @@ const ja: Record<string, string> = {
   "Refresh All": "すべて更新",
   "Refresh all sections": "すべてのセクションを更新",
   "Copied!": "コピーしました！",
+  "Could not copy the support report. Check clipboard access and try again.":
+    "サポートレポートをコピーできませんでした。クリップボードへのアクセスを確認して、もう一度お試しください。",
   "If your keyboard misbehaves, review the sections below. Use 'Copy Support Report' and paste the result when contacting your keyboard's seller.":
     "キーボードの動作がおかしい場合は、以下のセクションを確認してください。「サポートレポートをコピー」を使用し、キーボードの販売元に問い合わせる際にその内容を貼り付けてください。",
   "If a section is not available, it shows which firmware module enables it.":
@@ -1393,6 +1485,8 @@ const ja: Record<string, string> = {
     "サインインするとキーマップのインポート／エクスポートができます。",
   "Sign in with Abyss": "Abyss でサインイン",
   "Sign out": "サインアウト",
+  "Abyss sign-in is unavailable because this build has no OAuth client configuration.":
+    "このビルドには OAuth クライアント設定がないため、Abyss にサインインできません。",
   "A sign-in window opens at {{host}}. Your session lasts until this tab is closed.":
     "{{host}} のサインイン画面が開きます。セッションはこのタブを閉じるまで有効です。",
   Export: "エクスポート",
@@ -1562,8 +1656,8 @@ const ja: Record<string, string> = {
   "The keyboard is locked. Unlock it and try again.":
     "キーボードがロックされています。ロックを解除して再試行してください。",
   "Abyss login was cancelled.": "Abyss のサインインがキャンセルされました。",
-  "Abyss sign-in could not be completed. Please start again from the Import/Export tab.":
-    "Abyss のサインインを完了できませんでした。インポート／エクスポートタブからやり直してください。",
+  "Abyss sign-in could not be completed. Please start again from Keymap sharing.":
+    "Abyss のサインインを完了できませんでした。キーマップページからやり直してください。",
   "Something went wrong talking to Abyss.":
     "Abyss との通信で問題が発生しました。",
   "Abyss is not configured for this build.":
@@ -1660,6 +1754,39 @@ const ja: Record<string, string> = {
 };
 
 const zh: Record<string, string> = {
+  "Module settings for new layers require Keymap to be selected.":
+    "传输新层的模块设置需要同时选择键位映射。",
+  // Keymap sharing preview
+  "Save/share keymap": "保存/分享键位",
+  "Keyboard Abyss is a keymap sharing service developed by @cormoran707, the developer of DYA Studio.":
+    "Keyboard Abyss 是由 DYA Studio 开发者 @cormoran707 开发的键位分享服务。",
+  "Refresh your keymaps": "刷新我的键位",
+  "Preview {{name}}": "预览 {{name}}",
+  "Preview format": "预览格式",
+  "Keymap preview": "键位预览",
+  "Code diff": "代码差异",
+  "Update Abyss keymap": "更新 Abyss 键位映射",
+  "Preview direction": "比较方向",
+  "Apply from Abyss to keyboard": "从 Abyss 应用到键盘",
+  "Upload from keyboard to Abyss": "从键盘上传到 Abyss",
+  Changes: "更改列表",
+  "Filter changes by layer": "按层筛选更改",
+  "Compare the Abyss keymap with the keyboard settings to save.":
+    "比较 Abyss 键位与要保存的键盘设置。",
+  "Compare the current keyboard with the keymap to apply.":
+    "比较当前键盘与要应用的键位。",
+  "Replace the keyboard settings with this keymap and save them to the keyboard.":
+    "将此键位应用到键盘并保存到键盘。",
+  "Update this Abyss keymap with the keyboard's current settings as a new version.":
+    "使用键盘的当前设置将此 Abyss 键位更新为新版本。",
+  "Could not open the keyboard connection.\nAnother DYA Studio tab or app may be using it.\nDisconnect or close that tab or app, then try again.\nIf it still fails, check the device permissions and reconnect the USB cable.":
+    "无法打开键盘连接。\n其他 DYA Studio 标签页或应用可能正在使用它。\n请断开连接或关闭该标签页或应用后重试。\n如果仍然失败，请检查设备访问权限并重新插拔 USB 线。",
+  "The keyboard did not respond in time.\nCheck the connection and that ZMK Studio is enabled on the keyboard, then try again.":
+    "键盘未及时响应，连接已超时。\n请检查连接并确认键盘已启用 ZMK Studio，然后重试。",
+  "Could not connect to the keyboard.\nCheck the connection and browser permissions, then try again.\nSee error details for more information.":
+    "无法连接键盘。\n请检查连接和浏览器访问权限后重试。\n更多信息请查看错误详情。",
+  "Error details": "错误详情",
+
   "Inertia simulation": "惯性模拟",
   "Five-second input and simulated output": "5秒输入及模拟输出",
   "Example input peak before scaling": "缩放前的示例输入峰值",
@@ -1897,6 +2024,7 @@ const zh: Record<string, string> = {
   "Move layer up (higher priority)": "将层上移（更高优先级）",
   "Move layer down (lower priority)": "将层下移（更低优先级）",
   "Rename current layer": "重命名当前层",
+  "Failed to rename layer. Please try again.": "重命名层失败，请重试。",
   "Add new layer": "添加新层",
   "Delete current layer": "删除当前层",
   "Restore deleted layer": "恢复已删除的层",
@@ -1936,6 +2064,8 @@ const zh: Record<string, string> = {
   "Loading trackball settings...": "正在加载轨迹球设置...",
   "No runtime input processor found. Make sure your firmware has the runtime input processor module enabled.":
     "未找到运行时输入处理器。请确保您的固件已启用运行时输入处理器模块。",
+  "{{setting}} ({{processor}}: {{name}})":
+    "{{setting}}（{{processor}}：{{name}}）",
   "Advanced (PMW3610 Sensor Driver)": "高级（PMW3610 传感器驱动）",
   "Sensor-level tuning exposed by the pmw3610 driver's custom Studio RPC":
     "pmw3610 驱动通过自定义 Studio RPC 公开的传感器级调整",
@@ -2080,6 +2210,7 @@ const zh: Record<string, string> = {
   "Loading settings...": "正在加载设置...",
   "Power Management": "电源管理",
   "Idle Timeout": "空闲超时",
+  "{{label}} options": "{{label}}选项",
   "Time before keyboard enters idle mode": "键盘进入空闲模式前的时间",
   "Sleep Timeout": "睡眠超时",
   "Time before entering deep sleep": "进入深度睡眠前的时间",
@@ -2183,6 +2314,9 @@ const zh: Record<string, string> = {
   "Global settings are pending.": "全局设置待处理。",
   "Saved {{count}} runtime combo changes.":
     "已保存 {{count}} 项运行时组合键更改。",
+  "Saved runtime macro changes.": "已保存运行时宏更改。",
+  "Saved runtime macros and {{count}} runtime combo changes.":
+    "已保存运行时宏更改和 {{count}} 项运行时组合键更改。",
   "Discarded {{count}} runtime combo changes.":
     "已放弃 {{count}} 项运行时组合键更改。",
   "● Pending changes": "● 待处理的更改",
@@ -2380,7 +2514,8 @@ const zh: Record<string, string> = {
   "Connect via Bluetooth": "通过蓝牙连接",
   "Try Demo Mode": "试用演示模式",
   "Try Demo Mode (no device required)": "试用演示模式（无需设备）",
-  "Try demo mode without a keyboard": "无需键盘即可试用演示模式",
+  "Try the Beta version": "试用 Beta 版本",
+  "DYA Studio on GitHub": "DYA Studio 的 GitHub 仓库",
   "Reconnecting to your keyboard...": "正在重新连接您的键盘...",
   "DYA Studio is maintained by": "DYA Studio 由以下人员维护",
   "Special thanks to": "特别感谢",
@@ -2573,6 +2708,8 @@ const zh: Record<string, string> = {
   "Refresh All": "全部刷新",
   "Refresh all sections": "刷新所有小节",
   "Copied!": "已复制！",
+  "Could not copy the support report. Check clipboard access and try again.":
+    "无法复制支持报告。请检查剪贴板访问权限，然后重试。",
   "If your keyboard misbehaves, review the sections below. Use 'Copy Support Report' and paste the result when contacting your keyboard's seller.":
     "如果您的键盘工作异常，请查看以下小节。使用“复制支持报告”并将结果粘贴到与键盘卖家联系时使用。",
   "If a section is not available, it shows which firmware module enables it.":
@@ -2959,6 +3096,8 @@ const zh: Record<string, string> = {
   "Sign in to import and export keymaps.": "登录后可导入和导出键位。",
   "Sign in with Abyss": "使用 Abyss 登录",
   "Sign out": "退出登录",
+  "Abyss sign-in is unavailable because this build has no OAuth client configuration.":
+    "此构建缺少 OAuth 客户端配置，无法登录 Abyss。",
   "A sign-in window opens at {{host}}. Your session lasts until this tab is closed.":
     "登录窗口将在 {{host}} 打开。会话在此选项卡关闭前一直有效。",
   Export: "导出",
@@ -3113,7 +3252,7 @@ const zh: Record<string, string> = {
   "The keyboard is locked. Unlock it and try again.":
     "键盘已锁定。请解锁后重试。",
   "Abyss login was cancelled.": "Abyss 登录已取消。",
-  "Abyss sign-in could not be completed. Please start again from the Import/Export tab.":
+  "Abyss sign-in could not be completed. Please start again from Keymap sharing.":
     "无法完成 Abyss 登录。请从导入/导出选项卡重新开始。",
   "Something went wrong talking to Abyss.": "与 Abyss 通信时出现问题。",
   "Abyss is not configured for this build.": "此构建未配置 Abyss。",

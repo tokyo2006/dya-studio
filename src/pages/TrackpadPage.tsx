@@ -765,7 +765,8 @@ function Tps43Panel(props: UseTps43Return) {
   const num = (key: Tps43NumericKey) => values?.[key] ?? 0;
   const bool = (key: Tps43BooleanKey) => values?.[key] ?? false;
   const setNum = (key: Tps43NumericKey) => (v: number) => update({ [key]: v });
-  const setBool = (key: Tps43BooleanKey) => (v: boolean) => update({ [key]: v });
+  const setBool = (key: Tps43BooleanKey) => (v: boolean) =>
+    update({ [key]: v });
 
   const handleReset = async () => {
     if (await reset()) setShowResetDialog(false);

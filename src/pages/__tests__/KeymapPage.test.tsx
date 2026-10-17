@@ -20,6 +20,12 @@ import {
   createConnectedMockZMKApp,
   createMockZMKApp,
 } from "@cormoran/zmk-studio-react-hook/testing";
+import { Request, Response } from "@zmkfirmware/zmk-studio-ts-client";
+import {
+  get_encoder,
+  get_decoder,
+} from "@zmkfirmware/zmk-studio-ts-client/framing";
+import { connect as connectDemo } from "../../lib/transport/demo";
 import { INPUT_STREAM_IDENTIFIER } from "../../hooks/useInputStream";
 
 // Mock ResizeObserver for tests
@@ -36,6 +42,7 @@ jest.mock("../../hooks/useKeymap", () => ({
   useKeymap: jest.fn(),
 }));
 jest.mock("../../hooks/usePhysicalLayoutModules");
+jest.mock("../../hooks/useRuntimeSensorRotate");
 jest.mock("../../hooks/useRuntimeCombo", () => ({
   ...jest.requireActual("../../hooks/useRuntimeCombo"),
   useRuntimeCombo: jest.fn(),
@@ -50,6 +57,7 @@ jest.mock("@cormoran/zmk-studio-react-hook", () => ({
   useStudioLockState: jest.fn(() => ({ locked: false, lockState: "unlocked" })),
 }));
 import { useKeymap } from "../../hooks/useKeymap";
+import { useRuntimeSensorRotate } from "../../hooks/useRuntimeSensorRotate";
 import { usePhysicalLayoutModules } from "../../hooks/usePhysicalLayoutModules";
 import { useRuntimeCombo } from "../../hooks/useRuntimeCombo";
 import { useComboEditor } from "../../components/macroCombo/useComboEditor";
@@ -133,6 +141,17 @@ describe("KeymapPage", () => {
     jest.mocked(useVersionHistory).mockReturnValue(createIdleVersionHistory());
     localStorage.clear();
 
+    jest.mocked(useRuntimeSensorRotate).mockReturnValue({
+      isAvailable: false,
+      sensors: [],
+      isLoading: false,
+      error: null,
+      loadSensors: jest.fn(),
+      getAllLayerBindings: jest.fn().mockResolvedValue([]),
+      setLayerCwBindings: jest.fn(),
+      setLayerCcwBindings: jest.fn(),
+    });
+
     // Default to unlocked; locked-specific tests override this.
     mockUseStudioLockState.mockReturnValue({
       locked: false,
@@ -162,6 +181,8 @@ describe("KeymapPage", () => {
       restoreLayer: jest
         .fn()
         .mockResolvedValue({ id: 0, name: "Restored", bindings: [] }),
+      setLayerName: jest.fn().mockResolvedValue(true),
+      maxLayerNameLength: 32,
       availableLayers: 4,
       removedLayerIds: [],
       saveChanges: jest.fn().mockResolvedValue(true),
@@ -254,15 +275,23 @@ describe("KeymapPage", () => {
     const keymapHookReturn = { ...mockUseKeymap(), ...keymapOverrides };
     mockUseKeymap.mockReturnValue(keymapHookReturn);
 
-    return render(
+    const page = () => (
       <ConnectionContext.Provider value={connectionContext}>
         <ZMKAppProvider value={zmkApp}>
           <StudioUnlockProvider>
             <KeymapPage />
           </StudioUnlockProvider>
         </ZMKAppProvider>
-      </ConnectionContext.Provider>,
+      </ConnectionContext.Provider>
     );
+    const result = render(page());
+    return {
+      ...result,
+      replaceKeymap: (overrides: Partial<ReturnType<typeof useKeymap>>) => {
+        mockUseKeymap.mockReturnValue({ ...mockUseKeymap(), ...overrides });
+        result.rerender(page());
+      },
+    };
   };
 
   /** Opens the action-bar dropdown that holds Reset, Discard and the versions. */
@@ -972,6 +1001,124 @@ describe("KeymapPage", () => {
       ).not.toBeInTheDocument();
     });
 
+    describe("layer rename", () => {
+      const openRename = async (
+        setLayerName = jest.fn().mockResolvedValue(true),
+      ) => {
+        const user = userEvent.setup();
+        renderComponent(
+          { isConnected: true },
+          {
+            keymap: mockKeymap,
+            physicalLayouts: mockPhysicalLayouts,
+            behaviors: mockBehaviors,
+            setLayerName,
+          },
+        );
+        await user.click(
+          screen.getAllByRole("button", { name: "Rename current layer" })[0],
+        );
+        const dialog = screen.getByRole("dialog", { name: "Rename Layer" });
+        const input = within(dialog).getByRole("textbox");
+        expect(input).toHaveValue("Base");
+        await user.clear(input);
+        await user.type(input, "Primary");
+        return { user, dialog, input, setLayerName };
+      };
+
+      it.each(["button", "Enter"])(
+        "closes only after successful rename via %s",
+        async (method) => {
+          const { user, dialog, input, setLayerName } = await openRename();
+          if (method === "button")
+            await user.click(
+              within(dialog).getByRole("button", { name: "Rename" }),
+            );
+          else await user.type(input, "{Enter}");
+          expect(setLayerName).toHaveBeenCalledWith(0, "Primary");
+          expect(
+            screen.queryByRole("dialog", { name: "Rename Layer" }),
+          ).not.toBeInTheDocument();
+        },
+      );
+
+      it.each(["Cancel", "Escape"])("does not mutate on %s", async (method) => {
+        const { user, dialog, input, setLayerName } = await openRename();
+        if (method === "Cancel")
+          await user.click(
+            within(dialog).getByRole("button", { name: "Cancel" }),
+          );
+        else await user.type(input, "{Escape}");
+        expect(setLayerName).not.toHaveBeenCalled();
+        expect(
+          screen.queryByRole("dialog", { name: "Rename Layer" }),
+        ).not.toBeInTheDocument();
+        expect(mockKeymap.layers[0].name).toBe("Base");
+      });
+
+      it.each(["false", "rejection"])(
+        "keeps failed input and permits retry after %s",
+        async (failure) => {
+          const setLayerName = jest.fn().mockResolvedValue(true);
+          if (failure === "false") setLayerName.mockResolvedValueOnce(false);
+          else setLayerName.mockRejectedValueOnce(new Error("RPC failed"));
+          const { user, dialog, input } = await openRename(setLayerName);
+          await user.click(
+            within(dialog).getByRole("button", { name: "Rename" }),
+          );
+          expect(within(dialog).getByRole("alert")).toHaveTextContent(
+            "Failed to rename layer. Please try again.",
+          );
+          expect(input).toHaveValue("Primary");
+          expect(
+            within(dialog).getByRole("button", { name: "Rename" }),
+          ).toBeEnabled();
+          await user.type(input, "{Enter}");
+          expect(setLayerName).toHaveBeenCalledTimes(2);
+          expect(setLayerName).toHaveBeenLastCalledWith(0, "Primary");
+          expect(
+            screen.queryByRole("dialog", { name: "Rename Layer" }),
+          ).not.toBeInTheDocument();
+        },
+      );
+
+      it("prevents duplicate requests and dismissal during a pending rename", async () => {
+        let finish!: (ok: boolean) => void;
+        const setLayerName = jest.fn(
+          () =>
+            new Promise<boolean>((resolve) => {
+              finish = resolve;
+            }),
+        );
+        const { user, dialog, input } = await openRename(setLayerName);
+        await user.type(input, "{Enter}{Enter}");
+        expect(setLayerName).toHaveBeenCalledTimes(1);
+        expect(input).toBeDisabled();
+        expect(
+          within(dialog).getByRole("button", { name: "Rename" }),
+        ).toBeDisabled();
+        expect(
+          within(dialog).getByRole("button", { name: "Cancel" }),
+        ).toBeDisabled();
+        await user.keyboard("{Escape}");
+        expect(dialog).toBeInTheDocument();
+        await act(async () => finish(false));
+        expect(input).toHaveValue("Primary");
+        expect(within(dialog).getByRole("alert")).toBeInTheDocument();
+      });
+
+      it("does not send the protocol's empty-name no-op as a successful rename", async () => {
+        const { user, dialog, input, setLayerName } = await openRename();
+        await user.clear(input);
+        expect(
+          within(dialog).getByRole("button", { name: "Rename" }),
+        ).toBeDisabled();
+        await user.type(input, "{Enter}");
+        expect(setLayerName).not.toHaveBeenCalled();
+        expect(dialog).toBeInTheDocument();
+      });
+    });
+
     it("keeps the rename confirmation label visible after opening it from mobile settings", async () => {
       const user = userEvent.setup();
       renderComponent(
@@ -1300,6 +1447,289 @@ describe("KeymapPage", () => {
       expect(lowerTab.closest("button")).toHaveClass(
         "bg-[var(--color-electric)]/20",
       );
+    });
+  });
+
+  describe("Layer list reconciliation", () => {
+    const addedLayer = {
+      ...mockKeymap.layers[0],
+      id: 7,
+      name: "Added",
+    };
+    const expandedKeymap = {
+      ...mockKeymap,
+      layers: [...mockKeymap.layers, addedLayer],
+    };
+
+    beforeEach(() => {
+      jest.mocked(useRuntimeSensorRotate).mockReturnValue({
+        ...jest.mocked(useRuntimeSensorRotate)(),
+        isAvailable: true,
+        sensors: [{ index: 0, name: "Encoder" }],
+      });
+    });
+
+    const expectSelectedPreview = (name: string, id: number) => {
+      expect(screen.getByRole("button", { name, exact: true })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      expect(document.querySelector(".keymap-preview")).toBeInTheDocument();
+      expect(screen.getByText("Saved")).toBeInTheDocument();
+      expect(
+        screen.getByRole("group", {
+          name: `Encoder · Sensor 0 · Layer ${id}: ${name}`,
+        }),
+      ).toBeInTheDocument();
+    };
+
+    it("reconciles the selected added layer after confirmed Discard replaces the list", async () => {
+      const user = userEvent.setup();
+      const confirm = jest.spyOn(window, "confirm").mockReturnValue(false);
+      const discardChanges = jest.fn(async () => {
+        replaceKeymap({ keymap: mockKeymap, hasUnsavedChanges: false });
+        return true;
+      });
+      const addLayer = jest.fn(async () => {
+        replaceKeymap({ keymap: expandedKeymap, hasUnsavedChanges: true });
+        return { index: 2, layer: addedLayer };
+      });
+      const { replaceKeymap } = renderComponent(
+        { isConnected: true },
+        {
+          keymap: mockKeymap,
+          physicalLayouts: mockPhysicalLayouts,
+          behaviors: mockBehaviors,
+          addLayer,
+          discardChanges,
+        },
+      );
+      try {
+        await user.click(screen.getByRole("button", { name: "Add new layer" }));
+        expect(
+          screen.getByRole("button", { name: "Added", exact: true }),
+        ).toHaveAttribute("aria-pressed", "true");
+        await openResetMenu(user);
+        await user.click(screen.getByText("Discard").closest("button")!);
+        expect(discardChanges).not.toHaveBeenCalled();
+        expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+        confirm.mockReturnValue(true);
+        await openResetMenu(user);
+        await user.click(screen.getByText("Discard").closest("button")!);
+        expect(discardChanges).toHaveBeenCalledTimes(1);
+        expect(
+          screen.queryByRole("button", { name: "Added", exact: true }),
+        ).not.toBeInTheDocument();
+        expectSelectedPreview("Lower", 1);
+        expect(
+          screen.getByRole("button", { name: "Save", exact: true }),
+        ).toBeDisabled();
+        expect(
+          screen.getByRole("button", {
+            name: "Move layer up (higher priority)",
+          }),
+        ).toBeEnabled();
+        expect(
+          screen.getByRole("button", {
+            name: "Move layer down (lower priority)",
+          }),
+        ).toBeDisabled();
+        expect(
+          screen.getByRole("button", { name: "Rename current layer" }),
+        ).toBeEnabled();
+        expect(
+          screen.getByRole("button", { name: "Delete current layer" }),
+        ).toBeEnabled();
+      } finally {
+        confirm.mockRestore();
+      }
+    });
+
+    it("restores a valid selection through real framed Demo Add, Discard and Reload RPCs", async () => {
+      const user = userEvent.setup();
+      const transport = await connectDemo();
+      // Normalize protobuf's Node Buffer into the jsdom Uint8Array realm before
+      // framing, just as the Demo transport wire tests do.
+      const requests = new TransformStream({
+        transform(request, controller) {
+          controller.enqueue(Uint8Array.from(Request.encode(request).finish()));
+        },
+      });
+      const pipeline = requests.readable
+        .pipeThrough(new TransformStream(get_encoder()))
+        .pipeTo(transport.writable)
+        .catch(() => {});
+      const connection = {
+        label: transport.label,
+        current_request: 0,
+        request_writable: requests.writable,
+        request_response_readable: transport.readable
+          .pipeThrough(new TransformStream(get_decoder()))
+          .pipeThrough(
+            new TransformStream({
+              transform(bytes, controller) {
+                const response = Response.decode(bytes);
+                if (response.requestResponse)
+                  controller.enqueue(response.requestResponse);
+              },
+            }),
+          ),
+        notification_readable: new ReadableStream(),
+      };
+      const app = createConnectedMockZMKApp();
+      app.state.connection = connection;
+      mockUseKeymap.mockImplementation(
+        jest.requireActual("../../hooks/useKeymap").useKeymap,
+      );
+      const confirm = jest.spyOn(window, "confirm").mockReturnValue(true);
+      const page = render(
+        <ConnectionContext.Provider
+          value={{ ...mockConnectionContext, isConnected: true }}
+        >
+          <ZMKAppProvider value={app}>
+            <StudioUnlockProvider>
+              <KeymapPage />
+            </StudioUnlockProvider>
+          </ZMKAppProvider>
+        </ConnectionContext.Provider>,
+      );
+      try {
+        await screen.findByText("Saved");
+        await user.click(screen.getByRole("button", { name: "Add new layer" }));
+        await waitFor(() =>
+          expect(
+            screen.getByRole("button", { name: "Layer 3", exact: true }),
+          ).toHaveAttribute("aria-pressed", "true"),
+        );
+        expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+        await openResetMenu(user);
+        await user.click(screen.getByText("Discard").closest("button")!);
+        await waitFor(() =>
+          expect(
+            screen.queryByRole("button", { name: "Layer 3", exact: true }),
+          ).not.toBeInTheDocument(),
+        );
+        expectSelectedPreview("Raise", 2);
+        expect(
+          screen.getByRole("group", { name: "Keyboard layout for Raise" }),
+        ).toBeInTheDocument();
+        expect(
+          screen.getByRole("button", { name: "Save", exact: true }),
+        ).toBeDisabled();
+        await user.click(
+          screen.getByRole("button", { name: "Reload", exact: true }),
+        );
+        await waitFor(() =>
+          expect(
+            screen.getByRole("button", { name: "Reload", exact: true }),
+          ).toBeEnabled(),
+        );
+        expectSelectedPreview("Raise", 2);
+      } finally {
+        page.unmount();
+        confirm.mockRestore();
+        await requests.writable.close();
+        await pipeline;
+        await connection.request_response_readable.cancel();
+        transport.abortController.abort();
+      }
+    });
+
+    it("reconciles a shorter Reload response and closes the old binding editor", async () => {
+      const user = userEvent.setup();
+      localStorage.setItem("keymapSelectorMode", "floating");
+      const loadKeymapData = jest.fn(async () => {
+        replaceKeymap({ keymap: mockKeymap });
+      });
+      const { replaceKeymap } = renderComponent(
+        { isConnected: true },
+        {
+          keymap: expandedKeymap,
+          physicalLayouts: mockPhysicalLayouts,
+          behaviors: mockBehaviors,
+          loadKeymapData,
+        },
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Added", exact: true }),
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Key position 0: A" }),
+      );
+      expect(screen.getByText("Select Key Binding")).toBeInTheDocument();
+      await user.click(
+        screen.getByRole("button", { name: "Reload", exact: true }),
+      );
+      expect(loadKeymapData).toHaveBeenCalledTimes(1);
+      expectSelectedPreview("Lower", 1);
+      expect(screen.queryByText("Select Key Binding")).not.toBeInTheDocument();
+    });
+
+    it("preserves an in-range selection when the layer list is replaced or grows", async () => {
+      const user = userEvent.setup();
+      const { replaceKeymap } = renderComponent(
+        { isConnected: true },
+        {
+          keymap: mockKeymap,
+          physicalLayouts: mockPhysicalLayouts,
+          behaviors: mockBehaviors,
+        },
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Lower", exact: true }),
+      );
+      replaceKeymap({
+        keymap: { ...mockKeymap, layers: [...mockKeymap.layers] },
+      });
+      expectSelectedPreview("Lower", 1);
+      replaceKeymap({ keymap: expandedKeymap });
+      expectSelectedPreview("Lower", 1);
+    });
+
+    it("disables current-layer actions for an empty list and recovers when layers return", async () => {
+      const user = userEvent.setup();
+      const { replaceKeymap } = renderComponent(
+        { isConnected: true },
+        {
+          keymap: expandedKeymap,
+          physicalLayouts: mockPhysicalLayouts,
+          behaviors: mockBehaviors,
+        },
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Added", exact: true }),
+      );
+      replaceKeymap({ keymap: { ...mockKeymap, layers: [] } });
+      expect(document.querySelector(".keymap-preview")).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("Rotary Encoder Configuration"),
+      ).not.toBeInTheDocument();
+      for (const name of [
+        "Move layer up (higher priority)",
+        "Move layer down (lower priority)",
+        "Rename current layer",
+        "Delete current layer",
+      ]) {
+        expect(screen.getByRole("button", { name })).toBeDisabled();
+      }
+      expect(
+        screen.getByRole("button", { name: "Add new layer" }),
+      ).toBeEnabled();
+      await user.click(screen.getByRole("button", { name: "Keymap settings" }));
+      const dialog = screen.getByRole("dialog", { name: "Keymap settings" });
+      for (const name of [
+        "Move layer up (higher priority)",
+        "Move layer down (lower priority)",
+        "Rename current layer",
+        "Delete current layer",
+      ]) {
+        expect(within(dialog).getByRole("button", { name })).toBeDisabled();
+      }
+      await user.click(within(dialog).getByRole("button", { name: "Close" }));
+      await act(async () => {
+        replaceKeymap({ keymap: expandedKeymap });
+      });
+      expectSelectedPreview("Base", 0);
     });
   });
 
