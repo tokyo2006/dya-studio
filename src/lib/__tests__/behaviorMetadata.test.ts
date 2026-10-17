@@ -13,31 +13,35 @@ const behavior: BehaviorDefinition = {
 const binding = (param1: number) => ({ behaviorId: 1, param1, param2: 0 });
 
 describe("page-aware binding formatting", () => {
+  // [value, binding label, formatKeycodeWithModifiers label]
   test.each([
-    [0xc006f, "☀+"],
-    [0xc0070, "☀-"],
-    [0x7006f, "F20"],
-    [0x70070, "F21"],
-    [0x6f, "F20"],
-    [0x70, "F21"],
-    [0x010c006f, "LC(☀+)"],
-    [0x800c0070, "RG(☀-)"],
-    [0xc002f, "0xC002F"],
-    [0x1006f, "0x1006F"],
-    [0x0101006f, "LC(0x1006F)"],
-    [0x7ffff, "0x7FFFF"],
-  ])("formats %s without aliasing another HID page", (value, expected) => {
-    for (const keyboardLayout of ["US", "JIS", "US_JP"] as const) {
-      expect(
-        formatBehaviorBinding(binding(value), behavior, { keyboardLayout }),
-      ).toBe(expected);
-      const formatted = formatKeycodeWithModifiers(value, keyboardLayout);
-      expect(formatted.display).toContain(expected);
-      expect(formatted.rawCode).toBe(
-        `0x${(value >>> 0).toString(16).toUpperCase()}`,
-      );
-    }
-  });
+    [0xc006f, "☀+", "☀+"],
+    [0xc0070, "☀-", "☀-"],
+    [0x7006f, "F20", "F20"],
+    [0x70070, "F21", "F21"],
+    [0x6f, "F20", "F20"],
+    [0x70, "F21", "F21"],
+    [0x010c006f, "LCtrl+☀+", "LC(☀+)"],
+    [0x800c0070, "RGui+☀-", "RG(☀-)"],
+    [0xc002f, "0xC002F", "0xC002F"],
+    [0x1006f, "0x1006F", "0x1006F"],
+    [0x0101006f, "LCtrl+0x1006F", "LC(0x1006F)"],
+    [0x7ffff, "0x7FFFF", "0x7FFFF"],
+  ])(
+    "formats %s without aliasing another HID page",
+    (value, expected, keycodeExpected) => {
+      for (const keyboardLayout of ["US", "JIS", "US_JP"] as const) {
+        expect(
+          formatBehaviorBinding(binding(value), behavior, { keyboardLayout }),
+        ).toBe(expected);
+        const formatted = formatKeycodeWithModifiers(value, keyboardLayout);
+        expect(formatted.display).toContain(keycodeExpected);
+        expect(formatted.rawCode).toBe(
+          `0x${(value >>> 0).toString(16).toUpperCase()}`,
+        );
+      }
+    },
+  );
 
   test.each([0x2f, 0x7002f, 0x0100002f, 0x0107002f])(
     "preserves keyboard and legacy layout overrides for %s",
@@ -47,12 +51,12 @@ describe("page-aware binding formatting", () => {
         formatBehaviorBinding(binding(value), behavior, {
           keyboardLayout: "JIS",
         }),
-      ).toBe(modified ? "LC(@`)" : "@`");
+      ).toBe(modified ? "LCtrl+@`" : "@");
       expect(
         formatBehaviorBinding(binding(value), behavior, {
           keyboardLayout: "US",
         }),
-      ).toBe(modified ? "LC([{)" : "[{");
+      ).toBe(modified ? "LCtrl+[{" : "[");
     },
   );
 
@@ -80,9 +84,7 @@ describe("page-aware binding formatting", () => {
         },
       ],
     };
-    expect(formatBehaviorParam(custom, 0xc006f, 0xc0070, 1, {})).toBe(
-      "☀+ (0xC006F)",
-    );
+    expect(formatBehaviorParam(custom, 0xc006f, 0xc0070, 1, {})).toBe("☀+");
     expect(formatBehaviorParam(custom, 0xc006f, 0xc0070, 2, {})).toBe("☀-");
   });
 });
