@@ -1,0 +1,12 @@
+# Nanopb options file for cirque.proto
+# This defines max sizes for string fields.
+#
+# max_size is kept here (a sidecar picked up automatically by
+# `nanopb_generate_cpp` / FindNanopb.cmake) rather than as an inline
+# `(nanopb).max_size = 128` annotation, because the inline form requires
+# `import "nanopb.proto"`, which the web `buf generate` step cannot resolve.
+# ts-proto (the web codegen) ignores nanopb options entirely, so the web build
+# is unaffected. ErrorResponse.message must hold at least the 128-byte
+# first_err buffer in src/studio/cirque_handler.c.
+
+tokyo2006.cirque.ErrorResponse.message   max_size:128

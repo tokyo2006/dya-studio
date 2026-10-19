@@ -56,6 +56,8 @@ import {
   DefaultLayerHandler,
   DEFAULT_LAYER_IDENTIFIER,
 } from "./demo-default-layer";
+import { CirqueHandler, CIRQUE_IDENTIFIER } from "./demo-cirque";
+import { Tps43Handler, TPS43_IDENTIFIER } from "./demo-tps43";
 import {
   Request as BLERequest,
   Response as BLEResponse,
@@ -116,6 +118,14 @@ import {
   Request as DefaultLayerRequest,
   Response as DefaultLayerResponse,
 } from "../../proto/cormoran/default_layer/default_layer";
+import {
+  Request as CirqueRequest,
+  Response as CirqueResponse,
+} from "../../proto/tokyo2006/cirque/cirque";
+import {
+  Request as Tps43Request,
+  Response as Tps43Response,
+} from "../../proto/tokyo2006/tps43/tps43";
 import {
   Request as FastKeymapRequest,
   Response as FastKeymapResponse,
@@ -247,6 +257,8 @@ class Keyboard {
   private customSettingsHandler: CustomSettingsHandler;
   private osDetectionHandler = new OsDetectionHandler();
   private defaultLayerHandler: DefaultLayerHandler;
+  private cirqueHandler = new CirqueHandler();
+  private tps43Handler = new Tps43Handler();
 
   // Custom subsystems registry
   private readonly BLE_SUBSYSTEM_INDEX = 0;
@@ -266,6 +278,8 @@ class Keyboard {
   private readonly DEFAULT_LAYER_SUBSYSTEM_INDEX = 14;
   private readonly FAST_KEYMAP_SUBSYSTEM_INDEX = 15;
   private readonly SETTING_EXPOSE_SUBSYSTEM_INDEX = 16;
+  private readonly CIRQUE_SUBSYSTEM_INDEX = 17;
+  private readonly TPS43_SUBSYSTEM_INDEX = 18;
 
   constructor() {
     this.customSettingsHandler = new CustomSettingsHandler(
@@ -367,6 +381,16 @@ class Keyboard {
       index: this.SETTING_EXPOSE_SUBSYSTEM_INDEX,
       identifier: SETTING_EXPOSE_IDENTIFIER,
       uiUrl: [SETTING_EXPOSE_UI_URL],
+    },
+    {
+      index: this.CIRQUE_SUBSYSTEM_INDEX,
+      identifier: CIRQUE_IDENTIFIER,
+      uiUrl: [],
+    },
+    {
+      index: this.TPS43_SUBSYSTEM_INDEX,
+      identifier: TPS43_IDENTIFIER,
+      uiUrl: [],
     },
   ];
 
@@ -712,6 +736,22 @@ class Keyboard {
           responseData = DefaultLayerResponse.encode(defaultLayerResp).finish();
         } catch (e) {
           console.error("Default Layer subsystem error:", e);
+        }
+      } else if (subsystemIndex === this.CIRQUE_SUBSYSTEM_INDEX) {
+        try {
+          const cirqueReq = CirqueRequest.decode(data);
+          const cirqueResp = this.cirqueHandler.process(cirqueReq);
+          responseData = CirqueResponse.encode(cirqueResp).finish();
+        } catch (e) {
+          console.error("Cirque subsystem error:", e);
+        }
+      } else if (subsystemIndex === this.TPS43_SUBSYSTEM_INDEX) {
+        try {
+          const tps43Req = Tps43Request.decode(data);
+          const tps43Resp = this.tps43Handler.process(tps43Req);
+          responseData = Tps43Response.encode(tps43Resp).finish();
+        } catch (e) {
+          console.error("TPS43 subsystem error:", e);
         }
       } else if (subsystemIndex === this.FAST_KEYMAP_SUBSYSTEM_INDEX) {
         // Fast Keymap (read-only fast loader) — serves the same keymap /
