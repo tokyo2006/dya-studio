@@ -35,13 +35,23 @@ export function TroubleshootingPage() {
   const elfAnalysis = useElfAnalysis();
   const stackUsage = useDevtoolStackUsage();
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const copyAttemptRef = useRef(0);
   const isTabActive = useIsTabActive();
 
   // The page stays mounted while another tab is showing, so stop the stack-usage
   // polling on the way out — nobody is watching those numbers, and every tick is
   // a device round-trip.
   const { isPolling: isStackPolling, setPolling: setStackPolling } = stackUsage;
+
+  useEffect(
+    () => () => {
+      if (copiedTimer.current) clearTimeout(copiedTimer.current);
+    },
+    [],
+  );
+
   useEffect(() => {
     if (!isTabActive && isStackPolling) {
       setStackPolling(false);
@@ -57,6 +67,14 @@ export function TroubleshootingPage() {
   };
 
   const copySupportReport = async () => {
+    const copyAttempt = ++copyAttemptRef.current;
+    setCopied(false);
+    setCopyError(false);
+    if (copiedTimer.current) {
+      clearTimeout(copiedTimer.current);
+      copiedTimer.current = null;
+    }
+
     // Resolve PC/LR for all fatal incidents when an ELF is loaded
     const elfResolved = elfAnalysis.hasElf
       ? watchdog.incidents
@@ -110,22 +128,29 @@ export function TroubleshootingPage() {
         error: pmw3610.error,
       },
     });
-    await navigator.clipboard.writeText(report);
-    setCopied(true);
-    if (copiedTimer.current) clearTimeout(copiedTimer.current);
-    copiedTimer.current = setTimeout(
-      () => setCopied(false),
-      COPIED_FEEDBACK_MS,
-    );
+    try {
+      const writeText = navigator.clipboard?.writeText;
+      if (!writeText) throw new Error("Clipboard API unavailable");
+
+      await writeText.call(navigator.clipboard, report);
+      if (copyAttempt !== copyAttemptRef.current) return;
+      setCopied(true);
+      copiedTimer.current = setTimeout(
+        () => setCopied(false),
+        COPIED_FEEDBACK_MS,
+      );
+    } catch {
+      if (copyAttempt === copyAttemptRef.current) setCopyError(true);
+    }
   };
 
   return (
     <div className="app-page p-4 sm:p-6 h-full">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4 mb-6">
+        <div className="page-header flex flex-wrap items-center justify-between gap-x-6 gap-y-4 mb-6">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="p-2 rounded-lg bg-[var(--color-electric)]/10 border border-[var(--color-electric)]/20">
+            <div className="hidden sm:block p-2 rounded-lg bg-[var(--color-electric)]/10 border border-[var(--color-electric)]/20">
               <IconStethoscope
                 size={24}
                 className="text-[var(--color-electric)]"
@@ -135,14 +160,17 @@ export function TroubleshootingPage() {
               <h1 className="text-xl font-medium text-[var(--color-text)]">
                 {t("Troubleshooting")}
               </h1>
-              <p className="text-sm text-[var(--color-text-muted)]">
+              <p className="page-header-description text-sm text-[var(--color-text-muted)]">
                 {t("Diagnose keyboard problems and create a support report")}
               </p>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="page-header-actions flex flex-wrap items-center gap-2">
             <ResponsiveButton
               label={t("Refresh All")}
+              title={t(
+                "Read all available diagnostic sections from the keyboard again",
+              )}
               onClick={refreshAll}
               className="btn-ghost flex items-center gap-2"
               aria-label={t("Refresh all sections")}
@@ -151,6 +179,9 @@ export function TroubleshootingPage() {
             </ResponsiveButton>
             <ResponsiveButton
               label={copied ? t("Copied!") : t("Copy Support Report")}
+              title={t(
+                "Copy the collected diagnostic information to the clipboard for support",
+              )}
               onClick={() => void copySupportReport()}
               className="btn-electric flex items-center gap-2"
               aria-label={t("Copy Support Report")}
@@ -163,6 +194,13 @@ export function TroubleshootingPage() {
             </ResponsiveButton>
           </div>
         </div>
+        {copyError && (
+          <p className="mb-4 text-sm text-red-500" role="alert">
+            {t(
+              "Could not copy the support report. Check clipboard access and try again.",
+            )}
+          </p>
+        )}
 
         {/* Guidance */}
         <div className="mb-6 p-4 rounded-lg bg-[var(--color-border)] border border-[var(--color-border-hover)] flex items-start gap-3">

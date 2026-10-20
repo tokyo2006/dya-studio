@@ -1,3 +1,4 @@
+import { RuntimeBehaviorContext } from "../contexts/RuntimeBehaviorContext";
 /**
  * KeycodeSelector Component
  *
@@ -10,6 +11,7 @@
  *   (setting is persisted in localStorage)
  */
 import {
+  useContext,
   useState,
   useMemo,
   useCallback,
@@ -20,11 +22,14 @@ import {
 } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
+  IconBolt,
   IconCheck,
   IconRestore,
   IconX,
   IconGripVertical,
 } from "@tabler/icons-react";
+import { useMobileLayout } from "../hooks/useMobileLayout";
+import "./binding-editor.css";
 import { MOUSE_KEYCODES } from "../lib/keycodes";
 import {
   getBehaviorMetadata,
@@ -45,7 +50,38 @@ import {
   useFloatingWindow,
   type FloatingWindowPosition,
 } from "../hooks/useFloatingWindow";
+import { useRuntimeMacro } from "../hooks/useRuntimeMacro";
+import { useRuntimeTapDance } from "../hooks/useRuntimeTapDance";
+import { useIsTabActive } from "../hooks/useIsTabActive";
+import { TapDanceEditor } from "./macroCombo/TapDanceEditor";
+import { isRuntimeTapDance } from "../lib/runtimeTapDance";
+import type { Keymap } from "../hooks/useKeymap";
 import { useLanguage } from "../hooks/useLanguage";
+
+function NamedBehaviorOptions({
+  options,
+  value,
+  onChange,
+  disabled = false,
+}: {
+  options: Array<{ value: number; label: string }>;
+  value: number;
+  onChange: (value: number) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <fieldset disabled={disabled} className="min-w-0 space-y-2">
+      {options.length > 0 && (
+        <ButtonListSelector
+          options={options}
+          value={value}
+          onChange={onChange}
+          columns={Math.min(options.length, 4)}
+        />
+      )}
+    </fieldset>
+  );
+}
 
 // =============================================================================
 // Types
@@ -66,6 +102,7 @@ interface SelectedBehaviorInfo {
 }
 
 interface KeycodeSelectorProps {
+  keymap?: Keymap | null;
   presentation?: "modal" | "floating";
   /** Renders above an already-open modal dialog when needed by a caller. */
   modalLayer?: "default" | "nested";
@@ -276,12 +313,15 @@ export function KeycodeSelector({
   layers,
   keyboardLayout,
   behaviorQuickSelects,
-  runtimeMacros = [],
+  keymap,
+  runtimeMacros: suppliedMacros = [],
   onOpenMacroEditor,
   modalLayerClassName = "z-50",
 }: KeycodeSelectorProps) {
   const { t } = useLanguage();
   const floating = presentation === "floating";
+  const mobile = useMobileLayout();
+  const sheet = floating && mobile;
   const resolvedModalLayerClassName =
     modalLayer === "nested" ? "z-[10001]" : modalLayerClassName;
   const activePresentation = useRef(presentation);
@@ -289,7 +329,7 @@ export function KeycodeSelector({
     activePresentation.current = presentation;
   }, [presentation]);
   const floatingWindow = useFloatingWindow(
-    floating,
+    floating && !sheet,
     open,
     floatingAnchorRef,
     floatingPosition,
@@ -305,7 +345,7 @@ export function KeycodeSelector({
     const saved = localStorage.getItem("keycodeSelectorCloseOnSelect");
     return saved !== null ? saved === "true" : true;
   });
-  const closeOnSelect = floating || savedCloseOnSelect;
+
   const [wasOpened, setWasOpened] = useState<boolean>(false);
 
   // Initial values to detect changes
@@ -342,7 +382,56 @@ export function KeycodeSelector({
   // Check if behavior needs parameters
   const needsParam1 = hasParam(selectedBehaviorInfo, 1);
   const needsParam2 = hasParam(selectedBehaviorInfo, 2);
-  const needsAnyParam = needsParam1 || needsParam2;
+  const tapDance = isRuntimeTapDance(selectedBehaviorInfo?.behavior);
+  const needsAnyParam = needsParam1 || needsParam2 || tapDance;
+  const macro = selectedBehaviorInfo?.overrideMetadata?.param1Type === "macro";
+  const closeOnSelect = !macro && !tapDance && (floating || savedCloseOnSelect);
+  const [creatingEntry, setCreatingEntry] = useState(false);
+  const creatingEntryRef = useRef(false);
+  const creationTarget = useRef(0);
+  useEffect(() => {
+    creationTarget.current += 1;
+    return () => {
+      creationTarget.current += 1;
+    };
+  }, [open, selectionKey]);
+
+  const [creationError, setCreationError] = useState<string | null>(null);
+  const runtimeControllers = useContext(RuntimeBehaviorContext);
+  const runtimeMacroController = runtimeControllers?.macro;
+  const runtimeTapDanceController = runtimeControllers?.tapDance;
+  const localRuntimeMacro = useRuntimeMacro({ autoLoad: false });
+  const runtimeMacro = runtimeMacroController ?? localRuntimeMacro;
+  const { loadMacros } = runtimeMacro;
+  const hasRuntimeMacro = Array.from(behaviors.values()).some(
+    (behavior) =>
+      getBehaviorMetadata(behavior.displayName)?.param1Type === "macro",
+  );
+  useEffect(() => {
+    if (open && hasRuntimeMacro && !runtimeMacroController) void loadMacros();
+  }, [open, hasRuntimeMacro, loadMacros, runtimeMacroController]);
+  const runtimeMacros = useMemo(
+    () =>
+      Array.from(
+        new Map(
+          [...suppliedMacros, ...runtimeMacro.macros].map((entry) => [
+            entry.slot,
+            entry,
+          ]),
+        ).values(),
+      ),
+    [suppliedMacros, runtimeMacro.macros],
+  );
+
+  const tabActive = useIsTabActive();
+  const hasRuntimeTapDance = useMemo(
+    () => Array.from(behaviors.values()).some(isRuntimeTapDance),
+    [behaviors],
+  );
+  const localRuntimeTapDance = useRuntimeTapDance(
+    open && hasRuntimeTapDance && tabActive && !runtimeTapDanceController,
+  );
+  const runtimeTapDance = runtimeTapDanceController ?? localRuntimeTapDance;
 
   // Handle behavior selection from dropdown
   const handleBehaviorSelect = useCallback(
@@ -366,7 +455,12 @@ export function KeycodeSelector({
         hasParam(nextSelectedBehaviorInfo, 2);
 
       // If behavior doesn't need params and closeOnSelect is enabled, apply immediately
-      if (closeOnSelect && !needsAnyParam) {
+      if (
+        (floating || savedCloseOnSelect) &&
+        !needsAnyParam &&
+        !isRuntimeTapDance(behavior) &&
+        nextSelectedBehaviorInfo?.overrideMetadata?.param1Type !== "macro"
+      ) {
         onSelect({
           behaviorId,
           param1: 0,
@@ -375,7 +469,7 @@ export function KeycodeSelector({
         if (!floating) onClose();
       }
     },
-    [behaviors, closeOnSelect, onSelect, onClose, floating],
+    [behaviors, savedCloseOnSelect, onSelect, onClose, floating],
   );
 
   const handleParam1Change = useCallback(
@@ -420,29 +514,70 @@ export function KeycodeSelector({
     ],
   );
 
-  const handleMacroSelect = useCallback(
-    (slot: number) => {
-      const runtimeMacroBehavior = Array.from(behaviors.values()).find(
-        (behavior) =>
-          getBehaviorMetadata(behavior.displayName)?.param1Type === "macro",
-      );
-      if (!runtimeMacroBehavior) return;
-
-      setSelectedBehavior(runtimeMacroBehavior.id);
-      setParam1(slot);
+  const handleNamedBehaviorSelect = useCallback(
+    (behaviorId: number, param1: number) => {
+      setSelectedBehavior(behaviorId);
+      setParam1(param1);
       setParam2(0);
       setActiveParam(1);
-      if (closeOnSelect) {
-        onSelect({
-          behaviorId: runtimeMacroBehavior.id,
-          param1: slot,
-          param2: 0,
-        });
-        if (!floating) onClose();
-      }
     },
-    [behaviors, closeOnSelect, floating, onClose, onSelect],
+    [],
   );
+  const handleMacroSelect = useCallback(
+    (slot: number) => {
+      const behavior = Array.from(behaviors.values()).find(
+        (candidate) =>
+          getBehaviorMetadata(candidate.displayName)?.param1Type === "macro",
+      );
+      if (behavior) handleNamedBehaviorSelect(behavior.id, slot);
+    },
+    [behaviors, handleNamedBehaviorSelect],
+  );
+  const handleTapDanceSelect = useCallback(
+    (id: number) => {
+      const behavior = Array.from(behaviors.values()).find(isRuntimeTapDance);
+      if (behavior) handleNamedBehaviorSelect(behavior.id, id);
+    },
+    [behaviors, handleNamedBehaviorSelect],
+  );
+
+  const handleCreateEntry = async (type: "macro" | "tapdance") => {
+    if (creatingEntryRef.current) return;
+    creatingEntryRef.current = true;
+    setCreatingEntry(true);
+    setCreationError(null);
+    const target = creationTarget.current;
+    try {
+      const entries =
+        type === "macro" ? runtimeMacros : runtimeTapDance.entries;
+      const prefix = type === "macro" ? "Macro" : "Tapdance";
+      const names = new Set(entries.map((entry) => entry.name));
+      let number = entries.length + 1;
+      while (names.has(`${prefix} ${number}`)) number++;
+      const name = `${prefix} ${number}`;
+      if (type === "macro") {
+        if (!(await runtimeMacro.createMacro(name)))
+          throw new Error("Could not create macro.");
+        const slot = runtimeMacro.getMacroSlot(name);
+        if (slot === null)
+          throw new Error(
+            "Created macro could not be found. Refresh before retrying.",
+          );
+        if (target === creationTarget.current) handleMacroSelect(slot);
+      } else {
+        const id = await runtimeTapDance.create(name);
+        if (id === null) throw new Error("Could not create tapdance.");
+        if (target === creationTarget.current) handleTapDanceSelect(id);
+      }
+    } catch (reason) {
+      setCreationError(
+        reason instanceof Error ? reason.message : String(reason),
+      );
+    } finally {
+      creatingEntryRef.current = false;
+      setCreatingEntry(false);
+    }
+  };
 
   const handleParam2Change = useCallback(
     (value: number, shouldNotClose?: boolean) => {
@@ -563,25 +698,33 @@ export function KeycodeSelector({
       const overrideMeta = selectedBehaviorInfo?.overrideMetadata;
       const overrideType =
         paramNumber === 1 ? overrideMeta?.param1Type : overrideMeta?.param2Type;
+      if (tapDance && paramNumber === 1) {
+        return (
+          <NamedBehaviorOptions
+            options={runtimeTapDance.entries.map((entry) => ({
+              value: entry.index,
+              label: entry.name,
+            }))}
+            value={value}
+            onChange={onChange}
+            disabled={runtimeTapDance.busy}
+          />
+        );
+      }
       // From DYA Studio override metadata
       if (overrideType) {
         switch (overrideType) {
           case "macro":
             if (runtimeMacros.length > 0 || onOpenMacroEditor) {
               return (
-                <div className="space-y-2">
-                  {runtimeMacros.length > 0 && (
-                    <ButtonListSelector
-                      options={runtimeMacros.map((macro) => ({
-                        value: macro.slot,
-                        label: macro.name || `Macro ${macro.slot}`,
-                      }))}
-                      value={value}
-                      onChange={onChange}
-                      columns={Math.min(runtimeMacros.length, 4)}
-                    />
-                  )}
-                </div>
+                <NamedBehaviorOptions
+                  options={runtimeMacros.map((macro) => ({
+                    value: macro.slot,
+                    label: macro.name || `Macro ${macro.slot}`,
+                  }))}
+                  value={value}
+                  onChange={onChange}
+                />
               );
             }
             return (
@@ -732,6 +875,9 @@ export function KeycodeSelector({
       runtimeMacros,
       floating,
       onOpenMacroEditor,
+      tapDance,
+      runtimeTapDance.entries,
+      runtimeTapDance.busy,
     ],
   );
 
@@ -767,15 +913,19 @@ export function KeycodeSelector({
               {getParamDisplayName(selectedBehaviorInfo, number, t)}:
             </span>
             <span className="truncate text-xs font-mono text-[var(--color-neon)]">
-              {formatParamValue(
-                selectedBehaviorInfo,
-                param1,
-                param2,
-                number,
-                layers,
-                keyboardLayout,
-                runtimeMacros,
-              )}
+              {tapDance && number === 1
+                ? (runtimeTapDance.entries.find(
+                    (entry) => entry.index === param1,
+                  )?.name ?? t("Tapdance unavailable"))
+                : formatParamValue(
+                    selectedBehaviorInfo,
+                    param1,
+                    param2,
+                    number,
+                    layers,
+                    keyboardLayout,
+                    runtimeMacros,
+                  )}
             </span>
           </button>
         ))}
@@ -811,7 +961,8 @@ export function KeycodeSelector({
         >
           <Dialog.Content
             ref={floatingWindow.ref}
-            style={floatingWindow.style}
+            style={sheet ? undefined : floatingWindow.style}
+            data-presentation={sheet ? "sheet" : presentation}
             aria-describedby={undefined}
             onCloseAutoFocus={(event) => {
               // A mode switch replaces the Radix focus scope. Its delayed
@@ -824,25 +975,31 @@ export function KeycodeSelector({
             }
             className={
               floating
-                ? `pointer-events-auto fixed bottom-3 right-[var(--floating-right,0px)] w-[680px] max-w-full h-[min(480px,calc(100dvh-24px))] bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] shadow-2xl ${resolvedModalLayerClassName} flex flex-col overflow-hidden`
+                ? `binding-editor-floating pointer-events-auto fixed bottom-3 right-[var(--floating-right,0px)] w-[680px] max-w-full h-[min(480px,calc(100dvh-24px))] bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] shadow-2xl ${resolvedModalLayerClassName} flex flex-col overflow-hidden`
                 : `fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full tablet:w-[90vw] max-w-4xl h-full tablet:h-[85vh] bg-[var(--color-surface)] rounded-none tablet:rounded-xl border border-[var(--color-border)] shadow-2xl ${resolvedModalLayerClassName} flex flex-col overflow-hidden`
             }
           >
-            {error && (
+            {(error ||
+              creationError ||
+              runtimeMacro.error ||
+              runtimeTapDance.error) && (
               <p role="alert" className="px-4 text-sm text-red-500">
-                {error}
+                {error ||
+                  creationError ||
+                  runtimeMacro.error ||
+                  runtimeTapDance.error}
               </p>
             )}
             <fieldset
-              disabled={busy}
+              disabled={busy || creatingEntry}
               className="flex flex-col flex-1 min-h-0 min-w-0 overflow-y-auto"
             >
               {/* Header with mode-specific ending action */}
               <div
-                {...floatingWindow.handleProps}
-                className={`flex items-center border-b border-[var(--color-border)] shrink-0 ${floating ? "gap-1 px-2 py-1 cursor-move touch-none select-none" : "gap-3 p-4"}`}
+                {...(sheet ? {} : floatingWindow.handleProps)}
+                className={`flex items-center border-b border-[var(--color-border)] shrink-0 ${floating ? `gap-1 px-2 py-1 select-none ${sheet ? "" : "cursor-move touch-none"}` : "gap-3 p-4"}`}
               >
-                {floating && (
+                {floating && !sheet && (
                   <IconGripVertical
                     size={14}
                     className="shrink-0 text-[var(--color-text-muted)]"
@@ -869,12 +1026,6 @@ export function KeycodeSelector({
                     </p>
                   )}
                 </div>
-                {floating &&
-                  selectedBehaviorInfo?.overrideMetadata?.description && (
-                    <span className="min-w-0 truncate text-xs text-[var(--color-text-muted)]">
-                      {t(selectedBehaviorInfo.overrideMetadata.description)}
-                    </span>
-                  )}
                 <div
                   data-testid="binding-editor-actions"
                   className="ml-auto flex shrink-0 items-center gap-1"
@@ -890,10 +1041,34 @@ export function KeycodeSelector({
                         type="button"
                         aria-label={t("Close on select")}
                         aria-pressed={closeOnSelect}
+                        disabled={macro || tapDance}
                         onClick={() => setCloseOnSelect((enabled) => !enabled)}
-                        className={`p-1 rounded transition-colors ${closeOnSelect ? "bg-[var(--color-electric)]/15 text-[var(--color-electric)]" : "text-[var(--color-text-muted)] hover:bg-[var(--color-border)]"}`}
+                        className={`inline-flex items-center gap-1.5 p-1 sm:px-2 rounded transition-colors ${closeOnSelect ? "bg-[var(--color-electric)]/15 text-[var(--color-electric)]" : "text-[var(--color-text-muted)] hover:bg-[var(--color-border)]"}`}
                       >
-                        <IconCheck size={16} />
+                        <IconBolt size={16} />
+                        <span className="hidden whitespace-nowrap text-xs sm:inline">
+                          {t("Close on select")}
+                        </span>
+                      </button>
+                    </EditorTooltip>
+                  )}
+                  {floating && (macro || tapDance) && (
+                    <EditorTooltip content={t("Apply to keyboard")}>
+                      <button
+                        type="button"
+                        disabled={!hasChanges || selectedBehavior === null}
+                        aria-label={t("Apply to keyboard")}
+                        className="p-1 rounded text-[var(--color-electric)] disabled:opacity-40"
+                        onClick={() => {
+                          if (selectedBehavior !== null)
+                            onSelect({
+                              behaviorId: selectedBehavior,
+                              param1,
+                              param2,
+                            });
+                        }}
+                      >
+                        <IconCheck size={20} />
                       </button>
                     </EditorTooltip>
                   )}
@@ -972,6 +1147,26 @@ export function KeycodeSelector({
                     quickSelects={behaviorQuickSelects}
                     runtimeMacros={runtimeMacros}
                     onMacroSelect={handleMacroSelect}
+                    runtimeTapDances={runtimeTapDance.entries}
+                    onTapDanceSelect={handleTapDanceSelect}
+                    onCreateMacro={
+                      runtimeMacro.isAvailable
+                        ? () => void handleCreateEntry("macro")
+                        : undefined
+                    }
+                    onCreateTapDance={
+                      runtimeTapDance.isAvailable &&
+                      runtimeTapDance.globalSettings?.apiVersion === 2 &&
+                      runtimeTapDance.entries.length <
+                        runtimeTapDance.globalSettings.maxEntries
+                        ? () => void handleCreateEntry("tapdance")
+                        : undefined
+                    }
+                    creatingEntry={
+                      creatingEntry ||
+                      runtimeMacro.isLoading ||
+                      runtimeTapDance.busy
+                    }
                   />
                 )}
               </div>
@@ -979,7 +1174,7 @@ export function KeycodeSelector({
               {/* Parameter Selection - Horizontal Layout */}
               {selectedBehaviorInfo && needsAnyParam && (
                 <div
-                  className={`flex-1 flex flex-col overflow-hidden ${floating ? "min-h-[240px]" : "min-h-0"}`}
+                  className={`flex-1 flex flex-col overflow-hidden ${floating && !sheet ? "min-h-[240px]" : "min-h-0"}`}
                 >
                   {/* Parameters Label */}
                   <div
@@ -996,9 +1191,11 @@ export function KeycodeSelector({
                     className={`flex-1 ${
                       floating
                         ? "p-2 overflow-y-auto"
-                        : inlineParamToolbar
-                          ? "px-4 pt-2 pb-4 overflow-hidden"
-                          : "p-4 overflow-hidden"
+                        : tapDance
+                          ? "p-4 overflow-y-auto"
+                          : inlineParamToolbar
+                            ? "px-4 pt-2 pb-4 overflow-hidden"
+                            : "p-4 overflow-hidden"
                     } flex flex-col`}
                     onFocusCapture={(event) => {
                       editingNumber.current =
@@ -1039,6 +1236,30 @@ export function KeycodeSelector({
                             inlineParamToolbar ? parameterTabs : undefined,
                           )
                         : null}
+                    {tapDance && open && (
+                      <div className="mt-3">
+                        <TapDanceEditor
+                          key={selectedBehavior}
+                          runtime={runtimeTapDance}
+                          behaviors={behaviors}
+                          layers={layers}
+                          keyboardLayout={keyboardLayout}
+                          keymap={keymap}
+                          currentSlot={
+                            isRuntimeTapDance(
+                              behaviors.get(currentBinding?.behaviorId ?? -1),
+                            )
+                              ? currentBinding?.param1
+                              : undefined
+                          }
+                          slot={param1}
+                          onSlotChange={(slot) => {
+                            setParam1(slot);
+                            setParam2(0);
+                          }}
+                        />
+                      </div>
+                    )}
                     {activeOverride === "macro" && onOpenMacroEditor && (
                       <div className="mt-3 flex flex-wrap justify-end gap-2">
                         <button

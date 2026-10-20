@@ -2,7 +2,6 @@ import { useAbyssSessionRenewal } from "./hooks/useAbyssSessionRenewal";
 import { useContext, useCallback, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  IconCloudUpload,
   IconHome,
   IconKeyboard,
   IconPlugConnected,
@@ -10,7 +9,6 @@ import {
   IconPuzzle,
   IconSettings,
   IconStethoscope,
-  IconWand,
 } from "@tabler/icons-react";
 
 import { SplashScreen } from "./components/SplashScreen";
@@ -29,19 +27,14 @@ import { HomePage } from "./pages/HomePage";
 import { ConnectionPage } from "./pages/ConnectionPage";
 import { KeymapPage } from "./pages/KeymapPage";
 import { TrackballPage } from "./pages/TrackballPage";
-import { MacroComboPage } from "./pages/MacroComboPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { CustomSubsystemsPage } from "./pages/CustomSubsystemsPage";
 import { TroubleshootingPage } from "./pages/TroubleshootingPage";
-import {
-  ImportExportPage,
-  IMPORT_EXPORT_TAB_ID,
-} from "./pages/ImportExportPage";
 import { AbyssCallbackPage } from "./pages/AbyssCallbackPage";
-import { isAbyssTabVisible } from "./lib/abyss/abyssConfig";
 import { OAUTH_CALLBACK_PATH } from "./lib/abyss/abyssOAuth";
 import { useLanguage } from "./hooks/useLanguage";
-import { useUrlTab, pathnameFromTabId } from "./hooks/useUrlTab";
+import { usePageMetadata } from "./hooks/usePageMetadata";
+import { useUrlTab, usePathname, pathnameFromTabId } from "./hooks/useUrlTab";
 import { useDevtool } from "./hooks/useDevtool";
 import { DevtoolWindow } from "./components/DevtoolWindow";
 import { trackPageView } from "./lib/analytics";
@@ -65,12 +58,6 @@ function getTabs(t: (key: string) => string): TabItem[] {
       label: t("Keymap"),
       icon: <IconKeyboard size={18} />,
       content: <KeymapPage />,
-    },
-    {
-      id: "macro-combo",
-      label: t("Macro&Combo"),
-      icon: <IconWand size={18} />,
-      content: <MacroComboPage />,
     },
     {
       id: "trackball",
@@ -102,18 +89,6 @@ function getTabs(t: (key: string) => string): TabItem[] {
       icon: <IconPuzzle size={18} />,
       content: <CustomSubsystemsPage />,
     },
-    // A local Vite server keeps this available for UI development without
-    // credentials. Deployed builds require a real Abyss OAuth client id.
-    ...(isAbyssTabVisible()
-      ? [
-          {
-            id: IMPORT_EXPORT_TAB_ID,
-            label: t("Import/Export"),
-            icon: <IconCloudUpload size={18} />,
-            content: <ImportExportPage />,
-          },
-        ]
-      : []),
   ];
 }
 
@@ -135,13 +110,9 @@ function App() {
 function AppRouter() {
   useAbyssSessionRenewal();
   const { language } = useLanguage();
-  const [pathname, setPathname] = useState(() => window.location.pathname);
+  const pathname = usePathname();
 
-  useEffect(() => {
-    const onPopState = () => setPathname(window.location.pathname);
-    window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
-  }, []);
+  usePageMetadata(pathname, language);
 
   if (isDeveloperGuidePath(pathname)) {
     return (
@@ -172,7 +143,10 @@ function AppContent() {
   const tabs = getTabs(t);
   const { isAvailable: isDevtoolAvailable } = useDevtool();
   const [devtoolOpen, setDevtoolOpen] = useState(false);
-  const activeTab = tabs.some((tab) => tab.id === urlTab) ? urlTab : "home";
+  const resolvedTab = urlTab === "macro-combo" ? "keymap" : urlTab;
+  const activeTab = tabs.some((tab) => tab.id === resolvedTab)
+    ? resolvedTab
+    : "home";
 
   // The release notes page is a standalone, connection-independent route so it
   // stays reachable from the splash screen and via GitHub Release deep links.
@@ -209,7 +183,12 @@ function AppContent() {
       urlTab !== activeTab &&
       window.location.pathname !== "/"
     ) {
-      window.history.replaceState(null, "", "/");
+      window.history.replaceState(
+        null,
+        "",
+        urlTab === "macro-combo" ? "/keymap" : "/",
+      );
+      window.dispatchEvent(new PopStateEvent("popstate"));
     }
   }, [urlTab, activeTab, onReleaseNotes, onOauthCallback]);
 
@@ -274,8 +253,10 @@ function AppContent() {
           className="app-connected-shell"
         >
           <AppLayout
+            isHome={activeTab === "home"}
             isConnected={connection.isConnected}
             deviceName={connection.deviceName}
+            connectionMethod={connection.connectionMethod}
             onConnect={connection.onConnect}
             onDisconnect={connection.onDisconnect}
             isConnecting={connection.isLoading}

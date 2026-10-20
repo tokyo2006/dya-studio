@@ -1,3 +1,8 @@
+import { RuntimeTapDanceHandler } from "./demo-runtime-tapdance";
+import {
+  Request as TapDanceRequest,
+  Response as TapDanceResponse,
+} from "../../proto/cormoran/runtime_tapdance/runtime_tapdance";
 /**
  * Demo RPC Transport
  *
@@ -141,8 +146,10 @@ import { ErrorConditions } from "@zmkfirmware/zmk-studio-ts-client/meta";
 import { KEYBOARD_KEYCODES } from "../keycodes";
 import { BEHAVIORS } from "./behaviors";
 import {
+  RemoveLayerErrorCode,
   MoveLayerErrorCode,
   RestoreLayerErrorCode,
+  SetLayerPropsResponse,
   type Layer,
 } from "@zmkfirmware/zmk-studio-ts-client/keymap";
 
@@ -238,6 +245,7 @@ class Keyboard {
   private pmw3610Handler = new Pmw3610Handler();
   private runtimeInputProcessorHandler = new RuntimeInputProcessorHandler();
   private runtimeSensorRotateHandler = new RuntimeSensorRotateHandler();
+  private runtimeTapDanceHandler = new RuntimeTapDanceHandler();
   private runtimeComboHandler = new RuntimeComboHandler();
   private runtimeMacroHandler: RuntimeMacroHandler;
   private physicalLayoutsHandler = new PhysicalLayoutsHandler();
@@ -278,6 +286,7 @@ class Keyboard {
   }
 
   private customSubsystems = [
+    { index: 17, identifier: "cormoran__runtime_tapdance", uiUrl: [] },
     {
       index: this.BLE_SUBSYSTEM_INDEX,
       identifier: BLE_MANAGEMENT_IDENTIFIER,
@@ -408,6 +417,36 @@ class Keyboard {
       } else {
         rr.keymap = { setLayerBinding: 1 };
       }
+    } else if (req.keymap?.setLayerProps) {
+      const { layerId, name } = req.keymap.setLayerProps;
+      const layer = this.data.keymap.layers.find(
+        (layer) => layer.id === layerId,
+      );
+      // An empty name is an acknowledged no-op in the official protocol.
+      if (!name) {
+        rr.keymap = {
+          setLayerProps: SetLayerPropsResponse.SET_LAYER_PROPS_RESP_OK,
+        };
+      } else if (!layer) {
+        rr.keymap = {
+          setLayerProps:
+            SetLayerPropsResponse.SET_LAYER_PROPS_RESP_ERR_INVALID_ID,
+        };
+      } else if (
+        new TextEncoder().encode(name).length >=
+        this.data.keymap.maxLayerNameLength
+      ) {
+        // The firmware limit includes the terminating NUL byte.
+        rr.keymap = {
+          setLayerProps: SetLayerPropsResponse.SET_LAYER_PROPS_RESP_ERR_GENERIC,
+        };
+      } else {
+        layer.name = name;
+        this.dirty = true;
+        rr.keymap = {
+          setLayerProps: SetLayerPropsResponse.SET_LAYER_PROPS_RESP_OK,
+        };
+      }
     } else if (req.keymap?.saveChanges !== undefined) {
       this.persistent = JSON.parse(JSON.stringify(this.data));
       this.dirty = false;
@@ -441,19 +480,24 @@ class Keyboard {
         },
       };
     } else if (req.keymap?.removeLayer) {
-      const layerId = req.keymap.removeLayer.layerIndex;
-      this.deletedLayers.push(
-        this.data.keymap.layers.find((l) => l.id === layerId)!,
-      );
-      this.data.keymap.layers = this.data.keymap.layers.filter(
-        (l) => l.id !== layerId,
-      );
-      this.dirty = true;
-      rr.keymap = {
-        removeLayer: {
-          ok: true,
-        },
-      };
+      const { layerIndex } = req.keymap.removeLayer;
+      const layer = this.data.keymap.layers[layerIndex];
+      if (layer) {
+        this.deletedLayers.push(layer);
+        this.data.keymap.layers.splice(layerIndex, 1);
+        this.dirty = true;
+        rr.keymap = {
+          removeLayer: {
+            ok: {},
+          },
+        };
+      } else {
+        rr.keymap = {
+          removeLayer: {
+            err: RemoveLayerErrorCode.REMOVE_LAYER_ERR_INVALID_INDEX,
+          },
+        };
+      }
     } else if (req.keymap?.restoreLayer) {
       const layer = this.deletedLayers.find(
         (l) => l.id === req.keymap?.restoreLayer?.layerId,
@@ -615,6 +659,10 @@ class Keyboard {
         } catch (e) {
           console.error("Runtime Combo subsystem error:", e);
         }
+      } else if (subsystemIndex === 17) {
+        responseData = TapDanceResponse.encode(
+          this.runtimeTapDanceHandler.process(TapDanceRequest.decode(data)),
+        ).finish();
       } else if (subsystemIndex === this.RUNTIME_MACRO_SUBSYSTEM_INDEX) {
         // Runtime Macro
         try {

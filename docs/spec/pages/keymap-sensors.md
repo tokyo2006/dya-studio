@@ -4,39 +4,45 @@
 
 親: [キーマップ](keymap.md)。入口 `/keymap` の preview 下 `Rotary Encoder Configuration`。共通入力は [binding editor](../modules/binding-editor.md)。コード確認 2026-09-20 `db09841`、UI 未検証。
 
-| 根拠 | ソース / symbol                                                                                                             |
-| ---- | --------------------------------------------------------------------------------------------------------------------------- |
-| S1   | [SensorRotationConfig](../../../src/components/SensorRotationConfig.tsx): `handleBindingSelect`, `handleTapTimeChange`, JSX |
-| S2   | [useRuntimeSensorRotate](../../../src/hooks/useRuntimeSensorRotate.ts): `setLayerCwBindings`, `setLayerCcwBindings`         |
-| S3   | [component tests](../../../src/components/__tests__/SensorRotationConfig.test.tsx)                                          |
+| 根拠 | ソース / symbol                                                                                                                                      |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S1   | [SensorRotationConfig](../../../src/components/SensorRotationConfig.tsx): `handleBindingSelect`, `handleTapTimeChange`, JSX                          |
+| S2   | [useRuntimeSensorRotate](../../../src/hooks/useRuntimeSensorRotate.ts): `setLayerCwBindings`, `setLayerCcwBindings`                                  |
+| S4   | [behaviorMetadata](../../../src/lib/behaviorMetadata.ts): `formatBehaviorBinding`、[keycodes](../../../src/lib/keycodes.ts): `getKeycodeDisplayName` |
+| S3   | [component tests](../../../src/components/__tests__/SensorRotationConfig.test.tsx)                                                                   |
 
 ## 機能要求
 
-| ID      | できるべきこと                                                                  | 出典・確度                                                         |
-| ------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| ROT-R01 | 選択中 layer の sensor ごとに時計/反時計方向の binding と tap time を変更できる | S1/S2 から推定                                                     |
-| ROT-R02 | 同じ値の複数 sensor 操作でも、sensor、layer、方向を名前から識別できる           | [#212](https://github.com/cormoran/dya-studio/issues/212) 明示要求 |
+| ID      | できるべきこと                                                                                                                 | 出典・確度                                                                                                                    |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| ROT-R01 | 選択中 layer の sensor ごとに時計/反時計方向の binding と tap time を変更でき、両方向の名前は selector と同じ HID usage を示す | S1/S2 から推定、[#259](https://github.com/cormoran/dya-studio/issues/259) の表示整合性要求                                    |
+| ROT-R02 | 同じ値の複数 sensor 操作でも、sensor、layer、方向を名前から識別でき、consumer brightness と keyboard F20/F21 を区別できる      | [#212](https://github.com/cormoran/dya-studio/issues/212)、[#259](https://github.com/cormoran/dya-studio/issues/259) 明示要求 |
 
 ## 前提・状態
 
-runtime sensor rotation 対応 device と current layer が必要。非対応は親で警告、対応かつ sensor 0 件では section 内のカードが空。sensor ごとに ID/name と選択 layer を名前に持つ fieldset 内で 2 方向を表示し、各 binding button と tap time input も sensor/layer/方向を含む accessible name を持つ。初期読込は全 sensor の layer bindings を取得。未接続は親の接続 gate。独立した Save/dirty 状態はない。UI は選択時リアルタイム保存と説明するが、flash 永続化の firmware 契約はこの frontend だけでは断定しない。
+runtime sensor rotation 対応 device と current layer が必要。Discard/Reload などによる一覧の更新後は、親の KM-008/011 に従って補正した current layer の ID/name を表示する。layer 一覧が空なら親が section を表示せず、layer が戻ると先頭 layer の設定を表示する。非対応は親で通常色のカードに `Rotary Encoder Configuration: Not supported`（日本語: `ロータリーエンコーダー設定: 未対応`）を表示する。警告色・注意アイコン・導入リンク・編集操作を表示せず、RPC/保存を行わない（2026-10-18ユーザー明示要求）。対応かつ sensor 0 件では section 内のカードが空。sensor ごとに ID/name と選択 layer を名前に持つ fieldset 内で 2 方向を表示し、各 binding button と tap time input も sensor/layer/方向を含む accessible name を持つ。初期読込は全 sensor の layer bindings を取得。未接続は親の接続 gate。独立した Save/dirty 状態はない。UI は選択時リアルタイム保存と説明するが、flash 永続化の firmware 契約はこの frontend だけでは断定しない。
 
 ## 現行の機能仕様
 
-| ID      | 前提 → 操作                                               | 観測できる結果                                                                                                                                                                   | 保存範囲・副作用                                                                    | 根拠                     |
-| ------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------ |
-| ROT-001 | 対象 sensor の clockwise/counter-clockwise binding を選択 | modal で behavior を編集。成功応答ならその方向の表示を更新、反対方向は保持                                                                                                       | sensor index + selected layer ID + binding を即 RPC。キーの Save と同一と仮定しない | S1/S2                    |
-| ROT-002 | Tap time を変更                                           | 入力値と `pending to save...`、最後の変更から 1500ms 後に存在する両方向の tapMs を書込                                                                                           | 方向ごとに順次 RPC。HTML min=1, step=5、handler は Number 値を受ける                | S1 handleTapTimeChange   |
-| ROT-003 | binding が未設定/ID=0                                     | `Trans` 表示。未知 behavior は `Behavior <id>`                                                                                                                                   | 表示 fallback                                                                       | S1 getBindingDisplayName |
-| ROT-004 | tap time が短い                                           | scroll/mouse move は trigger period（説明中 default 16ms）より長くする注意を表示する条件あり                                                                                     | 注意表示は入力の拒否ではない                                                        | S1 JSX                   |
-| ROT-005 | 複数 sensor / 同じ binding 値                             | card は sensor name/ID と selected layer の named fieldset。方向 button はその sensor/layer/direction/binding、tap time input は sensor/layer/tap time の accessible name を持つ | 命名だけでは RPC / 値を変更しない                                                   | S1/S3/ROT-R02            |
+Popの時計/反時計方向のbinding選択ボタンは淡い青（#e4f5ff）と濃い文字で表示し、hover時は少し強い青（#d2eeff）にする（ROT-001、S1、2026-10-17ユーザー要求）。
+
+ROT-005の可視見出し（sensor番号・名前・選択layer）はカード内の上部に配置し、fieldsetの上辺に重ねない。読み上げ用legendとfieldsetのaccessible nameは維持する。全テーマ共通（2026-10-17ユーザー要求、S1）。
+
+| ID      | 前提 → 操作                                               | 観測できる結果                                                                                                                                                                                                                                                                  | 保存範囲・副作用                                                                    | 根拠                                 |
+| ------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------ |
+| ROT-001 | 対象 sensor の clockwise/counter-clockwise binding を選択 | modal で behavior を編集。成功応答ならその方向の表示を更新、反対方向は保持                                                                                                                                                                                                      | sensor index + selected layer ID + binding を即 RPC。キーの Save と同一と仮定しない | S1/S2                                |
+| ROT-002 | Tap time を変更                                           | 入力値と `pending to save...`、最後の変更から 1500ms 後に存在する両方向の tapMs を書込                                                                                                                                                                                          | 方向ごとに順次 RPC。HTML min=1, step=5、handler は Number 値を受ける                | S1 handleTapTimeChange               |
+| ROT-003 | binding が未設定/ID=0                                     | `Trans` 表示。未知 behavior は `Behavior <id>`。keycode は HID page を含めて名前を解決し、consumer `0xC006F` / `0xC0070` は selector と同じ `☀+` / `☀-`、keyboard `0x7006F` / `0x70070` は `F20` / `F21`。未知 usage は page を含む16進数、modifier は名前の prefix（BIND-024） | 表示 fallback                                                                       | S1 getBindingDisplayName/S4/BIND-024 |
+| ROT-004 | tap time が短い                                           | scroll/mouse move は trigger period（説明中 default 16ms）より長くする注意を表示する条件あり                                                                                                                                                                                    | 注意表示は入力の拒否ではない                                                        | S1 JSX                               |
+| ROT-005 | 複数 sensor / 同じ binding 値                             | card は sensor name/ID と selected layer の named fieldset。方向 button はその sensor/layer/direction/binding（consumer brightness の名前を keyboard F20/F21 に置き換えない）、tap time input は sensor/layer/tap time の accessible name を持つ                                | 命名だけでは RPC / 値を変更しない                                                   | S1/S3/ROT-R02                        |
 
 ## 代表ユーザーフロー
 
 1. Demo → Keymap、section と sensor 名、選択 layer、両方向と tap time の元値を記録。複数 card があれば group と各操作名から sensor/layer/direction を区別できることを確認（ROT-005）。
-2. clockwise を開き別 keypress を選択。戻ったカードの時計方向のみ変更を確認（ROT-001）。
-3. 元 binding に戻す。tap time を元値+5 にし pending 表示の後で値を確認。別 layer に切替し、別 layer の値まで変わっていないことを確認（ROT-002）。
-4. 元 layer に戻り元 tap time を入力、pending が終わるまで待つ。実機では必要な操作範囲を合意してから実行。
+2. Right Encoder の両方向に brightness がある場合、`☀+` / `☀-` の表示と accessible name を記録し、各方向を開いて selector の現在値（Brightness Up / Brightness Down）と一致することを確認。変更せず閉じ、両方向の名前が維持されることを確認（ROT-003/005、BIND-024）。
+3. clockwise を開き別 keypress を選択。戻ったカードの時計方向のみ変更を確認（ROT-001）。
+4. 元 binding に戻す。tap time を元値+5 にし pending 表示の後で値を確認。別 layer に切替し、別 layer の値まで変わっていないことを確認（ROT-002）。
+5. 元 layer に戻り元 tap time を入力、pending が終わるまで待つ。実機では必要な操作範囲を合意してから実行。
 
 ## 不変条件
 

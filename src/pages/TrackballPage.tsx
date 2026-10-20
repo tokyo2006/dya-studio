@@ -296,6 +296,14 @@ export function TrackballPage() {
 
   // Get the selected processor
   const processor = processors[selectedProcessorIndex] || null;
+  const processorSwitchName = (setting: string) =>
+    processor
+      ? t("{{setting}} ({{processor}}: {{name}})", {
+          setting: t(setting),
+          processor: t("Processor"),
+          name: processor.name,
+        })
+      : t(setting);
   const tabActive = useContext(TabActiveContext);
   const [testOpen, setTestOpen] = useState(false);
   const [samples, setSamples] = useState<InputSample[]>([]);
@@ -644,27 +652,29 @@ export function TrackballPage() {
     <div className="app-page p-4 sm:p-6 h-full">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4 mb-6">
+        <div className="page-header flex flex-wrap items-center justify-between gap-x-6 gap-y-4 mb-6">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="shrink-0 p-2 rounded-lg bg-[var(--color-cyber)]/10 border border-[var(--color-cyber)]/20">
+            <div className="hidden sm:block shrink-0 p-2 rounded-lg bg-[var(--color-cyber)]/10 border border-[var(--color-cyber)]/20">
               <IconPointer size={24} className="text-[var(--color-cyber)]" />
             </div>
             <div className="min-w-0 flex-1">
               <h1 className="text-xl font-medium text-[var(--color-text)]">
                 {t("Trackball Settings")}
               </h1>
-              <p className="text-sm text-[var(--color-text-muted)]">
+              <p className="page-header-description text-sm text-[var(--color-text-muted)]">
                 {t(
                   "Adjust sensitivity and behavior via runtime input processor",
                 )}
               </p>
             </div>
           </div>
-          <div className="w-full desktop:w-auto min-w-0 flex items-center gap-2 flex-nowrap">
-            <MobileTrackballMenu
-              processors={mobileProcessorItems}
-              drivers={mobileDriverItems}
-            />
+          <div className="page-header-actions w-full desktop:w-auto min-w-0 flex items-center gap-2 flex-nowrap">
+            <div className="page-header-selector desktop:hidden min-w-0 flex flex-1">
+              <MobileTrackballMenu
+                processors={mobileProcessorItems}
+                drivers={mobileDriverItems}
+              />
+            </div>
             <ResponsiveButton
               label={reloadSelectedLabel}
               className="desktop:hidden btn-ghost text-sm flex items-center gap-1.5"
@@ -679,7 +689,7 @@ export function TrackballPage() {
             </ResponsiveButton>
             {processor && rightView.kind === "processor" && (
               <EditorTooltip content={t("Toggle input test")}>
-                <div className="flex min-h-9 items-center gap-2 px-3 py-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
+                <div className="page-header-secondary-action flex min-h-9 items-center gap-2 px-3 py-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
                   <span className="text-xs text-[var(--color-text-muted)]">
                     {t("Input test")}
                   </span>
@@ -998,6 +1008,7 @@ export function TrackballPage() {
                                 checked ? "specific" : "all",
                               )
                             }
+                            aria-label={processorSwitchName("Active on Layers")}
                             className="w-11 h-6 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-surface)] border border-[var(--color-border)] transition-colors cursor-pointer"
                           >
                             <Switch.Thumb className="block w-5 h-5 rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform bg-white border border-[var(--color-border)]" />
@@ -1136,6 +1147,9 @@ export function TrackballPage() {
                             <Switch.Root
                               checked={rotationEnabled}
                               onCheckedChange={handleRotationEnabledChange}
+                              aria-label={processorSwitchName(
+                                "Sensor Rotation",
+                              )}
                               className="w-11 h-6 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-surface)] border border-[var(--color-border)] transition-colors cursor-pointer"
                             >
                               <Switch.Thumb className="block w-5 h-5 rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform bg-white border border-[var(--color-border)]" />
@@ -1228,6 +1242,7 @@ export function TrackballPage() {
                           <Switch.Root
                             checked={displayTempLayerEnabled}
                             onCheckedChange={handleTempLayerEnabledChange}
+                            aria-label={processorSwitchName("Temporary Layer")}
                             className="w-11 h-6 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-surface)] border border-[var(--color-border)] transition-colors cursor-pointer"
                           >
                             <Switch.Thumb className="block w-5 h-5 rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform bg-white border border-[var(--color-border)]" />
@@ -1379,6 +1394,7 @@ export function TrackballPage() {
                               AxisSnapMode.AXIS_SNAP_MODE_NONE
                             }
                             onCheckedChange={handleAxisSnapEnabledChange}
+                            aria-label={processorSwitchName("Axis Snapping")}
                             className="w-11 h-6 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-surface)] border border-[var(--color-border)] transition-colors cursor-pointer"
                           >
                             <Switch.Thumb className="block w-5 h-5 rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform bg-white border border-[var(--color-border)]" />
@@ -1544,6 +1560,7 @@ export function TrackballPage() {
                             <Switch.Root
                               checked={displayXInvert}
                               onCheckedChange={handleXInvertChange}
+                              aria-label={processorSwitchName("Invert X Axis")}
                               className="w-11 h-6 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-surface)] border border-[var(--color-border)] transition-colors cursor-pointer"
                             >
                               <Switch.Thumb className="block w-5 h-5 rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform bg-white border border-[var(--color-border)]" />
@@ -1565,6 +1582,7 @@ export function TrackballPage() {
                             <Switch.Root
                               checked={displayYInvert}
                               onCheckedChange={handleYInvertChange}
+                              aria-label={processorSwitchName("Invert Y Axis")}
                               className="w-11 h-6 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-surface)] border border-[var(--color-border)] transition-colors cursor-pointer"
                             >
                               <Switch.Thumb className="block w-5 h-5 rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform bg-white border border-[var(--color-border)]" />
@@ -1604,6 +1622,7 @@ export function TrackballPage() {
                             <Switch.Root
                               checked={displayXyToScrollEnabled}
                               onCheckedChange={handleXyToScrollEnabledChange}
+                              aria-label={processorSwitchName("XY-to-Scroll")}
                               className="w-11 h-6 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-surface)] border border-[var(--color-border)] transition-colors cursor-pointer"
                             >
                               <Switch.Thumb className="block w-5 h-5 rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform bg-white border border-[var(--color-border)]" />
@@ -1625,6 +1644,7 @@ export function TrackballPage() {
                             <Switch.Root
                               checked={displayXySwapEnabled}
                               onCheckedChange={handleXySwapEnabledChange}
+                              aria-label={processorSwitchName("XY-Swap")}
                               className="w-11 h-6 rounded-full relative data-[state=checked]:bg-[var(--color-electric)] bg-[var(--color-surface)] border border-[var(--color-border)] transition-colors cursor-pointer"
                             >
                               <Switch.Thumb className="block w-5 h-5 rounded-full transition-transform data-[state=checked]:translate-x-5 translate-x-0.5 will-change-transform bg-white border border-[var(--color-border)]" />

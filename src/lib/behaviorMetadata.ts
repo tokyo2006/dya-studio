@@ -10,20 +10,15 @@ import type {
   Layer,
 } from "../hooks/useKeymap";
 import {
-  getKeycodeByCode,
-  getHidUsageCode,
-  getHidUsagePage,
-  HID_USAGE_PAGE_CONSUMER,
+  getKeycodeDisplayName,
   extractModifierFlags,
   MODIFIER_FLAGS,
   MOUSE_KEYCODES,
   MOUSE_MOVEMENTS,
   MOUSE_SCROLLS,
-  dropModifierFlags,
   decodeMouseMove,
   formatKeycodeWithModifiers,
 } from "./keycodes";
-import { getLayoutDisplayName } from "./keyboardLayouts";
 import type { BehaviorParameterValueDescription } from "@zmkfirmware/zmk-studio-ts-client/behaviors";
 
 /**
@@ -32,6 +27,7 @@ import type { BehaviorParameterValueDescription } from "@zmkfirmware/zmk-studio-
 export type BehaviorCategory =
   | "keypress" // Basic key input
   | "macro" // Saved runtime macros
+  | "tapdance" // Saved runtime tapdances
   | "layer" // Layer switching/activation
   | "mod" // Modifiers and mod-tap
   | "transport" // Bluetooth and output management
@@ -86,28 +82,7 @@ function formatKeycode(
   keyboardLayout?: import("./keyboardLayouts").KeyboardLayoutType,
 ): string {
   const modifiers = extractModifierFlags(hidUsage);
-  const hidUsageWithoutModifiers = dropModifierFlags(hidUsage);
-  const page = getHidUsagePage(hidUsage);
-  const code =
-    page === 0 ? hidUsageWithoutModifiers : getHidUsageCode(hidUsage);
-
-  // Try keyboard page first
-  let keycode = getKeycodeByCode(code);
-
-  // Try consumer page if not found
-  if (!keycode && (page === HID_USAGE_PAGE_CONSUMER || page === 0)) {
-    keycode = getKeycodeByCode(hidUsageWithoutModifiers);
-  }
-
-  // Apply keyboard layout override
-  let displayName =
-    keycode?.displayName || `0x${code.toString(16).toUpperCase()}`;
-  if (keyboardLayout) {
-    const layoutDisplayName = getLayoutDisplayName(code, keyboardLayout);
-    if (layoutDisplayName) {
-      displayName = layoutDisplayName;
-    }
-  }
+  const displayName = getKeycodeDisplayName(hidUsage, keyboardLayout);
 
   // Format with modifiers
   if (modifiers === 0) {
@@ -315,6 +290,20 @@ const BEHAVIOR_METADATA_BASE: BehaviorMetadata[] = [
   // ============================================================================
   // Macro Behavior
   // ============================================================================
+  {
+    category: "keypress",
+    displayNameVariants: [
+      "Runtime Tap Dance",
+      "Runtime Tapdance",
+      "runtime_tapdance",
+      "rtd",
+    ],
+    shortCode: "TD",
+    param1Type: "number",
+    param1Description: "Tapdance",
+    getDisplayText: (binding) => `TD ${binding.param1}`,
+    description: "Run different actions for single, double, or triple taps",
+  },
   {
     category: "keypress",
     displayNameVariants: ["Runtime Macro", "rmacro", "macro", "runtime_macro"],

@@ -1,3 +1,9 @@
+import { useIsTabActive } from "../hooks/useIsTabActive";
+import {
+  TapDanceEditorCard,
+  TapDanceGlobalSettingsCard,
+} from "../components/macroCombo/TapDanceEditorCard";
+import { useRuntimeTapDance } from "../hooks/useRuntimeTapDance";
 import { ResponsiveButton } from "../components/ResponsiveButton";
 /**
  * Merged "Macro&Combo" page: one tab that hosts both the runtime-macro and
@@ -56,7 +62,14 @@ import type { MacroSummary } from "../proto/cormoran/runtime_macro/runtime_macro
 /** What the right column currently shows. `null` renders the placeholder
  * (until the macro auto-select picks the first macro, mirroring the old
  * MacroPage behavior). */
-type RightView = "macro" | "combo" | "macro-settings" | "combo-settings" | null;
+type RightView =
+  | "macro"
+  | "combo"
+  | "macro-settings"
+  | "combo-settings"
+  | "tapdance"
+  | "tapdance-settings"
+  | null;
 
 export function MacroComboPage() {
   const { t } = useLanguage();
@@ -65,6 +78,18 @@ export function MacroComboPage() {
   const keymap = useKeymap();
   const runtimeMacro = useRuntimeMacro();
   const runtimeCombo = useRuntimeCombo();
+  const tabActive = useIsTabActive();
+  const runtimeTapDance = useRuntimeTapDance(tabActive);
+  const [selectedTapDance, setSelectedTapDance] = useState<number | null>(null);
+  const [tapDanceDraftPending, setTapDanceDraftPending] = useState(false);
+  const wasTabActive = useRef(tabActive);
+  const reloadKeymapForTapDance = keymap.loadKeymapData;
+  useEffect(() => {
+    const returning = tabActive && !wasTabActive.current;
+    wasTabActive.current = tabActive;
+    if (returning && connection.isConnected) void reloadKeymapForTapDance();
+  }, [tabActive, connection.isConnected, reloadKeymapForTapDance]);
+
   // Proactive lock state: show a lock badge in place of Save/Discard when
   // Studio is locked. Editing is guarded by the shared unlock gate below.
   const { locked } = useStudioLockState();
@@ -72,16 +97,17 @@ export function MacroComboPage() {
   // fail→modal→retry path is handled inside the feature hooks via runWithUnlock.
   const { requireUnlock: requireUnlocked } = useStudioUnlock();
   const [rightView, setRightView] = useState<RightView>(null);
+  const savingRef = useRef(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDiscarding, setIsDiscarding] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
 
   const macroAvailable = runtimeMacro.isAvailable;
   const comboAvailable = runtimeCombo.isAvailable;
-  const anyAvailable = macroAvailable || comboAvailable;
-  const anyLoading = runtimeMacro.isLoading || runtimeCombo.isLoading;
-  const hasPendingChanges =
-    runtimeMacro.hasUnsavedChanges || runtimeCombo.hasPendingChanges;
+  const anyAvailable =
+    macroAvailable || comboAvailable || runtimeTapDance.isAvailable;
+  const anyLoading =
+    runtimeMacro.isLoading || runtimeCombo.isLoading || runtimeTapDance.busy;
 
   // Version history capture point. Every macro/combo edit toggles the hooks'
   // `isLoading` too, so "the tab finished reading the keyboard" can't be read
@@ -93,10 +119,15 @@ export function MacroComboPage() {
   const macroRead = !macroAvailable || runtimeMacro.globalSettings !== null;
   const comboRead = !comboAvailable || runtimeCombo.globalSettings !== null;
   useEffect(() => {
-    if (anyAvailable && !anyLoading && macroRead && comboRead) {
+    if (
+      (macroAvailable || comboAvailable) &&
+      !anyLoading &&
+      macroRead &&
+      comboRead
+    ) {
       setInitialLoadDone(true);
     }
-  }, [anyAvailable, anyLoading, comboRead, macroRead]);
+  }, [macroAvailable, comboAvailable, anyLoading, comboRead, macroRead]);
 
   const versionHistory = useMacroComboVersionHistory({
     runtimeMacro,
@@ -141,6 +172,20 @@ export function MacroComboPage() {
     t,
     onComboSelected,
   });
+
+  const hasPendingChanges =
+    runtimeMacro.hasUnsavedChanges ||
+    runtimeCombo.hasPendingChanges ||
+    macroEditor.isMemoryWritePending ||
+    runtimeTapDance.hasUnsavedChanges;
+  // Macro input blur starts RAM writes before click. Save owns the flush barrier,
+  // so those tracked writes must not disable the click that persists them.
+  const saveBlockedByLoading =
+    runtimeTapDance.busy ||
+    (rightView === "tapdance" &&
+      (tapDanceDraftPending || !!runtimeTapDance.error)) ||
+    runtimeCombo.isLoading ||
+    (runtimeMacro.isLoading && !macroEditor.isMemoryWritePending);
 
   // The macro/combo list RPCs require unlock. Proactively open the shared
   // unlock modal whenever this tab is viewed while locked, so the user is
@@ -214,12 +259,48 @@ export function MacroComboPage() {
     setRightView("combo-settings");
   }, [comboEditor, macroEditor]);
 
+  const selectTapDance = (slot: number) => {
+    macroEditor.clearSelection();
+    comboEditor.clearSelection();
+    setSelectedTapDance(slot);
+    setRightView("tapdance");
+  };
+  const canCreateTapDance =
+    !!runtimeTapDance.globalSettings &&
+    !runtimeTapDance.busy &&
+    runtimeTapDance.entries.length < runtimeTapDance.globalSettings.maxEntries;
+  const createTapDance = async () => {
+    if (!canCreateTapDance || !requireUnlocked()) return;
+    let number = 1;
+    while (
+      runtimeTapDance.entries.some(
+        (entry) => entry.name === `${t("Tapdance")} ${number}`,
+      )
+    )
+      number++;
+    const id = await runtimeTapDance.create(`${t("Tapdance")} ${number}`);
+    if (id !== null) selectTapDance(id);
+  };
+  const openTapDanceSettings = () => {
+    macroEditor.clearSelection();
+    comboEditor.clearSelection();
+    setRightView("tapdance-settings");
+  };
+  const tapDanceItems = runtimeTapDance.entries.map((entry) => ({
+    id: `tapdance-${entry.index}`,
+    label: entry.name,
+    selected: rightView === "tapdance" && selectedTapDance === entry.index,
+    status: entry.hasUnsavedChanges ? ("unsaved" as const) : undefined,
+    onSelect: () => selectTapDance(entry.index),
+  }));
+
   // --- Unified top-bar actions (both domains at once) ---
 
   const handleRefresh = useCallback(async () => {
     await Promise.all([
       macroAvailable ? runtimeMacro.loadMacros() : Promise.resolve(),
       comboAvailable ? runtimeCombo.reload() : Promise.resolve(),
+      runtimeTapDance.isAvailable ? runtimeTapDance.load() : Promise.resolve(),
     ]);
     // A completed read is exactly when a new version may be worth keeping.
     await versionHistory.capture();
@@ -229,6 +310,7 @@ export function MacroComboPage() {
     runtimeCombo,
     runtimeMacro,
     versionHistory,
+    runtimeTapDance,
   ]);
 
   // "Reset to initial state": put every macro and combo slot back to the
@@ -272,30 +354,65 @@ export function MacroComboPage() {
   ]);
 
   const handleSave = useCallback(async () => {
-    if (!requireUnlocked()) return;
+    if (
+      savingRef.current ||
+      isDiscarding ||
+      isResetting ||
+      saveBlockedByLoading ||
+      !hasPendingChanges ||
+      macroEditor.encodedSizeError ||
+      macroEditor.stringConversionError ||
+      !requireUnlocked()
+    )
+      return;
+    savingRef.current = true;
     setIsSaving(true);
+    comboEditor.setStatusMessage(null);
+    // Saving/flush clears dirty flags. Availability alone does not mean that
+    // this attempt includes changes in that domain.
+    const macroChanged =
+      macroAvailable &&
+      (runtimeMacro.hasUnsavedChanges || macroEditor.isMemoryWritePending);
+    const comboChanged = comboAvailable && runtimeCombo.hasPendingChanges;
+    const tapDanceChanged =
+      runtimeTapDance.isAvailable && runtimeTapDance.hasUnsavedChanges;
     try {
       // Flush any queued debounced edits so they are part of this persist.
-      await macroEditor.flushPendingWrites();
+      if (!(await macroEditor.flushPendingWrites())) return;
       await comboEditor.flushPendingWrites();
       if (macroAvailable) {
-        await runtimeMacro.saveMacros();
+        if (!(await runtimeMacro.saveMacros())) return;
         macroEditor.clearGlobalModified();
       }
+      let comboCount = 0;
       if (comboAvailable) {
         const status = await runtimeCombo.saveChanges();
-        if (status) {
-          comboEditor.clearModified();
-          comboEditor.setStatusMessage(
-            t("Saved {{count}} runtime combo changes.", {
-              count: status.affectedCount,
-            }),
-          );
-        }
+        if (!status) return;
+        comboEditor.clearModified();
+        comboCount = status.affectedCount;
       }
+      if (tapDanceChanged && !(await runtimeTapDance.saveChanges())) return;
+      const savedDomains: string[] = [];
+      if (macroChanged || comboChanged)
+        savedDomains.push(
+          macroChanged
+            ? comboChanged
+              ? t("Saved runtime macros and {{count}} runtime combo changes.", {
+                  count: comboCount,
+                })
+              : t("Saved runtime macro changes.")
+            : t("Saved {{count}} runtime combo changes.", {
+                count: comboCount,
+              }),
+        );
+      if (tapDanceChanged)
+        savedDomains.push(t("Saved runtime tapdance changes."));
+      if (savedDomains.length)
+        comboEditor.setStatusMessage(savedDomains.join(" "));
       // What is now on the keyboard is worth keeping as a version.
       await versionHistory.capture();
     } finally {
+      savingRef.current = false;
       setIsSaving(false);
     }
   }, [
@@ -306,13 +423,19 @@ export function MacroComboPage() {
     requireUnlocked,
     runtimeCombo,
     runtimeMacro,
+    runtimeTapDance,
     t,
     versionHistory,
+    isDiscarding,
+    isResetting,
+    saveBlockedByLoading,
+    hasPendingChanges,
   ]);
 
   const handleDiscard = useCallback(async () => {
     if (!requireUnlocked()) return;
     setIsDiscarding(true);
+    const tapdanceChanged = runtimeTapDance.hasUnsavedChanges;
     try {
       // Drop queued edits — discard restores the persisted values.
       macroEditor.cancelPendingWrites();
@@ -337,6 +460,15 @@ export function MacroComboPage() {
           setRightView((view) => (view === "combo" ? null : view));
         }
       }
+      if (
+        runtimeTapDance.isAvailable &&
+        !(await runtimeTapDance.discardChanges())
+      )
+        return;
+      if (tapdanceChanged)
+        comboEditor.setStatusMessage(t("Discarded tapdance changes."));
+      setSelectedTapDance(null);
+      setRightView((view) => (view === "tapdance" ? null : view));
       // Memory now mirrors what is stored on the keyboard again.
       await versionHistory.capture();
     } finally {
@@ -350,6 +482,7 @@ export function MacroComboPage() {
     requireUnlocked,
     runtimeCombo,
     runtimeMacro,
+    runtimeTapDance,
     t,
     versionHistory,
   ]);
@@ -359,6 +492,7 @@ export function MacroComboPage() {
     macroEditor.encodedSizeError ||
     macroEditor.stringConversionError ||
     runtimeCombo.error ||
+    runtimeTapDance.error ||
     keymap.error;
 
   const mobileMacroItems = macroAvailable
@@ -391,6 +525,16 @@ export function MacroComboPage() {
         })
       : undefined;
   const mobileSettingsItems = [
+    ...(runtimeTapDance.isAvailable
+      ? [
+          {
+            id: "tapdance-settings",
+            label: t("Tapdance Global Settings"),
+            selected: rightView === "tapdance-settings",
+            onSelect: openTapDanceSettings,
+          },
+        ]
+      : []),
     ...(macroAvailable
       ? [
           {
@@ -424,37 +568,49 @@ export function MacroComboPage() {
   return (
     <div className="app-page p-4 sm:p-6 h-full">
       <div className="max-w-6xl mx-auto">
-        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4 mb-6">
+        <div className="page-header flex flex-wrap items-center justify-between gap-x-6 gap-y-4 mb-6">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-[var(--color-electric)]/10 border border-[var(--color-electric)]/20">
+            <div className="hidden sm:block p-2 rounded-lg bg-[var(--color-electric)]/10 border border-[var(--color-electric)]/20">
               <IconWand size={24} className="text-[var(--color-electric)]" />
             </div>
             <div>
               <h1 className="text-xl font-medium text-[var(--color-text)]">
                 {t("Macro&Combo")}
               </h1>
-              <p className="text-sm text-[var(--color-text-muted)]">
-                {t("Edit runtime macro and combo slots")}
+              <p className="page-header-description text-sm text-[var(--color-text-muted)]">
+                {t("Edit runtime macros, combos, and tapdances")}
               </p>
             </div>
           </div>
 
           {connection.isConnected && anyAvailable && (
-            <div className="w-full desktop:w-auto min-w-0 flex items-center gap-2 flex-nowrap">
-              <MobileMacroComboMenu
-                macros={mobileMacroItems}
-                combos={mobileComboItems}
-                settings={mobileSettingsItems}
-                onCreateMacro={macroAvailable ? handleCreateMacro : undefined}
-                onCreateCombo={
-                  comboAvailable && keymap.keymap ? handleNewCombo : undefined
-                }
-                createMacroDisabled={
-                  macroEditor.isCreating || runtimeMacro.isLoading
-                }
-              />
+            <div className="page-header-actions w-full desktop:w-auto min-w-0 flex items-center gap-2 flex-nowrap">
+              <div className="page-header-selector desktop:hidden min-w-0 flex flex-1">
+                <MobileMacroComboMenu
+                  macros={mobileMacroItems}
+                  combos={mobileComboItems}
+                  tapdances={
+                    runtimeTapDance.isAvailable ? tapDanceItems : undefined
+                  }
+                  onCreateTapDance={
+                    runtimeTapDance.isAvailable ? createTapDance : undefined
+                  }
+                  createTapDanceDisabled={!canCreateTapDance}
+                  settings={mobileSettingsItems}
+                  onCreateMacro={macroAvailable ? handleCreateMacro : undefined}
+                  onCreateCombo={
+                    comboAvailable && keymap.keymap ? handleNewCombo : undefined
+                  }
+                  createMacroDisabled={
+                    macroEditor.isCreating || runtimeMacro.isLoading
+                  }
+                />
+              </div>
               <ResponsiveButton
                 label={t("Refresh")}
+                title={t(
+                  "Read macros, combos, and tapdances from the keyboard again",
+                )}
                 className="btn-ghost text-sm flex items-center gap-1.5"
                 onClick={() => void handleRefresh()}
                 disabled={anyLoading}
@@ -498,7 +654,7 @@ export function MacroComboPage() {
                     }}
                     discard={{
                       description: t(
-                        "Drops the edits held in keyboard memory and reloads the macros and combos saved on the keyboard.",
+                        "Drops edits in keyboard memory and reloads saved macros, combos, and tapdances.",
                       ),
                       onSelect: () => void handleDiscard(),
                       disabled: isDiscarding || !hasPendingChanges,
@@ -506,13 +662,19 @@ export function MacroComboPage() {
                   />
                   <ResponsiveButton
                     label={t("Save")}
+                    title={t(
+                      "Save macro, combo, and tapdance changes so they are kept after the keyboard restarts",
+                    )}
                     className="btn-electric text-sm flex items-center gap-1.5"
                     onClick={handleSave}
                     disabled={
                       isSaving ||
-                      anyLoading ||
+                      isDiscarding ||
+                      isResetting ||
+                      saveBlockedByLoading ||
                       !hasPendingChanges ||
-                      Boolean(macroEditor.encodedSizeError)
+                      Boolean(macroEditor.encodedSizeError) ||
+                      Boolean(macroEditor.stringConversionError)
                     }
                   >
                     {isSaving ? (
@@ -530,7 +692,9 @@ export function MacroComboPage() {
         {!connection.isConnected && (
           <div className="glass-card p-6 text-center">
             <p className="text-sm text-[var(--color-text-muted)]">
-              {t("Connect your keyboard to edit runtime macros and combos")}
+              {t(
+                "Connect your keyboard to edit runtime macros, combos, and tapdances",
+              )}
             </p>
           </div>
         )}
@@ -586,7 +750,10 @@ export function MacroComboPage() {
         )}
 
         {comboEditor.statusMessage && (
-          <div className="glass-card p-3 mb-4 border-[var(--color-electric)]/20 bg-[var(--color-electric)]/10">
+          <div
+            role="status"
+            className="glass-card p-3 mb-4 border-[var(--color-electric)]/20 bg-[var(--color-electric)]/10"
+          >
             <p className="text-sm text-[var(--color-electric)]">
               {comboEditor.statusMessage}
             </p>
@@ -612,6 +779,12 @@ export function MacroComboPage() {
               }
             />
           )}
+
+        {connection.isConnected && !runtimeTapDance.isAvailable && (
+          <p className="mb-4 text-sm text-[var(--color-text-muted)]">
+            {t("Runtime tapdance subsystem is unavailable.")}
+          </p>
+        )}
 
         {connection.isConnected && anyAvailable && (
           <div className="grid grid-cols-1 desktop:grid-cols-[300px_1fr] gap-4 min-w-0">
@@ -798,10 +971,91 @@ export function MacroComboPage() {
                   </div>
                 </section>
               )}
+              {runtimeTapDance.isAvailable && (
+                <section className="glass-card p-3" aria-label={t("Tapdances")}>
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <h2 className="text-sm font-medium text-[var(--color-text)]">
+                      {t("Tapdances")}
+                    </h2>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        className="p-1 rounded text-[var(--color-electric)] hover:bg-[var(--color-border)]"
+                        aria-label={t("Tapdance Global Settings")}
+                        disabled={
+                          !runtimeTapDance.globalSettings ||
+                          runtimeTapDance.busy
+                        }
+                        onClick={openTapDanceSettings}
+                      >
+                        <IconSettings size={15} />
+                      </button>
+                      <button
+                        type="button"
+                        className="p-1 rounded text-[var(--color-electric)] hover:bg-[var(--color-border)] disabled:opacity-40"
+                        aria-label={t("New tapdance")}
+                        disabled={!canCreateTapDance}
+                        onClick={createTapDance}
+                      >
+                        <IconPlus size={15} />
+                      </button>
+                    </div>
+                  </div>
+                  {runtimeTapDance.busy && (
+                    <p
+                      role="status"
+                      className="text-sm text-[var(--color-text-muted)]"
+                    >
+                      {t("Loading...")}
+                    </p>
+                  )}
+                  <div className="space-y-1">
+                    {tapDanceItems.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={item.onSelect}
+                        className={`w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${item.selected ? "bg-[var(--color-electric)]/20 text-[var(--color-electric)] border border-[var(--color-electric)]/30" : "text-[var(--color-text-secondary)] hover:bg-[var(--color-border)]"}`}
+                      >
+                        {item.label}
+                        {item.status && <StatusDot status={item.status} />}
+                      </button>
+                    ))}
+                  </div>
+                  {!runtimeTapDance.busy && tapDanceItems.length === 0 && (
+                    <p className="py-4 text-center text-sm text-[var(--color-text-muted)]">
+                      {t("No tapdances yet. Create one above.")}
+                    </p>
+                  )}
+                </section>
+              )}
             </div>
 
             <div className="min-w-0">
-              {rightView === "macro" && macroAvailable ? (
+              {rightView === "tapdance" &&
+              selectedTapDance !== null &&
+              runtimeTapDance.isAvailable ? (
+                <TapDanceEditorCard
+                  key={`${selectedTapDance}:${runtimeTapDance.revision}`}
+                  runtime={runtimeTapDance}
+                  slot={selectedTapDance}
+                  onPendingChange={setTapDanceDraftPending}
+                  behaviors={keymap.behaviors}
+                  layers={layersForSelector}
+                  keymap={keymap.isFullyLoaded ? keymap.keymap : null}
+                  keyboardLayout={keyboardLayoutContext.layout}
+                  onDeleted={() => {
+                    setSelectedTapDance(null);
+                    setRightView(null);
+                  }}
+                />
+              ) : rightView === "tapdance-settings" &&
+                runtimeTapDance.isAvailable ? (
+                <TapDanceGlobalSettingsCard
+                  key={runtimeTapDance.revision}
+                  runtime={runtimeTapDance}
+                />
+              ) : rightView === "macro" && macroAvailable ? (
                 <MacroEditorCard
                   macro={macroEditor}
                   runtimeMacro={runtimeMacro}
@@ -839,7 +1093,7 @@ export function MacroComboPage() {
                       className="mx-auto mb-3 text-[var(--color-electric)]"
                     />
                     <h2 className="text-sm font-medium text-[var(--color-text)]">
-                      {t("Select a macro or combo")}
+                      {t("Select a macro, combo, or tapdance")}
                     </h2>
                     <p className="text-sm text-[var(--color-text-muted)] mt-1">
                       {t("Choose an item from the lists on the left.")}

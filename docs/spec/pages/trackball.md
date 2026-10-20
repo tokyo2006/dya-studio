@@ -33,6 +33,10 @@ UI の数値範囲は scaling 0.01–10、rotation -180–180°、temporary laye
 
 ## 現行の機能仕様
 
+ページタイトル直下の説明文と主操作の狭幅配置は[共通画面 SHELL-022](../modules/app-shell.md)に従う。幅640px未満では説明文を非表示にし、操作はタイトル行から配置して必要な分だけ折り返す。
+
+ページ見出し左の装飾アイコンは[共通画面 SHELL-021](../modules/app-shell.md)に従い、幅640px未満では枠ごと非表示、640px以上では表示する。
+
 モバイル幅のページ表示・共通操作・説明は[共通画面 SHELL-009/010/011](../modules/app-shell.md)に従う。下記の可用性・保存・エラー契約は画面幅で変わらない。
 
 | ID        | 前提 → 操作                                                     | 観測できる結果                                                                                                          | 保存範囲・副作用                                                                                                         | 根拠  |
@@ -47,6 +51,8 @@ UI の数値範囲は scaling 0.01–10、rotation -180–180°、temporary laye
 | TRACK-008 | PMW3610 driver row を選ぶ                                       | `CustomSettingsSectionCard` の当該 custom subsystem section                                                             | custom-settings subsystem が無い/section 0 の場合は編集不能。個別 field の保存契約は S4                                  | S1/S4 |
 | TRACK-009 | `Versions` から snapshot を選ぶ                                 | diff modal を経て restore の入口                                                                                        | IndexedDB 等の履歴契約は [version history](../modules/version-history.md)。processor firmware default reset は提供しない | S1    |
 | TRACK-010 | mobile dropdown で processor / PMW3610 driver を選ぶ            | menu が閉じ、選択種別と項目名を二段表示して直下の detail を切り替える。driver の未保存 dot は trigger / item に表示する | 選択だけでは書込まない。隣接 Reload は選択中の subsystem だけを再読込する                                                | S1/S4 |
+
+TRACK-003〜007 の processor switch は、表示中の設定名と選択中 processor 名を含むローカライズ済み accessible name を持ち、`checked` 状態をその processor の現在値に一致させる。日本語・英語の両方で確認する。
 
 ### 慣性と動作確認（2026-09-26 追加）
 
@@ -129,3 +135,5 @@ UI の数値範囲は scaling 0.01–10、rotation -180–180°、temporary laye
 
 - #28 firmwareの物理入力による慣性/Fast input通知、USB/BLE実機での設定読戻し、Pointer Lockの全ブラウザ対応は別途検証。Demoは物理慣性をシミュレーションしない。
 - processor RPC の power-cycle persistence、sensor の物理的 tracking 品質、custom settings の flash 境界、遅延 failure rollback は未検証。
+
+- 2026-10-15、`b3f0ea5`、Demo の `trackpad` / inertia `Input threshold` で、基準値 `10` → `-1` または空欄 → debounce より長い 2 秒待機 → `Reload processors` の後も local draft と `aria-invalid=true` が残った。Orca で両条件、Chrome で `-1` を観測した。`InertiaNumber` は不正入力時に queued write を取消し、読戻し値が前と同じなら local draft を消さない（S5）。TRACK-001 のデバイス再取得と TRACK-012 の不正入力保持は別で、Reload が無効 draft を破棄するべきかは要求が未確定。RPC の失敗や不正値の device 保存と断定せず、復帰仕様の不足として残す。実測した復帰は有効な `10` の再入力 → 2 秒待機 → Reload → `10` / `aria-invalid=false`。実機条件は未実行。

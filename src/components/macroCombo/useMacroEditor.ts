@@ -43,6 +43,7 @@ type TranslateFn = (key: string, params?: TranslationParams) => string;
 export type MacroGlobalField = "tapMs";
 
 export interface UseMacroEditorArgs {
+  immediate?: boolean;
   runtimeMacro: UseRuntimeMacroReturn;
   keymap: UseKeymapReturn;
   layers: Array<{ id: number; name: string }>;
@@ -57,6 +58,7 @@ export interface UseMacroEditorArgs {
 }
 
 export function useMacroEditor({
+  immediate = false,
   runtimeMacro,
   keymap,
   layers,
@@ -68,8 +70,11 @@ export function useMacroEditor({
 }: UseMacroEditorArgs) {
   const [selectedName, setSelectedName] = useState<string | null>(null);
   const [loadedMacro, setLoadedMacro] = useState<MacroDetail | null>(null);
+  const failedWritesRef = useRef(new Set<string>());
   const loadingSlotRef = useRef<number | null>(null);
   const loadedMacroRef = useRef<MacroDetail | null>(null);
+  const renamingRef = useRef(false);
+  const renameBarrierRef = useRef<() => Promise<void>>(async () => {});
   loadedMacroRef.current = loadedMacro;
   const [editingStepIndex, setEditingStepIndex] = useState<number | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -204,6 +209,7 @@ export function useMacroEditor({
   useEffect(() => {
     const timer = window.setTimeout(() => {
       if (isCreateDraft) return;
+      if (renamingRef.current) return;
       if (!runtimeMacro.isAvailable || runtimeMacro.macros.length === 0) {
         setSelectedName(null);
         setLoadedMacro(null);
@@ -242,27 +248,48 @@ export function useMacroEditor({
 
   const commitRename = useCallback(
     async (nextName = renameDraft) => {
-      if (isCreateDraft) return;
-      if (!requireUnlocked()) return;
-      if (!loadedMacro) return;
+      if (isCreateDraft) return true;
+      const current = loadedMacroRef.current;
+      if (!requireUnlocked() || !current) return false;
       const trimmedName = nextName.slice(0, runtimeMacro.maxNameLength).trim();
-      if (!trimmedName || trimmedName === loadedMacro.name) {
-        setRenameDraft(loadedMacro.name);
-        return;
+      if (!trimmedName) {
+        if (immediate) return false;
+        setRenameDraft(current.name);
+        return true;
       }
-      const ok = await runtimeMacro.renameMacro(loadedMacro.name, trimmedName);
-      if (ok) {
-        setSelectedName(trimmedName);
-        setLoadedMacro({ ...loadedMacro, name: trimmedName });
-      } else {
-        setRenameDraft(loadedMacro.name);
+      if (trimmedName === current.name) {
+        setRenameDraft(current.name);
+        return true;
+      }
+      renamingRef.current = true;
+      try {
+        const ok = await runtimeMacro.renameMacro(current.name, trimmedName);
+        if (ok) {
+          const slot = runtimeMacro.getMacroSlot(trimmedName);
+          if (slot === null) return false;
+          const renamed = {
+            ...(loadedMacroRef.current ?? current),
+            name: trimmedName,
+            slot,
+          };
+          loadedMacroRef.current = renamed;
+          setSelectedName(trimmedName);
+          setLoadedMacro(renamed);
+        } else if (!immediate) {
+          setRenameDraft(current.name);
+        }
+        return ok;
+      } finally {
+        renamingRef.current = false;
       }
     },
-    [isCreateDraft, loadedMacro, renameDraft, runtimeMacro, requireUnlocked],
+    [immediate, isCreateDraft, renameDraft, runtimeMacro, requireUnlocked],
   );
 
   const commitSteps = useCallback(
     async (steps: MacroStep[]) => {
+      if (!isCreateDraft) await renameBarrierRef.current();
+      if (failedWritesRef.current.has("rename")) return false;
       const current = loadedMacroRef.current;
       if (!current) return false;
       if (!canCommitSteps(steps)) {
@@ -414,9 +441,10 @@ export function useMacroEditor({
   );
 
   const commitStringChange = useCallback(async () => {
-    if (!loadedMacro || stringConversionError) return;
+    if (!loadedMacro || stringConversionError) return false;
     const ok = await commitSteps(loadedMacro.steps);
     if (ok) setStringDraft(null);
+    return ok;
   }, [commitSteps, loadedMacro, stringConversionError]);
 
   const handleDelayChange = useCallback(
@@ -432,52 +460,61 @@ export function useMacroEditor({
     [loadedMacro],
   );
 
-  const commitDelay = useCallback(
-    async (stepIndex: number) => {
-      if (!loadedMacro) return;
-      await updateStep(stepIndex, loadedMacro.steps[stepIndex]);
-    },
-    [loadedMacro, updateStep],
-  );
+  const commitDelay = useCallback(async () => {
+    if (!loadedMacro) return false;
+    return commitSteps(loadedMacro.steps);
+  }, [loadedMacro, commitSteps]);
 
   // Debounced memory writes for free-text/number edits: typing auto-writes to
   // keyboard memory after a quiet period (flushed on blur / before Save).
   // Discrete dropdown selections keep committing immediately (see updateStep).
+  const trackWrite = useCallback(
+    async (field: string, write: () => Promise<boolean>) => {
+      // Keep a failed edit unsavable until that field succeeds or is discarded.
+      failedWritesRef.current.add(field);
+      if (await write()) failedWritesRef.current.delete(field);
+    },
+    [],
+  );
+
   const renameDebounce = useDebouncedMemoryWrite<string>(
     useCallback(
       async (name: string) => {
-        await commitRename(name);
+        await trackWrite("rename", () => commitRename(name));
       },
-      [commitRename],
+      [commitRename, trackWrite],
     ),
+    immediate ? 0 : undefined,
   );
+  renameBarrierRef.current = renameDebounce.flush;
 
   const delayDebounce = useDebouncedMemoryWrite<number>(
-    useCallback(
-      async (stepIndex: number) => {
-        await commitDelay(stepIndex);
-      },
-      [commitDelay],
-    ),
+    useCallback(async () => {
+      await trackWrite("delay", commitDelay);
+    }, [commitDelay, trackWrite]),
+    immediate ? 0 : undefined,
   );
 
   const stringDebounce = useDebouncedMemoryWrite<void>(
     useCallback(async () => {
-      await commitStringChange();
-    }, [commitStringChange]),
+      await trackWrite("string", commitStringChange);
+    }, [commitStringChange, trackWrite]),
+    immediate ? 0 : undefined,
   );
 
   const tapMsDebounce = useDebouncedMemoryWrite<number>(
     useCallback(
       async (tapMs: number) => {
-        if (!requireUnlocked()) return;
-        const ok = await runtimeMacro.setTapMs(clampUInt32(tapMs));
-        if (ok) {
-          setGlobalModifiedFields((prev) => new Set(prev).add("tapMs"));
-        }
+        await trackWrite("tapMs", async () => {
+          if (!requireUnlocked()) return false;
+          const ok = await runtimeMacro.setTapMs(clampUInt32(tapMs));
+          if (ok) setGlobalModifiedFields((prev) => new Set(prev).add("tapMs"));
+          return ok;
+        });
       },
-      [requireUnlocked, runtimeMacro],
+      [requireUnlocked, runtimeMacro, trackWrite],
     ),
+    immediate ? 0 : undefined,
   );
 
   const handleRenameChange = useCallback(
@@ -509,6 +546,8 @@ export function useMacroEditor({
   }, [delayDebounce, stringDebounce]);
 
   const handleAddStep = useCallback(async () => {
+    if (!isCreateDraft) await renameDebounce.flush();
+    if (failedWritesRef.current.has("rename")) return;
     if (!isCreateDraft) await flushStepWrites();
     const current = loadedMacroRef.current;
     if (!current) return;
@@ -548,7 +587,13 @@ export function useMacroEditor({
       );
       await runtimeMacro.loadMacros();
     }
-  }, [flushStepWrites, isCreateDraft, runtimeMacro, requireUnlocked]);
+  }, [
+    renameDebounce,
+    flushStepWrites,
+    isCreateDraft,
+    runtimeMacro,
+    requireUnlocked,
+  ]);
 
   const handleRemoveStep = useCallback(
     async (startIndex: number, length: number) => {
@@ -682,6 +727,7 @@ export function useMacroEditor({
     await tapMsDebounce.flush();
     await delayDebounce.flush();
     await stringDebounce.flush();
+    return failedWritesRef.current.size === 0;
   }, [delayDebounce, renameDebounce, stringDebounce, tapMsDebounce]);
 
   /** Drop queued edits — discard restores the persisted values. */
@@ -690,6 +736,7 @@ export function useMacroEditor({
     tapMsDebounce.cancel();
     delayDebounce.cancel();
     stringDebounce.cancel();
+    failedWritesRef.current.clear();
   }, [delayDebounce, renameDebounce, stringDebounce, tapMsDebounce]);
 
   const isMemoryWritePending =

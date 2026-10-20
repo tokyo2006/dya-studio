@@ -6,6 +6,7 @@ import {
   useEffect,
   useCallback,
   useContext,
+  useId,
 } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -21,7 +22,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { AdvancedSettingsSection } from "../components/AdvancedSettingsSection";
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import { ConnectionContext } from "../contexts/DeviceConnectionContext";
-import { useSettings } from "../hooks/useSettings";
+import { useSettings, type UseSettingsReturn } from "../hooks/useSettings";
 import { useResetSettings } from "../hooks/useResetSettings";
 import { useDebouncedMemoryWrite } from "../hooks/useDebouncedMemoryWrite";
 import { useLanguage } from "../hooks/useLanguage";
@@ -98,12 +99,16 @@ interface TimeDropdownProps {
 
 function TimeDropdown({ label, value, onChange, presets }: TimeDropdownProps) {
   const { t } = useLanguage();
+  const id = useId();
+  const optionsId = `${id}-options`;
+  const customInputId = `${id}-custom-value`;
   const [isOpen, setIsOpen] = useState(false);
   const [customInput, setCustomInput] = useState("");
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const customOptionRef = useRef<HTMLButtonElement>(null);
 
   const valueInMinutes = msToMinutes(value);
   const matchingPreset = presets.find((p) => p.value === valueInMinutes);
@@ -121,6 +126,12 @@ function TimeDropdown({ label, value, onChange, presets }: TimeDropdownProps) {
         top: rect.bottom + 4,
         left: rect.right - 192, // 192px = w-48
       });
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen) {
+      dropdownRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
     }
   }, [isOpen]);
 
@@ -157,6 +168,7 @@ function TimeDropdown({ label, value, onChange, presets }: TimeDropdownProps) {
     onChange(minutesToMs(minutes));
     setIsOpen(false);
     setShowCustomInput(false);
+    buttonRef.current?.focus();
   };
 
   const handleCustomSubmit = () => {
@@ -166,7 +178,14 @@ function TimeDropdown({ label, value, onChange, presets }: TimeDropdownProps) {
       setShowCustomInput(false);
       setIsOpen(false);
       setCustomInput("");
+      buttonRef.current?.focus();
     }
+  };
+
+  const handleCustomCancel = () => {
+    setShowCustomInput(false);
+    setCustomInput("");
+    customOptionRef.current?.focus();
   };
 
   return (
@@ -174,102 +193,125 @@ function TimeDropdown({ label, value, onChange, presets }: TimeDropdownProps) {
       <button
         ref={buttonRef}
         type="button"
-        aria-label={label}
+        aria-labelledby={`${id}-label ${id}-value`}
+        aria-expanded={isOpen}
+        aria-controls={optionsId}
         className="w-40 min-h-9 px-3 py-2 rounded-lg text-sm flex items-center justify-between gap-3 bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)] hover:border-[var(--color-border-hover)]"
         onClick={() => setIsOpen(!isOpen)}
       >
-        <span>{displayText}</span>
+        <span id={`${id}-label`} className="sr-only">
+          {label}
+        </span>
+        <span id={`${id}-value`}>{displayText}</span>
         <IconChevronDown size={16} className="text-[var(--color-text-muted)]" />
       </button>
 
-      {isOpen &&
-        createPortal(
-          <div
-            ref={dropdownRef}
-            className="fixed w-48 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg z-[9999] py-1"
-            style={{
-              top: `${dropdownPosition.top}px`,
-              left: `${dropdownPosition.left}px`,
-            }}
-          >
-            {presets.map((preset) => (
-              <button
-                key={preset.value}
-                type="button"
-                className={`w-full px-4 py-2 text-left text-sm hover:bg-[var(--color-border)] transition-colors ${
-                  preset.value === valueInMinutes
-                    ? "text-[var(--color-electric)]"
-                    : "text-[var(--color-text-secondary)]"
-                }`}
-                onClick={() => handlePresetSelect(preset.value)}
+      {createPortal(
+        <div
+          id={optionsId}
+          ref={dropdownRef}
+          role="group"
+          aria-label={t("{{label}} options", { label })}
+          hidden={!isOpen}
+          className="fixed w-48 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg z-[9999] py-1"
+          style={{
+            top: `${dropdownPosition.top}px`,
+            left: `${dropdownPosition.left}px`,
+          }}
+        >
+          {presets.map((preset) => (
+            <button
+              key={preset.value}
+              type="button"
+              aria-pressed={preset.value === valueInMinutes}
+              className={`w-full px-4 py-2 text-left text-sm hover:bg-[var(--color-border)] transition-colors ${
+                preset.value === valueInMinutes
+                  ? "text-[var(--color-electric)]"
+                  : "text-[var(--color-text-secondary)]"
+              }`}
+              onClick={() => handlePresetSelect(preset.value)}
+            >
+              {t(preset.label)}
+            </button>
+          ))}
+          <div className="border-t border-[var(--color-border)] mt-1 pt-1">
+            <button
+              ref={customOptionRef}
+              type="button"
+              aria-pressed={!matchingPreset}
+              className="w-full px-4 py-2 text-left text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-border)] transition-colors"
+              onClick={() => setShowCustomInput(true)}
+            >
+              {t("Custom value...")}
+            </button>
+            {showCustomInput && (
+              <form
+                className="px-4 py-2 space-y-2"
+                noValidate
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  handleCustomSubmit();
+                }}
               >
-                {t(preset.label)}
-              </button>
-            ))}
-            <div className="border-t border-[var(--color-border)] mt-1 pt-1">
-              {!showCustomInput ? (
-                <button
-                  type="button"
-                  className="w-full px-4 py-2 text-left text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-border)] transition-colors"
-                  onClick={() => setShowCustomInput(true)}
-                >
-                  {t("Custom value...")}
-                </button>
-              ) : (
-                <div className="px-4 py-2 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.5"
-                      className="input-field w-20 text-sm text-center"
-                      placeholder="0"
-                      value={customInput}
-                      onChange={(e) => setCustomInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          handleCustomSubmit();
-                        }
-                      }}
-                      autoFocus
-                    />
-                    <span className="text-xs text-[var(--color-text-muted)]">
-                      {t("min")}
-                    </span>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      className="flex-1 px-2 py-1 text-xs rounded bg-[var(--color-electric)] text-[var(--color-bg)] hover:bg-[var(--color-electric)]/80"
-                      onClick={handleCustomSubmit}
-                    >
-                      {t("Set")}
-                    </button>
-                    <button
-                      type="button"
-                      className="flex-1 px-2 py-1 text-xs rounded border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border)]"
-                      onClick={() => {
-                        setShowCustomInput(false);
-                        setCustomInput("");
-                      }}
-                    >
-                      {t("Cancel")}
-                    </button>
-                  </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    id={customInputId}
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    className="input-field w-20 text-sm text-center"
+                    placeholder="0"
+                    aria-label={`${label} (${t("min")})`}
+                    value={customInput}
+                    onChange={(e) => setCustomInput(e.target.value)}
+                    autoFocus
+                  />
+                  <span className="text-xs text-[var(--color-text-muted)]">
+                    {t("min")}
+                  </span>
                 </div>
-              )}
-            </div>
-          </div>,
-          document.body,
-        )}
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    className="flex-1 px-2 py-1 text-xs rounded bg-[var(--color-electric)] text-[var(--color-bg)] hover:bg-[var(--color-electric)]/80"
+                  >
+                    {t("Set")}
+                  </button>
+                  <button
+                    type="button"
+                    className="flex-1 px-2 py-1 text-xs rounded border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border)]"
+                    onClick={handleCustomCancel}
+                  >
+                    {t("Cancel")}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }
 
 export function SettingsPage() {
+  const settings = useSettings();
+  const [session, setSession] = useState({
+    key: settings.sessionKey,
+    revision: 0,
+  });
+  // Reset editors, portals, debounce timers and success feedback together.
+  // A tab switch preserves this key; a new connection or capability does not.
+  if (session.key !== settings.sessionKey) {
+    setSession({ key: settings.sessionKey, revision: session.revision + 1 });
+  }
+  return <SettingsSessionPage key={session.revision} settings={settings} />;
+}
+
+function SettingsSessionPage({ settings }: { settings: UseSettingsReturn }) {
   const { t } = useLanguage();
   const connection = useContext(ConnectionContext);
-  const settings = useSettings();
   const {
     isAvailable,
     devices,
@@ -292,7 +334,7 @@ export function SettingsPage() {
   // eagerly — Advanced Settings loads lazily and keeps its own controls).
   const versionHistory = useSettingsVersionHistory({
     settings,
-    isLoaded: !isLoading && devices.length > 0,
+    isLoaded: isAvailable && !isLoading && devices.length > 0,
     t,
   });
 
@@ -313,8 +355,8 @@ export function SettingsPage() {
 
   // Get central device settings (source 0)
   const centralSettings = useMemo(
-    () => devices.find((d) => d.sourceId === 0),
-    [devices],
+    () => (isAvailable ? devices.find((d) => d.sourceId === 0) : undefined),
+    [devices, isAvailable],
   );
 
   // Optimistic pending value shown while a debounced write is in flight. This
@@ -478,9 +520,9 @@ export function SettingsPage() {
     <div className="app-page p-4 sm:p-6 h-full">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4 mb-6">
+        <div className="page-header flex flex-wrap items-center justify-between gap-x-6 gap-y-4 mb-6">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="shrink-0 p-2 rounded-lg bg-[var(--color-electric)]/10 border border-[var(--color-electric)]/20">
+            <div className="hidden sm:block shrink-0 p-2 rounded-lg bg-[var(--color-electric)]/10 border border-[var(--color-electric)]/20">
               <IconSettings
                 size={24}
                 className="text-[var(--color-electric)]"
@@ -490,7 +532,7 @@ export function SettingsPage() {
               <h1 className="text-xl font-medium text-[var(--color-text)]">
                 {t("Settings")}
               </h1>
-              <p className="text-sm text-[var(--color-text-muted)]">
+              <p className="page-header-description text-sm text-[var(--color-text-muted)]">
                 {t("Device configuration and power management")}
               </p>
             </div>
@@ -498,7 +540,7 @@ export function SettingsPage() {
           {/* The page keeps its state across tab switches, so re-reading the
               device is an explicit action. */}
           {isAvailable && (
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="page-header-actions flex flex-wrap items-center gap-2">
               <ResponsiveButton
                 label={t("Reload")}
                 className="btn-ghost text-sm flex items-center gap-1.5 flex-shrink-0"
@@ -530,7 +572,7 @@ export function SettingsPage() {
           )}
         </div>
 
-        {!isAvailable && !isLoading && !error && (
+        {connection.isConnected && !isAvailable && (
           <div className="mb-6 p-4 rounded-lg bg-[var(--color-border)] border border-[var(--color-border-hover)] flex items-start gap-3">
             <div className="p-2">
               <IconAlertTriangleFilled size={24} className="text-red-500" />
@@ -624,7 +666,7 @@ export function SettingsPage() {
 
               {/* Show all devices status - moved after inputs */}
               {devices.length > 0 && (
-                <div className="mt-6 p-4 rounded-lg bg-[var(--color-border)]">
+                <div className="device-settings-summary mt-6 p-4 rounded-lg bg-[var(--color-border)]">
                   <p className="text-xs font-medium text-[var(--color-text-muted)] mb-2">
                     {t("Current Settings by Device")}:
                   </p>
@@ -649,7 +691,7 @@ export function SettingsPage() {
             <AdvancedSettingsSection />
           </div>
         ) : (
-          !isLoading && (
+          !connection.isConnected && (
             <div className="glass-card p-6">
               <p className="text-sm text-[var(--color-text-muted)]">
                 {t("Waiting for device connection...")}
