@@ -52,7 +52,6 @@ const MODULE_URL = "https://github.com/tokyo2006/cirque-input-module";
 const TPS43_MODULE_NAME = "tokyo2006/tps43-input-module";
 const TPS43_MODULE_URL = "https://github.com/tokyo2006/tps43-input-module";
 const U16_MAX = 65535;
-const U32_MAX = 4294967295;
 
 const SLIDER_CLASS = `w-full h-2 rounded-lg appearance-none cursor-pointer
   bg-[var(--color-border)]
@@ -175,48 +174,6 @@ function SliderRow({
         onChange={(e) => onChange(Number(e.target.value))}
         className={SLIDER_CLASS}
       />
-    </div>
-  );
-}
-
-function ChoiceRow<T extends number>({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: T;
-  options: { value: T; label: string }[];
-  onChange: (v: T) => void;
-}) {
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <span className="text-sm text-[var(--color-text-secondary)]">
-        {label}
-      </span>
-      <div
-        role="radiogroup"
-        aria-label={label}
-        className="flex rounded-lg border border-[var(--color-border)] overflow-hidden"
-      >
-        {options.map((opt) => (
-          <button
-            key={opt.value}
-            type="button"
-            role="radio"
-            aria-checked={value === opt.value}
-            onClick={() => onChange(opt.value)}
-            className={`px-3 py-1.5 text-sm transition-colors ${
-              value === opt.value
-                ? "bg-[var(--color-electric)] text-white"
-                : "bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border)]"
-            }`}
-          >
-            {opt.label}
-          </button>
-        ))}
-      </div>
     </div>
   );
 }
@@ -431,13 +388,6 @@ function CirquePanel(props: UseCirqueReturn) {
                 max={100}
                 onChange={setNum("pointerSpeedPosition")}
               />
-              <SliderRow
-                label={t("Scroll Speed")}
-                value={num("scrollSpeedPosition")}
-                min={0}
-                max={100}
-                onChange={setNum("scrollSpeedPosition")}
-              />
             </Card>
 
             <Card
@@ -454,11 +404,6 @@ function CirquePanel(props: UseCirqueReturn) {
                 label={t("Secondary Tap (right click)")}
                 checked={bool("secondaryTapEnable")}
                 onChange={setBool("secondaryTapEnable")}
-              />
-              <ToggleRow
-                label={t("Auxiliary Tap (middle click)")}
-                checked={bool("auxTapEnable")}
-                onChange={setBool("auxTapEnable")}
               />
               <SliderRow
                 label={t("Right-click zone width")}
@@ -529,17 +474,6 @@ function CirquePanel(props: UseCirqueReturn) {
                 max={64}
                 onChange={setNum("scrollDivisor")}
               />
-              <ToggleRow
-                label={t("Invert Scroll")}
-                checked={bool("invertScroll")}
-                onChange={setBool("invertScroll")}
-              />
-              <ToggleRow
-                label={t("Drag Scroll")}
-                description={t("Turn pointer movement into scrolling")}
-                checked={bool("dragScrollEnabled")}
-                onChange={setBool("dragScrollEnabled")}
-              />
             </Card>
 
             <Card
@@ -555,23 +489,13 @@ function CirquePanel(props: UseCirqueReturn) {
                 onChange={setBool("edgeMotionEnable")}
               />
               {bool("edgeMotionEnable") && (
-                <>
-                  <SliderRow
-                    label={t("Edge Zone")}
-                    value={num("edgeMotionZone")}
-                    min={0}
-                    max={500}
-                    step={10}
-                    onChange={setNum("edgeMotionZone")}
-                  />
-                  <SliderRow
-                    label={t("Edge Motion Speed")}
-                    value={num("edgeMotionSpeed")}
-                    min={1}
-                    max={50}
-                    onChange={setNum("edgeMotionSpeed")}
-                  />
-                </>
+                <SliderRow
+                  label={t("Edge Motion Speed")}
+                  value={num("edgeMotionSpeed")}
+                  min={1}
+                  max={50}
+                  onChange={setNum("edgeMotionSpeed")}
+                />
               )}
               <ToggleRow
                 label={t("Sleep Mode")}
@@ -593,55 +517,6 @@ function CirquePanel(props: UseCirqueReturn) {
               />
             </summary>
             <div className="grid grid-cols-1 desktop:grid-cols-2 gap-x-8 gap-y-4 px-6 pb-6">
-              <ChoiceRow
-                label={t("Data Mode")}
-                value={num("dataMode")}
-                options={[
-                  { value: 0, label: t("Absolute") },
-                  { value: 1, label: t("Relative") },
-                ]}
-                onChange={setNum("dataMode")}
-              />
-              <ChoiceRow
-                label={t("Sensitivity")}
-                value={num("sensitivity")}
-                options={[
-                  { value: 0, label: "1x" },
-                  { value: 1, label: "2x" },
-                ]}
-                onChange={setNum("sensitivity")}
-              />
-              <ChoiceRow
-                label={t("Rotation")}
-                value={num("rotateDegrees")}
-                options={[0, 90, 180, 270].map((d) => ({
-                  value: d,
-                  label: `${d}°`,
-                }))}
-                onChange={setNum("rotateDegrees")}
-              />
-              <ToggleRow
-                label={t("Invert X")}
-                checked={bool("invertX")}
-                onChange={setBool("invertX")}
-              />
-              <ToggleRow
-                label={t("Invert Y")}
-                checked={bool("invertY")}
-                onChange={setBool("invertY")}
-              />
-              <ToggleRow
-                label={t("Swap X/Y")}
-                checked={bool("swapXy")}
-                onChange={setBool("swapXy")}
-              />
-              <NumberRow
-                label={t("Scroll Zone (legacy)")}
-                value={num("scrollZone")}
-                min={0}
-                max={U16_MAX}
-                onChange={setNum("scrollZone")}
-              />
               <NumberRow
                 label={t("Max Tap Movement")}
                 value={num("tapMaxMovement")}
@@ -663,76 +538,27 @@ function CirquePanel(props: UseCirqueReturn) {
                 max={U16_MAX}
                 onChange={setNum("tapDragMaxMovement")}
               />
-              <NumberRow
-                label={t("Secondary Tap Area Width")}
-                value={num("secondaryTapAreaWidth")}
-                min={0}
-                max={U16_MAX}
-                onChange={setNum("secondaryTapAreaWidth")}
-              />
-              <NumberRow
-                label={t("Secondary Tap Area Height")}
-                value={num("secondaryTapAreaHeight")}
-                min={0}
-                max={U16_MAX}
-                onChange={setNum("secondaryTapAreaHeight")}
-              />
-              <NumberRow
-                label={t("Auxiliary Tap Area Width")}
-                value={num("auxTapAreaWidth")}
-                min={0}
-                max={U16_MAX}
-                onChange={setNum("auxTapAreaWidth")}
-              />
-              <NumberRow
-                label={t("Auxiliary Tap Area Height")}
-                value={num("auxTapAreaHeight")}
-                min={0}
-                max={U16_MAX}
-                onChange={setNum("auxTapAreaHeight")}
-              />
-              <NumberRow
-                label={t("Edge Motion Interval (ms)")}
-                value={num("edgeMotionIntervalMs")}
-                min={0}
-                max={U16_MAX}
-                onChange={setNum("edgeMotionIntervalMs")}
-              />
-              <NumberRow
-                label={t("Edge Motion Start Delay (ms)")}
-                value={num("edgeMotionStartMs")}
-                min={0}
-                max={U16_MAX}
-                onChange={setNum("edgeMotionStartMs")}
-              />
-              <NumberRow
-                label={t("Relative Multiplier")}
-                value={num("relativeMultiplier")}
-                min={1}
-                max={U32_MAX}
-                onChange={setNum("relativeMultiplier")}
-              />
-              <NumberRow
-                label={t("Relative Divisor")}
-                value={num("relativeDivisor")}
-                min={1}
-                max={U32_MAX}
-                onChange={setNum("relativeDivisor")}
-              />
-              <NumberRow
-                label={t("Absolute Multiplier")}
-                value={num("absoluteRelativeMultiplier")}
-                min={1}
-                max={U16_MAX}
-                onChange={setNum("absoluteRelativeMultiplier")}
-              />
-              <NumberRow
-                label={t("Absolute Divisor")}
-                value={num("absoluteRelativeDivisor")}
-                min={1}
-                max={U16_MAX}
-                onChange={setNum("absoluteRelativeDivisor")}
-              />
+              <div className="space-y-3">
+                <ToggleRow
+                  label={t("Auxiliary Tap (middle click)")}
+                  checked={bool("auxTapEnable")}
+                  onChange={setBool("auxTapEnable")}
+                />
+                <NumberRow
+                  label={t("Auxiliary Tap Area Width")}
+                  value={num("auxTapAreaWidth")}
+                  min={0}
+                  max={U16_MAX}
+                  onChange={setNum("auxTapAreaWidth")}
+                />
+                <NumberRow
+                  label={t("Auxiliary Tap Area Height")}
+                  value={num("auxTapAreaHeight")}
+                  min={0}
+                  max={U16_MAX}
+                  onChange={setNum("auxTapAreaHeight")}
+                />
+              </div>
               <div className="desktop:col-span-2 rounded-lg border border-[var(--color-border)] p-3 text-xs leading-relaxed text-[var(--color-text-muted)]">
                 <div className="mb-1 font-medium text-[var(--color-text-secondary)]">
                   {t("Firmware calibration (read-only)")}

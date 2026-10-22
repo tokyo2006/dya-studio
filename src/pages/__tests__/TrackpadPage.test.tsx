@@ -86,16 +86,17 @@ describe("TrackpadPage", () => {
     render(<TrackpadPage />);
 
     expect(screen.getByRole("switch", { name: "Tap to Click" })).toBeChecked();
-    expect(screen.getByRole("radio", { name: "0°" })).toHaveAttribute(
-      "aria-checked",
-      "true",
+    expect(
+      screen.getByRole("slider", { name: "Right-click zone width" }),
+    ).toHaveValue("250");
+
+    await userEvent.click(
+      screen.getByRole("switch", { name: "Secondary Tap (right click)" }),
     );
+    expect(hook.update).toHaveBeenCalledWith({ secondaryTapEnable: true });
 
-    await userEvent.click(screen.getByRole("switch", { name: "Invert X" }));
-    expect(hook.update).toHaveBeenCalledWith({ invertX: true });
-
-    await userEvent.click(screen.getByRole("radio", { name: "90°" }));
-    expect(hook.update).toHaveBeenCalledWith({ rotateDegrees: 90 });
+    await userEvent.click(screen.getByRole("switch", { name: "Sleep Mode" }));
+    expect(hook.update).toHaveBeenCalledWith({ sleepModeEnable: false });
   });
 
   it("hides dependent sliders until their feature is on", () => {
@@ -110,33 +111,24 @@ describe("TrackpadPage", () => {
     );
   });
 
-  it("commits advanced numbers on blur, clamped, and ignores invalid drafts", async () => {
-    const hook = mockHook({
-      values: { ...CIRQUE_DEFAULT_STATE, relativeDivisor: 4 },
-    });
+  it("commits advanced numbers on blur, clamped, and ignores empty drafts", async () => {
+    const hook = mockHook();
     render(<TrackpadPage />);
-    const divisor = screen.getByRole("spinbutton", {
-      name: "Relative Divisor",
-    });
-
-    await userEvent.clear(divisor);
-    expect(divisor).toHaveValue(null);
-    await userEvent.type(divisor, "0");
-    expect(hook.update).not.toHaveBeenCalled();
-    await userEvent.tab();
-    expect(hook.update).toHaveBeenCalledWith({ relativeDivisor: 1 });
-
     const movement = screen.getByRole("spinbutton", {
       name: "Max Tap Movement",
     });
+
+    // Empty draft is discarded and the value is restored.
     await userEvent.clear(movement);
+    expect(movement).toHaveValue(null);
     await userEvent.tab();
-    expect(hook.update).toHaveBeenCalledTimes(1);
+    expect(hook.update).not.toHaveBeenCalled();
     expect(movement).toHaveValue(200);
 
+    // Out-of-range drafts clamp to the field maximum.
     await userEvent.clear(movement);
-    await userEvent.type(movement, "300{Enter}");
-    expect(hook.update).toHaveBeenLastCalledWith({ tapMaxMovement: 300 });
+    await userEvent.type(movement, "999999{Enter}");
+    expect(hook.update).toHaveBeenLastCalledWith({ tapMaxMovement: 65535 });
   });
 
   it("shows the pending write state", () => {
