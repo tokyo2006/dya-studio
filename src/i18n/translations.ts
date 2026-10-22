@@ -9,6 +9,27 @@ export const languageLabels: Record<Language, string> = {
 };
 
 const ja: Record<string, string> = {
+  // Cirque zones & gesture preview
+  "Zones & gesture preview": "ゾーンとジェスチャープレビュー",
+  "Drag on the pad to see how the firmware classifies the gesture":
+    "パッド上でドラッグすると、ファームウェアの判定を確認できます",
+  "Press and drag on the pad to simulate a gesture.":
+    "パッド上を押してドラッグするとジェスチャーを再現できます。",
+  Gesture: "ジェスチャー",
+  "Wheel ticks": "ホイール量",
+  Button: "ボタン",
+  "Pointer delta": "ポインタ移動量",
+  "Pointer move": "ポインタ移動",
+  "Edge scroll": "エッジスクロール",
+  "Tap and drag": "タップ＆ドラッグ",
+  "Left click (hold)": "左クリック（保持）",
+  "Right-click wedge": "右クリック領域",
+  "Scroll band": "スクロール帯",
+  "Hatched ring = module border (not sensitive)":
+    "斜線リング = モジュール枠（感知しない）",
+  down: "ダウン",
+  up: "アップ",
+  ticks: "目盛り",
   "Update Abyss keymap": "Abyss のキーマップを更新",
   "Module settings for new layers require Keymap to be selected.":
     "新しいレイヤーのモジュール設定を転送するには、キーマップも選択してください。",
@@ -1759,6 +1780,26 @@ const ja: Record<string, string> = {
 };
 
 const zh: Record<string, string> = {
+  // Cirque zones & gesture preview
+  "Zones & gesture preview": "区域与手势预览",
+  "Drag on the pad to see how the firmware classifies the gesture":
+    "在触控板上拖一条手势，看固件会怎么判定",
+  "Press and drag on the pad to simulate a gesture.":
+    "在圆盘上按住并拖动，即可模拟一条手势。",
+  Gesture: "手势",
+  "Wheel ticks": "滚轮格数",
+  Button: "按键",
+  "Pointer delta": "光标位移",
+  "Pointer move": "光标移动",
+  "Edge scroll": "边缘滚动",
+  "Tap and drag": "轻点拖拽",
+  "Left click (hold)": "左键按住",
+  "Right-click wedge": "右键楔形",
+  "Scroll band": "滚动带",
+  "Hatched ring = module border (not sensitive)": "斜线环 = 模块边框（不感应）",
+  down: "按下",
+  up: "抬起",
+  ticks: "格",
   "Module settings for new layers require Keymap to be selected.":
     "传输新层的模块设置需要同时选择键位映射。",
   // Keymap sharing preview

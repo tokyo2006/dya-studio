@@ -20,6 +20,7 @@ import { useLanguage } from "../hooks/useLanguage";
 import { useCirque, type UseCirqueReturn } from "../hooks/useCirque";
 import { useTps43, type UseTps43Return } from "../hooks/useTps43";
 import { LoadingIndicator } from "../components/LoadingIndicator";
+import { TrackpadZoneMap } from "../components/TrackpadZoneMap";
 import { ResponsiveButton } from "../components/ResponsiveButton";
 import type { CirqueState } from "../proto/tokyo2006/cirque/cirque";
 import type { Tps43State } from "../proto/tokyo2006/tps43/tps43";
@@ -379,6 +380,30 @@ function CirquePanel(props: UseCirqueReturn) {
             className="mb-6"
             label={t("Loading trackpad settings...")}
           />
+        )}
+
+        {values && (
+          <div className="mb-4">
+            <Card
+              icon={<IconHandFinger size={16} />}
+              title={t("Zones & gesture preview")}
+              description={t(
+                "Drag on the pad to see how the firmware classifies the gesture",
+              )}
+            >
+              <TrackpadZoneMap
+                params={{
+                  tapMaxMs: num("tapMaxMs"),
+                  tapMove: num("tapMaxMovement"),
+                  divisor: num("scrollDivisor"),
+                  invertScroll: bool("invertScroll"),
+                  tapDragEnabled: bool("tapDragEnable"),
+                  tapDragTimeoutMs: num("tapDragTimeoutMs"),
+                  tapDragMaxMovement: num("tapDragMaxMovement"),
+                }}
+              />
+            </Card>
+          </div>
         )}
 
         {values && (
