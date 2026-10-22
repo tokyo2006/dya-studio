@@ -249,7 +249,7 @@ function CirquePanel(props: UseCirqueReturn) {
 
   return (
     <div className="app-page p-4 sm:p-6 h-full">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4 mb-6">
           <div className="flex min-w-0 items-center gap-3">
@@ -342,240 +342,240 @@ function CirquePanel(props: UseCirqueReturn) {
         )}
 
         {values && (
-          <div className="mb-4">
-            <Card
-              icon={<IconHandFinger size={16} />}
-              title={t("Zones & gesture preview")}
-              description={t(
-                "Drag on the pad to see how the firmware classifies the gesture",
-              )}
-            >
-              <TrackpadZoneMap
-                params={{
-                  wedgeWidthDeg: (num("secondaryTapWidthDeg") || 250) / 10,
-                  centerDeg: (num("secondaryTapCenterDeg") || 425) / 10,
-                  ringPct: num("edgeScrollRingPercent") || 70,
-                  halfX:
-                    (num("activeRangeXMax") - num("activeRangeXMin")) / 2 ||
-                    762,
-                  halfY:
-                    (num("activeRangeYMax") - num("activeRangeYMin")) / 2 ||
-                    598,
-                  tapMaxMs: num("tapMaxMs"),
-                  tapMove: num("tapMaxMovement"),
-                  divisor: num("scrollDivisor"),
-                  invertScroll: bool("invertScroll"),
-                  tapDragEnabled: bool("tapDragEnable"),
-                  tapDragTimeoutMs: num("tapDragTimeoutMs"),
-                  tapDragMaxMovement: num("tapDragMaxMovement"),
-                }}
-              />
-            </Card>
-          </div>
-        )}
+          <div className="grid grid-cols-1 desktop:grid-cols-[minmax(0,1fr)_minmax(360px,440px)] gap-6 items-start">
+            <div className="desktop:sticky desktop:top-6">
+              <Card
+                icon={<IconHandFinger size={16} />}
+                title={t("Zones & gesture preview")}
+                description={t(
+                  "Drag on the pad to see how the firmware classifies the gesture",
+                )}
+              >
+                <TrackpadZoneMap
+                  params={{
+                    wedgeWidthDeg: (num("secondaryTapWidthDeg") || 250) / 10,
+                    centerDeg: (num("secondaryTapCenterDeg") || 425) / 10,
+                    ringPct: num("edgeScrollRingPercent") || 70,
+                    halfX:
+                      (num("activeRangeXMax") - num("activeRangeXMin")) / 2 ||
+                      762,
+                    halfY:
+                      (num("activeRangeYMax") - num("activeRangeYMin")) / 2 ||
+                      598,
+                    tapMaxMs: num("tapMaxMs"),
+                    tapMove: num("tapMaxMovement"),
+                    divisor: num("scrollDivisor"),
+                    invertScroll: bool("invertScroll"),
+                    tapDragEnabled: bool("tapDragEnable"),
+                    tapDragTimeoutMs: num("tapDragTimeoutMs"),
+                    tapDragMaxMovement: num("tapDragMaxMovement"),
+                  }}
+                />
+              </Card>
+            </div>
 
-        {values && (
-          <div className="grid grid-cols-1 desktop:grid-cols-2 gap-4">
-            <Card
-              icon={<IconBolt size={16} />}
-              title={t("Speed")}
-              description={t("Runtime pointer and scroll speed")}
-            >
-              <SliderRow
-                label={t("Pointer Speed")}
-                value={num("pointerSpeedPosition")}
-                min={0}
-                max={100}
-                onChange={setNum("pointerSpeedPosition")}
-              />
-            </Card>
-
-            <Card
-              icon={<IconHandClick size={16} />}
-              title={t("Tap")}
-              description={t("Tap to click and tap-and-drag")}
-            >
-              <ToggleRow
-                label={t("Tap to Click")}
-                checked={bool("primaryTapEnable")}
-                onChange={setBool("primaryTapEnable")}
-              />
-              <ToggleRow
-                label={t("Secondary Tap (right click)")}
-                checked={bool("secondaryTapEnable")}
-                onChange={setBool("secondaryTapEnable")}
-              />
-              <SliderRow
-                label={t("Right-click zone width")}
-                value={num("secondaryTapWidthDeg")}
-                min={150}
-                max={400}
-                step={10}
-                unit="°"
-                format={(v) => (v / 10).toFixed(1)}
-                onChange={setNum("secondaryTapWidthDeg")}
-              />
-              <SliderRow
-                label={t("Max Tap Duration")}
-                value={num("tapMaxMs")}
-                min={50}
-                max={1000}
-                step={10}
-                unit="ms"
-                onChange={setNum("tapMaxMs")}
-              />
-              <ToggleRow
-                label={t("Tap and Drag")}
-                description={t("Tap, then touch again to hold the button")}
-                checked={bool("tapDragEnable")}
-                onChange={setBool("tapDragEnable")}
-              />
-              {bool("tapDragEnable") && (
+            <div className="space-y-4">
+              <Card
+                icon={<IconBolt size={16} />}
+                title={t("Speed")}
+                description={t("Runtime pointer and scroll speed")}
+              >
                 <SliderRow
-                  label={t("Drag Timeout")}
-                  value={num("tapDragTimeoutMs")}
-                  min={100}
+                  label={t("Pointer Speed")}
+                  value={num("pointerSpeedPosition")}
+                  min={0}
+                  max={100}
+                  onChange={setNum("pointerSpeedPosition")}
+                />
+              </Card>
+
+              <Card
+                icon={<IconHandClick size={16} />}
+                title={t("Tap")}
+                description={t("Tap to click and tap-and-drag")}
+              >
+                <ToggleRow
+                  label={t("Tap to Click")}
+                  checked={bool("primaryTapEnable")}
+                  onChange={setBool("primaryTapEnable")}
+                />
+                <ToggleRow
+                  label={t("Secondary Tap (right click)")}
+                  checked={bool("secondaryTapEnable")}
+                  onChange={setBool("secondaryTapEnable")}
+                />
+                <SliderRow
+                  label={t("Right-click zone width")}
+                  value={num("secondaryTapWidthDeg")}
+                  min={150}
+                  max={400}
+                  step={10}
+                  unit="°"
+                  format={(v) => (v / 10).toFixed(1)}
+                  onChange={setNum("secondaryTapWidthDeg")}
+                />
+                <SliderRow
+                  label={t("Max Tap Duration")}
+                  value={num("tapMaxMs")}
+                  min={50}
                   max={1000}
                   step={10}
                   unit="ms"
-                  onChange={setNum("tapDragTimeoutMs")}
+                  onChange={setNum("tapMaxMs")}
                 />
-              )}
-            </Card>
-
-            <Card
-              icon={<IconMouse size={16} />}
-              title={t("Scroll")}
-              description={t("Scroll by sliding along the trackpad edge")}
-            >
-              <ToggleRow
-                label={t("Right Edge Scroll")}
-                checked={bool("rightEdgeScrollEnable")}
-                onChange={setBool("rightEdgeScrollEnable")}
-              />
-              <ToggleRow
-                label={t("Top Edge Scroll")}
-                checked={bool("topEdgeScrollEnable")}
-                onChange={setBool("topEdgeScrollEnable")}
-              />
-              <SliderRow
-                label={t("Edge scroll band")}
-                value={num("edgeScrollRingPercent")}
-                min={50}
-                max={90}
-                step={1}
-                unit="%"
-                onChange={setNum("edgeScrollRingPercent")}
-              />
-              <SliderRow
-                label={t("Scroll Divisor")}
-                value={num("scrollDivisor")}
-                min={1}
-                max={64}
-                onChange={setNum("scrollDivisor")}
-              />
-            </Card>
-
-            <Card
-              icon={<IconArrowsMove size={16} />}
-              title={t("Edge Motion")}
-              description={t(
-                "Keep the pointer moving while a finger rests at the edge",
-              )}
-            >
-              <ToggleRow
-                label={t("Edge Motion")}
-                checked={bool("edgeMotionEnable")}
-                onChange={setBool("edgeMotionEnable")}
-              />
-              {bool("edgeMotionEnable") && (
-                <SliderRow
-                  label={t("Edge Motion Speed")}
-                  value={num("edgeMotionSpeed")}
-                  min={1}
-                  max={50}
-                  onChange={setNum("edgeMotionSpeed")}
-                />
-              )}
-              <ToggleRow
-                label={t("Sleep Mode")}
-                description={t("Let the sensor sleep when idle to save power")}
-                checked={bool("sleepModeEnable")}
-                onChange={setBool("sleepModeEnable")}
-              />
-            </Card>
-          </div>
-        )}
-
-        {values && (
-          <details className="glass-card mt-4 group">
-            <summary className="flex cursor-pointer list-none items-center justify-between p-6 text-sm font-medium text-[var(--color-text)]">
-              {t("Advanced")}
-              <IconChevronDown
-                size={16}
-                className="transition-transform group-open:rotate-180"
-              />
-            </summary>
-            <div className="grid grid-cols-1 desktop:grid-cols-2 gap-x-8 gap-y-4 px-6 pb-6">
-              <NumberRow
-                label={t("Max Tap Movement")}
-                value={num("tapMaxMovement")}
-                min={0}
-                max={U16_MAX}
-                onChange={setNum("tapMaxMovement")}
-              />
-              <NumberRow
-                label={t("Click Duration (ms)")}
-                value={num("tapClickMs")}
-                min={0}
-                max={U16_MAX}
-                onChange={setNum("tapClickMs")}
-              />
-              <NumberRow
-                label={t("Max Drag Movement")}
-                value={num("tapDragMaxMovement")}
-                min={0}
-                max={U16_MAX}
-                onChange={setNum("tapDragMaxMovement")}
-              />
-              <div className="space-y-3">
                 <ToggleRow
-                  label={t("Auxiliary Tap (middle click)")}
-                  checked={bool("auxTapEnable")}
-                  onChange={setBool("auxTapEnable")}
+                  label={t("Tap and Drag")}
+                  description={t("Tap, then touch again to hold the button")}
+                  checked={bool("tapDragEnable")}
+                  onChange={setBool("tapDragEnable")}
                 />
-                <NumberRow
-                  label={t("Auxiliary Tap Area Width")}
-                  value={num("auxTapAreaWidth")}
-                  min={0}
-                  max={U16_MAX}
-                  onChange={setNum("auxTapAreaWidth")}
+                {bool("tapDragEnable") && (
+                  <SliderRow
+                    label={t("Drag Timeout")}
+                    value={num("tapDragTimeoutMs")}
+                    min={100}
+                    max={1000}
+                    step={10}
+                    unit="ms"
+                    onChange={setNum("tapDragTimeoutMs")}
+                  />
+                )}
+              </Card>
+
+              <Card
+                icon={<IconMouse size={16} />}
+                title={t("Scroll")}
+                description={t("Scroll by sliding along the trackpad edge")}
+              >
+                <ToggleRow
+                  label={t("Right Edge Scroll")}
+                  checked={bool("rightEdgeScrollEnable")}
+                  onChange={setBool("rightEdgeScrollEnable")}
                 />
-                <NumberRow
-                  label={t("Auxiliary Tap Area Height")}
-                  value={num("auxTapAreaHeight")}
-                  min={0}
-                  max={U16_MAX}
-                  onChange={setNum("auxTapAreaHeight")}
+                <ToggleRow
+                  label={t("Top Edge Scroll")}
+                  checked={bool("topEdgeScrollEnable")}
+                  onChange={setBool("topEdgeScrollEnable")}
                 />
-              </div>
-              <div className="desktop:col-span-2 rounded-lg border border-[var(--color-border)] p-3 text-xs leading-relaxed text-[var(--color-text-muted)]">
-                <div className="mb-1 font-medium text-[var(--color-text-secondary)]">
-                  {t("Firmware calibration (read-only)")}
+                <SliderRow
+                  label={t("Edge scroll band")}
+                  value={num("edgeScrollRingPercent")}
+                  min={50}
+                  max={90}
+                  step={1}
+                  unit="%"
+                  onChange={setNum("edgeScrollRingPercent")}
+                />
+                <SliderRow
+                  label={t("Scroll Divisor")}
+                  value={num("scrollDivisor")}
+                  min={1}
+                  max={64}
+                  onChange={setNum("scrollDivisor")}
+                />
+              </Card>
+
+              <Card
+                icon={<IconArrowsMove size={16} />}
+                title={t("Edge Motion")}
+                description={t(
+                  "Keep the pointer moving while a finger rests at the edge",
+                )}
+              >
+                <ToggleRow
+                  label={t("Edge Motion")}
+                  checked={bool("edgeMotionEnable")}
+                  onChange={setBool("edgeMotionEnable")}
+                />
+                {bool("edgeMotionEnable") && (
+                  <SliderRow
+                    label={t("Edge Motion Speed")}
+                    value={num("edgeMotionSpeed")}
+                    min={1}
+                    max={50}
+                    onChange={setNum("edgeMotionSpeed")}
+                  />
+                )}
+                <ToggleRow
+                  label={t("Sleep Mode")}
+                  description={t(
+                    "Let the sensor sleep when idle to save power",
+                  )}
+                  checked={bool("sleepModeEnable")}
+                  onChange={setBool("sleepModeEnable")}
+                />
+              </Card>
+
+              <details className="glass-card group">
+                <summary className="flex cursor-pointer list-none items-center justify-between p-6 text-sm font-medium text-[var(--color-text)]">
+                  {t("Advanced")}
+                  <IconChevronDown
+                    size={16}
+                    className="transition-transform group-open:rotate-180"
+                  />
+                </summary>
+                <div className="grid grid-cols-1 desktop:grid-cols-2 gap-x-8 gap-y-4 px-6 pb-6">
+                  <NumberRow
+                    label={t("Max Tap Movement")}
+                    value={num("tapMaxMovement")}
+                    min={0}
+                    max={U16_MAX}
+                    onChange={setNum("tapMaxMovement")}
+                  />
+                  <NumberRow
+                    label={t("Click Duration (ms)")}
+                    value={num("tapClickMs")}
+                    min={0}
+                    max={U16_MAX}
+                    onChange={setNum("tapClickMs")}
+                  />
+                  <NumberRow
+                    label={t("Max Drag Movement")}
+                    value={num("tapDragMaxMovement")}
+                    min={0}
+                    max={U16_MAX}
+                    onChange={setNum("tapDragMaxMovement")}
+                  />
+                  <div className="space-y-3">
+                    <ToggleRow
+                      label={t("Auxiliary Tap (middle click)")}
+                      checked={bool("auxTapEnable")}
+                      onChange={setBool("auxTapEnable")}
+                    />
+                    <NumberRow
+                      label={t("Auxiliary Tap Area Width")}
+                      value={num("auxTapAreaWidth")}
+                      min={0}
+                      max={U16_MAX}
+                      onChange={setNum("auxTapAreaWidth")}
+                    />
+                    <NumberRow
+                      label={t("Auxiliary Tap Area Height")}
+                      value={num("auxTapAreaHeight")}
+                      min={0}
+                      max={U16_MAX}
+                      onChange={setNum("auxTapAreaHeight")}
+                    />
+                  </div>
+                  <div className="desktop:col-span-2 rounded-lg border border-[var(--color-border)] p-3 text-xs leading-relaxed text-[var(--color-text-muted)]">
+                    <div className="mb-1 font-medium text-[var(--color-text-secondary)]">
+                      {t("Firmware calibration (read-only)")}
+                    </div>
+                    <div>
+                      {t("Active range")}: {num("activeRangeXMin")}–
+                      {num("activeRangeXMax")} × {num("activeRangeYMin")}–
+                      {num("activeRangeYMax")}
+                    </div>
+                    <div>
+                      {t("Wedge centre")}:{" "}
+                      {(num("secondaryTapCenterDeg") / 10).toFixed(1)}° ·{" "}
+                      {t("Edge band")}: {num("edgeScrollRingPercent")}%
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  {t("Active range")}: {num("activeRangeXMin")}–
-                  {num("activeRangeXMax")} × {num("activeRangeYMin")}–
-                  {num("activeRangeYMax")}
-                </div>
-                <div>
-                  {t("Wedge centre")}:{" "}
-                  {(num("secondaryTapCenterDeg") / 10).toFixed(1)}° ·{" "}
-                  {t("Edge band")}: {num("edgeScrollRingPercent")}%
-                </div>
-              </div>
+              </details>
             </div>
-          </details>
+          </div>
         )}
       </div>
 

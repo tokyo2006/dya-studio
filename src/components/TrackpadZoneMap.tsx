@@ -136,12 +136,12 @@ export function TrackpadZoneMap({ params }: { params: ZoneParams }) {
           : "—";
 
   return (
-    <div className="grid grid-cols-1 desktop:grid-cols-[minmax(280px,1fr)_minmax(220px,320px)] gap-6 items-start">
+    <div className="grid grid-cols-1 gap-4 items-start">
       <div>
         <svg
           ref={svgRef}
           viewBox="-140 -140 280 280"
-          className="w-full max-w-[420px] touch-none select-none cursor-crosshair"
+          className="mx-auto w-full max-w-[360px] touch-none select-none cursor-crosshair"
           onPointerDown={onDown}
           onPointerMove={onMove}
           onPointerUp={onUp}
