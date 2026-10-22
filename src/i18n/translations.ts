@@ -9,6 +9,13 @@ export const languageLabels: Record<Language, string> = {
 };
 
 const ja: Record<string, string> = {
+  "Firmware calibration (read-only)": "ファームウェア校正（読み取り専用）",
+  "Active range": "有効範囲",
+  "Wedge centre": "ウェッジ中心",
+  "Edge band": "エッジ帯",
+  "Right-click zone width": "右クリック領域の幅",
+  "Edge scroll band": "エッジスクロール帯",
+  "Scroll Zone (legacy)": "スクロールゾーン（旧）",
   // Cirque zones & gesture preview
   "Zones & gesture preview": "ゾーンとジェスチャープレビュー",
   "Drag on the pad to see how the firmware classifies the gesture":
@@ -1780,6 +1787,13 @@ const ja: Record<string, string> = {
 };
 
 const zh: Record<string, string> = {
+  "Firmware calibration (read-only)": "固件标定（只读）",
+  "Active range": "有效范围",
+  "Wedge centre": "楔形中心",
+  "Edge band": "边缘带",
+  "Right-click zone width": "右键区域宽度",
+  "Edge scroll band": "边缘滚动带",
+  "Scroll Zone (legacy)": "滚动区域（旧逻辑）",
   // Cirque zones & gesture preview
   "Zones & gesture preview": "区域与手势预览",
   "Drag on the pad to see how the firmware classifies the gesture":

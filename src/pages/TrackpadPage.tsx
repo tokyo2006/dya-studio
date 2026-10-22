@@ -142,6 +142,7 @@ function SliderRow({
   max,
   step = 1,
   unit = "",
+  format,
   onChange,
 }: {
   label: string;
@@ -150,6 +151,7 @@ function SliderRow({
   max: number;
   step?: number;
   unit?: string;
+  format?: (v: number) => string;
   onChange: (v: number) => void;
 }) {
   return (
@@ -159,7 +161,7 @@ function SliderRow({
           {label}
         </span>
         <span className="text-sm font-mono text-[var(--color-electric)]">
-          {value}
+          {format ? format(value) : value}
           {unit}
         </span>
       </div>
@@ -393,6 +395,15 @@ function CirquePanel(props: UseCirqueReturn) {
             >
               <TrackpadZoneMap
                 params={{
+                  wedgeWidthDeg: (num("secondaryTapWidthDeg") || 250) / 10,
+                  centerDeg: (num("secondaryTapCenterDeg") || 425) / 10,
+                  ringPct: num("edgeScrollRingPercent") || 70,
+                  halfX:
+                    (num("activeRangeXMax") - num("activeRangeXMin")) / 2 ||
+                    762,
+                  halfY:
+                    (num("activeRangeYMax") - num("activeRangeYMin")) / 2 ||
+                    598,
                   tapMaxMs: num("tapMaxMs"),
                   tapMove: num("tapMaxMovement"),
                   divisor: num("scrollDivisor"),
@@ -408,31 +419,6 @@ function CirquePanel(props: UseCirqueReturn) {
 
         {values && (
           <div className="grid grid-cols-1 desktop:grid-cols-2 gap-4">
-            <Card
-              icon={<IconSettings size={16} />}
-              title={t("Basic")}
-              description={t("Data mode and sensor sensitivity")}
-            >
-              <ChoiceRow
-                label={t("Data Mode")}
-                value={num("dataMode")}
-                options={[
-                  { value: 0, label: t("Absolute") },
-                  { value: 1, label: t("Relative") },
-                ]}
-                onChange={setNum("dataMode")}
-              />
-              <ChoiceRow
-                label={t("Sensitivity")}
-                value={num("sensitivity")}
-                options={[
-                  { value: 0, label: "1x" },
-                  { value: 1, label: "2x" },
-                ]}
-                onChange={setNum("sensitivity")}
-              />
-            </Card>
-
             <Card
               icon={<IconBolt size={16} />}
               title={t("Speed")}
@@ -455,37 +441,6 @@ function CirquePanel(props: UseCirqueReturn) {
             </Card>
 
             <Card
-              icon={<IconRotate size={16} />}
-              title={t("Orientation")}
-              description={t("Match the trackpad's mounting direction")}
-            >
-              <ChoiceRow
-                label={t("Rotation")}
-                value={num("rotateDegrees")}
-                options={[0, 90, 180, 270].map((d) => ({
-                  value: d,
-                  label: `${d}°`,
-                }))}
-                onChange={setNum("rotateDegrees")}
-              />
-              <ToggleRow
-                label={t("Invert X")}
-                checked={bool("invertX")}
-                onChange={setBool("invertX")}
-              />
-              <ToggleRow
-                label={t("Invert Y")}
-                checked={bool("invertY")}
-                onChange={setBool("invertY")}
-              />
-              <ToggleRow
-                label={t("Swap X/Y")}
-                checked={bool("swapXy")}
-                onChange={setBool("swapXy")}
-              />
-            </Card>
-
-            <Card
               icon={<IconHandClick size={16} />}
               title={t("Tap")}
               description={t("Tap to click and tap-and-drag")}
@@ -504,6 +459,16 @@ function CirquePanel(props: UseCirqueReturn) {
                 label={t("Auxiliary Tap (middle click)")}
                 checked={bool("auxTapEnable")}
                 onChange={setBool("auxTapEnable")}
+              />
+              <SliderRow
+                label={t("Right-click zone width")}
+                value={num("secondaryTapWidthDeg")}
+                min={150}
+                max={400}
+                step={10}
+                unit="°"
+                format={(v) => (v / 10).toFixed(1)}
+                onChange={setNum("secondaryTapWidthDeg")}
               />
               <SliderRow
                 label={t("Max Tap Duration")}
@@ -549,12 +514,13 @@ function CirquePanel(props: UseCirqueReturn) {
                 onChange={setBool("topEdgeScrollEnable")}
               />
               <SliderRow
-                label={t("Scroll Zone")}
-                value={num("scrollZone")}
-                min={0}
-                max={500}
-                step={10}
-                onChange={setNum("scrollZone")}
+                label={t("Edge scroll band")}
+                value={num("edgeScrollRingPercent")}
+                min={50}
+                max={90}
+                step={1}
+                unit="%"
+                onChange={setNum("edgeScrollRingPercent")}
               />
               <SliderRow
                 label={t("Scroll Divisor")}
@@ -627,6 +593,55 @@ function CirquePanel(props: UseCirqueReturn) {
               />
             </summary>
             <div className="grid grid-cols-1 desktop:grid-cols-2 gap-x-8 gap-y-4 px-6 pb-6">
+              <ChoiceRow
+                label={t("Data Mode")}
+                value={num("dataMode")}
+                options={[
+                  { value: 0, label: t("Absolute") },
+                  { value: 1, label: t("Relative") },
+                ]}
+                onChange={setNum("dataMode")}
+              />
+              <ChoiceRow
+                label={t("Sensitivity")}
+                value={num("sensitivity")}
+                options={[
+                  { value: 0, label: "1x" },
+                  { value: 1, label: "2x" },
+                ]}
+                onChange={setNum("sensitivity")}
+              />
+              <ChoiceRow
+                label={t("Rotation")}
+                value={num("rotateDegrees")}
+                options={[0, 90, 180, 270].map((d) => ({
+                  value: d,
+                  label: `${d}°`,
+                }))}
+                onChange={setNum("rotateDegrees")}
+              />
+              <ToggleRow
+                label={t("Invert X")}
+                checked={bool("invertX")}
+                onChange={setBool("invertX")}
+              />
+              <ToggleRow
+                label={t("Invert Y")}
+                checked={bool("invertY")}
+                onChange={setBool("invertY")}
+              />
+              <ToggleRow
+                label={t("Swap X/Y")}
+                checked={bool("swapXy")}
+                onChange={setBool("swapXy")}
+              />
+              <NumberRow
+                label={t("Scroll Zone (legacy)")}
+                value={num("scrollZone")}
+                min={0}
+                max={U16_MAX}
+                onChange={setNum("scrollZone")}
+              />
               <NumberRow
                 label={t("Max Tap Movement")}
                 value={num("tapMaxMovement")}
@@ -718,6 +733,21 @@ function CirquePanel(props: UseCirqueReturn) {
                 max={U16_MAX}
                 onChange={setNum("absoluteRelativeDivisor")}
               />
+              <div className="desktop:col-span-2 rounded-lg border border-[var(--color-border)] p-3 text-xs leading-relaxed text-[var(--color-text-muted)]">
+                <div className="mb-1 font-medium text-[var(--color-text-secondary)]">
+                  {t("Firmware calibration (read-only)")}
+                </div>
+                <div>
+                  {t("Active range")}: {num("activeRangeXMin")}–
+                  {num("activeRangeXMax")} × {num("activeRangeYMin")}–
+                  {num("activeRangeYMax")}
+                </div>
+                <div>
+                  {t("Wedge centre")}:{" "}
+                  {(num("secondaryTapCenterDeg") / 10).toFixed(1)}° ·{" "}
+                  {t("Edge band")}: {num("edgeScrollRingPercent")}%
+                </div>
+              </div>
             </div>
           </details>
         )}

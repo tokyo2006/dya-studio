@@ -10,8 +10,9 @@
  * centre, +/-100 on the active-range border). Because the semi-axes are
  * normalized, an angle in this space equals the physical angle on a round pad.
  *
- * The calibration block below mirrors the shield's cirque.dtsi. Keep it in sync
- * when the devicetree changes.
+ * Geometry that comes from the devicetree (active range, wedge centre, ring
+ * percent) is passed in through {@link ZoneParams}; the values below are only
+ * fallbacks for when the device state is not available yet.
  */
 
 export const CALIBRATION = {
@@ -32,8 +33,13 @@ export const CALIBRATION = {
 } as const;
 
 export interface ZoneParams {
+  /** Wedge width in degrees (user tunable, 15..40). */
   wedgeWidthDeg?: number;
+  /** Wedge centre in degrees (calibration, e.g. 42.5). */
+  centerDeg?: number;
+  /** Ring latch radius in percent of the active range (user tunable). */
   ringPct?: number;
+  /** Scroll divisor: raw units per wheel tick. */
   divisor?: number;
   /** Vertical movement in raw units before a rim touch becomes a scroll. */
   intent?: number;
@@ -43,10 +49,16 @@ export interface ZoneParams {
   tapDragEnabled?: boolean;
   tapDragTimeoutMs?: number;
   tapDragMaxMovement?: number;
+  /** Half-size of the active range in raw units (read from the device). */
+  halfX?: number;
+  halfY?: number;
+  wedgeInnerPct?: number;
+  ringMinAxisPct?: number;
 }
 
 const DEFAULTS = {
   wedgeWidthDeg: 25,
+  centerDeg: CALIBRATION.wedgeCenterDeg,
   ringPct: CALIBRATION.ringPct,
   divisor: 50,
   intent: 60,
@@ -56,29 +68,50 @@ const DEFAULTS = {
   tapDragEnabled: true,
   tapDragTimeoutMs: 300,
   tapDragMaxMovement: 200,
+  halfX: CALIBRATION.halfX,
+  halfY: CALIBRATION.halfY,
+  wedgeInnerPct: CALIBRATION.wedgeInnerPct,
+  ringMinAxisPct: CALIBRATION.ringMinAxisPct,
 };
 
-const withDefaults = (p: ZoneParams) => ({ ...DEFAULTS, ...p });
+type Resolved = typeof DEFAULTS;
 
-const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
+function resolve(p: ZoneParams): Resolved {
+  const out = { ...DEFAULTS } as Resolved;
+  for (const key of Object.keys(p) as Array<keyof ZoneParams>) {
+    const v = p[key];
+    if (v !== undefined) {
+      (out as Record<string, unknown>)[key] = v;
+    }
+  }
+  return out;
+}
+
 const deg2rad = (d: number) => (d * Math.PI) / 180;
 
 export const wedgeAngles = (p: ZoneParams = {}) => {
-  const { wedgeWidthDeg } = withDefaults(p);
+  const { centerDeg, wedgeWidthDeg } = resolve(p);
   return {
-    min: CALIBRATION.wedgeCenterDeg - wedgeWidthDeg / 2,
-    max: CALIBRATION.wedgeCenterDeg + wedgeWidthDeg / 2,
+    min: centerDeg - wedgeWidthDeg / 2,
+    max: centerDeg + wedgeWidthDeg / 2,
   };
 };
 
-const minSlope = (p: ZoneParams) =>
-  Math.round(Math.tan(deg2rad(wedgeAngles(p).min)) * 1000);
-const maxSlope = (p: ZoneParams) =>
-  Math.round(Math.tan(deg2rad(wedgeAngles(p).max)) * 1000);
+const minSlope = (p: ZoneParams) => {
+  const r = resolve(p);
+  return Math.round(Math.tan(deg2rad(wedgeAngles(r).min)) * 1000);
+};
+
+const maxSlope = (p: ZoneParams) => {
+  const r = resolve(p);
+  return Math.round(Math.tan(deg2rad(wedgeAngles(r).max)) * 1000);
+};
 
 /** Raw x coordinate units for a normalized percent (same as the firmware). */
-export const rawX = (nx: number) => (nx / 100) * CALIBRATION.halfX;
-export const rawY = (ny: number) => (ny / 100) * CALIBRATION.halfY;
+export const rawX = (nx: number, halfX = CALIBRATION.halfX) =>
+  (nx / 100) * halfX;
+export const rawY = (ny: number, halfY = CALIBRATION.halfY) =>
+  (ny / 100) * halfY;
 
 /** zmk_cirque_in_outer_ring(): true inside the outer ring of the ellipse. */
 export function inOuterRing(nx: number, ny: number, ringPct: number): boolean {
@@ -93,13 +126,12 @@ export function inBottomRightWedge(
   ny: number,
   slopeMin: number,
   slopeMax: number,
+  innerPct = CALIBRATION.wedgeInnerPct,
 ): boolean {
   if (nx <= 0 || ny <= 0) return false;
   if (ny * 1000 < nx * slopeMin) return false;
   if (ny * 1000 > nx * slopeMax) return false;
-  return (
-    nx * nx + ny * ny >= CALIBRATION.wedgeInnerPct * CALIBRATION.wedgeInnerPct
-  );
+  return nx * nx + ny * ny >= innerPct * innerPct;
 }
 
 /** Which button a tap at this position reports. */
@@ -108,7 +140,8 @@ export function zoneAt(
   ny: number,
   p: ZoneParams = {},
 ): "primary" | "secondary" {
-  return inBottomRightWedge(nx, ny, minSlope(p), maxSlope(p))
+  const r = resolve(p);
+  return inBottomRightWedge(nx, ny, minSlope(r), maxSlope(r), r.wedgeInnerPct)
     ? "secondary"
     : "primary";
 }
@@ -116,10 +149,10 @@ export function zoneAt(
 function scrollModeForPoint(
   nx: number,
   ny: number,
-  p: ZoneParams,
+  p: Resolved,
 ): "none" | "vertical" {
-  if (!inOuterRing(nx, ny, p.ringPct ?? CALIBRATION.ringPct)) return "none";
-  return nx >= CALIBRATION.ringMinAxisPct ? "vertical" : "none";
+  if (!inOuterRing(nx, ny, p.ringPct)) return "none";
+  return nx >= p.ringMinAxisPct ? "vertical" : "none";
 }
 
 export type GestureType = "pointer" | "tap" | "scroll" | "drag";
@@ -132,7 +165,7 @@ export interface GestureResult {
   moveY: number;
 }
 
-interface GestureState {
+export interface GestureState {
   touching: boolean;
   start: { nx: number; ny: number };
   prev: { nx: number; ny: number };
@@ -146,6 +179,7 @@ interface GestureState {
   remainder: number;
   movedX: number;
   movedY: number;
+  params: Resolved;
 }
 
 export interface LastTap {
@@ -162,7 +196,7 @@ export function beginGesture(
   lastTap: LastTap | null,
   params: ZoneParams = {},
 ): GestureState {
-  const p = withDefaults(params);
+  const p = resolve(params);
   const near =
     lastTap && lastTap.code === 0
       ? {
@@ -176,8 +210,8 @@ export function beginGesture(
     p.tapDragEnabled &&
     near &&
     near.dt <= p.tapDragTimeoutMs &&
-    rawX(near.dx) <= p.tapDragMaxMovement &&
-    rawY(near.dy) <= p.tapDragMaxMovement
+    rawX(near.dx, p.halfX) <= p.tapDragMaxMovement &&
+    rawY(near.dy, p.halfY) <= p.tapDragMaxMovement
   );
 
   return {
@@ -194,21 +228,17 @@ export function beginGesture(
     remainder: 0,
     movedX: 0,
     movedY: 0,
+    params: p,
   };
 }
 
-export function stepGesture(
-  g: GestureState,
-  nx: number,
-  ny: number,
-  params: ZoneParams = {},
-): void {
-  const p = withDefaults(params);
+export function stepGesture(g: GestureState, nx: number, ny: number): void {
+  const p = g.params;
   if (!g.touching) return;
 
   if (g.scrollMode !== "none") {
-    const dxRaw = rawX(nx - g.prev.nx);
-    const dyRaw = rawY(g.prev.ny - ny); // firmware: delta = prev_y - cur_y
+    const dxRaw = rawX(nx - g.prev.nx, p.halfX);
+    const dyRaw = rawY(g.prev.ny - ny, p.halfY); // firmware: delta = prev_y - cur_y
     if (Math.abs(dyRaw) * 5 >= Math.abs(dxRaw) * 3) {
       g.remainder += dyRaw;
       const ticks = Math.trunc(g.remainder / p.divisor);
@@ -219,8 +249,8 @@ export function stepGesture(
     return;
   }
 
-  const mx = Math.abs(rawX(nx - g.start.nx));
-  const my = Math.abs(rawY(ny - g.start.ny));
+  const mx = Math.abs(rawX(nx - g.start.nx, p.halfX));
+  const my = Math.abs(rawY(ny - g.start.ny, p.halfY));
 
   if (g.scrollCandidate !== "none" && !g.motionStarted) {
     if (my >= p.intent && my * 5 >= mx * 3) {
@@ -254,20 +284,16 @@ export function stepGesture(
     g.motionStarted = true;
   }
 
-  g.movedX += rawX(nx - g.prev.nx);
-  g.movedY += rawY(ny - g.prev.ny);
+  g.movedX += rawX(nx - g.prev.nx, p.halfX);
+  g.movedY += rawY(ny - g.prev.ny, p.halfY);
   g.prev = { nx, ny };
 }
 
-export function endGesture(
-  g: GestureState,
-  t: number,
-  params: ZoneParams = {},
-): GestureResult {
-  const p = withDefaults(params);
+export function endGesture(g: GestureState, t: number): GestureResult {
+  const p = g.params;
   const dur = t - g.startT;
-  const mx = Math.abs(rawX(g.prev.nx - g.start.nx));
-  const my = Math.abs(rawY(g.prev.ny - g.start.ny));
+  const mx = Math.abs(rawX(g.prev.nx - g.start.nx, p.halfX));
+  const my = Math.abs(rawY(g.prev.ny - g.start.ny, p.halfY));
 
   let result: GestureResult = {
     type: "pointer",
@@ -309,8 +335,8 @@ export function simulateTap(
   holdMs = 100,
 ): GestureResult {
   const g = beginGesture(nx, ny, 1000, null, params);
-  stepGesture(g, nx, ny, params);
-  return endGesture(g, 1000 + holdMs, params);
+  stepGesture(g, nx, ny);
+  return endGesture(g, 1000 + holdMs);
 }
 
 /** Synthetic stroke, used by tests and the preview. */
@@ -321,35 +347,33 @@ export function simulateDrag(
 ): GestureResult {
   const [first, ...rest] = points;
   const g = beginGesture(first[0], first[1], 1000, null, params);
-  for (const [nx, ny] of rest) stepGesture(g, nx, ny, params);
-  return endGesture(g, 1000 + stepMs * points.length, params);
+  for (const [nx, ny] of rest) stepGesture(g, nx, ny);
+  return endGesture(g, 1000 + stepMs * points.length);
 }
+
+const degRad = deg2rad;
+const at = (degFrom3: number, pct: number): [number, number] => [
+  pct * Math.cos(degRad(degFrom3)),
+  pct * Math.sin(degRad(degFrom3)),
+];
 
 /** Regression cases from real device logs (see the driver docs). */
 export const ZONE_CASES: Array<{ name: string; run: () => boolean }> = [
   {
     name: "5 o'clock (46 deg, 90%) tap -> right",
-    run: () =>
-      simulateTap(90 * Math.cos(deg2rad(46)), 90 * Math.sin(deg2rad(46)))
-        .click === "right",
+    run: () => simulateTap(...at(46, 90)).click === "right",
   },
   {
     name: "6 o'clock (67 deg, 90%) tap -> left",
-    run: () =>
-      simulateTap(90 * Math.cos(deg2rad(67)), 90 * Math.sin(deg2rad(67)))
-        .click === "left",
+    run: () => simulateTap(...at(67, 90)).click === "left",
   },
   {
     name: "4:30 (41 deg, 90%) tap -> right",
-    run: () =>
-      simulateTap(90 * Math.cos(deg2rad(41)), 90 * Math.sin(deg2rad(41)))
-        .click === "right",
+    run: () => simulateTap(...at(41, 90)).click === "right",
   },
   {
     name: "3 o'clock (20 deg, 90%) tap -> left",
-    run: () =>
-      simulateTap(90 * Math.cos(deg2rad(20)), 90 * Math.sin(deg2rad(20)))
-        .click === "left",
+    run: () => simulateTap(...at(20, 90)).click === "left",
   },
   {
     name: "centre tap -> left",
@@ -394,5 +418,3 @@ export const ZONE_CASES: Array<{ name: string; run: () => boolean }> = [
     },
   },
 ];
-
-export { clamp };

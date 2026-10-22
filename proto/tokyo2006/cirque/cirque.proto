@@ -31,6 +31,17 @@ message CirqueState {
     optional uint32 tap_drag_max_movement = 18;
     optional uint32 secondary_tap_area_width = 19;
     optional uint32 secondary_tap_area_height = 20;
+    // Angular secondary-tap wedge for circular sensors, tenths of a degree.
+    // centre is calibration (mounting rotation), width is user tunable.
+    optional uint32 secondary_tap_center_deg = 100;
+    optional uint32 secondary_tap_width_deg = 101;
+    // Right-edge scroll: outer ring starts at this percentage of the radius.
+    optional uint32 edge_scroll_ring_percent = 102;
+    // Read-only geometry mirrored from the devicetree for the Studio map.
+    optional uint32 active_range_x_min = 110;
+    optional uint32 active_range_x_max = 111;
+    optional uint32 active_range_y_min = 112;
+    optional uint32 active_range_y_max = 113;
     optional uint32 aux_tap_area_width = 21;
     optional uint32 aux_tap_area_height = 22;
 

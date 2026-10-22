@@ -46,7 +46,26 @@ export interface CirqueState {
   tapDragTimeoutMs?: number | undefined;
   tapDragMaxMovement?: number | undefined;
   secondaryTapAreaWidth?: number | undefined;
-  secondaryTapAreaHeight?: number | undefined;
+  secondaryTapAreaHeight?:
+    | number
+    | undefined;
+  /**
+   * Angular secondary-tap wedge for circular sensors, tenths of a degree.
+   * centre is calibration (mounting rotation), width is user tunable.
+   */
+  secondaryTapCenterDeg?: number | undefined;
+  secondaryTapWidthDeg?:
+    | number
+    | undefined;
+  /** Right-edge scroll: outer ring starts at this percentage of the radius. */
+  edgeScrollRingPercent?:
+    | number
+    | undefined;
+  /** Read-only geometry mirrored from the devicetree for the Studio map. */
+  activeRangeXMin?: number | undefined;
+  activeRangeXMax?: number | undefined;
+  activeRangeYMin?: number | undefined;
+  activeRangeYMax?: number | undefined;
   auxTapAreaWidth?: number | undefined;
   auxTapAreaHeight?: number | undefined;
   edgeMotionEnable?: boolean | undefined;
@@ -130,6 +149,13 @@ function createBaseCirqueState(): CirqueState {
     tapDragMaxMovement: undefined,
     secondaryTapAreaWidth: undefined,
     secondaryTapAreaHeight: undefined,
+    secondaryTapCenterDeg: undefined,
+    secondaryTapWidthDeg: undefined,
+    edgeScrollRingPercent: undefined,
+    activeRangeXMin: undefined,
+    activeRangeXMax: undefined,
+    activeRangeYMin: undefined,
+    activeRangeYMax: undefined,
     auxTapAreaWidth: undefined,
     auxTapAreaHeight: undefined,
     edgeMotionEnable: undefined,
@@ -205,6 +231,27 @@ export const CirqueState: MessageFns<CirqueState> = {
     }
     if (message.secondaryTapAreaHeight !== undefined) {
       writer.uint32(160).uint32(message.secondaryTapAreaHeight);
+    }
+    if (message.secondaryTapCenterDeg !== undefined) {
+      writer.uint32(800).uint32(message.secondaryTapCenterDeg);
+    }
+    if (message.secondaryTapWidthDeg !== undefined) {
+      writer.uint32(808).uint32(message.secondaryTapWidthDeg);
+    }
+    if (message.edgeScrollRingPercent !== undefined) {
+      writer.uint32(816).uint32(message.edgeScrollRingPercent);
+    }
+    if (message.activeRangeXMin !== undefined) {
+      writer.uint32(880).uint32(message.activeRangeXMin);
+    }
+    if (message.activeRangeXMax !== undefined) {
+      writer.uint32(888).uint32(message.activeRangeXMax);
+    }
+    if (message.activeRangeYMin !== undefined) {
+      writer.uint32(896).uint32(message.activeRangeYMin);
+    }
+    if (message.activeRangeYMax !== undefined) {
+      writer.uint32(904).uint32(message.activeRangeYMax);
     }
     if (message.auxTapAreaWidth !== undefined) {
       writer.uint32(168).uint32(message.auxTapAreaWidth);
@@ -412,6 +459,62 @@ export const CirqueState: MessageFns<CirqueState> = {
           message.secondaryTapAreaHeight = reader.uint32();
           continue;
         }
+        case 100: {
+          if (tag !== 800) {
+            break;
+          }
+
+          message.secondaryTapCenterDeg = reader.uint32();
+          continue;
+        }
+        case 101: {
+          if (tag !== 808) {
+            break;
+          }
+
+          message.secondaryTapWidthDeg = reader.uint32();
+          continue;
+        }
+        case 102: {
+          if (tag !== 816) {
+            break;
+          }
+
+          message.edgeScrollRingPercent = reader.uint32();
+          continue;
+        }
+        case 110: {
+          if (tag !== 880) {
+            break;
+          }
+
+          message.activeRangeXMin = reader.uint32();
+          continue;
+        }
+        case 111: {
+          if (tag !== 888) {
+            break;
+          }
+
+          message.activeRangeXMax = reader.uint32();
+          continue;
+        }
+        case 112: {
+          if (tag !== 896) {
+            break;
+          }
+
+          message.activeRangeYMin = reader.uint32();
+          continue;
+        }
+        case 113: {
+          if (tag !== 904) {
+            break;
+          }
+
+          message.activeRangeYMax = reader.uint32();
+          continue;
+        }
         case 21: {
           if (tag !== 168) {
             break;
@@ -603,6 +706,13 @@ export const CirqueState: MessageFns<CirqueState> = {
     message.tapDragMaxMovement = object.tapDragMaxMovement ?? undefined;
     message.secondaryTapAreaWidth = object.secondaryTapAreaWidth ?? undefined;
     message.secondaryTapAreaHeight = object.secondaryTapAreaHeight ?? undefined;
+    message.secondaryTapCenterDeg = object.secondaryTapCenterDeg ?? undefined;
+    message.secondaryTapWidthDeg = object.secondaryTapWidthDeg ?? undefined;
+    message.edgeScrollRingPercent = object.edgeScrollRingPercent ?? undefined;
+    message.activeRangeXMin = object.activeRangeXMin ?? undefined;
+    message.activeRangeXMax = object.activeRangeXMax ?? undefined;
+    message.activeRangeYMin = object.activeRangeYMin ?? undefined;
+    message.activeRangeYMax = object.activeRangeYMax ?? undefined;
     message.auxTapAreaWidth = object.auxTapAreaWidth ?? undefined;
     message.auxTapAreaHeight = object.auxTapAreaHeight ?? undefined;
     message.edgeMotionEnable = object.edgeMotionEnable ?? undefined;

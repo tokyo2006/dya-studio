@@ -34,6 +34,7 @@ export function TrackpadZoneMap({ params }: { params: ZoneParams }) {
 
   const angles = useMemo(() => wedgeAngles(params), [params]);
   const ringPct = params.ringPct ?? CALIBRATION.ringPct;
+  const centerDeg = params.centerDeg ?? CALIBRATION.wedgeCenterDeg;
 
   const scrollBand = useMemo(() => {
     const a = RIGHT_SECTOR_DEG;
@@ -90,7 +91,7 @@ export function TrackpadZoneMap({ params }: { params: ZoneParams }) {
     const g = gesture.current;
     if (!g) return;
     const { nx, ny } = toPad(evt);
-    stepGesture(g, nx, ny, params);
+    stepGesture(g, nx, ny);
     setTrail((prev) => [...prev.slice(-160), { x: nx, y: ny }]);
     setFinger({ x: nx, y: ny });
   };
@@ -98,7 +99,7 @@ export function TrackpadZoneMap({ params }: { params: ZoneParams }) {
   const onUp = () => {
     const g = gesture.current;
     if (!g) return;
-    const r = endGesture(g, performance.now(), params);
+    const r = endGesture(g, performance.now());
     gesture.current = null;
     setResult(r);
     setFinger(null);
@@ -227,8 +228,8 @@ export function TrackpadZoneMap({ params }: { params: ZoneParams }) {
             strokeWidth={0.9}
           />
           <text
-            x={polar(109, CALIBRATION.wedgeCenterDeg)[0]}
-            y={polar(109, CALIBRATION.wedgeCenterDeg)[1]}
+            x={polar(109, centerDeg)[0]}
+            y={polar(109, centerDeg)[1]}
             textAnchor="middle"
             fontSize={8}
             fontWeight={600}
