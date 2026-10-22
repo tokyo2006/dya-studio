@@ -243,6 +243,9 @@ function CirquePanel(props: UseCirqueReturn) {
   const setNum = (key: NumericKey) => (v: number) => update({ [key]: v });
   const setBool = (key: BooleanKey) => (v: boolean) => update({ [key]: v });
 
+  const halfX = (num("activeRangeXMax") - num("activeRangeXMin")) / 2 || 762;
+  const halfY = (num("activeRangeYMax") - num("activeRangeYMin")) / 2 || 598;
+
   const handleReset = async () => {
     if (await reset()) setShowResetDialog(false);
   };
@@ -356,12 +359,11 @@ function CirquePanel(props: UseCirqueReturn) {
                     wedgeWidthDeg: (num("secondaryTapWidthDeg") || 250) / 10,
                     centerDeg: (num("secondaryTapCenterDeg") || 425) / 10,
                     ringPct: num("edgeScrollRingPercent") || 70,
-                    halfX:
-                      (num("activeRangeXMax") - num("activeRangeXMin")) / 2 ||
-                      762,
-                    halfY:
-                      (num("activeRangeYMax") - num("activeRangeYMin")) / 2 ||
-                      598,
+                    halfX,
+                    halfY,
+                    auxEnabled: bool("auxTapEnable"),
+                    auxWidthPct: (num("auxTapAreaWidth") / halfX) * 100,
+                    auxHeightPct: (num("auxTapAreaHeight") / halfY) * 100,
                     tapMaxMs: num("tapMaxMs"),
                     tapMove: num("tapMaxMovement"),
                     divisor: num("scrollDivisor"),
@@ -540,7 +542,20 @@ function CirquePanel(props: UseCirqueReturn) {
                     <ToggleRow
                       label={t("Auxiliary Tap (middle click)")}
                       checked={bool("auxTapEnable")}
-                      onChange={setBool("auxTapEnable")}
+                      onChange={(v) => {
+                        // Give the zone a sensible size on first enable so it
+                        // is visible on the map and actually fires.
+                        const patch: CirqueState = { auxTapEnable: v };
+                        if (v) {
+                          if (num("auxTapAreaWidth") === 0) {
+                            patch.auxTapAreaWidth = Math.round(halfX * 0.45);
+                          }
+                          if (num("auxTapAreaHeight") === 0) {
+                            patch.auxTapAreaHeight = Math.round(halfY * 0.45);
+                          }
+                        }
+                        update(patch);
+                      }}
                     />
                     <NumberRow
                       label={t("Auxiliary Tap Area Width")}

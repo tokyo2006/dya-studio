@@ -9,6 +9,10 @@ export const languageLabels: Record<Language, string> = {
 };
 
 const ja: Record<string, string> = {
+  "Middle-click zone needs a non-zero width and height":
+    "中クリック領域は幅と高さが必要です",
+  "Middle-click zone": "中クリック領域",
+  "Middle click": "中クリック",
   "Firmware calibration (read-only)": "ファームウェア校正（読み取り専用）",
   "Active range": "有効範囲",
   "Wedge centre": "ウェッジ中心",
@@ -1787,6 +1791,10 @@ const ja: Record<string, string> = {
 };
 
 const zh: Record<string, string> = {
+  "Middle-click zone needs a non-zero width and height":
+    "中键区域需要非零的宽度和高度",
+  "Middle-click zone": "中键区域",
+  "Middle click": "中键",
   "Firmware calibration (read-only)": "固件标定（只读）",
   "Active range": "有效范围",
   "Wedge centre": "楔形中心",

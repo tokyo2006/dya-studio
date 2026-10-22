@@ -54,6 +54,10 @@ export interface ZoneParams {
   halfY?: number;
   wedgeInnerPct?: number;
   ringMinAxisPct?: number;
+  /** Upper-left auxiliary (middle click) zone, in percent of the half-axis. */
+  auxEnabled?: boolean;
+  auxWidthPct?: number;
+  auxHeightPct?: number;
 }
 
 const DEFAULTS = {
@@ -72,6 +76,9 @@ const DEFAULTS = {
   halfY: CALIBRATION.halfY,
   wedgeInnerPct: CALIBRATION.wedgeInnerPct,
   ringMinAxisPct: CALIBRATION.ringMinAxisPct,
+  auxEnabled: false,
+  auxWidthPct: 0,
+  auxHeightPct: 0,
 };
 
 type Resolved = typeof DEFAULTS;
@@ -134,16 +141,31 @@ export function inBottomRightWedge(
   return nx * nx + ny * ny >= innerPct * innerPct;
 }
 
-/** Which button a tap at this position reports. */
+/** zmk_cirque_in_upper_left(): rectangular auxiliary zone anchored top-left. */
+export function inUpperLeftAux(
+  nx: number,
+  ny: number,
+  widthPct: number,
+  heightPct: number,
+): boolean {
+  if (widthPct <= 0 || heightPct <= 0) return false;
+  return nx <= -100 + widthPct && ny <= -100 + heightPct;
+}
+
+/** Which button a tap at this position reports (mirrors tap_code()). */
 export function zoneAt(
   nx: number,
   ny: number,
   p: ZoneParams = {},
-): "primary" | "secondary" {
+): "primary" | "secondary" | "aux" {
   const r = resolve(p);
-  return inBottomRightWedge(nx, ny, minSlope(r), maxSlope(r), r.wedgeInnerPct)
-    ? "secondary"
-    : "primary";
+  if (inBottomRightWedge(nx, ny, minSlope(r), maxSlope(r), r.wedgeInnerPct)) {
+    return "secondary";
+  }
+  if (r.auxEnabled && inUpperLeftAux(nx, ny, r.auxWidthPct, r.auxHeightPct)) {
+    return "aux";
+  }
+  return "primary";
 }
 
 function scrollModeForPoint(
@@ -160,7 +182,7 @@ export type GestureType = "pointer" | "tap" | "scroll" | "drag";
 export interface GestureResult {
   type: GestureType;
   ticks: number;
-  click: "left" | "right" | "left-hold" | null;
+  click: "left" | "right" | "middle" | "left-hold" | null;
   moveX: number;
   moveY: number;
 }
@@ -317,7 +339,12 @@ export function endGesture(g: GestureState, t: number): GestureResult {
     result = {
       type: "tap",
       ticks: 0,
-      click: zoneAt(g.prev.nx, g.prev.ny, p) === "secondary" ? "right" : "left",
+      click:
+        zoneAt(g.prev.nx, g.prev.ny, p) === "secondary"
+          ? "right"
+          : zoneAt(g.prev.nx, g.prev.ny, p) === "aux"
+            ? "middle"
+            : "left",
       moveX: 0,
       moveY: 0,
     };
@@ -374,6 +401,15 @@ export const ZONE_CASES: Array<{ name: string; run: () => boolean }> = [
   {
     name: "3 o'clock (20 deg, 90%) tap -> left",
     run: () => simulateTap(...at(20, 90)).click === "left",
+  },
+  {
+    name: "upper-left aux tap -> middle",
+    run: () =>
+      simulateTap(-70, -70, {
+        auxEnabled: true,
+        auxWidthPct: 45,
+        auxHeightPct: 45,
+      }).click === "middle",
   },
   {
     name: "centre tap -> left",

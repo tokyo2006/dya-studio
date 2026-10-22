@@ -35,6 +35,10 @@ export function TrackpadZoneMap({ params }: { params: ZoneParams }) {
   const angles = useMemo(() => wedgeAngles(params), [params]);
   const ringPct = params.ringPct ?? CALIBRATION.ringPct;
   const centerDeg = params.centerDeg ?? CALIBRATION.wedgeCenterDeg;
+  const auxEnabled = params.auxEnabled ?? false;
+  const auxW = Math.max(0, params.auxWidthPct ?? 0);
+  const auxH = Math.max(0, params.auxHeightPct ?? 0);
+  const auxValid = auxW > 0 && auxH > 0;
 
   const scrollBand = useMemo(() => {
     const a = RIGHT_SECTOR_DEG;
@@ -131,9 +135,11 @@ export function TrackpadZoneMap({ params }: { params: ZoneParams }) {
       ? t("Right click")
       : c === "left"
         ? t("Left click")
-        : c === "left-hold"
-          ? t("Left click (hold)")
-          : "—";
+        : c === "middle"
+          ? t("Middle click")
+          : c === "left-hold"
+            ? t("Left click (hold)")
+            : "—";
 
   return (
     <div className="grid grid-cols-1 gap-4 items-start">
@@ -165,6 +171,9 @@ export function TrackpadZoneMap({ params }: { params: ZoneParams }) {
                 strokeWidth={1.2}
               />
             </pattern>
+            <clipPath id="cirque-pad-clip">
+              <circle cx={0} cy={0} r={100} />
+            </clipPath>
           </defs>
 
           {/* module border (not sensitive) */}
@@ -237,6 +246,32 @@ export function TrackpadZoneMap({ params }: { params: ZoneParams }) {
           >
             {angles.min.toFixed(0)}°–{angles.max.toFixed(0)}°
           </text>
+
+          {/* upper-left auxiliary (middle click) zone */}
+          {auxEnabled && auxValid && (
+            <g clipPath="url(#cirque-pad-clip)">
+              <rect
+                x={-100}
+                y={-100}
+                width={auxW}
+                height={auxH}
+                fill="#a78bfa"
+                fillOpacity={0.18}
+                stroke="#a78bfa"
+                strokeWidth={0.9}
+              />
+              <text
+                x={-100 + auxW / 2}
+                y={-100 + auxH / 2 + 3}
+                textAnchor="middle"
+                fontSize={8}
+                fontWeight={600}
+                fill="#a78bfa"
+              >
+                M
+              </text>
+            </g>
+          )}
 
           {/* clock reference */}
           <circle cx={0} cy={0} r={1.6} fill="var(--color-text-muted)" />
@@ -326,6 +361,12 @@ export function TrackpadZoneMap({ params }: { params: ZoneParams }) {
           )}
         </div>
 
+        {auxEnabled && !auxValid && (
+          <div className="text-[11px] text-amber-500">
+            {t("Middle-click zone needs a non-zero width and height")}
+          </div>
+        )}
+
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-[var(--color-text-muted)]">
           <span>
             <span className="mr-1 inline-block h-2 w-2 rounded-sm bg-[#f5a524]/40 ring-1 ring-[#f5a524]" />
@@ -335,6 +376,12 @@ export function TrackpadZoneMap({ params }: { params: ZoneParams }) {
             <span className="mr-1 inline-block h-2 w-2 rounded-sm bg-[var(--color-electric)]/20 ring-1 ring-[var(--color-electric)]" />
             {t("Scroll band")}
           </span>
+          {auxEnabled && (
+            <span>
+              <span className="mr-1 inline-block h-2 w-2 rounded-sm bg-[#a78bfa]/20 ring-1 ring-[#a78bfa]" />
+              {t("Middle-click zone")}
+            </span>
+          )}
           <span>{t("Hatched ring = module border (not sensitive)")}</span>
         </div>
       </div>
