@@ -58,6 +58,10 @@ export interface ZoneParams {
   auxEnabled?: boolean;
   auxWidthPct?: number;
   auxHeightPct?: number;
+  /** Right-edge (vertical) scrolling enabled. */
+  rightScrollEnabled?: boolean;
+  /** Top-edge (horizontal) scrolling enabled. */
+  topScrollEnabled?: boolean;
 }
 
 const DEFAULTS = {
@@ -79,6 +83,8 @@ const DEFAULTS = {
   auxEnabled: false,
   auxWidthPct: 0,
   auxHeightPct: 0,
+  rightScrollEnabled: true,
+  topScrollEnabled: false,
 };
 
 type Resolved = typeof DEFAULTS;
@@ -168,13 +174,14 @@ export function zoneAt(
   return "primary";
 }
 
-function scrollModeForPoint(
-  nx: number,
-  ny: number,
-  p: Resolved,
-): "none" | "vertical" {
+type ScrollMode = "none" | "vertical" | "horizontal";
+
+/** Mirrors pinnacle_absolute_scroll_mode_for_touch(): the right band wins. */
+function scrollModeForPoint(nx: number, ny: number, p: Resolved): ScrollMode {
   if (!inOuterRing(nx, ny, p.ringPct)) return "none";
-  return nx >= p.ringMinAxisPct ? "vertical" : "none";
+  if (p.rightScrollEnabled && nx >= p.ringMinAxisPct) return "vertical";
+  if (p.topScrollEnabled && ny <= -p.ringMinAxisPct) return "horizontal";
+  return "none";
 }
 
 export type GestureType = "pointer" | "tap" | "scroll" | "drag";
@@ -192,8 +199,8 @@ export interface GestureState {
   start: { nx: number; ny: number };
   prev: { nx: number; ny: number };
   startT: number;
-  scrollMode: "none" | "vertical";
-  scrollCandidate: "none" | "vertical";
+  scrollMode: ScrollMode;
+  scrollCandidate: ScrollMode;
   motionStarted: boolean;
   tapDragCandidate: boolean;
   dragging: boolean;
@@ -261,8 +268,10 @@ export function stepGesture(g: GestureState, nx: number, ny: number): void {
   if (g.scrollMode !== "none") {
     const dxRaw = rawX(nx - g.prev.nx, p.halfX);
     const dyRaw = rawY(g.prev.ny - ny, p.halfY); // firmware: delta = prev_y - cur_y
-    if (Math.abs(dyRaw) * 5 >= Math.abs(dxRaw) * 3) {
-      g.remainder += dyRaw;
+    const delta = g.scrollMode === "vertical" ? dyRaw : dxRaw;
+    const across = g.scrollMode === "vertical" ? dxRaw : dyRaw;
+    if (Math.abs(delta) * 5 >= Math.abs(across) * 3) {
+      g.remainder += delta;
       const ticks = Math.trunc(g.remainder / p.divisor);
       g.remainder -= ticks * p.divisor;
       g.ticks += ticks;
@@ -275,7 +284,10 @@ export function stepGesture(g: GestureState, nx: number, ny: number): void {
   const my = Math.abs(rawY(ny - g.start.ny, p.halfY));
 
   if (g.scrollCandidate !== "none" && !g.motionStarted) {
-    if (my >= p.intent && my * 5 >= mx * 3) {
+    const alongY = g.scrollCandidate === "vertical";
+    const along = alongY ? my : mx;
+    const across = alongY ? mx : my;
+    if (along >= p.intent && along * 5 >= across * 3) {
       g.scrollMode = g.scrollCandidate;
       g.scrollCandidate = "none";
       g.motionStarted = true;
@@ -283,7 +295,7 @@ export function stepGesture(g: GestureState, nx: number, ny: number): void {
       g.prev = { nx, ny };
       return;
     }
-    if (mx >= p.intent && mx * 5 >= my * 3) {
+    if (across >= p.intent && across * 5 >= along * 3) {
       g.scrollCandidate = "none";
     }
   }

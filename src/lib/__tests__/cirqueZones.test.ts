@@ -68,6 +68,33 @@ describe("cirque zone math", () => {
     expect(horizontal.type).not.toBe("scroll");
   });
 
+  it("scrolls horizontally on a top-edge stroke", () => {
+    const params = { topScrollEnabled: true };
+    const r = simulateDrag(
+      [
+        [-10, -80],
+        [0, -80],
+        [10, -80],
+        [20, -80],
+        [30, -80],
+      ],
+      params,
+    );
+    expect(r.type).toBe("scroll");
+    expect(Math.abs(r.ticks)).toBeGreaterThanOrEqual(1);
+
+    const vertical = simulateDrag(
+      [
+        [0, -80],
+        [0, -70],
+        [0, -60],
+        [0, -50],
+      ],
+      params,
+    );
+    expect(vertical.type).not.toBe("scroll");
+  });
+
   it("keeps a centre vertical drag as pointer movement", () => {
     const r = simulateDrag([
       [0, 0],

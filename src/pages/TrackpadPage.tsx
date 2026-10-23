@@ -364,6 +364,8 @@ function CirquePanel(props: UseCirqueReturn) {
                     auxEnabled: bool("auxTapEnable"),
                     auxWidthPct: (num("auxTapAreaWidth") / halfX) * 100,
                     auxHeightPct: (num("auxTapAreaHeight") / halfY) * 100,
+                    rightScrollEnabled: bool("rightEdgeScrollEnable"),
+                    topScrollEnabled: bool("topEdgeScrollEnable"),
                     tapMaxMs: num("tapMaxMs"),
                     tapMove: num("tapMaxMovement"),
                     divisor: num("scrollDivisor"),

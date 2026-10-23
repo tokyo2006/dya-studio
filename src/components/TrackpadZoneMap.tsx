@@ -22,6 +22,28 @@ const polar = (r: number, deg: number): [number, number] => [
 const RIGHT_SECTOR_DEG =
   (Math.acos(CALIBRATION.ringMinAxisPct / 100) * 180) / Math.PI;
 
+/** Annulus sector between rInner and rOuter, from a0 to a1 (degrees). */
+function annulus(
+  rOuter: number,
+  rInner: number,
+  a0: number,
+  a1: number,
+): string {
+  const [x0, y0] = polar(rInner, a0);
+  const [x1, y1] = polar(rOuter, a0);
+  const [x2, y2] = polar(rOuter, a1);
+  const [x3, y3] = polar(rInner, a1);
+  const large = Math.abs(a1 - a0) > 180 ? 1 : 0;
+  return [
+    `M ${x0} ${y0}`,
+    `L ${x1} ${y1}`,
+    `A ${rOuter} ${rOuter} 0 ${large} 1 ${x2} ${y2}`,
+    `L ${x3} ${y3}`,
+    `A ${rInner} ${rInner} 0 ${large} 0 ${x0} ${y0}`,
+    "Z",
+  ].join(" ");
+}
+
 export function TrackpadZoneMap({ params }: { params: ZoneParams }) {
   const { t } = useLanguage();
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -39,16 +61,8 @@ export function TrackpadZoneMap({ params }: { params: ZoneParams }) {
   const auxW = Math.max(0, params.auxWidthPct ?? 0);
   const auxH = Math.max(0, params.auxHeightPct ?? 0);
   const auxValid = auxW > 0 && auxH > 0;
-
-  const scrollBand = useMemo(() => {
-    const a = RIGHT_SECTOR_DEG;
-    return [
-      `M ${polar(ringPct, -a).join(" ")}`,
-      `A ${ringPct} ${ringPct} 0 0 1 ${polar(ringPct, a).join(" ")}`,
-      `L ${polar(100, a).join(" ")}`,
-      `A 100 100 0 0 0 ${polar(100, -a).join(" ")} Z`,
-    ].join(" ");
-  }, [ringPct]);
+  const rightScroll = params.rightScrollEnabled ?? true;
+  const topScroll = params.topScrollEnabled ?? false;
 
   const wedge = useMemo(() => {
     const inner = CALIBRATION.wedgeInnerPct;
@@ -203,30 +217,68 @@ export function TrackpadZoneMap({ params }: { params: ZoneParams }) {
             strokeWidth={0.8}
           />
 
-          {/* scroll band */}
-          <path
-            d={scrollBand}
-            fill="var(--color-electric)"
-            fillOpacity={0.14}
-            stroke="var(--color-electric)"
-            strokeWidth={0.9}
-          />
-          {[-40, 0, 40].map((deg) => {
-            const [x, y] = polar((ringPct + 100) / 2, deg);
-            return (
-              <text
-                key={deg}
-                x={x}
-                y={y + 3}
-                textAnchor="middle"
-                fontSize={9}
-                fontWeight={700}
+          {/* right-edge scroll band (vertical) */}
+          {rightScroll && (
+            <>
+              <path
+                d={annulus(100, ringPct, -RIGHT_SECTOR_DEG, RIGHT_SECTOR_DEG)}
                 fill="var(--color-electric)"
-              >
-                {params.invertScroll ? "↓" : "↑"}
-              </text>
-            );
-          })}
+                fillOpacity={0.14}
+                stroke="var(--color-electric)"
+                strokeWidth={0.9}
+              />
+              {[-40, 0, 40].map((deg) => {
+                const [x, y] = polar((ringPct + 100) / 2, deg);
+                return (
+                  <text
+                    key={`r${deg}`}
+                    x={x}
+                    y={y + 3}
+                    textAnchor="middle"
+                    fontSize={9}
+                    fontWeight={700}
+                    fill="var(--color-electric)"
+                  >
+                    {params.invertScroll ? "↓" : "↑"}
+                  </text>
+                );
+              })}
+            </>
+          )}
+
+          {/* top-edge scroll band (horizontal) */}
+          {topScroll && (
+            <>
+              <path
+                d={annulus(
+                  100,
+                  ringPct,
+                  -90 - RIGHT_SECTOR_DEG,
+                  -90 + RIGHT_SECTOR_DEG,
+                )}
+                fill="var(--color-electric)"
+                fillOpacity={0.14}
+                stroke="var(--color-electric)"
+                strokeWidth={0.9}
+              />
+              {[-40, 0, 40].map((deg) => {
+                const [x, y] = polar((ringPct + 100) / 2, -90 + deg);
+                return (
+                  <text
+                    key={`t${deg}`}
+                    x={x}
+                    y={y + 3}
+                    textAnchor="middle"
+                    fontSize={9}
+                    fontWeight={700}
+                    fill="var(--color-electric)"
+                  >
+                    {params.invertScroll ? "→" : "←"}
+                  </text>
+                );
+              })}
+            </>
+          )}
 
           {/* secondary tap wedge */}
           <path
