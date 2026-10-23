@@ -32,6 +32,8 @@ route は AppContent の connection gate より前で return され、`/release-
 | released empty     | version/date と `No changes recorded for this release.` | 同上                                         |
 | hash target absent | card は通常表示                                         | no-op。error/notification はない             |
 
+公開ページの title / description / canonical / OGP と sitemap 掲載は [SHELL-018–020](../modules/app-shell.md) に従う。本文の静的生成・言語別 URL はこの段階では対象外。
+
 ## 現行の機能仕様
 
 REL-007: モバイル幅でBackの文字を隠してもaccessible name `Back`（翻訳に追従）を保持し、戻る操作を識別できる（S1のheader）。
@@ -43,7 +45,7 @@ REL-007: モバイル幅でBackの文字を隠してもaccessible name `Back`（
 | REL-003 | `upcoming` / summary・change とも空 | `Upcoming` と empty 文言。released empty は別文言                                                                                    | data の `version`/date を変えない                      | S1/S2    |
 | REL-004 | `#<version>` を持つ URL             | matching `<section id={version}>` を render 後 scroll。存在しない target または decode 不能な hash は無視し、release list を表示する | browser scroll のみ。hash や release data は変更しない | S1       |
 | REL-005 | change に `pr` number または array  | `#N` external link を new tab、`noopener noreferrer` で表示                                                                          | GitHub は開くが app data は変更しない                  | S1/S2    |
-| REL-006 | language toggle                     | localizeText/change が active language（欠ければ en）を表示                                                                          | language persistence は app-shell の契約               | S1/S2    |
+| REL-006 | 言語ドロップダウンで選択            | localizeText/change が active language（欠ければ en）を表示                                                                          | language persistence は app-shell の契約               | S1/S2    |
 
 ## 代表ユーザーフロー
 

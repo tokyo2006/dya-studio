@@ -37,7 +37,8 @@ import { TroubleshootingPage } from "./pages/TroubleshootingPage";
 import { AbyssCallbackPage } from "./pages/AbyssCallbackPage";
 import { OAUTH_CALLBACK_PATH } from "./lib/abyss/abyssOAuth";
 import { useLanguage } from "./hooks/useLanguage";
-import { useUrlTab, pathnameFromTabId } from "./hooks/useUrlTab";
+import { usePageMetadata } from "./hooks/usePageMetadata";
+import { useUrlTab, usePathname, pathnameFromTabId } from "./hooks/useUrlTab";
 import { useDevtool } from "./hooks/useDevtool";
 import { DevtoolWindow } from "./components/DevtoolWindow";
 import { trackPageView } from "./lib/analytics";
@@ -125,13 +126,9 @@ function App() {
 function AppRouter() {
   useAbyssSessionRenewal();
   const { language } = useLanguage();
-  const [pathname, setPathname] = useState(() => window.location.pathname);
+  const pathname = usePathname();
 
-  useEffect(() => {
-    const onPopState = () => setPathname(window.location.pathname);
-    window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
-  }, []);
+  usePageMetadata(pathname, language);
 
   if (isDeveloperGuidePath(pathname)) {
     return (
@@ -200,6 +197,7 @@ function AppContent() {
       window.location.pathname !== "/"
     ) {
       window.history.replaceState(null, "", "/");
+      window.dispatchEvent(new PopStateEvent("popstate"));
     }
   }, [urlTab, activeTab, onReleaseNotes, onOauthCallback]);
 
@@ -264,8 +262,10 @@ function AppContent() {
           className="app-connected-shell"
         >
           <AppLayout
+            isHome={activeTab === "home"}
             isConnected={connection.isConnected}
             deviceName={connection.deviceName}
+            connectionMethod={connection.connectionMethod}
             onConnect={connection.onConnect}
             onDisconnect={connection.onDisconnect}
             isConnecting={connection.isLoading}
