@@ -4,7 +4,7 @@
  * Renders a single key in the physical keyboard layout.
  * Supports positioning, rotation, sizing, and interactive states.
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useLayoutEffect } from "react";
 import * as Tooltip from "@radix-ui/react-tooltip";
 import {
   IconArrowBigUp,
@@ -96,6 +96,9 @@ export function PhysicalKey({
 }: PhysicalKeyProps) {
   const { t } = useLanguage();
   const [isHovered, setIsHovered] = useState(false);
+  const keyRef = useRef<HTMLButtonElement>(null);
+  const labelRef = useRef<HTMLSpanElement>(null);
+  const labelContentRef = useRef<HTMLSpanElement>(null);
   const accessibleName = t("Key position {{position}}: {{binding}}", {
     position: keyPosition,
     binding: longDisplayName || displayName || t("No binding"),
@@ -135,10 +138,66 @@ export function PhysicalKey({
     const scaledSize = baseSize * scale;
     return Math.max(8, Math.min(14, scaledSize)); // clamp between 8px and 14px
   }, [scale]);
+  const minFontSize = attrs.height >= 75 ? 6.5 : 6;
+
+  // Measure the rendered label (including replacement icons) at its usual size.
+  // Keep short labels on one line, shrinking only when the key is too narrow.
+  useLayoutEffect(() => {
+    const key = keyRef.current;
+    const label = labelRef.current;
+    const content = labelContentRef.current;
+    if (!key || !label || !content) return;
+
+    const fitLabel = () => {
+      const availableWidth = label.clientWidth;
+      if (availableWidth <= 0) return;
+
+      label.style.fontSize = `${fontSize}px`;
+      content.style.display = "inline-block";
+      content.style.whiteSpace = "nowrap";
+      content.style.width = "max-content";
+      // CSS width excludes the physical key's rotation transform.
+      const contentWidth = () =>
+        Number.parseFloat(getComputedStyle(content).width) ||
+        content.getBoundingClientRect().width;
+      const naturalWidth = contentWidth();
+      const fittedSize = Math.max(
+        minFontSize,
+        Math.min(fontSize, (fontSize * availableWidth) / (naturalWidth || 1)),
+      );
+      label.style.fontSize = `${fittedSize}px`;
+      // Labels that still cannot fit at the minimum retain the two-line fallback.
+      if (contentWidth() > availableWidth + 0.5) {
+        content.style.display = "inline";
+        content.style.whiteSpace = "normal";
+        content.style.width = "100%";
+      }
+    };
+
+    fitLabel();
+    const observer =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(fitLabel)
+        : undefined;
+    observer?.observe(key);
+    // Themes can switch to an already-loaded font without a font-loading event.
+    const themeObserver = new MutationObserver(fitLabel);
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+    document.fonts?.addEventListener("loadingdone", fitLabel);
+    return () => {
+      observer?.disconnect();
+      themeObserver.disconnect();
+      document.fonts?.removeEventListener("loadingdone", fitLabel);
+    };
+  }, [fontSize, minFontSize, displayName]);
 
   // Key content
   const keyContent = (
     <button
+      ref={keyRef}
       type="button"
       className={`
         physical-key relative w-full h-full rounded-lg border cursor-pointer transition-all duration-150
@@ -176,8 +235,9 @@ export function PhysicalKey({
       )}
       {/* Display Name */}
       <span
+        ref={labelRef}
         className={`
-            flex items-center justify-center
+          w-full min-w-0
           font-medium text-center leading-tight break-words line-clamp-2
           ${
             isHighlighted
@@ -190,7 +250,12 @@ export function PhysicalKey({
         style={{ fontSize: `${fontSize}px` }}
         title={displayName}
       >
-        {renderKeyLabel(displayName) || "—"}
+        <span
+          ref={labelContentRef}
+          className="inline-block align-middle [&_svg]:inline-block [&_svg]:align-middle"
+        >
+          {iconReplace(displayName) || "—"}
+        </span>
       </span>
 
       {/* Behavior tag (e.g. "&hml"), kept out of the main label so it
@@ -398,45 +463,12 @@ const TermToIcon: Record<string, keyof typeof IconComponents> = Object.entries(
 /** Renders one space-separated group of a key's label (e.g. the hold side of
  * a hold-tap). A "+"-joined modifier+key combo (e.g. "LGui+A") becomes a row
  * of small keycap chips, one per modifier/key; anything else renders plain. */
-function renderKeyLabelGroup(group: string, key: number): React.ReactNode {
-  if (!group.includes("+")) {
-    return <span key={key}>{iconReplace(group)}</span>;
-  }
-  return (
-    <span key={key} className="flex items-center justify-center gap-1">
-      {group.split("+").map((part, index) => (
-        <span
-          key={index}
-          className="flex items-center justify-center min-w-[1.4em] px-1 py-0.5 rounded-md bg-[var(--color-border)]"
-        >
-          {iconReplace(part)}
-        </span>
-      ))}
-    </span>
-  );
-}
-
 /** Renders a key's label. Only reaches for the chip layout above when a
  * modifier+key combo is actually present (a "+" appears); a plain hold-tap
  * pair like "LAlt S" (no combo on either side) keeps its existing inline
  * icon-and-letter look via `iconReplace` unchanged. When a combo IS present,
  * each space-separated group (e.g. hold vs. tap) renders as its own row,
  * stacked vertically so a chip row (hold) can sit above a plain key (tap). */
-function renderKeyLabel(str: string): React.ReactNode {
-  if (!str.includes("+")) {
-    return iconReplace(str);
-  }
-  const groups = str.split(" ");
-  if (groups.length === 1) {
-    return renderKeyLabelGroup(groups[0], 0);
-  }
-  return (
-    <span className="flex flex-col items-center gap-0.5">
-      {groups.map((group, index) => renderKeyLabelGroup(group, index))}
-    </span>
-  );
-}
-
 function iconReplace(str: string): React.ReactNode {
   const splits = str.split(" ");
   return (

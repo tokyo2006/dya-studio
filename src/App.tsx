@@ -10,7 +10,6 @@ import {
   IconPuzzle,
   IconSettings,
   IconStethoscope,
-  IconWand,
 } from "@tabler/icons-react";
 
 import { SplashScreen } from "./components/SplashScreen";
@@ -30,7 +29,6 @@ import { ConnectionPage } from "./pages/ConnectionPage";
 import { KeymapPage } from "./pages/KeymapPage";
 import { TrackballPage } from "./pages/TrackballPage";
 import { TrackpadPage } from "./pages/TrackpadPage";
-import { MacroComboPage } from "./pages/MacroComboPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { CustomSubsystemsPage } from "./pages/CustomSubsystemsPage";
 import { TroubleshootingPage } from "./pages/TroubleshootingPage";
@@ -62,12 +60,6 @@ function getTabs(t: (key: string) => string): TabItem[] {
       label: t("Keymap"),
       icon: <IconKeyboard size={18} />,
       content: <KeymapPage />,
-    },
-    {
-      id: "macro-combo",
-      label: t("Macro&Combo"),
-      icon: <IconWand size={18} />,
-      content: <MacroComboPage />,
     },
     {
       id: "trackball",
@@ -159,16 +151,14 @@ function AppContent() {
   const tabs = getTabs(t);
   const { isAvailable: isDevtoolAvailable } = useDevtool();
   const [devtoolOpen, setDevtoolOpen] = useState(false);
-  const activeTab = tabs.some((tab) => tab.id === urlTab) ? urlTab : "home";
+  const resolvedTab = urlTab === "macro-combo" ? "keymap" : urlTab;
+  const activeTab = tabs.some((tab) => tab.id === resolvedTab)
+    ? resolvedTab
+    : "home";
 
   // The release notes page is a standalone, connection-independent route so it
   // stays reachable from the splash screen and via GitHub Release deep links.
-  const [pathname, setPathname] = useState(() => window.location.pathname);
-  useEffect(() => {
-    const onPopState = () => setPathname(window.location.pathname);
-    window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
-  }, []);
+  const pathname = usePathname();
   const navigatePath = useCallback((path: string) => {
     if (window.location.pathname !== path) {
       window.history.pushState(null, "", path);
@@ -186,20 +176,36 @@ function AppContent() {
   const onOauthCallback = pathname === OAUTH_CALLBACK_PATH;
 
   useEffect(() => {
+    if (onReleaseNotes || onOauthCallback) return;
+
+    // useUrlTab already maps this legacy entry to Keymap, so comparing tab
+    // IDs cannot detect it. Replace the URL even before a keyboard connects,
+    // retaining its query/hash and the current history position.
+    if (/^\/+import-export(?:\/|$)/.test(pathname)) {
+      replacePath(`/keymap${window.location.search}${window.location.hash}`);
+      return;
+    }
+
     // Canonicalize unknown paths (e.g. a stale/typo'd link) to the home tab,
     // but leave the standalone routes alone. The OAuth callback especially:
     // rewriting it to "/" would discard the ?code=&state= query string before
     // AbyssCallbackPage ever gets to read it.
-    if (
-      !onReleaseNotes &&
-      !onOauthCallback &&
-      urlTab !== activeTab &&
-      window.location.pathname !== "/"
-    ) {
-      window.history.replaceState(null, "", "/");
+    if (urlTab !== activeTab && window.location.pathname !== "/") {
+      window.history.replaceState(
+        null,
+        "",
+        urlTab === "macro-combo" ? "/keymap" : "/",
+      );
       window.dispatchEvent(new PopStateEvent("popstate"));
     }
-  }, [urlTab, activeTab, onReleaseNotes, onOauthCallback]);
+  }, [
+    pathname,
+    urlTab,
+    activeTab,
+    onReleaseNotes,
+    onOauthCallback,
+    replacePath,
+  ]);
 
   const setActiveTabWithTracking = useCallback(
     (tabId: string) => {

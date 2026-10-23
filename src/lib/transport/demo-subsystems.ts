@@ -163,12 +163,18 @@ export const DEMO_SUBSYSTEMS: DemoSubsystemInfo[] = [
   },
   {
     index: 17,
+    identifier: "cormoran__runtime_tapdance",
+    label: "Runtime Tapdance",
+    defaultEnabled: true,
+  },
+  {
+    index: 18,
     identifier: CIRQUE_IDENTIFIER,
     label: "Cirque Trackpad",
     defaultEnabled: true,
   },
   {
-    index: 18,
+    index: 19,
     identifier: TPS43_IDENTIFIER,
     label: "TPS43 Trackpad",
     defaultEnabled: true,
