@@ -421,6 +421,7 @@ describe("useTps43", () => {
     await settleDiscovery();
 
     expect(result.current.sources).toEqual([]);
+    expect(result.current.hasDiscovered).toBe(true);
     expect(result.current.selectedSource).toBe(0);
     expect(result.current.values).toBeNull();
     expect(result.current.error).toBeNull();

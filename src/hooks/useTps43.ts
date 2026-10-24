@@ -47,6 +47,12 @@ export interface UseTps43Return {
   selectedSource: number;
   /** Edit another discovered source. Unknown sources are ignored. */
   selectSource: (source: number) => void;
+  /**
+   * True once a discovery round finished. `false` while the first discovery is
+   * still running; `true` with `sources: []` means "no trackpad at all", which
+   * is different from "not discovered yet".
+   */
+  hasDiscovered: boolean;
   /** Re-discover sources and reload the selected one. */
   refresh: () => Promise<void>;
   /** Last state confirmed by the device. */
@@ -96,6 +102,7 @@ export function useTps43(): UseTps43Return {
   const [pending, setPending] = useState<Tps43State>({});
   const pendingRef = useRef<Tps43State>({});
   const [sources, setSources] = useState<TrackpadInfo[]>([]);
+  const [hasDiscovered, setHasDiscovered] = useState(false);
   const [selectedSource, setSelectedSourceValue] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
@@ -294,6 +301,7 @@ export function useTps43(): UseTps43Return {
     setPendingBoth({});
     setState(null);
     setIsLoading(true);
+    setHasDiscovered(false);
     setError(null);
 
     let discovered: TrackpadInfo[] = [];
@@ -340,10 +348,14 @@ export function useTps43(): UseTps43Return {
       selectedSourceRef.current = selected;
       setSources(discovered);
       setSelectedSourceValue(selected);
+      // A completed discovery is meaningful even when it found nothing: the
+      // page must render "no trackpad" instead of waiting or guessing a source.
+      setHasDiscovered(true);
     } catch (err) {
       if (!isCurrent()) return;
       console.error("Failed to discover trackpads:", err);
       setSources([]);
+      setHasDiscovered(false);
       selectedSourceRef.current = 0;
       setSelectedSourceValue(0);
       setError(errorText("Failed to discover trackpads", err));
@@ -435,6 +447,7 @@ export function useTps43(): UseTps43Return {
       setPendingBoth({});
       setState(null);
       setSources([]);
+      setHasDiscovered(false);
       selectedSourceRef.current = 0;
       setSelectedSourceValue(0);
       setIsLoading(false);
@@ -456,6 +469,7 @@ export function useTps43(): UseTps43Return {
     sources,
     selectedSource,
     selectSource,
+    hasDiscovered,
     refresh,
     state,
     values,

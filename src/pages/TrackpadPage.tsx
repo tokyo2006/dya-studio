@@ -13,17 +13,17 @@ import {
   IconMouse,
   IconRefresh,
   IconRestore,
-  IconRotate,
-  IconSettings,
 } from "@tabler/icons-react";
 import { useLanguage } from "../hooks/useLanguage";
 import { useCirque, type UseCirqueReturn } from "../hooks/useCirque";
 import { useTps43, type UseTps43Return } from "../hooks/useTps43";
+import { useRuntimeInputProcessor } from "../hooks/useRuntimeInputProcessor";
 import { LoadingIndicator } from "../components/LoadingIndicator";
+import { Tps43GestureMap } from "../components/Tps43GestureMap";
 import { TrackpadZoneMap } from "../components/TrackpadZoneMap";
 import { ResponsiveButton } from "../components/ResponsiveButton";
 import type { CirqueState } from "../proto/tokyo2006/cirque/cirque";
-import type { Tps43State } from "../proto/tokyo2006/tps43/tps43";
+import type { Tps43State, TrackpadInfo } from "../proto/tokyo2006/tps43/tps43";
 
 type NumericKey = {
   [K in keyof CirqueState]-?: NonNullable<CirqueState[K]> extends number
@@ -52,6 +52,24 @@ const MODULE_URL = "https://github.com/tokyo2006/cirque-input-module";
 const TPS43_MODULE_NAME = "tokyo2006/tps43-input-module";
 const TPS43_MODULE_URL = "https://github.com/tokyo2006/tps43-input-module";
 const U16_MAX = 65535;
+
+// TPS43 preset values. The page writes the raw field so firmware revisions that
+// do not know the preset RPC still work; the labels carry the intent.
+const HOLD_DURATION_OPTIONS = [
+  { label: "Short", value: 150 },
+  { label: "Medium", value: 250 },
+  { label: "Long", value: 400 },
+];
+const BATTERY_SAVER_OPTIONS = [
+  { label: "Off", value: 0 },
+  { label: "Balanced", value: 1 },
+  { label: "Max", value: 2 },
+];
+const SENSITIVITY_OPTIONS = [
+  { label: "Low", value: 1 },
+  { label: "Medium", value: 3 },
+  { label: "High", value: 5 },
+];
 
 const SLIDER_CLASS = `w-full h-2 rounded-lg appearance-none cursor-pointer
   bg-[var(--color-border)]
@@ -220,6 +238,52 @@ function NumberRow({
         className="w-28 px-2 py-1 rounded-lg text-sm font-mono text-right bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)]"
       />
     </label>
+  );
+}
+
+/**
+ * Intent-level preset picker. Values stay numeric on the wire; the labels are
+ * the user-facing intent ("Short", "Balanced", ...).
+ */
+function ChoiceRow({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  options: { label: string; value: number }[];
+  onChange: (v: number) => void;
+}) {
+  const { t } = useLanguage();
+  return (
+    <div>
+      <span className="text-sm text-[var(--color-text-secondary)]">
+        {label}
+      </span>
+      <div
+        role="group"
+        aria-label={label}
+        className="mt-2 inline-flex overflow-hidden rounded-lg border border-[var(--color-border)]"
+      >
+        {options.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={value === option.value}
+            onClick={() => onChange(option.value)}
+            className={`px-3 py-1.5 text-xs transition-colors ${
+              value === option.value
+                ? "bg-[var(--color-electric)]/15 text-[var(--color-electric)]"
+                : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+            }`}
+          >
+            {t(option.label)}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -645,10 +709,56 @@ function CirquePanel(props: UseCirqueReturn) {
   );
 }
 
+function sourceLabel(source: number, t: (key: string) => string): string {
+  // Source 0 is the half Studio is connected to; anything else is reached over
+  // the split relay. Never label left/right: the slot is not a physical side.
+  return source === 0 ? t("this keyboard") : t("another half");
+}
+
+function SourceSelector({
+  sources,
+  selectedSource,
+  onSelect,
+}: {
+  sources: TrackpadInfo[];
+  selectedSource: number;
+  onSelect: (source: number) => void;
+}) {
+  const { t } = useLanguage();
+  return (
+    <div
+      data-testid="tps43-source-selector"
+      role="group"
+      aria-label={t("Trackpad source")}
+      className="inline-flex overflow-hidden rounded-lg border border-[var(--color-border)]"
+    >
+      {sources.map((info) => (
+        <button
+          key={info.source}
+          type="button"
+          aria-pressed={info.source === selectedSource}
+          onClick={() => onSelect(info.source)}
+          className={`px-3 py-1 text-xs transition-colors ${
+            info.source === selectedSource
+              ? "bg-[var(--color-electric)]/15 text-[var(--color-electric)]"
+              : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+          }`}
+        >
+          {sourceLabel(info.source, t)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function Tps43Panel(props: UseTps43Return) {
   const { t } = useLanguage();
   const {
     isAvailable,
+    sources,
+    selectedSource,
+    selectSource,
+    hasDiscovered,
     values,
     isLoading,
     isResetting,
@@ -657,8 +767,23 @@ function Tps43Panel(props: UseTps43Return) {
     load,
     update,
     reset,
+    refresh,
   } = props;
-  const [showResetDialog, setShowResetDialog] = useState(false);
+  // Pointer speed lives on the central's runtime input processor, not on the
+  // half that owns the trackpad. The card is absent when that subsystem is.
+  const inputProcessor = useRuntimeInputProcessor();
+  const [processorId, setProcessorId] = useState<number | null>(null);
+  const processor =
+    inputProcessor.processors.find((item) => item.id === processorId) ??
+    inputProcessor.processors[0];
+  const hasSpeedCard = inputProcessor.isAvailable && processor !== undefined;
+  const scalePercent =
+    processor && processor.scaleDivisor > 0
+      ? Math.round((processor.scaleMultiplier / processor.scaleDivisor) * 100)
+      : 100;
+  // Clamp for display: a firmware scale outside the slider range would
+  // otherwise make the input lie about its own value.
+  const speedPercent = Math.min(300, Math.max(10, scalePercent));
 
   const num = (key: Tps43NumericKey) => values?.[key] ?? 0;
   const bool = (key: Tps43BooleanKey) => values?.[key] ?? false;
@@ -666,13 +791,26 @@ function Tps43Panel(props: UseTps43Return) {
   const setBool = (key: Tps43BooleanKey) => (v: boolean) =>
     update({ [key]: v });
 
+  // A completed discovery with zero answers is a real state: there is no
+  // trackpad on either half. It must not look like loading, and Reload must not
+  // silently start another 2 s discovery window.
+  const noTrackpad =
+    isAvailable && hasDiscovered && sources.length === 0 && !error;
+  const showActions = isAvailable && !noTrackpad;
+
   const handleReset = async () => {
-    if (await reset()) setShowResetDialog(false);
+    const confirmed = window.confirm(
+      t(
+        "Reset trackpad settings to firmware defaults? Saved trackpad settings will be cleared and this cannot be undone. Pointer speed is not affected.",
+      ),
+    );
+    if (!confirmed) return;
+    await reset();
   };
 
   return (
     <div className="app-page p-4 sm:p-6 h-full">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4 mb-6">
           <div className="flex min-w-0 items-center gap-3">
@@ -688,9 +826,30 @@ function Tps43Panel(props: UseTps43Return) {
                   "Changes are applied and saved to the keyboard automatically",
                 )}
               </p>
+              {isAvailable && sources.length > 0 && (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-[var(--color-text-muted)]">
+                    {t("Trackpad found on:")}
+                  </span>
+                  {sources.length > 1 ? (
+                    <SourceSelector
+                      sources={sources}
+                      selectedSource={selectedSource}
+                      onSelect={selectSource}
+                    />
+                  ) : (
+                    <span
+                      data-testid="tps43-source-chip"
+                      className="rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-0.5 text-xs text-[var(--color-text-secondary)]"
+                    >
+                      {sourceLabel(selectedSource, t)}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
-          {isAvailable && (
+          {showActions && (
             <div className="flex items-center gap-2">
               {writeState !== "idle" && (
                 <span
@@ -716,10 +875,14 @@ function Tps43Panel(props: UseTps43Return) {
               <ResponsiveButton
                 label={t("Reset to defaults")}
                 className="btn-ghost text-sm flex items-center gap-1.5"
-                onClick={() => setShowResetDialog(true)}
+                onClick={() => void handleReset()}
                 disabled={!values || isResetting}
               >
-                <IconRestore size={16} />
+                {isResetting ? (
+                  <IconLoader2 size={16} className="animate-spin" />
+                ) : (
+                  <IconRestore size={16} />
+                )}
               </ResponsiveButton>
             </div>
           )}
@@ -748,6 +911,45 @@ function Tps43Panel(props: UseTps43Return) {
           </div>
         )}
 
+        {noTrackpad && (
+          <section
+            data-testid="tps43-no-trackpad"
+            aria-labelledby="tps43-no-trackpad-title"
+            className="mb-6 p-6 glass-card"
+          >
+            <div className="flex items-start gap-3">
+              <div className="p-2">
+                <IconAlertTriangleFilled size={24} className="text-amber-500" />
+              </div>
+              <div className="min-w-0">
+                <h2
+                  id="tps43-no-trackpad-title"
+                  className="text-sm font-medium text-[var(--color-text)]"
+                >
+                  {t("No trackpad found")}
+                </h2>
+                <p className="mt-1 text-sm text-[var(--color-text-muted)]">
+                  {t(
+                    "The connected keyboard reported no TPS43 trackpad on either half. Check that the trackpad half is powered and connected.",
+                  )}
+                </p>
+                <ResponsiveButton
+                  label={t("Search again")}
+                  className="btn-ghost mt-3 text-sm flex items-center gap-1.5"
+                  onClick={() => void refresh()}
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <IconLoader2 size={16} className="animate-spin" />
+                  ) : (
+                    <IconRefresh size={16} />
+                  )}
+                </ResponsiveButton>
+              </div>
+            </div>
+          </section>
+        )}
+
         {error && (
           <div
             role="alert"
@@ -757,161 +959,183 @@ function Tps43Panel(props: UseTps43Return) {
           </div>
         )}
 
-        {isAvailable && isLoading && !values && (
+        {isAvailable && isLoading && !values && !noTrackpad && (
           <LoadingIndicator
             className="mb-6"
             label={t("Loading trackpad settings...")}
           />
         )}
 
-        {values && (
-          <div className="grid grid-cols-1 desktop:grid-cols-2 gap-4">
-            <Card
-              icon={<IconHandClick size={16} />}
-              title={t("Gestures")}
-              description={t("Tap and hold gestures")}
-            >
-              <ToggleRow
-                label={t("One-finger Tap")}
-                description={t("Left click")}
-                checked={bool("oneFingerTap")}
-                onChange={setBool("oneFingerTap")}
-              />
-              <ToggleRow
-                label={t("Two-finger Tap")}
-                description={t("Right click")}
-                checked={bool("twoFingerTap")}
-                onChange={setBool("twoFingerTap")}
-              />
-              <ToggleRow
-                label={t("Press and Hold")}
-                checked={bool("pressAndHold")}
-                onChange={setBool("pressAndHold")}
-              />
-              <SliderRow
-                label={t("Press and Hold Time")}
-                value={num("pressAndHoldTime")}
-                min={100}
-                max={2000}
-                step={50}
-                unit="ms"
-                onChange={setNum("pressAndHoldTime")}
-              />
-            </Card>
+        {values && !noTrackpad && (
+          <div className="grid grid-cols-1 desktop:grid-cols-[minmax(0,1fr)_minmax(360px,440px)] gap-6 items-start">
+            <div className="desktop:sticky desktop:top-6">
+              <Card
+                icon={<IconHandFinger size={16} />}
+                title={t("Gesture map")}
+                description={t("Static gesture map with a try-it pad")}
+              >
+                <Tps43GestureMap values={values} />
+              </Card>
+            </div>
 
-            <Card
-              icon={<IconMouse size={16} />}
-              title={t("Scrolling")}
-              description={t("Scroll gesture configuration")}
-            >
-              <ToggleRow
-                label={t("Enable Scroll")}
-                checked={bool("scroll")}
-                onChange={setBool("scroll")}
-              />
-              <ToggleRow
-                label={t("Natural Scroll X")}
-                checked={bool("naturalScrollX")}
-                onChange={setBool("naturalScrollX")}
-              />
-              <ToggleRow
-                label={t("Natural Scroll Y")}
-                checked={bool("naturalScrollY")}
-                onChange={setBool("naturalScrollY")}
-              />
-            </Card>
+            <div className="space-y-4">
+              <Card
+                icon={<IconHandClick size={16} />}
+                title={t("Gestures")}
+                description={t("Tap, hold, scroll and palm rejection")}
+              >
+                <ToggleRow
+                  label={t("Tap to click")}
+                  description={t("Left click")}
+                  checked={bool("oneFingerTap")}
+                  onChange={setBool("oneFingerTap")}
+                />
+                <ToggleRow
+                  label={t("Two-finger tap")}
+                  description={t("Right click")}
+                  checked={bool("twoFingerTap")}
+                  onChange={setBool("twoFingerTap")}
+                />
+                <ToggleRow
+                  label={t("Press and hold")}
+                  checked={bool("pressAndHold")}
+                  onChange={setBool("pressAndHold")}
+                />
+                <div>
+                  <ChoiceRow
+                    label={t("Hold duration")}
+                    value={num("pressAndHoldTime")}
+                    options={HOLD_DURATION_OPTIONS}
+                    onChange={setNum("pressAndHoldTime")}
+                  />
+                  {!HOLD_DURATION_OPTIONS.some(
+                    (option) => option.value === num("pressAndHoldTime"),
+                  ) && (
+                    <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+                      {t("Custom ({{ms}} ms)", {
+                        ms: num("pressAndHoldTime"),
+                      })}
+                    </p>
+                  )}
+                </div>
+                <ToggleRow
+                  label={t("Two-finger scroll")}
+                  checked={bool("scroll")}
+                  onChange={setBool("scroll")}
+                />
+                <ToggleRow
+                  label={t("Palm rejection")}
+                  description={t("Ignore large or resting contacts")}
+                  checked={bool("palmReject")}
+                  onChange={setBool("palmReject")}
+                />
+              </Card>
 
-            <Card
-              icon={<IconRotate size={16} />}
-              title={t("Axes")}
-              description={t("Match the trackpad's mounting direction")}
-            >
-              <ToggleRow
-                label={t("Switch X/Y")}
-                checked={bool("switchXy")}
-                onChange={setBool("switchXy")}
-              />
-              <ToggleRow
-                label={t("Flip X")}
-                checked={bool("flipX")}
-                onChange={setBool("flipX")}
-              />
-              <ToggleRow
-                label={t("Flip Y")}
-                checked={bool("flipY")}
-                onChange={setBool("flipY")}
-              />
-            </Card>
+              <Card
+                icon={<IconBolt size={16} />}
+                title={t("Comfort")}
+                description={t("Battery use and pointer sensitivity")}
+              >
+                <div>
+                  <ChoiceRow
+                    label={t("Battery saver")}
+                    value={num("batterySaver")}
+                    options={BATTERY_SAVER_OPTIONS}
+                    onChange={setNum("batterySaver")}
+                  />
+                  {!BATTERY_SAVER_OPTIONS.some(
+                    (option) => option.value === num("batterySaver"),
+                  ) && (
+                    <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+                      {t("Custom ({{value}})", {
+                        value: num("batterySaver"),
+                      })}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <ChoiceRow
+                    label={t("Sensitivity")}
+                    value={num("sensitivity")}
+                    options={SENSITIVITY_OPTIONS}
+                    onChange={setNum("sensitivity")}
+                  />
+                  {!SENSITIVITY_OPTIONS.some(
+                    (option) => option.value === num("sensitivity"),
+                  ) && (
+                    <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+                      {t("Custom ({{value}})", {
+                        value: num("sensitivity"),
+                      })}
+                    </p>
+                  )}
+                </div>
+              </Card>
 
-            <Card
-              icon={<IconSettings size={16} />}
-              title={t("Filtering")}
-              description={t("Sensitivity and filtering")}
-            >
-              <SliderRow
-                label={t("Bottom Beta")}
-                value={num("bottomBeta")}
-                min={0}
-                max={255}
-                onChange={setNum("bottomBeta")}
-              />
-              <SliderRow
-                label={t("Stationary Threshold")}
-                value={num("stationaryThreshold")}
-                min={0}
-                max={255}
-                onChange={setNum("stationaryThreshold")}
-              />
-            </Card>
+              <Card
+                icon={<IconMouse size={16} />}
+                title={t("Pointing")}
+                description={t("Natural scrolling")}
+              >
+                <ToggleRow
+                  label={t("Natural scrolling")}
+                  description={t("Content moves with your fingers")}
+                  checked={bool("naturalScrollX") && bool("naturalScrollY")}
+                  onChange={(v) =>
+                    update({ naturalScrollX: v, naturalScrollY: v })
+                  }
+                />
+              </Card>
+
+              {hasSpeedCard && (
+                <Card
+                  icon={<IconBolt size={16} />}
+                  title={t("Speed")}
+                  description={t("Runtime pointer speed")}
+                >
+                  {inputProcessor.processors.length > 1 && (
+                    <label className="flex items-center justify-between gap-4">
+                      <span className="text-sm text-[var(--color-text-secondary)]">
+                        {t("Pointer processor")}
+                      </span>
+                      <select
+                        aria-label={t("Pointer processor")}
+                        value={processor.id}
+                        onChange={(event) =>
+                          setProcessorId(Number(event.target.value))
+                        }
+                        className="px-2 py-1 rounded-lg text-sm bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)]"
+                      >
+                        {inputProcessor.processors.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                  <SliderRow
+                    label={t("Pointer speed")}
+                    value={speedPercent}
+                    min={10}
+                    max={300}
+                    step={5}
+                    unit="%"
+                    onChange={(v) =>
+                      void inputProcessor.setScaling(processor.id, v, 100)
+                    }
+                  />
+                  <p className="text-xs text-[var(--color-text-muted)]">
+                    {t(
+                      "Scroll speed is not exposed by this runtime input processor.",
+                    )}
+                  </p>
+                </Card>
+              )}
+            </div>
           </div>
         )}
       </div>
-
-      <Dialog.Root
-        open={showResetDialog}
-        onOpenChange={(open) => {
-          if (!open && !isResetting) setShowResetDialog(false);
-        }}
-      >
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" />
-          <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-md bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] shadow-2xl z-50 p-6">
-            <Dialog.Title className="text-base font-medium text-[var(--color-text)] mb-2 flex items-center gap-2">
-              <IconAlertTriangle size={18} className="text-red-400" />
-              {t("Reset trackpad settings?")}
-            </Dialog.Title>
-            <Dialog.Description className="text-sm text-[var(--color-text-muted)] mb-5">
-              {t(
-                "This restores every trackpad setting to the firmware defaults and clears the saved values. This cannot be undone.",
-              )}
-            </Dialog.Description>
-            {error && (
-              <p role="alert" className="mb-4 text-sm text-red-400">
-                {t(error)}
-              </p>
-            )}
-            <div className="flex gap-3">
-              <button
-                className="flex-1 btn-ghost border border-[var(--color-border)]"
-                onClick={() => setShowResetDialog(false)}
-                disabled={isResetting}
-              >
-                {t("Cancel")}
-              </button>
-              <button
-                className="flex-1 px-4 py-2 rounded-lg text-sm font-medium text-white bg-red-500 hover:bg-red-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-                onClick={() => void handleReset()}
-                disabled={isResetting}
-              >
-                {isResetting && (
-                  <IconLoader2 size={16} className="animate-spin" />
-                )}
-                {t("Reset to defaults")}
-              </button>
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
     </div>
   );
 }
