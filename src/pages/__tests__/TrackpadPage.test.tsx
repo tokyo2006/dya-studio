@@ -42,6 +42,10 @@ function mockTps43Hook(
 ): UseTps43Return {
   const value: UseTps43Return = {
     isAvailable: false,
+    sources: [],
+    selectedSource: 0,
+    selectSource: jest.fn(),
+    refresh: jest.fn().mockResolvedValue(undefined),
     state: null,
     values: null,
     isLoading: false,
