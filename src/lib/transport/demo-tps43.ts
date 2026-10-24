@@ -2,7 +2,9 @@
  * Demo TPS43 (Azoteq IQS5xx) Trackpad Custom Subsystem Handler
  *
  * Simulates the tokyo2006__tps43 subsystem for demo mode. Defaults mirror the
- * firmware's TPS43_*_DEFAULT values (include/zmk/tps43_state.h).
+ * firmware's TPS43_*_DEFAULT values (include/zmk/tps43_state.h). The preset
+ * fields (battery saver / sensitivity) use the middle level until the
+ * firmware preset tables define their defaults.
  */
 
 import {
@@ -26,6 +28,9 @@ export const TPS43_DEFAULT_STATE: Required<Tps43State> = {
   flipY: false,
   bottomBeta: 5,
   stationaryThreshold: 5,
+  palmReject: true,
+  batterySaver: 1,
+  sensitivity: 1,
 };
 
 export class Tps43Handler {

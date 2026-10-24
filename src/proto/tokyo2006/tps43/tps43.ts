@@ -32,10 +32,17 @@ export interface Tps43State {
     | undefined;
   /** Sensitivity / filtering. */
   bottomBeta?: number | undefined;
-  stationaryThreshold?: number | undefined;
+  stationaryThreshold?:
+    | number
+    | undefined;
+  /** Comfort / preset configuration. */
+  palmReject?: boolean | undefined;
+  batterySaver?: number | undefined;
+  sensitivity?: number | undefined;
 }
 
 export interface GetStateRequest {
+  source: number;
 }
 
 export interface GetStateResponse {
@@ -45,6 +52,7 @@ export interface GetStateResponse {
 export interface SetStateRequest {
   state: Tps43State | undefined;
   persist: boolean;
+  source: number;
 }
 
 export interface SetStateResponse {
@@ -54,6 +62,7 @@ export interface SetStateResponse {
 
 export interface ResetRequest {
   factoryDefaults: boolean;
+  source: number;
 }
 
 export interface ResetResponse {
@@ -64,6 +73,7 @@ export interface Request {
   getState?: GetStateRequest | undefined;
   setState?: SetStateRequest | undefined;
   reset?: ResetRequest | undefined;
+  getInfo?: GetInfoRequest | undefined;
 }
 
 export interface ErrorResponse {
@@ -75,6 +85,50 @@ export interface Response {
   getState?: GetStateResponse | undefined;
   setState?: SetStateResponse | undefined;
   reset?: ResetResponse | undefined;
+  getInfo?: GetInfoResponse | undefined;
+  deferred?: DeferredResponse | undefined;
+}
+
+/**
+ * `source` addresses which firmware image's local trackpad a request targets.
+ * 0 (the default, omitted) means this device, the Studio RPC central itself.
+ * 0xffffffff (TPS43_SOURCE_ALL) means every source; only valid for GetInfo.
+ */
+export interface GetInfoRequest {
+  source: number;
+}
+
+export interface TrackpadInfo {
+  source: number;
+}
+
+export interface GetInfoResponse {
+  trackpads: TrackpadInfo[];
+  relayRequestId: number;
+}
+
+export interface DeferredResponse {
+  requestId: number;
+}
+
+export interface PeripheralResponse {
+  source: number;
+  requestId: number;
+  response: Response | undefined;
+}
+
+export interface RelayRequest {
+  requestId: number;
+  request: Request | undefined;
+}
+
+export interface RelayResponse {
+  requestId: number;
+  response: Response | undefined;
+}
+
+export interface Notification {
+  peripheralResponse?: PeripheralResponse | undefined;
 }
 
 function createBaseTps43State(): Tps43State {
@@ -91,6 +145,9 @@ function createBaseTps43State(): Tps43State {
     flipY: undefined,
     bottomBeta: undefined,
     stationaryThreshold: undefined,
+    palmReject: undefined,
+    batterySaver: undefined,
+    sensitivity: undefined,
   };
 }
 
@@ -131,6 +188,15 @@ export const Tps43State: MessageFns<Tps43State> = {
     }
     if (message.stationaryThreshold !== undefined) {
       writer.uint32(96).uint32(message.stationaryThreshold);
+    }
+    if (message.palmReject !== undefined) {
+      writer.uint32(104).bool(message.palmReject);
+    }
+    if (message.batterySaver !== undefined) {
+      writer.uint32(112).uint32(message.batterySaver);
+    }
+    if (message.sensitivity !== undefined) {
+      writer.uint32(120).uint32(message.sensitivity);
     }
     return writer;
   },
@@ -238,6 +304,30 @@ export const Tps43State: MessageFns<Tps43State> = {
           message.stationaryThreshold = reader.uint32();
           continue;
         }
+        case 13: {
+          if (tag !== 104) {
+            break;
+          }
+
+          message.palmReject = reader.bool();
+          continue;
+        }
+        case 14: {
+          if (tag !== 112) {
+            break;
+          }
+
+          message.batterySaver = reader.uint32();
+          continue;
+        }
+        case 15: {
+          if (tag !== 120) {
+            break;
+          }
+
+          message.sensitivity = reader.uint32();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -264,16 +354,22 @@ export const Tps43State: MessageFns<Tps43State> = {
     message.flipY = object.flipY ?? undefined;
     message.bottomBeta = object.bottomBeta ?? undefined;
     message.stationaryThreshold = object.stationaryThreshold ?? undefined;
+    message.palmReject = object.palmReject ?? undefined;
+    message.batterySaver = object.batterySaver ?? undefined;
+    message.sensitivity = object.sensitivity ?? undefined;
     return message;
   },
 };
 
 function createBaseGetStateRequest(): GetStateRequest {
-  return {};
+  return { source: 0 };
 }
 
 export const GetStateRequest: MessageFns<GetStateRequest> = {
-  encode(_: GetStateRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+  encode(message: GetStateRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.source !== 0) {
+      writer.uint32(8).uint32(message.source);
+    }
     return writer;
   },
 
@@ -284,6 +380,14 @@ export const GetStateRequest: MessageFns<GetStateRequest> = {
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.source = reader.uint32();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -296,8 +400,9 @@ export const GetStateRequest: MessageFns<GetStateRequest> = {
   create(base?: DeepPartial<GetStateRequest>): GetStateRequest {
     return GetStateRequest.fromPartial(base ?? {});
   },
-  fromPartial(_: DeepPartial<GetStateRequest>): GetStateRequest {
+  fromPartial(object: DeepPartial<GetStateRequest>): GetStateRequest {
     const message = createBaseGetStateRequest();
+    message.source = object.source ?? 0;
     return message;
   },
 };
@@ -351,7 +456,7 @@ export const GetStateResponse: MessageFns<GetStateResponse> = {
 };
 
 function createBaseSetStateRequest(): SetStateRequest {
-  return { state: undefined, persist: false };
+  return { state: undefined, persist: false, source: 0 };
 }
 
 export const SetStateRequest: MessageFns<SetStateRequest> = {
@@ -361,6 +466,9 @@ export const SetStateRequest: MessageFns<SetStateRequest> = {
     }
     if (message.persist !== false) {
       writer.uint32(16).bool(message.persist);
+    }
+    if (message.source !== 0) {
+      writer.uint32(24).uint32(message.source);
     }
     return writer;
   },
@@ -388,6 +496,14 @@ export const SetStateRequest: MessageFns<SetStateRequest> = {
           message.persist = reader.bool();
           continue;
         }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.source = reader.uint32();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -406,6 +522,7 @@ export const SetStateRequest: MessageFns<SetStateRequest> = {
       ? Tps43State.fromPartial(object.state)
       : undefined;
     message.persist = object.persist ?? false;
+    message.source = object.source ?? 0;
     return message;
   },
 };
@@ -471,13 +588,16 @@ export const SetStateResponse: MessageFns<SetStateResponse> = {
 };
 
 function createBaseResetRequest(): ResetRequest {
-  return { factoryDefaults: false };
+  return { factoryDefaults: false, source: 0 };
 }
 
 export const ResetRequest: MessageFns<ResetRequest> = {
   encode(message: ResetRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.factoryDefaults !== false) {
       writer.uint32(8).bool(message.factoryDefaults);
+    }
+    if (message.source !== 0) {
+      writer.uint32(16).uint32(message.source);
     }
     return writer;
   },
@@ -497,6 +617,14 @@ export const ResetRequest: MessageFns<ResetRequest> = {
           message.factoryDefaults = reader.bool();
           continue;
         }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.source = reader.uint32();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -512,6 +640,7 @@ export const ResetRequest: MessageFns<ResetRequest> = {
   fromPartial(object: DeepPartial<ResetRequest>): ResetRequest {
     const message = createBaseResetRequest();
     message.factoryDefaults = object.factoryDefaults ?? false;
+    message.source = object.source ?? 0;
     return message;
   },
 };
@@ -565,7 +694,7 @@ export const ResetResponse: MessageFns<ResetResponse> = {
 };
 
 function createBaseRequest(): Request {
-  return { getState: undefined, setState: undefined, reset: undefined };
+  return { getState: undefined, setState: undefined, reset: undefined, getInfo: undefined };
 }
 
 export const Request: MessageFns<Request> = {
@@ -578,6 +707,9 @@ export const Request: MessageFns<Request> = {
     }
     if (message.reset !== undefined) {
       ResetRequest.encode(message.reset, writer.uint32(26).fork()).join();
+    }
+    if (message.getInfo !== undefined) {
+      GetInfoRequest.encode(message.getInfo, writer.uint32(34).fork()).join();
     }
     return writer;
   },
@@ -613,6 +745,14 @@ export const Request: MessageFns<Request> = {
           message.reset = ResetRequest.decode(reader, reader.uint32());
           continue;
         }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.getInfo = GetInfoRequest.decode(reader, reader.uint32());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -635,6 +775,9 @@ export const Request: MessageFns<Request> = {
       : undefined;
     message.reset = (object.reset !== undefined && object.reset !== null)
       ? ResetRequest.fromPartial(object.reset)
+      : undefined;
+    message.getInfo = (object.getInfo !== undefined && object.getInfo !== null)
+      ? GetInfoRequest.fromPartial(object.getInfo)
       : undefined;
     return message;
   },
@@ -687,7 +830,14 @@ export const ErrorResponse: MessageFns<ErrorResponse> = {
 };
 
 function createBaseResponse(): Response {
-  return { error: undefined, getState: undefined, setState: undefined, reset: undefined };
+  return {
+    error: undefined,
+    getState: undefined,
+    setState: undefined,
+    reset: undefined,
+    getInfo: undefined,
+    deferred: undefined,
+  };
 }
 
 export const Response: MessageFns<Response> = {
@@ -703,6 +853,12 @@ export const Response: MessageFns<Response> = {
     }
     if (message.reset !== undefined) {
       ResetResponse.encode(message.reset, writer.uint32(34).fork()).join();
+    }
+    if (message.getInfo !== undefined) {
+      GetInfoResponse.encode(message.getInfo, writer.uint32(42).fork()).join();
+    }
+    if (message.deferred !== undefined) {
+      DeferredResponse.encode(message.deferred, writer.uint32(50).fork()).join();
     }
     return writer;
   },
@@ -746,6 +902,22 @@ export const Response: MessageFns<Response> = {
           message.reset = ResetResponse.decode(reader, reader.uint32());
           continue;
         }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.getInfo = GetInfoResponse.decode(reader, reader.uint32());
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.deferred = DeferredResponse.decode(reader, reader.uint32());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -771,6 +943,448 @@ export const Response: MessageFns<Response> = {
       : undefined;
     message.reset = (object.reset !== undefined && object.reset !== null)
       ? ResetResponse.fromPartial(object.reset)
+      : undefined;
+    message.getInfo = (object.getInfo !== undefined && object.getInfo !== null)
+      ? GetInfoResponse.fromPartial(object.getInfo)
+      : undefined;
+    message.deferred = (object.deferred !== undefined && object.deferred !== null)
+      ? DeferredResponse.fromPartial(object.deferred)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseGetInfoRequest(): GetInfoRequest {
+  return { source: 0 };
+}
+
+export const GetInfoRequest: MessageFns<GetInfoRequest> = {
+  encode(message: GetInfoRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.source !== 0) {
+      writer.uint32(8).uint32(message.source);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetInfoRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetInfoRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.source = reader.uint32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<GetInfoRequest>): GetInfoRequest {
+    return GetInfoRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetInfoRequest>): GetInfoRequest {
+    const message = createBaseGetInfoRequest();
+    message.source = object.source ?? 0;
+    return message;
+  },
+};
+
+function createBaseTrackpadInfo(): TrackpadInfo {
+  return { source: 0 };
+}
+
+export const TrackpadInfo: MessageFns<TrackpadInfo> = {
+  encode(message: TrackpadInfo, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.source !== 0) {
+      writer.uint32(8).uint32(message.source);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): TrackpadInfo {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseTrackpadInfo();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.source = reader.uint32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<TrackpadInfo>): TrackpadInfo {
+    return TrackpadInfo.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<TrackpadInfo>): TrackpadInfo {
+    const message = createBaseTrackpadInfo();
+    message.source = object.source ?? 0;
+    return message;
+  },
+};
+
+function createBaseGetInfoResponse(): GetInfoResponse {
+  return { trackpads: [], relayRequestId: 0 };
+}
+
+export const GetInfoResponse: MessageFns<GetInfoResponse> = {
+  encode(message: GetInfoResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.trackpads) {
+      TrackpadInfo.encode(v!, writer.uint32(10).fork()).join();
+    }
+    if (message.relayRequestId !== 0) {
+      writer.uint32(16).uint32(message.relayRequestId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetInfoResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetInfoResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.trackpads.push(TrackpadInfo.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.relayRequestId = reader.uint32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<GetInfoResponse>): GetInfoResponse {
+    return GetInfoResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetInfoResponse>): GetInfoResponse {
+    const message = createBaseGetInfoResponse();
+    message.trackpads = object.trackpads?.map((e) => TrackpadInfo.fromPartial(e)) || [];
+    message.relayRequestId = object.relayRequestId ?? 0;
+    return message;
+  },
+};
+
+function createBaseDeferredResponse(): DeferredResponse {
+  return { requestId: 0 };
+}
+
+export const DeferredResponse: MessageFns<DeferredResponse> = {
+  encode(message: DeferredResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.requestId !== 0) {
+      writer.uint32(8).uint32(message.requestId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DeferredResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDeferredResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.requestId = reader.uint32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<DeferredResponse>): DeferredResponse {
+    return DeferredResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<DeferredResponse>): DeferredResponse {
+    const message = createBaseDeferredResponse();
+    message.requestId = object.requestId ?? 0;
+    return message;
+  },
+};
+
+function createBasePeripheralResponse(): PeripheralResponse {
+  return { source: 0, requestId: 0, response: undefined };
+}
+
+export const PeripheralResponse: MessageFns<PeripheralResponse> = {
+  encode(message: PeripheralResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.source !== 0) {
+      writer.uint32(8).uint32(message.source);
+    }
+    if (message.requestId !== 0) {
+      writer.uint32(16).uint32(message.requestId);
+    }
+    if (message.response !== undefined) {
+      Response.encode(message.response, writer.uint32(26).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): PeripheralResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBasePeripheralResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.source = reader.uint32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.requestId = reader.uint32();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.response = Response.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<PeripheralResponse>): PeripheralResponse {
+    return PeripheralResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<PeripheralResponse>): PeripheralResponse {
+    const message = createBasePeripheralResponse();
+    message.source = object.source ?? 0;
+    message.requestId = object.requestId ?? 0;
+    message.response = (object.response !== undefined && object.response !== null)
+      ? Response.fromPartial(object.response)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseRelayRequest(): RelayRequest {
+  return { requestId: 0, request: undefined };
+}
+
+export const RelayRequest: MessageFns<RelayRequest> = {
+  encode(message: RelayRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.requestId !== 0) {
+      writer.uint32(8).uint32(message.requestId);
+    }
+    if (message.request !== undefined) {
+      Request.encode(message.request, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): RelayRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseRelayRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.requestId = reader.uint32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.request = Request.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<RelayRequest>): RelayRequest {
+    return RelayRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<RelayRequest>): RelayRequest {
+    const message = createBaseRelayRequest();
+    message.requestId = object.requestId ?? 0;
+    message.request = (object.request !== undefined && object.request !== null)
+      ? Request.fromPartial(object.request)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseRelayResponse(): RelayResponse {
+  return { requestId: 0, response: undefined };
+}
+
+export const RelayResponse: MessageFns<RelayResponse> = {
+  encode(message: RelayResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.requestId !== 0) {
+      writer.uint32(8).uint32(message.requestId);
+    }
+    if (message.response !== undefined) {
+      Response.encode(message.response, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): RelayResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseRelayResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.requestId = reader.uint32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.response = Response.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<RelayResponse>): RelayResponse {
+    return RelayResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<RelayResponse>): RelayResponse {
+    const message = createBaseRelayResponse();
+    message.requestId = object.requestId ?? 0;
+    message.response = (object.response !== undefined && object.response !== null)
+      ? Response.fromPartial(object.response)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseNotification(): Notification {
+  return { peripheralResponse: undefined };
+}
+
+export const Notification: MessageFns<Notification> = {
+  encode(message: Notification, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.peripheralResponse !== undefined) {
+      PeripheralResponse.encode(message.peripheralResponse, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): Notification {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseNotification();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.peripheralResponse = PeripheralResponse.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<Notification>): Notification {
+    return Notification.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<Notification>): Notification {
+    const message = createBaseNotification();
+    message.peripheralResponse = (object.peripheralResponse !== undefined && object.peripheralResponse !== null)
+      ? PeripheralResponse.fromPartial(object.peripheralResponse)
       : undefined;
     return message;
   },

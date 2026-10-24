@@ -23,14 +23,20 @@ message Tps43State {
     // Sensitivity / filtering.
     optional uint32 bottom_beta = 11;
     optional uint32 stationary_threshold = 12;
+
+    // Comfort / preset configuration.
+    optional bool palm_reject = 13;
+    optional uint32 battery_saver = 14;
+    optional uint32 sensitivity = 15;
 }
 
-message GetStateRequest {}
+message GetStateRequest { uint32 source = 1; }
 message GetStateResponse { Tps43State state = 1; }
 
 message SetStateRequest {
     Tps43State state = 1;
     bool persist = 2;
+    uint32 source = 3;
 }
 
 message SetStateResponse {
@@ -40,6 +46,7 @@ message SetStateResponse {
 
 message ResetRequest {
     bool factory_defaults = 1;
+    uint32 source = 2;
 }
 message ResetResponse { Tps43State state = 1; }
 
@@ -48,6 +55,7 @@ message Request {
         GetStateRequest get_state = 1;
         SetStateRequest set_state = 2;
         ResetRequest reset = 3;
+        GetInfoRequest get_info = 4;
     }
 }
 
@@ -59,5 +67,35 @@ message Response {
         GetStateResponse get_state = 2;
         SetStateResponse set_state = 3;
         ResetResponse reset = 4;
+        GetInfoResponse get_info = 5;
+        DeferredResponse deferred = 6;
     }
+}
+
+// `source` addresses which firmware image's local trackpad a request targets.
+// 0 (the default, omitted) means this device, the Studio RPC central itself.
+// 0xffffffff (TPS43_SOURCE_ALL) means every source; only valid for GetInfo.
+message GetInfoRequest { uint32 source = 1; }
+
+message TrackpadInfo { uint32 source = 1; }
+
+message GetInfoResponse {
+    repeated TrackpadInfo trackpads = 1;
+    uint32 relay_request_id = 2;
+}
+
+message DeferredResponse { uint32 request_id = 1; }
+
+message PeripheralResponse {
+    uint32 source = 1;
+    uint32 request_id = 2;
+    Response response = 3;
+}
+
+message RelayRequest { uint32 request_id = 1; Request request = 2; }
+
+message RelayResponse { uint32 request_id = 1; Response response = 2; }
+
+message Notification {
+    oneof notification_type { PeripheralResponse peripheral_response = 1; }
 }
