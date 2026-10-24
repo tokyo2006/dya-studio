@@ -147,6 +147,30 @@ describe("classifyTps43Gesture", () => {
     });
   });
 
+  it("defaults the scroll axis to vertical without displacement", () => {
+    expect(
+      classifyTps43Gesture(
+        { fingerCount: 2, distance: 40, durationMs: 400 },
+        state(),
+      ),
+    ).toEqual({
+      gesture: "scroll",
+      detail: { axis: "vertical" },
+      enabled: true,
+    });
+
+    expect(
+      classifyTps43Gesture(
+        touch({ fingerCount: 2, distance: 40, dx: 10, dy: 10 }),
+        state(),
+      ),
+    ).toEqual({
+      gesture: "scroll",
+      detail: { axis: "vertical" },
+      enabled: true,
+    });
+  });
+
   it("classifies a quick small 2F touch as two-finger-tap", () => {
     expect(
       classifyTps43Gesture(

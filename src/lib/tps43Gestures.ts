@@ -38,7 +38,7 @@ export interface Tps43GestureInput {
 }
 
 export interface Tps43GestureDetail {
-  /** Dominant scroll axis; defaults to vertical when no displacement is given. */
+  /** Dominant scroll axis; vertical when no displacement is given or axes tie. */
   axis: Tps43ScrollAxis;
 }
 
@@ -101,5 +101,7 @@ export function classifyTps43Gesture(
 function dominantAxis(input: Tps43GestureInput): Tps43ScrollAxis {
   const dx = Math.abs(input.dx ?? 0);
   const dy = Math.abs(input.dy ?? 0);
-  return dx >= dy ? "horizontal" : "vertical";
+  // Vertical wins ties and the omitted-displacement case, which is the safer
+  // default for a trackpad.
+  return dx > dy ? "horizontal" : "vertical";
 }
