@@ -182,7 +182,12 @@ class FakeFirmware {
     const requestId = this.nextId();
     this.lastDeferred = { source, requestId };
     if (this.answerRemote) {
-      this.notify(source, requestId, this.handlerFor(source).process(request));
+      // Answer as the half itself would; `process` would relay it again.
+      this.notify(
+        source,
+        requestId,
+        this.handlerFor(source).processLocal(source, request),
+      );
     }
     return { deferred: { requestId } };
   }

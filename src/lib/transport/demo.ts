@@ -1104,12 +1104,29 @@ class Keyboard {
         }).finish(),
       );
     });
+
+    // Relayed TPS43 peripheral answers (split trackpad halves).
+    this.tps43Handler.notify((payload: Uint8Array) => {
+      callback(
+        Response.encode({
+          notification: {
+            custom: {
+              customNotification: {
+                subsystemIndex: this.TPS43_SUBSYSTEM_INDEX,
+                payload: payload,
+              },
+            },
+          },
+        }).finish(),
+      );
+    });
   }
 
   /** Stop any demo-side background activity (e.g. the pmw3610 frame
    * stream's interval) when the transport disconnects. */
   disconnect() {
     this.pmw3610Handler.disconnect();
+    this.tps43Handler.disconnect();
   }
 }
 
