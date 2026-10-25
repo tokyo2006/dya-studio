@@ -1976,6 +1976,7 @@ const ja: Record<string, string> = {
   "Sensitivity and filtering": "感度とフィルタリング",
   "Bottom Beta": "ボトムベータ",
   "Stationary Threshold": "静止閾値",
+  "Trackpad axes and pointer rotation": "トラックパッドの軸とポインタ回転",
   // TPS43 intent-level page and gesture map
   "Main hand": "メイン側",
   "Off hand": "サブ側",
@@ -3810,6 +3811,7 @@ const zh: Record<string, string> = {
   "Sensitivity and filtering": "灵敏度与滤波",
   "Bottom Beta": "底部滤波强度",
   "Stationary Threshold": "静止阈值",
+  "Trackpad axes and pointer rotation": "触控板轴与指针旋转",
   // TPS43 intent-level page and gesture map
   "Main hand": "主手",
   "Off hand": "副手",

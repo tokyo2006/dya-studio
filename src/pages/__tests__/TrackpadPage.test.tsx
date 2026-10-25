@@ -465,6 +465,47 @@ describe("TrackpadPage", () => {
     expect(input.setScaling).toHaveBeenCalledWith(7, 150, 100);
   });
 
+  it("maps axes toggles and rotation to the keyboard", async () => {
+    const input = mockInputProcessor({
+      isAvailable: true,
+      processors: [PROCESSOR],
+    });
+    const hook = mockTps43Ready();
+    render(<TrackpadPage />);
+
+    await userEvent.click(screen.getByRole("switch", { name: "Flip Y" }));
+    expect(hook.update).toHaveBeenCalledWith({ flipY: true });
+
+    const rotation = screen.getByRole("slider", {
+      name: "Rotation (degrees)",
+    });
+    expect(rotation).toHaveValue("0");
+    fireEvent.change(rotation, { target: { value: "12" } });
+    expect(input.setRotation).toHaveBeenCalledWith(7, 12);
+  });
+
+  it("hides controls the main-branch driver does not provide", () => {
+    const mainDriverState = {
+      ...TPS43_DEFAULT_STATE,
+      palmReject: undefined,
+      batterySaver: undefined,
+      sensitivity: undefined,
+    };
+    mockTps43Ready({ state: mainDriverState, values: mainDriverState });
+    mockInputProcessor({
+      isAvailable: true,
+      processors: [PROCESSOR],
+    });
+    render(<TrackpadPage />);
+
+    expect(screen.queryByRole("switch", { name: "Palm rejection" })).toBeNull();
+    expect(screen.queryByText("Comfort")).toBeNull();
+    expect(screen.getByRole("switch", { name: "Flip X" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("slider", { name: "Rotation (degrees)" }),
+    ).toBeInTheDocument();
+  });
+
   it("Reset confirms and sends factoryDefaults", async () => {
     const confirm = jest.spyOn(window, "confirm").mockReturnValue(true);
     const hook = mockTps43Ready();

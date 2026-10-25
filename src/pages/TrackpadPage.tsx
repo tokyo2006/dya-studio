@@ -785,6 +785,12 @@ function Tps43Panel(props: UseTps43Return) {
   // otherwise make the input lie about its own value.
   const speedPercent = Math.min(300, Math.max(10, scalePercent));
 
+  // The main-branch firmware has no palm/battery/sensitivity fields; hide the
+  // controls instead of showing switches that cannot be applied.
+  const supportsPalmReject = values?.palmReject !== undefined;
+  const supportsBatterySaver = values?.batterySaver !== undefined;
+  const supportsSensitivity = values?.sensitivity !== undefined;
+
   const num = (key: Tps43NumericKey) => values?.[key] ?? 0;
   const bool = (key: Tps43BooleanKey) => values?.[key] ?? false;
   const setNum = (key: Tps43NumericKey) => (v: number) => update({ [key]: v });
@@ -1023,54 +1029,97 @@ function Tps43Panel(props: UseTps43Return) {
                   checked={bool("scroll")}
                   onChange={setBool("scroll")}
                 />
-                <ToggleRow
-                  label={t("Palm rejection")}
-                  description={t("Ignore large or resting contacts")}
-                  checked={bool("palmReject")}
-                  onChange={setBool("palmReject")}
-                />
+                {supportsPalmReject && (
+                  <ToggleRow
+                    label={t("Palm rejection")}
+                    description={t("Ignore large or resting contacts")}
+                    checked={bool("palmReject")}
+                    onChange={setBool("palmReject")}
+                  />
+                )}
               </Card>
 
               <Card
-                icon={<IconBolt size={16} />}
-                title={t("Comfort")}
-                description={t("Battery use and pointer sensitivity")}
+                icon={<IconArrowsMove size={16} />}
+                title={t("Axes")}
+                description={t("Trackpad axes and pointer rotation")}
               >
-                <div>
-                  <ChoiceRow
-                    label={t("Battery saver")}
-                    value={num("batterySaver")}
-                    options={BATTERY_SAVER_OPTIONS}
-                    onChange={setNum("batterySaver")}
+                <ToggleRow
+                  label={t("Switch X/Y")}
+                  checked={bool("switchXy")}
+                  onChange={setBool("switchXy")}
+                />
+                <ToggleRow
+                  label={t("Flip X")}
+                  checked={bool("flipX")}
+                  onChange={setBool("flipX")}
+                />
+                <ToggleRow
+                  label={t("Flip Y")}
+                  checked={bool("flipY")}
+                  onChange={setBool("flipY")}
+                />
+                {hasSpeedCard && (
+                  <SliderRow
+                    label={t("Rotation (degrees)")}
+                    value={processor.rotationDegrees}
+                    min={-180}
+                    max={180}
+                    step={1}
+                    unit="°"
+                    onChange={(v) =>
+                      void inputProcessor.setRotation(processor.id, v)
+                    }
                   />
-                  {!BATTERY_SAVER_OPTIONS.some(
-                    (option) => option.value === num("batterySaver"),
-                  ) && (
-                    <p className="mt-1 text-xs text-[var(--color-text-muted)]">
-                      {t("Custom ({{value}})", {
-                        value: num("batterySaver"),
-                      })}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <ChoiceRow
-                    label={t("Sensitivity")}
-                    value={num("sensitivity")}
-                    options={SENSITIVITY_OPTIONS}
-                    onChange={setNum("sensitivity")}
-                  />
-                  {!SENSITIVITY_OPTIONS.some(
-                    (option) => option.value === num("sensitivity"),
-                  ) && (
-                    <p className="mt-1 text-xs text-[var(--color-text-muted)]">
-                      {t("Custom ({{value}})", {
-                        value: num("sensitivity"),
-                      })}
-                    </p>
-                  )}
-                </div>
+                )}
               </Card>
+
+              {(supportsBatterySaver || supportsSensitivity) && (
+                <Card
+                  icon={<IconBolt size={16} />}
+                  title={t("Comfort")}
+                  description={t("Battery use and pointer sensitivity")}
+                >
+                  {supportsBatterySaver && (
+                    <div>
+                      <ChoiceRow
+                        label={t("Battery saver")}
+                        value={num("batterySaver")}
+                        options={BATTERY_SAVER_OPTIONS}
+                        onChange={setNum("batterySaver")}
+                      />
+                      {!BATTERY_SAVER_OPTIONS.some(
+                        (option) => option.value === num("batterySaver"),
+                      ) && (
+                        <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+                          {t("Custom ({{value}})", {
+                            value: num("batterySaver"),
+                          })}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {supportsSensitivity && (
+                    <div>
+                      <ChoiceRow
+                        label={t("Sensitivity")}
+                        value={num("sensitivity")}
+                        options={SENSITIVITY_OPTIONS}
+                        onChange={setNum("sensitivity")}
+                      />
+                      {!SENSITIVITY_OPTIONS.some(
+                        (option) => option.value === num("sensitivity"),
+                      ) && (
+                        <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+                          {t("Custom ({{value}})", {
+                            value: num("sensitivity"),
+                          })}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </Card>
+              )}
 
               <Card
                 icon={<IconMouse size={16} />}
