@@ -10,8 +10,8 @@
  * (proto/tokyo2006/tps43/tps43.proto).
  *
  * Defaults mirror the firmware's TPS43_*_DEFAULT values
- * (include/zmk/tps43_state.h). The preset fields (battery saver / sensitivity)
- * use the middle level until the firmware preset tables define their defaults.
+ * (include/zmk/tps43_state.h): battery saver Balanced (1) and sensitivity
+ * Medium (3).
  */
 
 import {
@@ -47,7 +47,7 @@ export const TPS43_DEFAULT_STATE: Required<Tps43State> = {
   stationaryThreshold: 5,
   palmReject: true,
   batterySaver: 1,
-  sensitivity: 1,
+  sensitivity: 3,
 };
 
 function requestSource(request: Request): number {

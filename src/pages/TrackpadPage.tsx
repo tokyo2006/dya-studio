@@ -53,8 +53,8 @@ const TPS43_MODULE_NAME = "tokyo2006/tps43-input-module";
 const TPS43_MODULE_URL = "https://github.com/tokyo2006/tps43-input-module";
 const U16_MAX = 65535;
 
-// TPS43 preset values. The page writes the raw field so firmware revisions that
-// do not know the preset RPC still work; the labels carry the intent.
+// TPS43 intent-level choices. v1 firmware has no preset RPC for these: the page
+// owns the labels/values and writes the raw field, so older revisions work too.
 const HOLD_DURATION_OPTIONS = [
   { label: "Short", value: 150 },
   { label: "Medium", value: 250 },

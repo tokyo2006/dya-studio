@@ -80,7 +80,9 @@ function GestureLayer({
  */
 export function Tps43GestureMap({ values }: { values: Tps43State }) {
   const { t } = useLanguage();
-  const clipId = `tps43-pad-clip-${useId().replace(/:/g, "")}`;
+  const instanceId = useId().replace(/:/g, "");
+  const clipId = `tps43-pad-clip-${instanceId}`;
+  const shadeId = `tps43-pad-shade-${instanceId}`;
 
   const [fingerCount, setFingerCount] = useState<1 | 2>(1);
   const [trail, setTrail] = useState<Point[]>([]);
@@ -169,6 +171,9 @@ export function Tps43GestureMap({ values }: { values: Tps43State }) {
 
   const handlePointerCancel = () => {
     startRef.current = null;
+    // A cancelled pointer never produces an end point; clear the partial trail
+    // instead of leaving it on the pad as if the gesture were still in flight.
+    setTrail([]);
   };
 
   const gestureLabel: Record<Tps43Gesture, string> = {
@@ -194,7 +199,7 @@ export function Tps43GestureMap({ values }: { values: Tps43State }) {
         onPointerCancel={handlePointerCancel}
       >
         <defs>
-          <linearGradient id="tps43-pad-shade" x1="0" y1="0" x2="0" y2="1">
+          <linearGradient id={shadeId} x1="0" y1="0" x2="0" y2="1">
             <stop
               offset="0%"
               stopColor="var(--color-text)"
@@ -230,7 +235,7 @@ export function Tps43GestureMap({ values }: { values: Tps43State }) {
           width={PAD.width}
           height={PAD.height}
           rx={PAD.rx}
-          fill="url(#tps43-pad-shade)"
+          fill={`url(#${shadeId})`}
           pointerEvents="none"
         />
 
@@ -427,8 +432,8 @@ export function Tps43GestureMap({ values }: { values: Tps43State }) {
           </text>
         </g>
 
-        {/* Live pointer trail. */}
-        <g pointerEvents="none">
+        {/* Live pointer trail, clipped to the pad like a real finger. */}
+        <g pointerEvents="none" clipPath={`url(#${clipId})`}>
           {trail.length > 1 && (
             <polyline
               data-testid="tps43-trail"

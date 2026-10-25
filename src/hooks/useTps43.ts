@@ -198,8 +198,9 @@ export function useTps43(): UseTps43Return {
           err instanceof Error &&
           err.message.startsWith("Timed out waiting for TPS43")
         ) {
+          const where = source === 0 ? "this keyboard" : "another half";
           throw new Error(
-            `Trackpad on source ${source} did not respond (timed out after ${TPS43_RELAY_TIMEOUT_MS} ms). It may be disconnected.`,
+            `The trackpad on ${where} did not respond (timed out after ${TPS43_RELAY_TIMEOUT_MS} ms). It may be disconnected.`,
           );
         }
         throw err;
@@ -207,6 +208,24 @@ export function useTps43(): UseTps43Return {
     },
     [call],
   );
+
+  /**
+   * Read source 0 with a plain GetState. Old TPS43 firmware predates GetInfo
+   * and rejects the discovery request; a successful read still proves there is
+   * a local trackpad, so it can be presented as a single legacy source.
+   */
+  const readLegacyLocalState =
+    useCallback(async (): Promise<Tps43State | null> => {
+      try {
+        const response = await call(
+          Request.create({ getState: { source: 0 } }),
+        );
+        if (!response || response.error) return null;
+        return response.getState?.state ?? null;
+      } catch {
+        return null;
+      }
+    }, [call]);
 
   /** Read one source, applying the result only if it is still current. */
   const loadSource = useCallback(
@@ -303,6 +322,7 @@ export function useTps43(): UseTps43Return {
     setIsLoading(true);
     setHasDiscovered(false);
     setError(null);
+    setIsResetting(false);
 
     let discovered: TrackpadInfo[] = [];
     let selected = selectedSourceRef.current;
@@ -320,14 +340,20 @@ export function useTps43(): UseTps43Return {
         setIsLoading(false);
         return;
       }
+      if (!response.getInfo) {
+        // Not a GetInfo answer. Old firmware can decode the envelope, drop the
+        // unknown field and answer with neither getInfo nor deferred; treat
+        // that exactly like an explicit discovery error and probe source 0.
+        throw new Error("GetInfo is not supported by this firmware");
+      }
 
       // The local answer describes this device (source 0). Each peripheral that
       // hosts a trackpad answers separately through a relay notification.
-      discovered = (response.getInfo?.trackpads ?? []).map((info) => ({
+      discovered = (response.getInfo.trackpads ?? []).map((info) => ({
         ...info,
         source: 0,
       }));
-      relayRequestId = response.getInfo?.relayRequestId ?? 0;
+      relayRequestId = response.getInfo.relayRequestId ?? 0;
       if (relayRequestId !== 0) {
         discoveryIdsRef.current.add(relayRequestId);
         const answers = await correlatorRef.current.collectBroadcast(
@@ -353,12 +379,32 @@ export function useTps43(): UseTps43Return {
       setHasDiscovered(true);
     } catch (err) {
       if (!isCurrent()) return;
+
+      // Backward compatibility: a firmware from before source/GetInfo support
+      // still serves GetState{source:0}. Present that as one local source so
+      // the page has a usable fallback instead of only an error.
+      const legacyState = await readLegacyLocalState();
+      if (!isCurrent()) return;
+      if (legacyState) {
+        selectedSourceRef.current = 0;
+        setSelectedSourceValue(0);
+        setSources([{ source: 0 }]);
+        setHasDiscovered(true);
+        setState(legacyState);
+        setError(null);
+        setIsLoading(false);
+        return;
+      }
+
       console.error("Failed to discover trackpads:", err);
       setSources([]);
-      setHasDiscovered(false);
+      // Discovery already ran: render the terminal state, not loading forever.
+      setHasDiscovered(true);
       selectedSourceRef.current = 0;
       setSelectedSourceValue(0);
-      setError(errorText("Failed to discover trackpads", err));
+      setError(
+        "This keyboard's TPS43 firmware does not support Studio discovery. Update the firmware to configure the trackpad.",
+      );
     } finally {
       if (relayRequestId !== 0) {
         discoveryIdsRef.current.delete(relayRequestId);
@@ -374,7 +420,7 @@ export function useTps43(): UseTps43Return {
       return;
     }
     await loadSource(selected, generation);
-  }, [ready, call, writer, setPendingBoth, loadSource]);
+  }, [ready, call, writer, setPendingBoth, loadSource, readLegacyLocalState]);
 
   const load = useCallback(async () => {
     if (!ready) return;
@@ -434,7 +480,7 @@ export function useTps43(): UseTps43Return {
       }
       return false;
     } finally {
-      setIsResetting(false);
+      if (isCurrent()) setIsResetting(false);
     }
   }, [ready, callSource, writer, setPendingBoth]);
 

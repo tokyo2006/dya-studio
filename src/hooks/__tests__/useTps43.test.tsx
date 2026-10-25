@@ -109,6 +109,10 @@ interface FirmwareOptions {
   remoteSources?: number[];
   /** Whether GetInfo asks peripherals to answer (relay transport present). */
   relay?: boolean;
+  /** Answer GetInfo with an ErrorResponse, like pre-source firmware. */
+  rejectGetInfo?: boolean;
+  /** Answer GetInfo with an empty Response (decoded, unknown field dropped). */
+  emptyGetInfo?: boolean;
 }
 
 /**
@@ -119,6 +123,8 @@ class FakeFirmware {
   localSources: number[];
   remoteSources: number[];
   relay: boolean;
+  rejectGetInfo: boolean;
+  emptyGetInfo: boolean;
   /** Set false to leave a remote request unanswered (timeout path). */
   answerRemote = true;
   lastDeferred: { source: number; requestId: number } | null = null;
@@ -131,6 +137,8 @@ class FakeFirmware {
     this.localSources = options.localSources ?? [0];
     this.remoteSources = options.remoteSources ?? [];
     this.relay = options.relay ?? true;
+    this.rejectGetInfo = options.rejectGetInfo ?? false;
+    this.emptyGetInfo = options.emptyGetInfo ?? false;
   }
 
   attach(emit: (payload: Uint8Array) => void) {
@@ -148,6 +156,14 @@ class FakeFirmware {
 
   process(request: Request): Response {
     if (request.getInfo !== undefined) {
+      if (this.rejectGetInfo) {
+        return { error: { message: "unsupported request type" } };
+      }
+      if (this.emptyGetInfo) {
+        // Old firmware decodes the envelope but ignores the unknown GetInfo
+        // field, leaving every Response oneof unset.
+        return {};
+      }
       const relayRequestId = this.relay ? this.nextId() : 0;
       if (this.relay) {
         for (const source of this.remoteSources) {
@@ -437,6 +453,56 @@ describe("useTps43", () => {
     );
   });
 
+  it("falls back to one local source when old firmware rejects GetInfo", async () => {
+    // Pre-source firmware decodes the envelope, rejects the unknown GetInfo
+    // request and still serves GetState{source:0}.
+    const firmware = new FakeFirmware({ rejectGetInfo: true });
+    firmware.handlerFor(0).process({
+      setState: { state: { bottomBeta: 42 }, persist: true, source: 0 },
+    });
+    const { result } = mountTps43(firmware);
+    await settleDiscovery();
+
+    expect(result.current.sources.map((info) => info.source)).toEqual([0]);
+    expect(result.current.selectedSource).toBe(0);
+    expect(result.current.hasDiscovered).toBe(true);
+    expect(result.current.error).toBeNull();
+    expect(result.current.values?.bottomBeta).toBe(42);
+
+    const requests = sentRequests();
+    expect(requests[0].getInfo).toBeDefined();
+    expect(
+      requests.some(
+        (req) => req.getState !== undefined && req.getState.source === 0,
+      ),
+    ).toBe(true);
+  });
+
+  it("falls back to one local source when GetInfo answers with an empty response", async () => {
+    const firmware = new FakeFirmware({ emptyGetInfo: true });
+    const { result } = mountTps43(firmware);
+    await settleDiscovery();
+
+    expect(result.current.sources.map((info) => info.source)).toEqual([0]);
+    expect(result.current.values?.bottomBeta).toBe(5);
+    expect(result.current.error).toBeNull();
+  });
+
+  it("asks for a firmware update when GetInfo and the legacy read both fail", async () => {
+    jest.spyOn(console, "error").mockImplementation(() => {});
+    const firmware = new FakeFirmware({
+      localSources: [],
+      rejectGetInfo: true,
+    });
+    const { result } = mountTps43(firmware);
+    await settleDiscovery();
+
+    expect(result.current.sources).toEqual([]);
+    expect(result.current.hasDiscovered).toBe(true);
+    expect(result.current.values).toBeNull();
+    expect(result.current.error).toMatch(/Update the firmware/);
+  });
+
   it("reset restores firmware defaults", async () => {
     const firmware = new FakeFirmware();
     firmware.handlerFor(0).process({
@@ -461,5 +527,40 @@ describe("useTps43", () => {
     expect(reqs[0].reset?.factoryDefaults).toBe(true);
     expect(reqs[0].reset?.source).toBe(0);
     expect(result.current.values?.bottomBeta).toBe(5);
+  });
+
+  it("resets the selected peripheral source over the relay", async () => {
+    const firmware = new FakeFirmware({
+      localSources: [0],
+      remoteSources: [1],
+    });
+    firmware.handlerFor(1).process({
+      setState: { state: { bottomBeta: 200 }, persist: true, source: 1 },
+    });
+    const { result } = mountTps43(firmware);
+    await settleDiscovery();
+
+    act(() => {
+      result.current.selectSource(1);
+    });
+    await flushPromises();
+    expect(result.current.values?.bottomBeta).toBe(200);
+    mockCallRPC.mockClear();
+
+    let pending: Promise<boolean> | null = null;
+    act(() => {
+      pending = result.current.reset();
+    });
+    // The peripheral answer arrives through a relay notification (a 0 ms
+    // timer), so let the fake firmware deliver it before awaiting the call.
+    await flushPromises();
+    const ok = await pending!;
+
+    expect(ok).toBe(true);
+    const reset = sentRequests().find((req) => req.reset !== undefined);
+    expect(reset?.reset?.source).toBe(1);
+    expect(reset?.reset?.factoryDefaults).toBe(true);
+    expect(result.current.values?.bottomBeta).toBe(5);
+    expect(result.current.isResetting).toBe(false);
   });
 });
