@@ -185,8 +185,9 @@ TPS43:
 
 - 実機未検証: Sofle（local）の tap / two-finger tap / hold / scroll、Reset、再起動後の永続化、WDT/ESD 復帰、stuck button。Velvet（dongle + right peripheral）の source 発見、set/get/reset、再起動永続化、切断/再接続、スクロール、cursor jump、central processor の pointer speed。
 - 未対応表示: どちらの subsystem も無い場合、TPS43 利用者にも cirque-input-module へのリンクが出る。`Tps43Panel` の `!isAvailable` 分岐は `TrackpadPage` が `isAvailable` のときだけ描画するため到達しない（不具合候補、未修正）。
-- `Advanced`（tap time / scroll divisor / hold ms / raw bottom-beta / flip / swap）は TPS43 ページに無い。設計 6.4 の「既定で折りたたみの Advanced」は **v1 の明示的な deferred**（raw field は RPC / DT で到達可能）。`Scroll speed` も scroll-scaling processor が必要なため v1 deferred。
-- pointer speed の表示は 10–300% に clamp し、編集時に `percent/100` で書き戻す。firmware の scale が範囲外のとき表示と実値が一致しない。`Scroll speed` は runtime processor が公開しないため編集できない（v1 deferred）。説明 `Runtime pointer speed` の ja / zh 訳は追加済み。
+- `Axes` カードは Switch X/Y、Flip X/Y（TPS43 の生軸設定）と runtime processor の Rotation (degrees) を公開する。`Advanced`（tap time / scroll divisor / hold ms / raw bottom-beta）は引き続き v1 deferred で、raw field は RPC / DT から到達できる。
+- `Scroll speed` は `scroll_runtime_input_processor` を listener に追加して 10–300% で公開する。pointer speed も 10–300% に clamp し、編集時に `percent/100` で書き戻す。firmware の scale が範囲外のとき表示と実値が一致しない。説明 `Runtime pointer and scroll speed` の ja / zh 訳は追加済み。
+- 最終 Sofle ファームウェアは main 分岐の driver を使うため、palm / battery saver / sensitivity の field を返さない。UI はこれらを検出して非表示にし、操作できないスイッチを出さない。
 - try-it のしきい値は CSS px（20 / 22 px、260 ms）で、SVG の viewBox 座標とは一致しない。実際の指の移動量の近似であり、IQS572 の設定（距離・時間）を反映しない。hold は 260 ms 未満でも `pressAndHoldTime` 以上なら hold になる（Short/Medium を到達可能にするための偏差）。
 - マップはキーボード操作で試せない。pointer cancel 時は trail を消す。dark/light と狭幅の見た目はブラウザ未確認。
 - source は接続スロットであり物理的な左右ではない。`GetInfo` は shield / 名前を返さないため、`Main hand` / `Off hand` 以上の情報は出せない。

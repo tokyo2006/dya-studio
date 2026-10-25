@@ -506,6 +506,27 @@ describe("TrackpadPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("exposes scroll speed for the scroll processor", () => {
+    const scrollProcessor: InputProcessor = {
+      ...PROCESSOR,
+      id: 8,
+      name: "scroll",
+      scaleMultiplier: 1,
+      scaleDivisor: 1,
+    };
+    const input = mockInputProcessor({
+      isAvailable: true,
+      processors: [PROCESSOR, scrollProcessor],
+    });
+    mockTps43Ready();
+    render(<TrackpadPage />);
+
+    const slider = screen.getByRole("slider", { name: "Scroll speed" });
+    expect(slider).toHaveValue("100");
+    fireEvent.change(slider, { target: { value: "200" } });
+    expect(input.setScaling).toHaveBeenCalledWith(8, 200, 100);
+  });
+
   it("Reset confirms and sends factoryDefaults", async () => {
     const confirm = jest.spyOn(window, "confirm").mockReturnValue(true);
     const hook = mockTps43Ready();

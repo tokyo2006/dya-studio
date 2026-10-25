@@ -2009,6 +2009,7 @@ const ja: Record<string, string> = {
   "Content moves with your fingers": "指の動きに合わせてコンテンツが動きます",
   "Pointer processor": "ポインターの入力プロセッサー",
   "Pointer speed": "ポインター速度",
+  "Scroll speed": "スクロール速度",
   "Runtime pointer speed": "ランタイムのポインター速度",
   "Scroll speed is not exposed by this runtime input processor.":
     "このランタイム入力プロセッサーはスクロール速度を公開していません。",
@@ -3842,6 +3843,7 @@ const zh: Record<string, string> = {
   "Content moves with your fingers": "内容随手指移动",
   "Pointer processor": "指针输入处理器",
   "Pointer speed": "指针速度",
+  "Scroll speed": "滚动速度",
   "Runtime pointer speed": "运行时指针速度",
   "Scroll speed is not exposed by this runtime input processor.":
     "此运行时输入处理器未提供滚动速度。",

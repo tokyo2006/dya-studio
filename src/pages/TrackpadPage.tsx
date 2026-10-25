@@ -773,10 +773,18 @@ function Tps43Panel(props: UseTps43Return) {
   // half that owns the trackpad. The card is absent when that subsystem is.
   const inputProcessor = useRuntimeInputProcessor();
   const [processorId, setProcessorId] = useState<number | null>(null);
+  const pointerProcessors = inputProcessor.processors.filter(
+    (item) => item.name !== "scroll",
+  );
   const processor =
-    inputProcessor.processors.find((item) => item.id === processorId) ??
-    inputProcessor.processors[0];
-  const hasSpeedCard = inputProcessor.isAvailable && processor !== undefined;
+    pointerProcessors.find((item) => item.id === processorId) ??
+    pointerProcessors[0];
+  const scrollProcessor = inputProcessor.processors.find(
+    (item) => item.name === "scroll",
+  );
+  const hasSpeedCard =
+    inputProcessor.isAvailable &&
+    (processor !== undefined || scrollProcessor !== undefined);
   const scalePercent =
     processor && processor.scaleDivisor > 0
       ? Math.round((processor.scaleMultiplier / processor.scaleDivisor) * 100)
@@ -784,6 +792,14 @@ function Tps43Panel(props: UseTps43Return) {
   // Clamp for display: a firmware scale outside the slider range would
   // otherwise make the input lie about its own value.
   const speedPercent = Math.min(300, Math.max(10, scalePercent));
+  const scrollPercent =
+    scrollProcessor && scrollProcessor.scaleDivisor > 0
+      ? Math.round(
+          (scrollProcessor.scaleMultiplier / scrollProcessor.scaleDivisor) *
+            100,
+        )
+      : 100;
+  const scrollSpeedPercent = Math.min(300, Math.max(10, scrollPercent));
 
   // The main-branch firmware has no palm/battery/sensitivity fields; hide the
   // controls instead of showing switches that cannot be applied.
@@ -1140,22 +1156,22 @@ function Tps43Panel(props: UseTps43Return) {
                 <Card
                   icon={<IconBolt size={16} />}
                   title={t("Speed")}
-                  description={t("Runtime pointer speed")}
+                  description={t("Runtime pointer and scroll speed")}
                 >
-                  {inputProcessor.processors.length > 1 && (
+                  {pointerProcessors.length > 1 && (
                     <label className="flex items-center justify-between gap-4">
                       <span className="text-sm text-[var(--color-text-secondary)]">
                         {t("Pointer processor")}
                       </span>
                       <select
                         aria-label={t("Pointer processor")}
-                        value={processor.id}
+                        value={processor?.id ?? ""}
                         onChange={(event) =>
                           setProcessorId(Number(event.target.value))
                         }
                         className="px-2 py-1 rounded-lg text-sm bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)]"
                       >
-                        {inputProcessor.processors.map((item) => (
+                        {pointerProcessors.map((item) => (
                           <option key={item.id} value={item.id}>
                             {item.name}
                           </option>
@@ -1163,22 +1179,36 @@ function Tps43Panel(props: UseTps43Return) {
                       </select>
                     </label>
                   )}
-                  <SliderRow
-                    label={t("Pointer speed")}
-                    value={speedPercent}
-                    min={10}
-                    max={300}
-                    step={5}
-                    unit="%"
-                    onChange={(v) =>
-                      void inputProcessor.setScaling(processor.id, v, 100)
-                    }
-                  />
-                  <p className="text-xs text-[var(--color-text-muted)]">
-                    {t(
-                      "Scroll speed is not exposed by this runtime input processor.",
-                    )}
-                  </p>
+                  {processor && (
+                    <SliderRow
+                      label={t("Pointer speed")}
+                      value={speedPercent}
+                      min={10}
+                      max={300}
+                      step={5}
+                      unit="%"
+                      onChange={(v) =>
+                        void inputProcessor.setScaling(processor.id, v, 100)
+                      }
+                    />
+                  )}
+                  {scrollProcessor && (
+                    <SliderRow
+                      label={t("Scroll speed")}
+                      value={scrollSpeedPercent}
+                      min={10}
+                      max={300}
+                      step={5}
+                      unit="%"
+                      onChange={(v) =>
+                        void inputProcessor.setScaling(
+                          scrollProcessor.id,
+                          v,
+                          100,
+                        )
+                      }
+                    />
+                  )}
                 </Card>
               )}
             </div>
