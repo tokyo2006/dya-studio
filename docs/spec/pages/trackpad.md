@@ -23,22 +23,22 @@
 
 ## 機能要求
 
-| ID      | できるべきこと                                                                                                           | 出典・確度                         |
-| ------- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------- |
-| TPS-R01 | TPS43 が central に直結していても、反対側の half にいても、同じ Trackpad ページで設定を編集できる                        | 明示要求（設計 6.2、本変更）       |
-| TPS-R02 | source 番号をユーザーに選ばせず、`this keyboard` / `another half` のラベルで現在の対象を示す。複数あるときだけ選択できる | 明示要求（設計 6.3.4、本変更）     |
-| TPS-R03 | どの half にも trackpad が無いときは「見つからない」状態を出し、エラーや loading と区別する                              | 明示要求（設計 8、本変更）         |
-| TPS-R04 | 静的ジェスチャーマップと「試一下」を同じ図に持ち、設定の変更がマップへ反映される。v1 では swipe / pinch-zoom を描かない  | 明示要求（設計 6.4、本変更）       |
-| TPS-R05 | tap / two-finger tap / press-and-hold / scroll / palm と、hold・battery・sensitivity のプリセットを編集できる            | 明示要求（設計 6.4、本変更）       |
-| TPS-R06 | 編集は 1.5 秒の debounce で RAM 適用と flash 保存を同時に行い、再起動後も残る                                            | 明示要求（設計 6.4）＋実装から推定 |
-| TPS-R07 | Reset は trackpad を持つ half だけを既定値へ戻し、central の pointer speed は変更しない                                  | 明示要求（設計 6.3.5、本変更）     |
-| TPS-R08 | central の runtime input processor 経由で pointer speed を変更できる。搭載していない firmware ではカードを出さない       | 明示要求（設計 5、本変更）         |
-| TPS-R09 | Demo で local source と relay される peripheral source の両方を編集できる                                                | 明示要求（設計 6.4、本変更）       |
-| PAD-R01 | Cirque トラックパッドのデータモード、感度、向き、タップ、スクロール、エッジモーション、速度を編集できる                  | 明示要求（Cirque 変更）            |
-| PAD-R02 | Trackball タブと同じ見た目・操作感で、編集は自動で適用・保存される                                                       | 明示要求（Cirque 変更）            |
-| PAD-R03 | 倍率・除数、タップ領域サイズ、エッジモーションのタイミングは折りたたみの `Advanced` にまとめる                           | 明示要求（Cirque 変更）            |
-| PAD-R04 | 確認後に Cirque の firmware 既定値へ戻せる                                                                               | S10 reset から提案                 |
-| PAD-R05 | Demo で実機なしに Cirque を操作できる                                                                                    | 明示要求（Cirque 変更）            |
+| ID      | できるべきこと                                                                                                          | 出典・確度                         |
+| ------- | ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| TPS-R01 | TPS43 が central に直結していても、反対側の half にいても、同じ Trackpad ページで設定を編集できる                       | 明示要求（設計 6.2、本変更）       |
+| TPS-R02 | source 番号をユーザーに選ばせず、`Main hand` / `Off hand` のラベルで現在の対象を示す。複数あるときだけ選択できる        | 明示要求（設計 6.3.4、本変更）     |
+| TPS-R03 | どの half にも trackpad が無いときは「見つからない」状態を出し、エラーや loading と区別する                             | 明示要求（設計 8、本変更）         |
+| TPS-R04 | 静的ジェスチャーマップと「試一下」を同じ図に持ち、設定の変更がマップへ反映される。v1 では swipe / pinch-zoom を描かない | 明示要求（設計 6.4、本変更）       |
+| TPS-R05 | tap / two-finger tap / press-and-hold / scroll / palm と、hold・battery・sensitivity のプリセットを編集できる           | 明示要求（設計 6.4、本変更）       |
+| TPS-R06 | 編集は 1.5 秒の debounce で RAM 適用と flash 保存を同時に行い、再起動後も残る                                           | 明示要求（設計 6.4）＋実装から推定 |
+| TPS-R07 | Reset は trackpad を持つ half だけを既定値へ戻し、central の pointer speed は変更しない                                 | 明示要求（設計 6.3.5、本変更）     |
+| TPS-R08 | central の runtime input processor 経由で pointer speed を変更できる。搭載していない firmware ではカードを出さない      | 明示要求（設計 5、本変更）         |
+| TPS-R09 | Demo で local source と relay される peripheral source の両方を編集できる                                               | 明示要求（設計 6.4、本変更）       |
+| PAD-R01 | Cirque トラックパッドのデータモード、感度、向き、タップ、スクロール、エッジモーション、速度を編集できる                 | 明示要求（Cirque 変更）            |
+| PAD-R02 | Trackball タブと同じ見た目・操作感で、編集は自動で適用・保存される                                                      | 明示要求（Cirque 変更）            |
+| PAD-R03 | 倍率・除数、タップ領域サイズ、エッジモーションのタイミングは折りたたみの `Advanced` にまとめる                          | 明示要求（Cirque 変更）            |
+| PAD-R04 | 確認後に Cirque の firmware 既定値へ戻せる                                                                              | S10 reset から提案                 |
+| PAD-R05 | Demo で実機なしに Cirque を操作できる                                                                                   | 明示要求（Cirque 変更）            |
 
 ## 前提・状態
 
@@ -48,7 +48,7 @@ TPS43 パネル:
 
 - unsupported: `tokyo2006__tps43` を広告しない device では TPS43 固有の案内は出ず、Cirque パネルの `Trackpad subsystem is not available for your keyboard.` と **cirque-input-module** へのリンクになる。Reload / Reset / 設定カードは無い。
 - loading: subsystem があり、初回の source 発見と `GetState` 応答前は `Loading trackpad settings...`。発見前は「trackpad 無し」と断定しない。
-- legacy: 旧 firmware が `GetInfo` を拒否、または `getInfo` / `deferred` のどちらも返さない場合、hook は `GetState{source: 0}` を 1 回だけ probe する。成功すれば `this keyboard` の単一 source として通常どおり表示し、失敗すれば「Update the firmware ...」の alert を出して loading を終える。
+- legacy: 旧 firmware が `GetInfo` を拒否、または `getInfo` / `deferred` のどちらも返さない場合、hook は `GetState{source: 0}` を 1 回だけ probe する。成功すれば `Main hand` の単一 source として通常どおり表示し、失敗すれば「Update the firmware ...」の alert を出して loading を終える。
 - no trackpad: 発見が完了し `sources` が 0 件でエラーが無いとき。`No trackpad found`、`The connected keyboard reported no TPS43 trackpad on either half. Check that the trackpad half is powered and connected.`、`Search again`（発見をやり直す）を出す。ヘッダーの Reload / Reset は描画されない。これは error ではなく、Reload で 2 秒の探索を暗黙に始めないための独立状態。
 - ready: source チップ（1 件）またはセレクタ（2 件以上）、`Gesture map` カード、`Gestures` / `Comfort` / `Pointing` カード、pointer speed が使える firmware では `Speed` カード。
 - dirty: 編集直後はヘッダーに `Pending...`、送信中は `Saving...`（`role="status"`）。idle では表示なし。dirty / saving 中は Reload 無効。Reset は無効化されないが、確定すると待機中の編集を破棄する。
@@ -74,8 +74,8 @@ Cirque パネル:
 
 | ID      | 前提 → 操作                                                                                                | 観測できる結果                                                                                                                                                                                         | 保存範囲・副作用                                                                                                                                                                          | 根拠  |
 | ------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
-| TPS-001 | TPS43 subsystem ありでタブを開く                                                                           | `Trackpad found on:` の下に source チップ / セレクタ。`getState` の値を各 control に表示。旧 firmware では `this keyboard` の単一 source になる                                                        | mount 時に `GetInfo{source: ALL}`。local は即答、peripheral は 2,000 ms の窓で通知を集める（`TPS43_DISCOVERY_WINDOW_MS`）。`GetInfo` 失敗時は `GetState{source: 0}` に fallback。読込のみ | S1/S2 |
-| TPS-002 | source が 1 件                                                                                             | `this keyboard`（source 0）または `another half`（source > 0）のチップ。数字や left / right は出さない                                                                                                 | なし                                                                                                                                                                                      | S1    |
+| TPS-001 | TPS43 subsystem ありでタブを開く                                                                           | `Trackpad found on:` の下に source チップ / セレクタ。`getState` の値を各 control に表示。旧 firmware では `Main hand` の単一 source になる                                                            | mount 時に `GetInfo{source: ALL}`。local は即答、peripheral は 2,000 ms の窓で通知を集める（`TPS43_DISCOVERY_WINDOW_MS`）。`GetInfo` 失敗時は `GetState{source: 0}` に fallback。読込のみ | S1/S2 |
+| TPS-002 | source が 1 件                                                                                             | `Main hand`（source 0）または `Off hand`（source > 0）のチップ。数字や left / right は出さない                                                                                                         | なし                                                                                                                                                                                      | S1    |
 | TPS-003 | source が 2 件以上                                                                                         | `Trackpad found on:` の横にセレクタ（`role="group"`、`aria-pressed`）。選択中の source を反転表示                                                                                                      | 選択で `selectSource`。待機中の編集を破棄し、対象 source を `GetState` で読み直す。読込中は既存値を消す                                                                                   | S1/S2 |
 | TPS-004 | 発見完了・0 件・エラーなし                                                                                 | `No trackpad found` と説明、`Search again`。Reload / Reset / 設定カードは無い                                                                                                                          | `Search again` で `refresh()`（再発見 + 再読込）。Reload では発見を始めない                                                                                                               | S1/S2 |
 | TPS-005 | `Tap to click` / `Two-finger tap` / `Press and hold` / `Two-finger scroll` / `Palm rejection` を切り替える | switch が切り替わり `Pending...`                                                                                                                                                                       | 1,500 ms 後に変更 field だけを 1 回の `SetState{persist: true, source}` で送る。device RAM 適用と flash 保存を同時に行う                                                                  | S1/S2 |
@@ -90,8 +90,8 @@ Cirque パネル:
 | TPS-014 | `Reset to defaults`                                                                                        | ブラウザの確認ダイアログ `Reset trackpad settings to firmware defaults? ... Pointer speed is not affected.`                                                                                            | 確定で待機中の編集を破棄し `Reset{factoryDefaults: true, source}`。firmware はその half の既定値へ戻し保存値を消去。キャンセルは RPC なし                                                 | S1/S2 |
 | TPS-015 | `Reload`                                                                                                   | 対象 source を `GetState` で読み直す                                                                                                                                                                   | 既知の source が無ければ `refresh()` で再発見。pending / saving 中は無効                                                                                                                  | S1/S2 |
 | TPS-016 | セレクタで別 source を選ぶ                                                                                 | ヘッダーの選択表示が変わり、`Loading trackpad settings...` の後に新しい値                                                                                                                              | それ以降の `SetState` / `Reset` は選択 source を宛先にする。古い source の遅れた応答は generation で捨てる                                                                                | S2    |
-| TPS-017 | 応答が timeout / 対象が切断                                                                                | `The trackpad on another half did not respond (timed out after 6000 ms). It may be disconnected.`（local なら `this keyboard`）                                                                        | 6,000 ms（`TPS43_RELAY_TIMEOUT_MS`）で失敗。別 source への fallback はしない                                                                                                              | S2    |
-| TPS-018 | Demo で `TPS43 Trackpad` を ON                                                                             | `this keyboard` と `another half` の 2 source。各 source は独立した state を持ち、書込みの応答は 20 ms の relay 遅延後に通知で返る                                                                     | Demo の疑似 firmware 内のみ。ページを離れると破棄                                                                                                                                         | S5/S9 |
+| TPS-017 | 応答が timeout / 対象が切断                                                                                | `The trackpad on the off hand did not respond (timed out after 6000 ms). It may be disconnected.`（local なら `the main hand`）                                                                        | 6,000 ms（`TPS43_RELAY_TIMEOUT_MS`）で失敗。別 source への fallback はしない                                                                                                              | S2    |
+| TPS-018 | Demo で `TPS43 Trackpad` を ON                                                                             | `Main hand` と `Off hand` の 2 source。各 source は独立した state を持ち、書込みの応答は 20 ms の relay 遅延後に通知で返る                                                                             | Demo の疑似 firmware 内のみ。ページを離れると破棄                                                                                                                                         | S5/S9 |
 
 ### Cirque パネル
 
@@ -116,8 +116,8 @@ Cirque パネル:
 
 TPS43:
 
-1. F1 local 編集（TPS-005/006）: Demo 接続 → `Trackpad` → `this keyboard` チップを確認 → `Tap to click` を ON、`Hold duration` を Long（400 ms）→ `Pending...` → 約 1.5 秒で消える → `Reload` しても ON / 400 ms のまま。後始末: 元に戻す。
-2. F2 peripheral source（TPS-003/016/017）: `another half` に切り替え → 一瞬 `Loading trackpad settings...` → `Two-finger scroll` を ON → `Saving...` が消えた後 `Reload` で ON を確認 → `this keyboard` に戻すと、こちらの `Two-finger scroll` は変わっていない（source ごとに独立）。
+1. F1 local 編集（TPS-005/006）: Demo 接続 → `Trackpad` → `Main hand` チップを確認 → `Tap to click` を ON、`Hold duration` を Long（400 ms）→ `Pending...` → 約 1.5 秒で消える → `Reload` しても ON / 400 ms のまま。後始末: 元に戻す。
+2. F2 peripheral source（TPS-003/016/017）: `Off hand` に切り替え → 一瞬 `Loading trackpad settings...` → `Two-finger scroll` を ON → `Saving...` が消えた後 `Reload` で ON を確認 → `Main hand` に戻すと、こちらの `Two-finger scroll` は変わっていない（source ごとに独立）。
 3. F3 no trackpad（TPS-004）: trackpad を持たない half だけで構成した firmware（または 0 件を返す hook state）で開く → `No trackpad found` と `Search again`。ヘッダーに Reload / Reset は無い → `Search again` で loading に戻る。Demo は常に 2 source を返すため、この状態は Demo では作れない（page test で確認）。
 4. F4 プリセットの外れ値（TPS-006/007/008）: `Hold duration` が 320 ms の state を表示 → Short/Medium/Long のどれも選択されず、`Custom (320 ms)` が出る → Medium を押すと 250 ms に変わる。
 5. F5 try-it（TPS-013）: マップで 1F → 中央を短くタップ → `Tap`。`Tap to click` を OFF にして再度タップ → `Tap · disabled`。2F で大きく横へドラッグ → `Scroll · horizontal`。`Hold {{ms}} ms` のリングは `Hold duration` に追従して長さが変わる。
@@ -149,10 +149,10 @@ Cirque:
 
 TPS43:
 
-- 発見 RPC 例外 / 旧 firmware: `GetInfo` が失敗したら `GetState{source: 0}` を probe する。成功すれば単一の `this keyboard` source として使う。失敗すれば `This keyboard's TPS43 firmware does not support Studio discovery. Update the firmware to configure the trackpad.` を alert に出し、`hasDiscovered=true`・sources 0 件で loading を終える（「trackpad 無し」とは区別し、error を出す）。
+- 発見 RPC 例外 / 旧 firmware: `GetInfo` が失敗したら `GetState{source: 0}` を probe する。成功すれば単一の `Main hand` source として使う。失敗すれば `This keyboard's TPS43 firmware does not support Studio discovery. Update the firmware to configure the trackpad.` を alert に出し、`hasDiscovered=true`・sources 0 件で loading を終える（「trackpad 無し」とは区別し、error を出す）。
 - 読み込み失敗: `Failed to load trackpad state: ...`。再編集または `Reload` で再試行。
 - 書込み拒否: firmware のエラー文言を alert に表示。firmware は有効な field を適用済みのため `getState` で再同期した値を表示。
-- relay timeout: 対象 source が 6 秒以内に答えないと `The trackpad on another half did not respond (timed out after 6000 ms). It may be disconnected.`。別 source に自動で切り替えない。
+- relay timeout: 対象 source が 6 秒以内に答えないと `The trackpad on the off hand did not respond (timed out after 6000 ms). It may be disconnected.`。別 source に自動で切り替えない。
 - 対象 half に trackpad が無い（例: dongle の source 0）: firmware の `local trackpad not found` を表示。クラッシュや trackpad 無し状態への遷移はしない。
 - reset 失敗: alert に表示し、ページは元の値を維持。再度 `Reset to defaults` で再試行。
 - lock / cancel: 共通の locked 文言（S2 `useLockAwareCall`）。
@@ -173,7 +173,7 @@ Cirque:
 3. no-trackpad 状態から `Search again` を連打 → loading と空状態が交互にちらつかず、Reload が無いままか。
 4. `Hold duration` と try-it の境界: 150 ms 直下・直上、250 ms、260 ms、400 ms で tap / hold / none が仕様どおりか。2F で距離 21/22 px の境界。
 5. 狭い画面幅でセレクタ、`Gesture map`、各カードが 1 列になり、確認ダイアログが画面外に出ないか。
-6. ja / zh で `another half`、`Trackpad found on:`、プリセットの `Custom (...)` と `Runtime pointer speed` の未翻訳が混在しないか。
+6. ja / zh で `Off hand`、`Trackpad found on:`、プリセットの `Custom (...)` と `Runtime pointer speed` の未翻訳が混在しないか。
 
 ## 既知の受け入れ済み不具合
 
@@ -189,7 +189,8 @@ TPS43:
 - pointer speed の表示は 10–300% に clamp し、編集時に `percent/100` で書き戻す。firmware の scale が範囲外のとき表示と実値が一致しない。`Scroll speed` は runtime processor が公開しないため編集できない（v1 deferred）。説明 `Runtime pointer speed` の ja / zh 訳は追加済み。
 - try-it のしきい値は CSS px（20 / 22 px、260 ms）で、SVG の viewBox 座標とは一致しない。実際の指の移動量の近似であり、IQS572 の設定（距離・時間）を反映しない。hold は 260 ms 未満でも `pressAndHoldTime` 以上なら hold になる（Short/Medium を到達可能にするための偏差）。
 - マップはキーボード操作で試せない。pointer cancel 時は trail を消す。dark/light と狭幅の見た目はブラウザ未確認。
-- source は接続スロットであり物理的な左右ではない。`GetInfo` は shield / 名前を返さないため、`this keyboard` / `another half` 以上の情報は出せない。
+- source は接続スロットであり物理的な左右ではない。`GetInfo` は shield / 名前を返さないため、`Main hand` / `Off hand` 以上の情報は出せない。
+- `GetInfo` は触控板を持つ source だけを返す。1 件なら自動選択してセレクタを出さない。複数件のときだけ手動選択が必要（Demo は 2 source を同時に模擬するため両方出る）。
 - 発見は 2 秒、relay 応答は 6 秒の固定値。多数 peripheral や遅い BLE での取りこぼしは未検証。v1 の `SetState` / `Reset` は broadcast で、応答の `source` で相関する（target 指定は無い）。
 - Demo の source 1 への書込みは request 時点で即適用され、通知は後から届く。実機の「half が適用してから答える」順序との差は未検証。
 

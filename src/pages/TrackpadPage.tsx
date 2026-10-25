@@ -710,9 +710,9 @@ function CirquePanel(props: UseCirqueReturn) {
 }
 
 function sourceLabel(source: number, t: (key: string) => string): string {
-  // Source 0 is the half Studio is connected to; anything else is reached over
-  // the split relay. Never label left/right: the slot is not a physical side.
-  return source === 0 ? t("this keyboard") : t("another half");
+  // Main hand is the half Studio is connected to (source 0); the off hand is
+  // reached over the split relay. These are logical roles, not physical sides.
+  return source === 0 ? t("Main hand") : t("Off hand");
 }
 
 function SourceSelector({

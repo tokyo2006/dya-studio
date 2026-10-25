@@ -383,7 +383,7 @@ describe("useTps43", () => {
     expect(deferred?.source).toBe(1);
     expect(deferred?.requestId).toBeGreaterThan(0);
 
-    // An answer from another half must not settle this request.
+    // An answer from the off hand must not settle this request.
     act(() => {
       emit(
         notificationPayload(2, deferred!.requestId, {

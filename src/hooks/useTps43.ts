@@ -198,7 +198,7 @@ export function useTps43(): UseTps43Return {
           err instanceof Error &&
           err.message.startsWith("Timed out waiting for TPS43")
         ) {
-          const where = source === 0 ? "this keyboard" : "another half";
+          const where = source === 0 ? "the main hand" : "the off hand";
           throw new Error(
             `The trackpad on ${where} did not respond (timed out after ${TPS43_RELAY_TIMEOUT_MS} ms). It may be disconnected.`,
           );

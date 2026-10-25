@@ -1977,8 +1977,8 @@ const ja: Record<string, string> = {
   "Bottom Beta": "ボトムベータ",
   "Stationary Threshold": "静止閾値",
   // TPS43 intent-level page and gesture map
-  "this keyboard": "このキーボード",
-  "another half": "もう片方の半分",
+  "Main hand": "メイン側",
+  "Off hand": "サブ側",
   "Trackpad source": "トラックパッドの接続元",
   "Trackpad found on:": "トラックパッドの接続元:",
   "Gesture map": "ジェスチャーマップ",
@@ -3811,8 +3811,8 @@ const zh: Record<string, string> = {
   "Bottom Beta": "底部滤波强度",
   "Stationary Threshold": "静止阈值",
   // TPS43 intent-level page and gesture map
-  "this keyboard": "此键盘",
-  "another half": "另一半",
+  "Main hand": "主手",
+  "Off hand": "副手",
   "Trackpad source": "触控板来源",
   "Trackpad found on:": "触控板位于：",
   "Gesture map": "手势图",

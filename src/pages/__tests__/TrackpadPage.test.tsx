@@ -283,11 +283,11 @@ describe("TrackpadPage", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("boom");
   });
 
-  it("shows 'this keyboard' for source 0 and hides the selector for one source", () => {
+  it("shows 'Main hand' for source 0 and hides the selector for one source", () => {
     mockTps43Ready();
     render(<TrackpadPage />);
 
-    expect(screen.getByText("this keyboard")).toBeInTheDocument();
+    expect(screen.getByText("Main hand")).toBeInTheDocument();
     expect(screen.queryByTestId("tps43-source-selector")).toBeNull();
   });
 
@@ -300,16 +300,16 @@ describe("TrackpadPage", () => {
 
     const selector = screen.getByTestId("tps43-source-selector");
     expect(
-      within(selector).getByRole("button", { name: "another half" }),
+      within(selector).getByRole("button", { name: "Off hand" }),
     ).toHaveAttribute("aria-pressed", "true");
 
     await userEvent.click(
-      within(selector).getByRole("button", { name: "this keyboard" }),
+      within(selector).getByRole("button", { name: "Main hand" }),
     );
     expect(hook.selectSource).toHaveBeenCalledWith(0);
 
     await userEvent.click(
-      within(selector).getByRole("button", { name: "another half" }),
+      within(selector).getByRole("button", { name: "Off hand" }),
     );
     expect(hook.selectSource).toHaveBeenCalledWith(1);
 
